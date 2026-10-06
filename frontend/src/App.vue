@@ -37,5 +37,5 @@ nav a:hover { background: var(--p-content-hover-background); }
 nav a.router-link-active { background: var(--p-highlight-background); color: var(--p-highlight-color); font-weight: 600; }
 .status { align-self: flex-start; }
 .content { flex: 1; min-width: 0; overflow-y: auto; padding: 32px 40px; }
-.content > * { max-width: 960px; }
+.content > :not(.wide) { max-width: 960px; }
 </style>

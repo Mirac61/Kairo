@@ -181,3 +181,16 @@ export const createResource = (body: Partial<Resource>) =>
   api<Resource>('/resources', { method: 'POST', body: JSON.stringify(body) })
 
 export const deleteResource = (id: string) => api<void>(`/resources/${id}`, { method: 'DELETE' })
+
+export interface CalendarEvent extends TodayEvent {
+  start_at: string
+  end_at: string
+  recurrence_rule: string | null
+}
+
+// Konkrete Termine im Fenster [from, to), Serien aufgelöst.
+export const getOccurrences = (from: Date, to: Date) =>
+  api<CalendarEvent[]>(`/calendar/occurrences?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`)
+
+export const updateEvent = (id: string, body: { start_at?: string; end_at?: string; title?: string }) =>
+  api<unknown>(`/calendar/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
