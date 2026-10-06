@@ -96,6 +96,15 @@ export const getToday = (date?: string) => api<Today>(`/today${date ? `?date=${d
 export const taskAction = (id: string, action: 'start' | 'pause' | 'complete') =>
   api<unknown>(`/tasks/${id}/${action}`, { method: 'POST' })
 
+// Zeiteinträge mit Start im Fenster [from, to).
+export const listTimeEntries = (from: Date, to: Date) =>
+  api<TimeEntry[]>(`/time-entries?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`)
+
+export const updateTimeEntry = (id: string, body: { started_at?: string; ended_at?: string }) =>
+  api<TimeEntry>(`/time-entries/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const deleteTimeEntry = (id: string) => api<void>(`/time-entries/${id}`, { method: 'DELETE' })
+
 export const completeHabit = (id: string, date: string) =>
   api<unknown>(`/habits/${id}/completions`, { method: 'POST', body: JSON.stringify({ date }) })
 

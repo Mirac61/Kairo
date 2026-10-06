@@ -23,6 +23,10 @@ export const taskAction = (id: string, action: "start" | "pause" | "complete"): 
     body: action === "start" ? { source: "VSCODIUM" } : undefined,
   });
 
+/** Pausiert den Timer einer Task; der Eintrag endet zum Zeitpunkt endedAt. */
+export const pauseTaskAt = (id: string, endedAt: Date): Promise<unknown> =>
+  apiRequest(backendUrl(), readToken(), `/tasks/${id}/pause`, { method: "POST", body: { ended_at: endedAt.toISOString() } });
+
 export const getTasks = (): Promise<Task[]> => apiRequest(backendUrl(), readToken(), "/tasks");
 
 export const getTimeEntries = (from: Date): Promise<TimeEntry[]> =>

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { taskAction } from "./backendClient";
+import { pauseTaskAt } from "./backendClient";
 import { isIdle } from "./core";
 import type { ContextProvider } from "./contextView";
 
@@ -31,14 +31,14 @@ export function watchIdle(provider: ContextProvider): vscode.Disposable {
       }
       asked = true;
       const since = new Date(last).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-      const pause = "Pausieren";
+      const pause = `Ab ${since} pausieren`;
       const choice = await vscode.window.showInformationMessage(
         `Seit ${since} keine Aktivität in VSCodium. Der Timer für „${task.title}“ läuft noch.`,
         pause,
         "Weiter laufen",
       );
       if (choice === pause) {
-        await taskAction(task.id, "pause");
+        await pauseTaskAt(task.id, new Date(last)); // die Leerlaufzeit zählt nicht mit
         await provider.refresh();
       }
     } catch (err) {

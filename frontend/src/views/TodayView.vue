@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
-  completeHabit, createTask, errorMessage, getToday, uncompleteHabit, type Task, type Today,
+  completeHabit, createTask, deleteTimeEntry, errorMessage, getToday, listTasks, listTimeEntries, uncompleteHabit, updateTimeEntry,
+  type Task, type TimeEntry, type Today,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { projectColor } from '@/lib/projectColor'
 import TaskActions from '@/components/TaskActions.vue'
+import DeleteButton from '@/components/DeleteButton.vue'
 
 // Planungsfenster der Tagesleiste und des Tagesplans.
 const START_H = 7
@@ -17,11 +19,18 @@ const today = ref<Today | null>(null)
 const error = ref('')
 const now = ref(Date.now())
 const quick = ref('')
+const entries = ref<TimeEntry[]>([])
+const taskTitles = ref(new Map<string, string>())
 let tick: ReturnType<typeof setInterval> | undefined
 
 async function load() {
   try {
-    today.value = await getToday()
+    const t = await getToday()
+    const from = new Date(`${t.date}T00:00:00`)
+    const [es, tasks] = await Promise.all([listTimeEntries(from, new Date(from.getTime() + 864e5)), listTasks()])
+    today.value = t
+    entries.value = es.reverse()
+    taskTitles.value = new Map(tasks.map((x) => [x.id, x.title]))
     error.value = ''
   } catch (e) {
     error.value = errorMessage(e)
@@ -142,6 +151,17 @@ function addQuick() {
   })
 }
 const taskTitleClass = (t: Task) => ({ done: t.status === 'COMPLETED' })
+
+// Zeiteinträge: HH:MM-Felder in der Zeitzone des Browsers, der Tag bleibt der des Eintrags.
+const hhmm = (iso: string) => new Date(iso).toTimeString().slice(0, 5)
+function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) {
+  const old = e[field]
+  if (!old || !value || value === hhmm(old)) return
+  const d = new Date(old)
+  const [h, m] = value.split(':').map(Number)
+  d.setHours(h!, m!, 0, 0)
+  void run(() => updateTimeEntry(e.id, { [field]: d.toISOString() }))
+}
 </script>
 
 <template>
@@ -202,6 +222,20 @@ const taskTitleClass = (t: Task) => ({ done: t.status === 'COMPLETED' })
             <input v-model="quick" type="text" placeholder="Aufgabe für heute hinzufügen" aria-label="Aufgabe für heute hinzufügen" />
           </form>
 
+          <template v-if="entries.length">
+            <div class="col-head" style="margin-top:28px"><h2 class="col-title">Zeiterfassung</h2></div>
+            <div class="card tasklist">
+              <div v-for="e in entries" :key="e.id" class="task-row">
+                <span class="t">{{ (e.task_id && taskTitles.get(e.task_id)) || 'Projektzeit' }}</span>
+                <input class="input te-time" type="time" :value="hhmm(e.started_at)" aria-label="Start" @change="setTime(e, 'started_at', ($event.target as HTMLInputElement).value)" />
+                <span class="due">–</span>
+                <input v-if="e.ended_at" class="input te-time" type="time" :value="hhmm(e.ended_at)" aria-label="Ende" @change="setTime(e, 'ended_at', ($event.target as HTMLInputElement).value)" />
+                <span v-else class="due te-time">läuft</span>
+                <DeleteButton v-if="e.ended_at" text="Zeiteintrag löschen?" @confirm="run(() => deleteTimeEntry(e.id))" />
+              </div>
+            </div>
+          </template>
+
           <template v-if="today.habits.length">
             <div class="col-head" style="margin-top:28px"><h2 class="col-title">Gewohnheiten</h2><router-link class="col-link" to="/habits">Alle ansehen</router-link></div>
             <div class="card" style="padding:4px 16px">
@@ -245,6 +279,7 @@ const taskTitleClass = (t: Task) => ({ done: t.status === 'COMPLETED' })
 </template>
 
 <style scoped>
+.te-time { width: 92px; flex: none; }
 .now-line { position: absolute; left: 0; right: 0; height: 1px; background: var(--a-red); z-index: 3; pointer-events: none; }
 .now-line::before { content: ''; position: absolute; left: -4px; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--a-red); }
 </style>

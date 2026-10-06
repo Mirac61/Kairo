@@ -260,3 +260,66 @@ func TestTimeEntriesErrors(t *testing.T) {
 		t.Errorf("Fehlerfälle haben Einträge angelegt: %+v", all)
 	}
 }
+
+func TestTimeEntryPatchAndDelete(t *testing.T) {
+	h := newTimeRouter(t)
+	task := createTask(t, h, `{"title":"A"}`)
+	rec := call(h, "POST", "/api/time-entries", `{"task_id":"`+task.ID+`",
+		"started_at":"2025-03-01T09:00:00Z","ended_at":"2025-03-01T10:00:00Z"}`)
+	var e timeEntryDTO
+	_ = json.Unmarshal(rec.Body.Bytes(), &e)
+
+	rec = call(h, "PATCH", "/api/time-entries/"+e.ID, `{"started_at":"2025-03-01T08:30:00Z","ended_at":"2025-03-01T09:45:00Z"}`)
+	if rec.Code != 200 {
+		t.Fatalf("PATCH = %d %s", rec.Code, rec.Body)
+	}
+	got := listEntries(t, h, "")
+	if len(got) != 1 || got[0].StartedAt != "2025-03-01T08:30:00Z" || *got[0].EndedAt != "2025-03-01T09:45:00Z" {
+		t.Errorf("nach PATCH: %+v", got)
+	}
+	for body, want := range map[string]int{
+		`{"ended_at":"2025-03-01T08:00:00Z"}`: 400, // vor dem Start
+		`{"ended_at":"2999-01-01T00:00:00Z"}`: 400, // Zukunft
+		`{"started_at":""}`:                   400,
+		`{"source":"MANUAL"}`:                 400, // unbekanntes Feld
+	} {
+		if rec := call(h, "PATCH", "/api/time-entries/"+e.ID, body); rec.Code != want {
+			t.Errorf("PATCH %s = %d, erwartet %d", body, rec.Code, want)
+		}
+	}
+	if rec := call(h, "PATCH", "/api/time-entries/gibt-es-nicht", `{}`); rec.Code != 404 {
+		t.Errorf("PATCH unbekannt = %d", rec.Code)
+	}
+
+	// Laufender Timer: Ende nur über pause, nicht löschbar.
+	run := timer(t, h, "/api/tasks/"+task.ID+"/start", "", 200)
+	if rec := call(h, "PATCH", "/api/time-entries/"+run.TimeEntry.ID, `{"ended_at":"2025-03-01T11:00:00Z"}`); rec.Code != 409 {
+		t.Errorf("PATCH ended_at am laufenden Timer = %d", rec.Code)
+	}
+	if rec := call(h, "DELETE", "/api/time-entries/"+run.TimeEntry.ID, ""); rec.Code != 409 {
+		t.Errorf("DELETE laufender Timer = %d", rec.Code)
+	}
+
+	if rec := call(h, "DELETE", "/api/time-entries/"+e.ID, ""); rec.Code != 204 {
+		t.Fatalf("DELETE = %d %s", rec.Code, rec.Body)
+	}
+	if rec := call(h, "DELETE", "/api/time-entries/"+e.ID, ""); rec.Code != 404 {
+		t.Errorf("zweites DELETE = %d", rec.Code)
+	}
+	if got := listEntries(t, h, ""); len(got) != 1 || got[0].ID != run.TimeEntry.ID {
+		t.Errorf("nach DELETE: %+v", got)
+	}
+}
+
+func TestPauseWithEndedAt(t *testing.T) {
+	h := newTimeRouter(t)
+	task := createTask(t, h, `{"title":"A"}`)
+	run := timer(t, h, "/api/tasks/"+task.ID+"/start", "", 200)
+	timer(t, h, "/api/tasks/"+task.ID+"/pause", `{"ended_at":"2999-01-01T00:00:00Z"}`, 400)
+
+	// Ein Ende vor dem Start wird auf den Start gesetzt.
+	res := timer(t, h, "/api/tasks/"+task.ID+"/pause", `{"ended_at":"2000-01-01T00:00:00Z"}`, 200)
+	if res.Task.Status != "PAUSED" || res.TimeEntry == nil || *res.TimeEntry.EndedAt != run.TimeEntry.StartedAt {
+		t.Errorf("Pause = %+v / %+v", res.Task, res.TimeEntry)
+	}
+}

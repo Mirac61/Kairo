@@ -13,10 +13,12 @@ import (
 // TimeTrackingService ist die Geschäftslogik, die die Zeittracking-Handler brauchen.
 type TimeTrackingService interface {
 	Start(ctx context.Context, taskID string, source domain.TimeSource) (domain.TimerResult, error)
-	Pause(ctx context.Context, taskID string) (domain.TimerResult, error)
+	Pause(ctx context.Context, taskID string, endedAt *string) (domain.TimerResult, error)
 	Complete(ctx context.Context, taskID string) (domain.TimerResult, error)
 	Create(ctx context.Context, in service.CreateTimeEntryInput) (domain.TimeEntry, error)
 	List(ctx context.Context, f domain.TimeEntryFilter) ([]domain.TimeEntry, error)
+	Update(ctx context.Context, id string, in service.UpdateTimeEntryInput) (domain.TimeEntry, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type timeEntryDTO struct {
@@ -59,6 +61,8 @@ type timeHandlers struct{ svc TimeTrackingService }
 func (h timeHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/time-entries", h.list)
 	mux.HandleFunc("POST /api/time-entries", h.create)
+	mux.HandleFunc("PATCH /api/time-entries/{id}", h.update)
+	mux.HandleFunc("DELETE /api/time-entries/{id}", h.delete)
 	mux.HandleFunc("POST /api/tasks/{id}/start", h.start)
 	mux.HandleFunc("POST /api/tasks/{id}/pause", h.pause)
 	mux.HandleFunc("POST /api/tasks/{id}/complete", h.complete)
@@ -126,6 +130,31 @@ func (h timeHandlers) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, toTimeEntryDTO(e))
 }
 
+// update korrigiert {"started_at", "ended_at"} (RFC 3339, beide optional).
+func (h timeHandlers) update(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		StartedAt *string `json:"started_at"`
+		EndedAt   *string `json:"ended_at"`
+	}
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	e, err := h.svc.Update(r.Context(), r.PathValue("id"), service.UpdateTimeEntryInput{StartedAt: in.StartedAt, EndedAt: in.EndedAt})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toTimeEntryDTO(e))
+}
+
+func (h timeHandlers) delete(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.Delete(r.Context(), r.PathValue("id")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // start akzeptiert optional {"source": "MANUAL|VSCODIUM|AUTOMATIC"} (Standard MANUAL).
 func (h timeHandlers) start(w http.ResponseWriter, r *http.Request) {
 	var in struct {
@@ -142,8 +171,15 @@ func (h timeHandlers) start(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toTimerDTO(res))
 }
 
+// pause akzeptiert optional {"ended_at": RFC 3339} (Standard: jetzt).
 func (h timeHandlers) pause(w http.ResponseWriter, r *http.Request) {
-	res, err := h.svc.Pause(r.Context(), r.PathValue("id"))
+	var in struct {
+		EndedAt *string `json:"ended_at"`
+	}
+	if !decodeOptionalJSON(w, r, &in) {
+		return
+	}
+	res, err := h.svc.Pause(r.Context(), r.PathValue("id"), in.EndedAt)
 	if err != nil {
 		writeError(w, err)
 		return

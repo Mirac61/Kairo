@@ -27,6 +27,10 @@ type TimeTx interface {
 	RunningEntry(ctx context.Context) (*domain.TimeEntry, error)
 	CreateEntry(ctx context.Context, e domain.TimeEntry) error
 	CloseEntry(ctx context.Context, id string, endedAt time.Time) error
+	GetEntry(ctx context.Context, id string) (domain.TimeEntry, error)
+	// UpdateEntryTimes speichert StartedAt und EndedAt von e.
+	UpdateEntryTimes(ctx context.Context, e domain.TimeEntry) error
+	DeleteEntry(ctx context.Context, id string) error
 }
 
 // TimeTrackingService enthält die Timer-Regeln: höchstens ein laufender
@@ -110,11 +114,24 @@ func (s *TimeTrackingService) Start(ctx context.Context, taskID string, source d
 }
 
 // Pause beendet den laufenden Timer der Task und setzt sie auf PAUSED.
-// Läuft für die Task kein Timer, liefert es domain.ErrConflict.
-func (s *TimeTrackingService) Pause(ctx context.Context, taskID string) (domain.TimerResult, error) {
+// endedAt (RFC 3339, optional) ist das Ende des Eintrags, z. B. die letzte
+// Aktivität vor einer Inaktivität; Standard ist jetzt. Läuft für die Task
+// kein Timer, liefert es domain.ErrConflict.
+func (s *TimeTrackingService) Pause(ctx context.Context, taskID string, endedAt *string) (domain.TimerResult, error) {
+	end, err := parseOptTime("ended_at", endedAt)
+	if err != nil {
+		return domain.TimerResult{}, err
+	}
+	if end != nil && end.After(s.now()) {
+		return domain.TimerResult{}, fmt.Errorf("%w: ended_at darf nicht in der Zukunft liegen", domain.ErrInvalid)
+	}
 	var res domain.TimerResult
-	err := s.store.Tx(ctx, func(tx TimeTx) error {
+	err = s.store.Tx(ctx, func(tx TimeTx) error {
 		now := s.now().UTC()
+		at := now
+		if end != nil {
+			at = *end
+		}
 		task, err := tx.GetTask(ctx, taskID)
 		if err != nil {
 			return err
@@ -126,7 +143,7 @@ func (s *TimeTrackingService) Pause(ctx context.Context, taskID string) (domain.
 		if !runsFor(running, taskID) {
 			return fmt.Errorf("%w: für die Task läuft kein Timer", domain.ErrConflict)
 		}
-		closed, err := closeEntry(ctx, tx, *running, now)
+		closed, err := closeEntry(ctx, tx, *running, at)
 		if err != nil {
 			return err
 		}
@@ -257,16 +274,102 @@ func (s *TimeTrackingService) Create(ctx context.Context, in CreateTimeEntryInpu
 		return domain.TimeEntry{}, fmt.Errorf("%w: genau eines von task_id und project_id angeben", domain.ErrInvalid)
 	case !e.Source.Valid():
 		return domain.TimeEntry{}, fmt.Errorf("%w: unbekannte Quelle %q", domain.ErrInvalid, e.Source)
-	case !ended.After(*started):
-		return domain.TimeEntry{}, fmt.Errorf("%w: ended_at muss nach started_at liegen", domain.ErrInvalid)
-	case ended.After(s.now()):
-		return domain.TimeEntry{}, fmt.Errorf("%w: ended_at darf nicht in der Zukunft liegen", domain.ErrInvalid)
 	}
 	e.StartedAt, e.EndedAt = *started, ended
+	if err := s.validateTimes(e); err != nil {
+		return domain.TimeEntry{}, err
+	}
 	if err := s.store.Create(ctx, e); err != nil {
 		return domain.TimeEntry{}, err
 	}
 	return e, nil
+}
+
+// UpdateTimeEntryInput korrigiert die gesetzten (non-nil) Zeitpunkte (RFC 3339).
+type UpdateTimeEntryInput struct {
+	StartedAt *string
+	EndedAt   *string
+}
+
+// Update korrigiert Start und Ende eines Eintrags. Einen laufenden Timer
+// beenden nur pause und complete (domain.ErrConflict).
+func (s *TimeTrackingService) Update(ctx context.Context, id string, in UpdateTimeEntryInput) (domain.TimeEntry, error) {
+	var e domain.TimeEntry
+	err := s.store.Tx(ctx, func(tx TimeTx) error {
+		var err error
+		if e, err = tx.GetEntry(ctx, id); err != nil {
+			return err
+		}
+		if in.EndedAt != nil && e.EndedAt == nil {
+			return fmt.Errorf("%w: laufenden Timer über pause oder complete beenden", domain.ErrConflict)
+		}
+		if e.StartedAt, err = parseRequiredTime("started_at", in.StartedAt, e.StartedAt); err != nil {
+			return err
+		}
+		if e.EndedAt != nil {
+			end, err := parseRequiredTime("ended_at", in.EndedAt, *e.EndedAt)
+			if err != nil {
+				return err
+			}
+			e.EndedAt = &end
+		}
+		if err := s.validateTimes(e); err != nil {
+			return err
+		}
+		return tx.UpdateEntryTimes(ctx, e)
+	})
+	if err != nil {
+		return domain.TimeEntry{}, err
+	}
+	s.emit(domain.Event{Type: domain.EventTimeEntryUpdated, ID: id, TaskID: deref(e.TaskID)})
+	return e, nil
+}
+
+// Delete löscht einen beendeten Eintrag. Ein laufender Timer liefert domain.ErrConflict.
+func (s *TimeTrackingService) Delete(ctx context.Context, id string) error {
+	var e domain.TimeEntry
+	err := s.store.Tx(ctx, func(tx TimeTx) error {
+		var err error
+		if e, err = tx.GetEntry(ctx, id); err != nil {
+			return err
+		}
+		if e.EndedAt == nil {
+			return fmt.Errorf("%w: Timer läuft, zuerst pausieren", domain.ErrConflict)
+		}
+		return tx.DeleteEntry(ctx, id)
+	})
+	if err == nil {
+		s.emit(domain.Event{Type: domain.EventTimeEntryDeleted, ID: id, TaskID: deref(e.TaskID)})
+	}
+	return err
+}
+
+// validateTimes prüft: Ende nach Start, nichts in der Zukunft.
+func (s *TimeTrackingService) validateTimes(e domain.TimeEntry) error {
+	switch now := s.now(); {
+	case e.EndedAt == nil && e.StartedAt.After(now):
+		return fmt.Errorf("%w: started_at darf nicht in der Zukunft liegen", domain.ErrInvalid)
+	case e.EndedAt != nil && !e.EndedAt.After(e.StartedAt):
+		return fmt.Errorf("%w: ended_at muss nach started_at liegen", domain.ErrInvalid)
+	case e.EndedAt != nil && e.EndedAt.After(now):
+		return fmt.Errorf("%w: ended_at darf nicht in der Zukunft liegen", domain.ErrInvalid)
+	}
+	return nil
+}
+
+// parseRequiredTime liest v (RFC 3339) oder liefert old, wenn v nil ist. Leer ist ungültig.
+func parseRequiredTime(field string, v *string, old time.Time) (time.Time, error) {
+	if v == nil {
+		return old, nil
+	}
+	t, err := parseOptTime(field, v)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if t == nil {
+		return time.Time{}, fmt.Errorf("%w: %s darf nicht leer sein", domain.ErrInvalid, field)
+	}
+	return *t, nil
 }
 
 func (s *TimeTrackingService) List(ctx context.Context, f domain.TimeEntryFilter) ([]domain.TimeEntry, error) {

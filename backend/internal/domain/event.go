@@ -14,6 +14,9 @@ const (
 	EventTimerStarted EventType = "TIMER_STARTED"
 	EventTimerStopped EventType = "TIMER_STOPPED"
 
+	EventTimeEntryUpdated EventType = "TIME_ENTRY_UPDATED"
+	EventTimeEntryDeleted EventType = "TIME_ENTRY_DELETED"
+
 	EventProjectCreated EventType = "PROJECT_CREATED"
 	EventProjectUpdated EventType = "PROJECT_UPDATED"
 	EventProjectDeleted EventType = "PROJECT_DELETED"

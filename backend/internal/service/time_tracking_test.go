@@ -53,6 +53,33 @@ func (m *memTime) CloseEntry(_ context.Context, id string, at time.Time) error {
 	return domain.ErrNotFound
 }
 
+func (m *memTime) GetEntry(_ context.Context, id string) (domain.TimeEntry, error) {
+	for _, e := range m.entries {
+		if e.ID == id {
+			return e, nil
+		}
+	}
+	return domain.TimeEntry{}, domain.ErrNotFound
+}
+func (m *memTime) UpdateEntryTimes(_ context.Context, e domain.TimeEntry) error {
+	for i := range m.entries {
+		if m.entries[i].ID == e.ID {
+			m.entries[i].StartedAt, m.entries[i].EndedAt = e.StartedAt, e.EndedAt
+			return nil
+		}
+	}
+	return domain.ErrNotFound
+}
+func (m *memTime) DeleteEntry(_ context.Context, id string) error {
+	for i := range m.entries {
+		if m.entries[i].ID == id {
+			m.entries = append(m.entries[:i], m.entries[i+1:]...)
+			return nil
+		}
+	}
+	return domain.ErrNotFound
+}
+
 func (m *memTime) running() []domain.TimeEntry {
 	var out []domain.TimeEntry
 	for _, e := range m.entries {
@@ -154,21 +181,21 @@ func TestTimeStartErrors(t *testing.T) {
 func TestTimePause(t *testing.T) {
 	svc, m, clock := newTimeSvc(map[string]domain.TaskStatus{"a": domain.TaskPlanned, "b": domain.TaskPlanned})
 	ctx := context.Background()
-	if _, err := svc.Pause(ctx, "a"); !errors.Is(err, domain.ErrConflict) {
+	if _, err := svc.Pause(ctx, "a", nil); !errors.Is(err, domain.ErrConflict) {
 		t.Errorf("Pause ohne Timer: %v", err)
 	}
 	if _, err := svc.Start(ctx, "a", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Pause(ctx, "b"); !errors.Is(err, domain.ErrConflict) {
+	if _, err := svc.Pause(ctx, "b", nil); !errors.Is(err, domain.ErrConflict) {
 		t.Errorf("Pause einer anderen Task: %v", err)
 	}
-	if _, err := svc.Pause(ctx, "gibt-es-nicht"); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := svc.Pause(ctx, "gibt-es-nicht", nil); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("Pause unbekannt: %v", err)
 	}
 
 	*clock = clock.Add(45 * time.Minute)
-	res, err := svc.Pause(ctx, "a")
+	res, err := svc.Pause(ctx, "a", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +205,7 @@ func TestTimePause(t *testing.T) {
 	if len(m.running()) != 0 {
 		t.Error("nach Pause läuft noch ein Timer")
 	}
-	if _, err := svc.Pause(ctx, "a"); !errors.Is(err, domain.ErrConflict) {
+	if _, err := svc.Pause(ctx, "a", nil); !errors.Is(err, domain.ErrConflict) {
 		t.Errorf("zweite Pause: %v", err)
 	}
 }
@@ -230,7 +257,7 @@ func TestTimeClosingNeverEndsBeforeStart(t *testing.T) {
 	_, _ = svc.Start(ctx, "a", "")
 	started := *clock
 	*clock = clock.Add(-time.Hour) // Uhr springt zurück
-	if _, err := svc.Pause(ctx, "a"); err != nil {
+	if _, err := svc.Pause(ctx, "a", nil); err != nil {
 		t.Fatal(err)
 	}
 	if end := m.entries[0].EndedAt; end == nil || end.Before(started) {
@@ -392,7 +419,7 @@ func TestTimeEventsAreEmittedAfterSuccess(t *testing.T) {
 	check("Start a nochmal")
 	_, _ = svc.Start(ctx, "b", "")
 	check("Wechsel a→b", domain.EventTimerStopped, domain.EventTaskPaused, domain.EventTaskStarted, domain.EventTimerStarted)
-	_, _ = svc.Pause(ctx, "a")
+	_, _ = svc.Pause(ctx, "a", nil)
 	check("Pause ohne Timer")
 	_, _ = svc.Complete(ctx, "b")
 	check("Complete b", domain.EventTimerStopped, domain.EventTaskCompleted)

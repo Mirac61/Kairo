@@ -168,6 +168,34 @@ func (t timeTx) CreateEntry(ctx context.Context, e domain.TimeEntry) error {
 	return insertEntry(ctx, t.q, e)
 }
 
+func (t timeTx) GetEntry(ctx context.Context, id string) (domain.TimeEntry, error) {
+	e, err := scanTimeEntry(t.q.QueryRowContext(ctx, timeEntrySelect+` WHERE te.id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.TimeEntry{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.TimeEntry{}, fmt.Errorf("repository: Zeiteintrag lesen: %w", err)
+	}
+	return e, nil
+}
+
+func (t timeTx) UpdateEntryTimes(ctx context.Context, e domain.TimeEntry) error {
+	res, err := t.q.ExecContext(ctx, `UPDATE time_entries SET started_at = ?, ended_at = ? WHERE id = ?`,
+		formatEntryTime(e.StartedAt), nullEntryTime(e.EndedAt), e.ID)
+	if err != nil {
+		return fmt.Errorf("repository: Zeiteintrag ändern: %w", err)
+	}
+	return requireAffected(res)
+}
+
+func (t timeTx) DeleteEntry(ctx context.Context, id string) error {
+	res, err := t.q.ExecContext(ctx, `DELETE FROM time_entries WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("repository: Zeiteintrag löschen: %w", err)
+	}
+	return requireAffected(res)
+}
+
 func (t timeTx) CloseEntry(ctx context.Context, id string, endedAt time.Time) error {
 	res, err := t.q.ExecContext(ctx,
 		`UPDATE time_entries SET ended_at = ? WHERE id = ? AND ended_at IS NULL`, formatEntryTime(endedAt), id)
