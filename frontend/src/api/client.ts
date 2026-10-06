@@ -121,3 +121,11 @@ export function errorMessage(e: unknown): string {
   const body = e instanceof ApiError ? (e.body as { error?: string } | undefined) : undefined
   return body?.error ?? 'Backend nicht erreichbar.'
 }
+
+export const createProject = (body: Partial<Project>) =>
+  api<Project>('/projects', { method: 'POST', body: JSON.stringify(body) })
+
+export const updateProject = (id: string, body: Partial<Project>) =>
+  api<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const deleteProject = (id: string) => api<void>(`/projects/${id}`, { method: 'DELETE' })
