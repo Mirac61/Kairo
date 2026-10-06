@@ -80,7 +80,7 @@ func scanTask(s scanner) (domain.Task, error) {
 // mapFK übersetzt eine verletzte Fremdschlüssel-Beziehung in domain.ErrInvalid.
 func mapFK(err error) error {
 	if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
-		return fmt.Errorf("%w: Projekt oder übergeordnete Task existiert nicht", domain.ErrInvalid)
+		return fmt.Errorf("%w: verknüpftes Projekt oder Task existiert nicht", domain.ErrInvalid)
 	}
 	return err
 }
