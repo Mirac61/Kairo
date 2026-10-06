@@ -61,9 +61,34 @@ func dispatch(args []string) error {
 		}
 		fmt.Println("LaunchAgent entfernt:", plist)
 		return nil
+	case "backup":
+		return backup(args[1:])
 	default:
-		return fmt.Errorf("unbekannter Befehl %q (erlaubt: install, uninstall oder ohne Argument den Server starten)", args[0])
+		return fmt.Errorf("unbekannter Befehl %q (erlaubt: install, uninstall, backup [datei] oder ohne Argument den Server starten)", args[0])
 	}
+}
+
+// backup kopiert die Datenbank nach args[0] (Standard: backups/ neben der Datenbank).
+func backup(args []string) error {
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		return err
+	}
+	dest := filepath.Join(filepath.Dir(cfg.DBPath), "backups", "kairo-"+time.Now().Format("20060102-150405")+".db")
+	if len(args) > 0 {
+		dest = args[0]
+	}
+	ctx := context.Background()
+	db, err := repository.Open(ctx, cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err := repository.Backup(ctx, db, dest); err != nil {
+		return err
+	}
+	fmt.Println("Backup geschrieben:", dest)
+	return nil
 }
 
 func run() error {
@@ -103,6 +128,7 @@ func run() error {
 		Resources: service.NewResourceService(repository.NewResourceRepository(db), nil),
 		Time:      timeTracking,
 		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil).WithWorkWindow(cfg.WorkStart, cfg.WorkEnd),
+		Review:    service.NewReviewService(tasks, projects, habits, calendar, timeTracking, cfg.Location, nil),
 		Hub:       hub,
 	}
 

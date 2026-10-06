@@ -219,3 +219,56 @@ func WeekRange(date string) (monday, sunday string, err error) {
 	m := day.AddDate(0, 0, -mondayIndex(day.Weekday()))
 	return m.Format("2006-01-02"), m.AddDate(0, 0, 6).Format("2006-01-02"), nil
 }
+
+// maxStreakDays begrenzt, wie weit Streak zurückrechnet.
+const maxStreakDays = 3660
+
+// Streak zählt die zuletzt hintereinander erfüllten Fälligkeiten bis today:
+// bei DAILY, WEEKLY und SPECIFIC_WEEKDAYS fällige Tage, bei TIMES_PER_WEEK
+// Wochen mit erreichtem Ziel. Die laufende Fälligkeit (heute bzw. diese
+// Woche) bricht die Serie nicht, solange sie noch offen ist. done enthält
+// alle Completion-Tage des Habits.
+func (h Habit) Streak(today string, done map[string]bool) int {
+	day, err := ParseDate(today)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	if h.FrequencyType == FreqTimesPerWeek {
+		monday := day.AddDate(0, 0, -mondayIndex(day.Weekday()))
+		for w := 0; w < maxStreakDays/7; w++ {
+			start := monday.AddDate(0, 0, -7*w)
+			if start.Format("2006-01-02") < h.StartDate && w > 0 {
+				break
+			}
+			count := 0
+			for i := 0; i < 7; i++ {
+				if done[start.AddDate(0, 0, i).Format("2006-01-02")] {
+					count++
+				}
+			}
+			switch {
+			case count >= h.FrequencyConfig.Times:
+				n++
+			case w > 0:
+				return n
+			}
+		}
+		return n
+	}
+	for i := 0; i < maxStreakDays; i++ {
+		d := day.AddDate(0, 0, -i).Format("2006-01-02")
+		if d < h.StartDate {
+			break
+		}
+		occ, due := h.OccurrenceOn(d, done)
+		switch {
+		case !due:
+		case occ.Done:
+			n++
+		case i > 0:
+			return n
+		}
+	}
+	return n
+}

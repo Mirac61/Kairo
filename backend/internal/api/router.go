@@ -18,6 +18,7 @@ type Services struct {
 	Resources ResourceService
 	Time      TimeTrackingService
 	Today     TodayService
+	Review    ReviewService
 	// Hub speist /ws mit Ereignissen. Ohne Hub gibt es keinen WebSocket.
 	Hub *realtime.Hub
 }
@@ -46,6 +47,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	}
 	if svc.Today != nil {
 		todayHandlers{svc.Today}.register(mux)
+	}
+	if svc.Review != nil {
+		reviewHandlers{svc.Review}.register(mux)
 	}
 	if svc.Hub != nil {
 		mux.HandleFunc("GET /ws", handleWebSocket(svc.Hub))

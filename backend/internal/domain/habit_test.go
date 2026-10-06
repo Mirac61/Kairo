@@ -143,3 +143,30 @@ func TestWeekRange(t *testing.T) {
 		t.Errorf("ungültig: %v", err)
 	}
 }
+
+func TestStreak(t *testing.T) {
+	days := func(ds ...string) map[string]bool {
+		m := map[string]bool{}
+		for _, d := range ds {
+			m[d] = true
+		}
+		return m
+	}
+	daily := Habit{Active: true, FrequencyType: FreqDaily, StartDate: "2026-09-01"}
+	// Heute (Mi 07.10.) noch offen: Serie 05.-06. zählt, Lücke am 04. beendet sie.
+	if got := daily.Streak("2026-10-07", days("2026-10-06", "2026-10-05", "2026-10-03")); got != 2 {
+		t.Errorf("daily offen = %d, want 2", got)
+	}
+	if got := daily.Streak("2026-10-07", days("2026-10-07", "2026-10-06")); got != 2 {
+		t.Errorf("daily mit heute = %d, want 2", got)
+	}
+	mo := Habit{Active: true, FrequencyType: FreqWeekly, FrequencyConfig: FrequencyConfig{Weekday: "MO"}, StartDate: "2026-09-01"}
+	if got := mo.Streak("2026-10-07", days("2026-10-05", "2026-09-28", "2026-09-14")); got != 2 {
+		t.Errorf("weekly = %d, want 2", got)
+	}
+	tpw := Habit{Active: true, FrequencyType: FreqTimesPerWeek, FrequencyConfig: FrequencyConfig{Times: 2}, StartDate: "2026-09-01"}
+	// Diese Woche (ab 05.10.) erst 1 von 2: offen. Vorwochen: 28.09.-04.10. = 2, 21.-27.09. = 1 -> Serie 1.
+	if got := tpw.Streak("2026-10-07", days("2026-10-05", "2026-10-01", "2026-09-30", "2026-09-22")); got != 1 {
+		t.Errorf("times_per_week = %d, want 1", got)
+	}
+}
