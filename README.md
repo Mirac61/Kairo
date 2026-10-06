@@ -2,7 +2,7 @@
 
 Kairo ist ein lokales Personal OS für Planung und Arbeit: WebUI = Planen, VSCodium = Arbeiten.
 
-**Status:** Phase 0 (Gerüst) – Backend, WebUI und Extension starten und sprechen miteinander (`/api/health`). Fachlogik folgt ab Phase 1.
+**Status:** Der MVP (Phasen 0–5 der [Roadmap](docs/05_ROADMAP.md)) ist fertig: Kalender mit Serien, Tasks, Habits, Projekte, Ressourcen, Zeiterfassung mit Korrektur, Today-Ansicht mit überfälligen Tasks, Echtzeit-Updates und die VSCodium-Extension mit Workspace-Erkennung. Dazu kommen die Rückfrage bei Inaktivität (Phase 6), `GET /api/review` (Phase 7) und Backups (`kairo backup`, automatisch beim Serverstart).
 
 ## Dokumentation
 
@@ -13,7 +13,7 @@ Kairo ist ein lokales Personal OS für Planung und Arbeit: WebUI = Planen, VSCod
 - [Einstieg für Agenten](docs/04_AGENT_HANDOFF.md) – Übergabe und Startpunkt für Coding-Agenten
 - [Roadmap](docs/05_ROADMAP.md) – Phasen und Meilensteine
 
-## Geplante Struktur
+## Struktur
 
 ```
 backend/     Go + SQLite

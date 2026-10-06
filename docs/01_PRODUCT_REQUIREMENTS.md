@@ -42,6 +42,12 @@ unterstützt: `FREQ=DAILY|WEEKLY`, `BYDAY`, `INTERVAL`, `UNTIL`, `COUNT`.
 Einzelne ausgelassene Termine stehen in `recurrence_exdates` (Liste von
 Daten, als JSON gespeichert).
 
+Die WebUI legt Termine mit Ort an und bearbeitet sie. Als Wiederholung
+bietet sie „wöchentlich an ausgewählten Wochentagen“, optional mit
+Enddatum (`FREQ=WEEKLY;BYDAY=…;UNTIL=…`). Andere Regeln (per API
+angelegt) bleiben beim Bearbeiten in der WebUI unverändert. Änderungen
+und Löschen gelten für die ganze Serie.
+
 ------------------------------------------------------------------------
 
 # 2. Tasks
@@ -92,6 +98,13 @@ URGENT
 ```
 
 Tasks können Ressourcen besitzen.
+
+In der WebUI sind Titel, Beschreibung, Priorität, Projekt, Fälligkeit,
+geplanter Tag, Uhrzeit und Schätzung bearbeitbar.
+
+Eine Task, an der (oder an deren Subtasks) Zeiteinträge hängen, lässt
+sich nicht löschen (409), weil die Einträge sonst mitgelöscht würden.
+Stattdessen wird sie abgebrochen (`CANCELLED`).
 
 ------------------------------------------------------------------------
 
@@ -206,6 +219,10 @@ Ein Projekt kann besitzen:
 -   URLs
 -   Dokumentreferenzen
 
+Ein Projekt mit direkten Zeiteinträgen lässt sich nicht löschen (409);
+stattdessen wird es archiviert. Beim Löschen eines Projekts bleiben
+seine Tasks erhalten (ohne Projekt).
+
 ------------------------------------------------------------------------
 
 # 5. Resources
@@ -259,9 +276,14 @@ Sie kombiniert:
 
 -   Calendar Events
 -   geplante Tasks
+-   überfällige Tasks: offen und mit `planned_date` vor dem Tag
+    (`overdue` in `GET /api/today`); sie stehen oben und lassen sich mit
+    „→ Heute“ oder „→ Morgen“ verschieben (die alte Uhrzeit entfällt)
 -   Habit Occurrences
 -   aktuelle Tasks
 -   Zeitplanung
+-   die Zeiteinträge des Tages; Start und Ende sind korrigierbar,
+    beendete Einträge lassen sich löschen
 
 Beispiel:
 
@@ -341,7 +363,10 @@ Status wird `PAUSED`, danach startet der neue Task.
     `COMPLETED` oder `CANCELLED` lassen sich nicht starten (409);
     wieder öffnen geht über `PATCH` auf den Status.
 -   **Pause:** schließt den TimeEntry und setzt die Task auf `PAUSED`.
-    Läuft für die Task kein Timer, ist das ein Konflikt (409).
+    Läuft für die Task kein Timer, ist das ein Konflikt (409). Optional
+    nimmt Pause `ended_at` (nicht in der Zukunft; vor dem Start gilt der
+    Start). Die Extension nutzt das bei der Rückfrage nach Inaktivität:
+    Der Eintrag endet zum Zeitpunkt der letzten Aktivität, nicht jetzt.
 -   **Complete:** schließt einen laufenden TimeEntry der Task und setzt
     sie auf `COMPLETED`. Eine schon abgeschlossene Task bleibt
     unverändert, eine abgebrochene ist ein Konflikt (409). Läuft der
@@ -355,8 +380,11 @@ Status wird `PAUSED`, danach startet der neue Task.
     Eintrag: `started_at` und `ended_at` sind Pflicht, `ended_at` liegt
     nach `started_at` und nicht in der Zukunft. Angegeben wird genau eines
     von `task_id` und `project_id`. `source` ist standardmäßig `MANUAL`.
--   Einträge werden nicht geändert oder gelöscht (`GET`, `POST`).
-    Eine Korrektur ist im MVP nicht vorgesehen.
+-   `PATCH /api/time-entries/{id}` korrigiert `started_at` und
+    `ended_at` (Ende nach Start, nichts in der Zukunft). Einen laufenden
+    Timer beenden nur Pause und Complete (409).
+-   `DELETE /api/time-entries/{id}` löscht einen beendeten Eintrag; ein
+    laufender Timer ist ein Konflikt (409).
 
 ------------------------------------------------------------------------
 
@@ -408,10 +436,12 @@ Project: AlgoDat
 Ein Workspace gilt auch dann als erkannt, wenn ein Unterordner geöffnet
 wird (z. B. `~/Documents/Uni/AlgoDat/CodeAlgorithmen` → AlgoDat).
 
-Die Erkennung nutzt `local_path`. Passen mehrere Projekte, gewinnt der
-längste passende Pfad.
+Die Erkennung nutzt `local_path`; ein führendes `~` steht für das
+Home-Verzeichnis. Passen mehrere Projekte, gewinnt der längste passende
+Pfad.
 
-zeigt die Extension die dazugehörigen Tasks.
+Ist ein Projekt erkannt, zeigt die Extension ganz oben seine Ressourcen
+(zum Öffnen) und seine offenen Tasks (zum Starten und Abhaken).
 
 Die Extension soll nicht automatisch jede Aktivität als Arbeitszeit
 zählen.
@@ -435,6 +465,9 @@ Der MVP benötigt:
 -   Calendar Events
 -   Resources
 -   TimeEntries
+-   Backups: `kairo backup` jederzeit; beim Serverstart automatisch vor
+    den Migrationen, wenn eine aussteht oder das letzte Backup älter als
+    24 h ist (in `backups/` neben der Datenbank, die neuesten 14 bleiben)
 
 ### WebUI
 
