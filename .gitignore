@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Go
+/backend/bin/
+*.test
+*.out
+
+# Node
+node_modules/
+dist/
+*.vsix
+
+# SQLite-Daten
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# Env-Dateien
+.env
+.env.*
+!.env.example
+
+# Editoren
+.idea/

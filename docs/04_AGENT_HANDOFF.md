@@ -2,10 +2,10 @@
 
 ## Lies diese Dateien zuerst
 
-1.  `00_VISION.md`
-2.  `01_PRODUCT_REQUIREMENTS.md`
-3.  `02_ARCHITECTURE.md`
-4.  `03_AGENT_GUIDELINES.md`
+1.  `docs/00_VISION.md`
+2.  `docs/01_PRODUCT_REQUIREMENTS.md`
+3.  `docs/02_ARCHITECTURE.md`
+4.  `docs/03_AGENT_GUIDELINES.md`
 
 ------------------------------------------------------------------------
 

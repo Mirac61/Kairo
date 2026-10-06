@@ -1,0 +1,18 @@
+# AGENTS.md
+
+Anweisungen für Coding-Agenten in diesem Repository.
+
+## Vorgehen
+
+1. Lies zuerst `docs/04_AGENT_HANDOFF.md`.
+2. Lies danach `docs/00_VISION.md` bis `docs/03_AGENT_GUIDELINES.md`.
+3. Halte dich an `docs/03_AGENT_GUIDELINES.md`.
+
+## Harte Regeln
+
+- Das Backend MUSS in Go geschrieben sein.
+- Backend + SQLite sind die Source of Truth.
+- Schemaänderungen nur über Migrationen.
+- Zeittracking nur mit echten Zeitstempeln.
+- Kein automatischer Timer, nur weil ein Workspace geöffnet wurde.
+- Arbeite in kleinen vertikalen Schritten.
