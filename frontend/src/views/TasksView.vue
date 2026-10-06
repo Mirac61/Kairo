@@ -100,6 +100,13 @@ function setTime(t: Task, time: string) {
   void run(() => updateTask(t.id, { planned_start_at: time ? new Date(`${t.planned_date}T${time}`).toISOString() : '' }))
 }
 const setEstimate = (t: Task, value: string) => void run(() => updateTask(t.id, { estimated_minutes: Number(value) || 0 }))
+const setField = (t: Task, field: 'title' | 'description' | 'priority' | 'project_id', value: string) => {
+  if (field === 'title' && !value.trim()) return
+  void run(() => updateTask(t.id, { [field]: value }))
+}
+// Fälligkeit als Tag; gespeichert wird das Ende dieses Tages in Ortszeit.
+const dueDay = (t: Task) => (t.due_at ? ymd(new Date(t.due_at)) : '')
+const setDue = (t: Task, day: string) => void run(() => updateTask(t.id, { due_at: day ? new Date(`${day}T23:59:00`).toISOString() : '' }))
 const valueOf = (e: Event) => (e.target as HTMLInputElement).value
 
 onMounted(load)
@@ -135,6 +142,20 @@ useLiveEvents(load)
           <span class="pdot" :style="{ background: PRIO[t.priority]?.color }"></span>
         </div>
         <div v-if="openId === t.id" class="task-detail">
+          <label class="field wide"><span>Titel</span><input class="input" :value="t.title" @change="(e) => setField(t, 'title', valueOf(e))" /></label>
+          <label class="field wide"><span>Beschreibung</span><textarea class="input" rows="3" :value="t.description" @change="(e) => setField(t, 'description', valueOf(e))"></textarea></label>
+          <label class="field"><span>Priorität</span>
+            <select class="input" :value="t.priority" @change="(e) => setField(t, 'priority', valueOf(e))">
+              <option v-for="(p, key) in PRIO" :key="key" :value="key">{{ p.label }}</option>
+            </select>
+          </label>
+          <label class="field"><span>Projekt</span>
+            <select class="input" :value="t.project_id ?? ''" @change="(e) => setField(t, 'project_id', valueOf(e))">
+              <option value="">Kein Projekt</option>
+              <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </label>
+          <label class="field"><span>Fällig</span><input class="input" type="date" :value="dueDay(t)" @change="(e) => setDue(t, valueOf(e))" /></label>
           <template v-if="isOpen(t)">
             <label class="field"><span>Datum</span><input class="input" type="date" :value="t.planned_date ?? ''" @change="(e) => setDate(t, valueOf(e))" /></label>
             <label class="field"><span>Uhrzeit</span><input class="input" type="time" :value="startTime(t)" :disabled="!t.planned_date" @change="(e) => setTime(t, valueOf(e))" /></label>
@@ -161,4 +182,5 @@ useLiveEvents(load)
   background: var(--bg-2); border-bottom: 1px solid var(--br-subtle);
 }
 .task-detail .field { width: 140px; }
+.task-detail .field.wide { width: 100%; }
 </style>

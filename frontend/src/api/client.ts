@@ -168,7 +168,15 @@ export const updateHabit = (id: string, body: Partial<Habit>) =>
 
 export const deleteHabit = (id: string) => api<void>(`/habits/${id}`, { method: 'DELETE' })
 
-export const createEvent = (body: { title: string; start_at: string; end_at: string; location?: string }) =>
+export interface EventBody {
+  title?: string
+  start_at?: string
+  end_at?: string
+  location?: string
+  recurrence_rule?: string // "" entfernt die Wiederholung
+}
+
+export const createEvent = (body: EventBody) =>
   api<unknown>('/calendar/events', { method: 'POST', body: JSON.stringify(body) })
 
 export const deleteEvent = (id: string) => api<void>(`/calendar/events/${id}`, { method: 'DELETE' })
@@ -202,5 +210,5 @@ export interface CalendarEvent extends TodayEvent {
 export const getOccurrences = (from: Date, to: Date) =>
   api<CalendarEvent[]>(`/calendar/occurrences?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`)
 
-export const updateEvent = (id: string, body: { start_at?: string; end_at?: string; title?: string }) =>
+export const updateEvent = (id: string, body: EventBody) =>
   api<unknown>(`/calendar/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
