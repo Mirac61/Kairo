@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import '@/calendar.css'
 import { useRouter } from 'vue-router'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin, { type EventResizeDoneArg } from '@fullcalendar/interaction'
 import deLocale from '@fullcalendar/core/locales/de'
-import type { CalendarOptions, DateSelectArg, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
-import Button from 'primevue/button'
-import Dialog from 'primevue/dialog'
-import InputText from 'primevue/inputtext'
+import type { CalendarOptions, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
 import Message from 'primevue/message'
-import SelectButton from 'primevue/selectbutton'
 import {
   createEvent, createTask, deleteEvent, errorMessage, getOccurrences, listTasks, updateEvent, updateTask,
 } from '@/api/client'
@@ -20,6 +17,14 @@ import { ymd } from '@/lib/dates'
 
 // Tasks ohne Dauer erscheinen mit dieser Länge im Raster.
 const DEFAULT_TASK_MINUTES = 30
+
+// Projektfarbe: feste Reihenfolge, je Projekt-ID-Hash (Klassen kt-p0..4 in calendar.css).
+function projectClass(id: string | null): string[] {
+  if (!id) return []
+  let h = 0
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return [`kt-p${h % 5}`]
+}
 
 const router = useRouter()
 const cal = ref<InstanceType<typeof FullCalendar>>()
@@ -48,7 +53,7 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
       start: start ?? t.planned_date,
       end: start ? new Date(Date.parse(start) + (t.estimated_minutes || DEFAULT_TASK_MINUTES) * 60_000) : undefined,
       allDay: !start,
-      classNames: ['kt-task', ...(done ? ['kt-done'] : [])],
+      classNames: ['kt-task', ...projectClass(t.project_id), ...(done ? ['kt-done'] : [])],
       editable: !done,
       extendedProps: { kind: 'task', id: t.id },
     })
@@ -86,7 +91,7 @@ function moved(info: EventDropArg | EventResizeDoneArg, resized: boolean) {
 }
 
 // Anlegen per Markieren: Dialog fragt Titel und Art.
-const sel = ref<DateSelectArg | null>(null)
+const sel = ref<{ start: Date; end: Date; allDay: boolean } | null>(null)
 const form = ref({ kind: 'event', title: '' })
 const kindOptions = [{ label: 'Termin', value: 'event' }, { label: 'Task', value: 'task' }]
 
@@ -124,6 +129,18 @@ function remove() {
   if (p) void guarded(() => deleteEvent(p.id))
 }
 
+// Eigene Toolbar steuert FullCalendar über die API.
+const title = ref('')
+const view = ref('timeGridWeek')
+const views = [['dayGridMonth', 'Monat'], ['timeGridWeek', 'Woche'], ['timeGridDay', 'Tag']] as const
+
+function openNew() {
+  const start = new Date()
+  start.setHours(start.getHours() + 1, 0, 0, 0)
+  form.value = { kind: 'event', title: '' }
+  sel.value = { start, end: new Date(start.getTime() + 3_600_000), allDay: false }
+}
+
 const options: CalendarOptions = {
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
   locales: [deLocale],
@@ -131,15 +148,16 @@ const options: CalendarOptions = {
   firstDay: 1,
   allDayText: 'Ganztag',
   initialView: 'timeGridWeek',
-  headerToolbar: { left: 'prev,next today title', center: '', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
-  buttonText: { prev: '‹', next: '›', today: 'Heute', month: 'Monat', week: 'Woche', day: 'Tag' },
-  buttonHints: { prev: 'Zurück', next: 'Weiter' },
-  buttonIcons: false,
+  headerToolbar: false,
   height: '100%',
   nowIndicator: true,
   slotMinTime: '06:00:00',
   slotMaxTime: '23:00:00',
   scrollTime: '08:00:00',
+  datesSet: (a) => {
+    title.value = a.view.title
+    view.value = a.view.type
+  },
   dayHeaderContent: (a) => {
     const wd = a.date.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')
     const html = a.view.type === 'dayGridMonth'
@@ -174,30 +192,59 @@ useLiveEvents(() => cal.value?.getApi().refetchEvents())
 </script>
 
 <template>
-  <div class="wide stack page">
-    <h1 class="title">Kalender</h1>
+  <div class="view-inner page">
     <Message v-if="error" severity="error">{{ error }}</Message>
-    <div class="cal card"><FullCalendar ref="cal" :options="options" /></div>
-
-    <Dialog :visible="!!sel" modal header="Neuer Eintrag" :style="{ width: '24rem' }" @update:visible="sel = null">
-      <form class="stack" @submit.prevent="save">
-        <SelectButton v-model="form.kind" :options="kindOptions" option-label="label" option-value="value" :allow-empty="false" />
-        <InputText v-model="form.title" placeholder="Titel" autofocus />
-        <div class="row"><Button type="submit" label="Anlegen" /><Button type="button" label="Abbrechen" severity="secondary" text @click="sel = null" /></div>
-      </form>
-    </Dialog>
-
-    <Dialog :visible="!!picked" modal :header="picked?.title" :style="{ width: '24rem' }" @update:visible="picked = null">
-      <div class="stack">
-        <span v-if="picked?.location" class="muted">{{ picked.location }}</span>
-        <span v-if="picked?.recurring" class="muted">Serie: Löschen entfernt alle Wiederholungen.</span>
-        <div class="row"><Button label="Löschen" severity="danger" @click="remove" /><Button label="Schließen" severity="secondary" text @click="picked = null" /></div>
+    <div class="cal">
+      <div class="cal-toolbar">
+        <div class="cal-nav">
+          <button class="icon-btn" aria-label="Zurück" @click="cal?.getApi().prev()"><svg width="16" height="16"><use href="#i-left" /></svg></button>
+          <button class="icon-btn" aria-label="Weiter" @click="cal?.getApi().next()"><svg width="16" height="16"><use href="#i-right" /></svg></button>
+        </div>
+        <button class="btn btn-ghost" @click="cal?.getApi().today()">Heute</button>
+        <h2 class="cal-title">{{ title }}</h2>
+        <span class="spacer" />
+        <div class="seg">
+          <button v-for="[v, l] in views" :key="v" :aria-pressed="view === v" @click="cal?.getApi().changeView(v)">{{ l }}</button>
+        </div>
+        <button class="btn btn-primary" @click="openNew"><svg width="16" height="16"><use href="#i-plus" /></svg>Neuer Eintrag</button>
       </div>
-    </Dialog>
+      <div class="cal-fc"><FullCalendar ref="cal" :options="options" /></div>
+    </div>
+
+    <div v-if="sel" class="overlay open" @mousedown.self="sel = null" @keydown.esc="sel = null">
+      <form class="dialog" @submit.prevent="save">
+        <div class="dlg-head"><h3>Neuer Eintrag</h3></div>
+        <div class="dlg-body">
+          <div class="seg">
+            <button v-for="o in kindOptions" :key="o.value" type="button" :aria-pressed="form.kind === o.value" @click="form.kind = o.value">{{ o.label }}</button>
+          </div>
+          <div class="field"><label>Titel</label><input v-model="form.title" class="input" placeholder="Titel" autofocus /></div>
+        </div>
+        <div class="dlg-foot">
+          <button type="button" class="btn btn-ghost" @click="sel = null">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Anlegen</button>
+        </div>
+      </form>
+    </div>
+
+    <div v-if="picked" class="overlay open" @mousedown.self="picked = null" @keydown.esc="picked = null">
+      <div class="dialog">
+        <div class="dlg-head"><h3>{{ picked.title }}</h3></div>
+        <div class="dlg-body">
+          <span v-if="picked.location" class="lbl">{{ picked.location }}</span>
+          <span v-if="picked.recurring" class="lbl">Serie: Löschen entfernt alle Wiederholungen.</span>
+        </div>
+        <div class="dlg-foot">
+          <button class="btn btn-ghost" @click="picked = null">Schließen</button>
+          <button class="btn btn-secondary" @click="remove">Löschen</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.page { height: 100%; }
-.cal { flex: 1; min-height: 0; padding: 12px 16px 8px; }
+.page { height: 100%; display: flex; flex-direction: column; gap: 12px; }
+.cal { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+.cal-fc { flex: 1; min-height: 0; }
 </style>

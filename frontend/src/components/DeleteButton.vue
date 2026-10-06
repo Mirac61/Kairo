@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import Button from 'primevue/button'
 import { useConfirm } from 'primevue/useconfirm'
 
 const props = defineProps<{ text: string }>()
@@ -20,5 +19,5 @@ function ask(e: Event) {
 </script>
 
 <template>
-  <Button label="Löschen" size="small" severity="danger" text @click="ask" />
+  <button type="button" class="btn btn-danger" @click="ask">Löschen</button>
 </template>

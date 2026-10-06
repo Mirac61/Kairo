@@ -1,0 +1,77 @@
+/* FullCalendar im Designsystem-Look: nur Tokens aus design.css. */
+.fc {
+  --fc-border-color: var(--br-subtle);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--bg-1);
+  --fc-today-bg-color: transparent;
+  --fc-now-indicator-color: var(--a-red);
+  --fc-event-bg-color: var(--bg-1);
+  --fc-event-text-color: var(--tx-primary);
+  font: 400 13px/1.3 var(--font-ui);
+  color: var(--tx-primary);
+}
+.fc a { color: inherit; text-decoration: none; }
+
+/* Raster: nur horizontale Linien */
+.fc .fc-scrollgrid, .fc .fc-scrollgrid-section > td, .fc .fc-scrollgrid-section > th { border-color: var(--br-subtle); }
+.fc .fc-scrollgrid { border-width: 0; }
+.fc .fc-timegrid-col, .fc .fc-timegrid-axis, .fc .fc-col-header-cell, .fc .fc-timegrid-body td { border-left-width: 0; border-right-width: 0; }
+.fc .fc-scrollgrid-section-header > th { border-top: 1px solid var(--br-default); border-bottom: 1px solid var(--br-default); background: var(--bg-0); }
+.fc .fc-timegrid-slot { height: 28px; border-color: var(--br-subtle); }
+.fc .fc-timegrid-slot-minor { border-top-style: none; }
+.fc .fc-timegrid-slot-label-cushion, .fc .fc-timegrid-axis-cushion {
+  font: 400 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-muted);
+}
+.fc .fc-day-sat, .fc .fc-day-sun { background: color-mix(in srgb, var(--bg-1) 55%, var(--bg-0)); }
+.fc .fc-day-today { background: transparent; }
+
+/* Tageskopf */
+.fc .fc-col-header-cell-cushion { padding: 10px 0 8px; display: inline-block; font: 500 11px/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); }
+.fc .kt-dh { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.fc .kt-dh small { font: 500 11px/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); }
+.fc .kt-dh b { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font: 500 16px/1.2 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-primary); }
+.fc .kt-dh.today b { background: var(--tx-primary); color: var(--bg-0); }
+
+/* Jetzt-Linie */
+.fc .fc-timegrid-now-indicator-line { border-width: 1px 0 0; }
+.fc .fc-timegrid-now-indicator-arrow { display: none; }
+.fc .fc-timegrid-now-indicator-line::before {
+  content: ''; position: absolute; left: -4px; top: -4.5px; width: 8px; height: 8px; border-radius: 50%; background: var(--a-red);
+}
+
+/* Einträge: Akzent per --acc (Termin blau, Task grün, Projekt je Hash) */
+.fc .fc-event {
+  --acc: var(--a-blue);
+  border: 1px solid color-mix(in srgb, var(--acc) 30%, transparent);
+  border-radius: var(--r-s);
+  background: color-mix(in srgb, var(--acc) 8%, var(--bg-1));
+  box-shadow: none; cursor: pointer; padding: 3px 8px;
+  transition: background var(--dur) ease-out, border-color var(--dur) ease-out;
+}
+.fc .fc-event:hover { background: color-mix(in srgb, var(--acc) 15%, var(--bg-1)); border-color: color-mix(in srgb, var(--acc) 55%, transparent); }
+.fc .fc-event.kt-task { --acc: var(--a-green); border-style: dashed; background: var(--bg-1); }
+.fc .fc-event.kt-p0 { --acc: var(--a-violet); }
+.fc .fc-event.kt-p1 { --acc: var(--a-blue); }
+.fc .fc-event.kt-p2 { --acc: var(--a-orange); }
+.fc .fc-event.kt-p3 { --acc: var(--a-aqua); }
+.fc .fc-event.kt-p4 { --acc: var(--a-pink); }
+.fc .fc-event .fc-event-title { font: 500 13px/1.35 var(--font-ui); color: var(--tx-primary); }
+.fc .fc-event .fc-event-time { font: 400 11px/1.3 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
+.fc .fc-event.kt-done { opacity: .5; }
+.fc .fc-event.kt-done .fc-event-title { text-decoration: line-through; }
+.fc .fc-event-selected, .fc .fc-event:focus { box-shadow: none; outline: 1px solid var(--acc); outline-offset: 1px; }
+.fc .fc-highlight { background: color-mix(in srgb, var(--a-blue) 12%, transparent); }
+
+/* Monat: Punkt + Titel, flach */
+.fc .fc-daygrid-day-number { padding: 6px 8px; font: 500 12px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
+.fc .fc-day-today .fc-daygrid-day-number { color: var(--tx-primary); }
+.fc .fc-day-other .fc-daygrid-day-number { color: var(--tx-disabled); }
+.fc .fc-daygrid-event { padding: 2px 4px; }
+.fc .fc-daygrid-dot-event { background: transparent; border-color: transparent; }
+.fc .fc-daygrid-dot-event:hover { background: var(--bg-2); border-color: transparent; }
+.fc .fc-daygrid-event-dot { border: 3px solid var(--acc); }
+.fc .fc-daygrid-dot-event .fc-event-title { font-weight: 400; font-size: 12px; color: var(--tx-secondary); }
+.fc .fc-more-link { font: 400 12px/1.3 var(--font-ui); color: var(--tx-muted); }
+.fc .fc-more-link:hover { color: var(--tx-primary); }
+.fc .fc-popover { background: var(--bg-1); border: 1px solid var(--br-default); border-radius: var(--r-m); box-shadow: var(--shadow-pop); }
+.fc .fc-popover-header { background: var(--bg-2); }

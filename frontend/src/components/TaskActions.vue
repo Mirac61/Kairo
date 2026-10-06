@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import Button from 'primevue/button'
 import { taskAction, type Task } from '@/api/client'
 
 defineProps<{ task: Task; running: boolean }>()
@@ -8,8 +7,8 @@ defineEmits<{ run: [fn: () => Promise<unknown>] }>()
 
 <template>
   <div v-if="task.status !== 'COMPLETED' && task.status !== 'CANCELLED'" class="row nowrap">
-    <Button v-if="running" label="Pause" size="small" severity="secondary" @click="$emit('run', () => taskAction(task.id, 'pause'))" />
-    <Button v-else label="Start" size="small" @click="$emit('run', () => taskAction(task.id, 'start'))" />
-    <Button label="Fertig" size="small" severity="secondary" @click="$emit('run', () => taskAction(task.id, 'complete'))" />
+    <button v-if="running" type="button" class="btn btn-secondary" @click="$emit('run', () => taskAction(task.id, 'pause'))">Pause</button>
+    <button v-else type="button" class="btn btn-secondary" @click="$emit('run', () => taskAction(task.id, 'start'))">Start</button>
+    <button type="button" class="btn btn-ghost" @click="$emit('run', () => taskAction(task.id, 'complete'))">Fertig</button>
   </div>
 </template>

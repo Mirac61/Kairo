@@ -1,17 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import Button from 'primevue/button'
-import DatePicker from 'primevue/datepicker'
-import InputNumber from 'primevue/inputnumber'
-import InputText from 'primevue/inputtext'
-import Message from 'primevue/message'
-import Select from 'primevue/select'
 import {
-  createTask, deleteTask, errorMessage, listProjects, listTasks, updateTask,
+  createTask, deleteTask, errorMessage, listProjects, listTasks, taskAction, updateTask,
   type Project, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
-import { dateOf, hhmm, single, timeOf, ymd } from '@/lib/dates'
+import { hhmm, ymd } from '@/lib/dates'
+import { projectColor } from '@/lib/projectColor'
 import DeleteButton from '@/components/DeleteButton.vue'
 import TaskActions from '@/components/TaskActions.vue'
 
@@ -19,23 +14,46 @@ const STATUS_LABEL: Record<Task['status'], string> = {
   BACKLOG: 'Backlog', PLANNED: 'Geplant', IN_PROGRESS: 'Läuft',
   PAUSED: 'Pausiert', COMPLETED: 'Erledigt', CANCELLED: 'Abgebrochen',
 }
-const statusOptions = Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label }))
+const PRIO: Record<string, { label: string; color: string }> = {
+  URGENT: { label: 'Dringend', color: 'var(--a-red)' }, HIGH: { label: 'Hoch', color: 'var(--a-orange)' },
+  MEDIUM: { label: 'Mittel', color: 'var(--a-yellow)' }, LOW: { label: 'Niedrig', color: 'var(--a-neutral)' },
+}
+const FILTERS = [
+  { id: 'alle', label: 'Alle' }, { id: 'heute', label: 'Heute' }, { id: 'woche', label: 'Diese Woche' },
+  { id: 'ueber', label: 'Überfällig' }, { id: 'prio', label: 'Prio hoch' }, { id: 'erledigt', label: 'Erledigt' },
+]
 
 const tasks = ref<Task[]>([])
 const projects = ref<Project[]>([])
 const error = ref('')
-const status = ref<string | null>(null)
-const projectId = ref<string | null>(null)
-const form = ref({ title: '', project_id: null as string | null, estimated_minutes: null as number | null, planned_date: null as Date | null })
+const filter = ref('alle')
+const projectId = ref('alle')
+const openId = ref<string | null>(null)
+const quick = ref('')
 
 const projectName = computed(() => new Map(projects.value.map((p) => [p.id, p.name])))
+const isOpen = (t: Task) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
+const todayStr = () => ymd(new Date())
+const weekEnd = () => { const d = new Date(); d.setDate(d.getDate() + 7 - ((d.getDay() + 6) % 7)); return ymd(d) } // Montag der nächsten Woche
+// Der für die Liste maßgebliche Tag: geplanter Tag, sonst Fälligkeit.
+const dayOf = (t: Task) => t.planned_date ?? (t.due_at ? ymd(new Date(t.due_at)) : null)
+
+const visible = computed(() => tasks.value.filter((t) => {
+  if (projectId.value !== 'alle' && t.project_id !== projectId.value) return false
+  const d = dayOf(t)
+  switch (filter.value) {
+    case 'erledigt': return t.status === 'COMPLETED'
+    case 'heute': return isOpen(t) && d === todayStr()
+    case 'woche': return isOpen(t) && d !== null && d >= todayStr() && d < weekEnd()
+    case 'ueber': return isOpen(t) && d !== null && d < todayStr()
+    case 'prio': return isOpen(t) && (t.priority === 'HIGH' || t.priority === 'URGENT')
+    default: return isOpen(t)
+  }
+}))
 
 async function load() {
-  const q = new URLSearchParams()
-  if (status.value) q.set('status', status.value)
-  if (projectId.value) q.set('project_id', projectId.value)
   try {
-    ;[tasks.value, projects.value] = await Promise.all([listTasks(q.size ? `?${q}` : ''), listProjects()])
+    ;[tasks.value, projects.value] = await Promise.all([listTasks(), listProjects()])
     error.value = ''
   } catch (e) {
     error.value = errorMessage(e)
@@ -53,96 +71,94 @@ async function run(fn: () => Promise<unknown>) {
 }
 
 function add() {
-  const f = form.value
-  const title = f.title.trim()
+  const title = quick.value.trim()
   if (!title) return
   void run(async () => {
-    await createTask({
-      title, project_id: f.project_id, estimated_minutes: f.estimated_minutes || 0,
-      planned_date: f.planned_date ? ymd(f.planned_date) : null,
-    })
-    form.value.title = ''
+    await createTask({ title, project_id: projectId.value === 'alle' ? null : projectId.value })
+    quick.value = ''
   })
 }
 
-const startTime = (t: Task) => (t.planned_start_at ? hhmm(new Date(t.planned_start_at)) : null)
+const toggle = (t: Task) =>
+  run(() => (t.status === 'COMPLETED' ? updateTask(t.id, { status: 'PLANNED' }) : taskAction(t.id, 'complete')))
+
+const startTime = (t: Task) => (t.planned_start_at ? hhmm(new Date(t.planned_start_at)) : '')
+const fmtDay = (d: string | null) => {
+  if (!d) return ''
+  if (d === todayStr()) return 'Heute'
+  return new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' }).format(new Date(`${d}T00:00:00`))
+}
+const overdue = (t: Task) => isOpen(t) && dayOf(t) !== null && dayOf(t)! < todayStr()
 
 // Datum und Uhrzeit hängen zusammen: Ohne Datum gibt es keine Uhrzeit, ein neues Datum behält sie.
-function setDate(t: Task, date: string | null) {
+function setDate(t: Task, date: string) {
   const time = startTime(t)
-  void run(() =>
-    updateTask(t.id, {
-      planned_date: date ?? '',
-      planned_start_at: date && time ? new Date(`${date}T${time}`).toISOString() : '',
-    }),
-  )
+  void run(() => updateTask(t.id, { planned_date: date, planned_start_at: date && time ? new Date(`${date}T${time}`).toISOString() : '' }))
 }
-function setTime(t: Task, d: Date | null) {
+function setTime(t: Task, time: string) {
   if (!t.planned_date) return
-  void run(() => updateTask(t.id, { planned_start_at: d ? new Date(`${t.planned_date}T${hhmm(d)}`).toISOString() : '' }))
+  void run(() => updateTask(t.id, { planned_start_at: time ? new Date(`${t.planned_date}T${time}`).toISOString() : '' }))
 }
-// Erst beim Verlassen des Felds speichern, nicht bei jeder Ziffer.
 const setEstimate = (t: Task, value: string) => void run(() => updateTask(t.id, { estimated_minutes: Number(value) || 0 }))
-
-const open = (t: Task) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
+const valueOf = (e: Event) => (e.target as HTMLInputElement).value
 
 onMounted(load)
 useLiveEvents(load)
 </script>
 
 <template>
-  <div class="stack">
-    <h1 class="title">Tasks</h1>
-    <Message v-if="error" severity="error">{{ error }}</Message>
+  <div class="view-inner">
+    <div class="v-head">
+      <h1 class="v-title">Aufgaben</h1>
+      <div class="v-sub count">{{ visible.length }} {{ visible.length === 1 ? 'Aufgabe' : 'Aufgaben' }}</div>
+    </div>
+    <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-    <form class="row" @submit.prevent="add">
-      <InputText v-model="form.title" placeholder="Neue Task" class="w-title" />
-      <Select v-model="form.project_id" :options="projects" option-label="name" option-value="id" show-clear placeholder="Projekt" class="w-select" />
-      <InputNumber v-model="form.estimated_minutes" :min="0" :use-grouping="false" placeholder="Min." input-class="w-num" />
-      <DatePicker v-model="form.planned_date" show-icon placeholder="Datum" date-format="dd.mm.yy" show-button-bar class="w-date" />
-      <Button type="submit" label="Anlegen" />
-    </form>
-
-    <div class="row">
-      <Select v-model="status" :options="statusOptions" option-label="label" option-value="value" show-clear placeholder="Alle Status" class="w-select" @change="load" />
-      <Select v-model="projectId" :options="projects" option-label="name" option-value="id" show-clear placeholder="Alle Projekte" class="w-select" @change="load" />
+    <div class="filterbar">
+      <button v-for="f in FILTERS" :key="f.id" type="button" class="fchip" :aria-pressed="filter === f.id" @click="filter = f.id">{{ f.label }}</button>
+      <select v-model="projectId" class="input" aria-label="Nach Projekt filtern">
+        <option value="alle">Alle Projekte</option>
+        <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+      </select>
     </div>
 
-    <span v-if="!tasks.length" class="muted">Keine Tasks.</span>
-    <ul v-else class="list card">
-      <li v-for="t in tasks" :key="t.id">
-        <span class="main">
-          <span :class="{ done: !open(t) }">{{ t.title }}</span>
-          <span class="muted">{{ STATUS_LABEL[t.status] }}<template v-if="t.project_id"> · {{ projectName.get(t.project_id) }}</template></span>
-        </span>
-        <div class="row nowrap">
-          <template v-if="open(t)">
-            <DatePicker
-              :model-value="dateOf(t.planned_date)" placeholder="Datum" date-format="dd.mm.yy" show-button-bar class="w-date"
-              @update:model-value="(v) => setDate(t, single(v) ? ymd(single(v)!) : null)"
-            />
-            <DatePicker
-              :model-value="timeOf(startTime(t))" time-only hour-format="24" placeholder="Uhrzeit" :disabled="!t.planned_date" class="w-time"
-              @update:model-value="(v) => setTime(t, single(v))"
-            />
-            <InputNumber
-              :model-value="t.estimated_minutes" :min="0" :use-grouping="false" input-class="w-num" suffix=" min"
-              @blur="(e) => setEstimate(t, e.value)"
-            />
-            <Button v-if="t.planned_date !== ymd(new Date())" label="Heute" size="small" severity="secondary" @click="setDate(t, ymd(new Date()))" />
+    <div v-if="!visible.length" class="v-sub">Keine Aufgaben.</div>
+    <div v-else class="card tasklist">
+      <template v-for="t in visible" :key="t.id">
+        <div class="task-row" :class="{ done: !isOpen(t) }">
+          <button type="button" class="cb" role="checkbox" :aria-checked="t.status === 'COMPLETED'" :aria-label="`${t.title} erledigt`" :disabled="t.status === 'CANCELLED'" @click="toggle(t)"></button>
+          <button type="button" class="t row-title" :aria-expanded="openId === t.id" @click="openId = openId === t.id ? null : t.id">{{ t.title }}</button>
+          <span v-if="t.status === 'IN_PROGRESS' || t.status === 'PAUSED'" class="badge"><span class="cdot" :style="{ background: t.status === 'IN_PROGRESS' ? 'var(--a-green)' : 'var(--a-yellow)' }"></span>{{ STATUS_LABEL[t.status] }}</span>
+          <span v-if="t.project_id" class="chip" :style="{ '--chip-c': projectColor(t.project_id) }"><span class="cdot"></span>{{ projectName.get(t.project_id) }}</span>
+          <span class="due" :class="{ od: overdue(t) }">{{ fmtDay(dayOf(t)) }}<template v-if="startTime(t)"> {{ startTime(t) }}</template></span>
+          <span class="prio-l">{{ PRIO[t.priority]?.label }}</span>
+          <span class="pdot" :style="{ background: PRIO[t.priority]?.color }"></span>
+        </div>
+        <div v-if="openId === t.id" class="task-detail">
+          <template v-if="isOpen(t)">
+            <label class="field"><span>Datum</span><input class="input" type="date" :value="t.planned_date ?? ''" @change="(e) => setDate(t, valueOf(e))" /></label>
+            <label class="field"><span>Uhrzeit</span><input class="input" type="time" :value="startTime(t)" :disabled="!t.planned_date" @change="(e) => setTime(t, valueOf(e))" /></label>
+            <label class="field"><span>Minuten</span><input class="input" type="number" min="0" :value="t.estimated_minutes" @change="(e) => setEstimate(t, valueOf(e))" /></label>
+            <button v-if="t.planned_date !== todayStr()" type="button" class="btn btn-secondary" @click="setDate(t, todayStr())">Heute</button>
+            <TaskActions :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
           </template>
-          <TaskActions :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
           <DeleteButton :text="`„${t.title}“ löschen?`" @confirm="run(() => deleteTask(t.id))" />
         </div>
-      </li>
-    </ul>
+      </template>
+    </div>
+
+    <form class="addrow" @submit.prevent="add">
+      <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
+      <input v-model="quick" type="text" placeholder="Neue Aufgabe hinzufügen — mit Eingabetaste bestätigen" aria-label="Neue Aufgabe hinzufügen" />
+    </form>
   </div>
 </template>
 
 <style scoped>
-.w-title { width: 220px; }
-.w-select { width: 170px; }
-.w-date { width: 150px; }
-.w-time { width: 100px; }
-:deep(.w-num) { width: 80px; }
+.row-title { text-align: left; background: none; border: 0; color: inherit; cursor: pointer; }
+.task-detail {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 12px 16px 14px 44px;
+  background: var(--bg-2); border-bottom: 1px solid var(--br-subtle);
+}
+.task-detail .field { width: 140px; }
 </style>

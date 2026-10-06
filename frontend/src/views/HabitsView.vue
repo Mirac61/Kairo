@@ -1,30 +1,48 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import Button from 'primevue/button'
-import Checkbox from 'primevue/checkbox'
-import InputNumber from 'primevue/inputnumber'
-import InputText from 'primevue/inputtext'
-import Message from 'primevue/message'
-import Select from 'primevue/select'
+import { computed, onMounted, ref } from 'vue'
 import {
-  createHabit, deleteHabit, errorMessage, listHabits, updateHabit, type FrequencyConfig, type Habit,
+  api, completeHabit, createHabit, deleteHabit, errorMessage, getToday, listHabits, uncompleteHabit, updateHabit,
+  type FrequencyConfig, type Habit, type TodayHabit,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import DeleteButton from '@/components/DeleteButton.vue'
+import { ymd } from '@/lib/dates'
 
 const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 const TYPE_LABEL: Record<Habit['frequency_type'], string> = {
   DAILY: 'Täglich', WEEKLY: 'Wöchentlich', SPECIFIC_WEEKDAYS: 'Bestimmte Wochentage', TIMES_PER_WEEK: 'X-mal pro Woche',
 }
-const typeOptions = Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label }))
+const DAYS = 28
 
 const habits = ref<Habit[]>([])
+const todayHabits = ref<TodayHabit[]>([])
+const done = ref<Record<string, Set<string>>>({})
+const streaks = ref<Record<string, number>>({})
 const error = ref('')
-const form = ref({ name: '', type: 'DAILY' as Habit['frequency_type'], weekday: 'MO', weekdays: ['MO'] as string[], times: 3 as number | null })
+const dialog = ref(false)
+const form = ref({ name: '', type: 'DAILY' as Habit['frequency_type'], weekday: 'MO', weekdays: ['MO'] as string[], times: 3 })
+
+const today = () => ymd(new Date())
+// Die letzten 28 Tage, älteste zuerst; der letzte Eintrag ist heute.
+const days = () => Array.from({ length: DAYS }, (_, i) => {
+  const d = new Date()
+  d.setDate(d.getDate() - (DAYS - 1 - i))
+  return d
+})
 
 async function load() {
   try {
-    habits.value = await listHabits()
+    const t = today()
+    const from = ymd(days()[0]!)
+    const [hs, td, rv] = await Promise.all([
+      listHabits(), getToday(t), api<{ habits: { habit_id: string; streak: number }[] }>(`/review?from=${t}&to=${t}`),
+    ])
+    const comps = await Promise.all(hs.map((h) =>
+      api<{ date: string }[]>(`/habits/${h.id}/completions?from=${from}&to=${t}`)))
+    habits.value = hs
+    todayHabits.value = td.habits
+    streaks.value = Object.fromEntries(rv.habits.map((h) => [h.habit_id, h.streak]))
+    done.value = Object.fromEntries(hs.map((h, i) => [h.id, new Set(comps[i]!.map((c) => c.date))]))
     error.value = ''
   } catch (e) {
     error.value = errorMessage(e)
@@ -41,11 +59,13 @@ async function run(fn: () => Promise<unknown>) {
   await load()
 }
 
+const toggle = (h: TodayHabit) => run(() => (h.done ? uncompleteHabit(h.id, today()) : completeHabit(h.id, today())))
+
 function config(): FrequencyConfig {
   const f = form.value
   if (f.type === 'WEEKLY') return { weekday: f.weekday }
   if (f.type === 'SPECIFIC_WEEKDAYS') return { weekdays: f.weekdays }
-  if (f.type === 'TIMES_PER_WEEK') return { times: f.times ?? 1 }
+  if (f.type === 'TIMES_PER_WEEK') return { times: f.times || 1 }
   return {}
 }
 
@@ -55,7 +75,13 @@ function add() {
   void run(async () => {
     await createHabit({ name, frequency_type: form.value.type, frequency_config: config() })
     form.value.name = ''
+    dialog.value = false
   })
+}
+
+function toggleDay(d: string) {
+  const l = form.value.weekdays
+  form.value.weekdays = l.includes(d) ? l.filter((x) => x !== d) : [...l, d]
 }
 
 function describe(h: Habit) {
@@ -66,45 +92,116 @@ function describe(h: Habit) {
   return TYPE_LABEL[h.frequency_type]
 }
 
+// Geplant ist ein Tag nur bei festen Wochentagen eingeschränkt; sonst zählt jeder Tag.
+function planned(h: Habit, d: Date) {
+  const wd = WEEKDAYS[(d.getDay() + 6) % 7]!
+  if (h.frequency_type === 'SPECIFIC_WEEKDAYS') return (h.frequency_config.weekdays ?? []).includes(wd)
+  if (h.frequency_type === 'WEEKLY' && h.frequency_config.weekday) return h.frequency_config.weekday === wd
+  return true
+}
+
+const cells = (h: Habit) => days().map((d, i) => {
+  const isDone = done.value[h.id]?.has(ymd(d))
+  const last = i === DAYS - 1
+  const cls = [!planned(h, d) && !isDone ? 'off' : isDone ? 'done' : last ? '' : 'miss']
+  if (last) cls.push('today')
+  return cls.join(' ')
+})
+const doneCount = (h: Habit) => done.value[h.id]?.size ?? 0
+const week = (h: Habit) => days().slice(-7).filter((d) => done.value[h.id]?.has(ymd(d))).length
+const todayState = (h: Habit) => {
+  const t = todayHabits.value.find((x) => x.id === h.id)
+  return t ? (t.done ? 'Heute erledigt' : 'Heute offen') : 'Heute nicht fällig'
+}
+const sorted = computed(() => [...habits.value].sort((a, b) => Number(b.active) - Number(a.active)))
+
 onMounted(load)
 useLiveEvents(load)
 </script>
 
 <template>
-  <div class="stack">
-    <h1 class="title">Habits</h1>
-    <Message v-if="error" severity="error">{{ error }}</Message>
+  <div class="view-inner">
+    <div class="v-head v-head-row">
+      <div>
+        <h1 class="v-title">Gewohnheiten</h1>
+        <div class="v-sub">Die letzten 28 Tage. Gefüllt heisst erledigt, gestrichelt heisst nicht geplant.</div>
+      </div>
+      <button class="btn btn-secondary" type="button" @click="dialog = true"><svg class="ic"><use href="#i-plus" /></svg>Neue Gewohnheit</button>
+    </div>
+    <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-    <form class="row" @submit.prevent="add">
-      <InputText v-model="form.name" placeholder="Neues Habit" class="w-name" />
-      <Select v-model="form.type" :options="typeOptions" option-label="label" option-value="value" class="w-type" />
-      <Select v-if="form.type === 'WEEKLY'" v-model="form.weekday" :options="WEEKDAYS" class="w-day" />
-      <template v-if="form.type === 'SPECIFIC_WEEKDAYS'">
-        <label v-for="d in WEEKDAYS" :key="d" class="row day"><Checkbox v-model="form.weekdays" :value="d" /> {{ d }}</label>
-      </template>
-      <InputNumber v-if="form.type === 'TIMES_PER_WEEK'" v-model="form.times" :min="1" :max="7" input-class="w-day" />
-      <Button type="submit" label="Anlegen" />
-    </form>
+    <div class="card hab-today">
+      <span class="lbl">Heute abhaken</span>
+      <div class="hab-chips">
+        <button v-for="h in todayHabits" :key="h.id" type="button" class="hab-chip" role="checkbox" :aria-checked="h.done" @click="toggle(h)">
+          <span class="cb cb-orange" aria-hidden="true"></span>
+          <span>{{ h.name }}</span>
+          <span v-if="h.done" class="hc-done">erledigt</span>
+        </button>
+        <div v-if="!todayHabits.length" class="v-sub">Heute ist keine Gewohnheit fällig.</div>
+      </div>
+    </div>
 
-    <span v-if="!habits.length" class="muted">Keine Habits.</span>
-    <ul v-else class="list card">
-      <li v-for="h in habits" :key="h.id">
-        <span class="main">
-          <span :class="{ done: !h.active }">{{ h.name }}</span>
-          <span class="muted">{{ describe(h) }}<template v-if="!h.active"> · inaktiv</template></span>
-        </span>
-        <div class="row nowrap">
-          <Button :label="h.active ? 'Deaktivieren' : 'Aktivieren'" size="small" severity="secondary" @click="run(() => updateHabit(h.id, { active: !h.active }))" />
-          <DeleteButton :text="`„${h.name}“ löschen?`" @confirm="run(() => deleteHabit(h.id))" />
+    <div class="hab-list">
+      <div v-if="!habits.length" class="v-sub">Keine Gewohnheiten.</div>
+      <div v-for="h in sorted" :key="h.id" class="hab-item" :class="{ inactive: !h.active }">
+        <div class="hab-id">
+          <span class="hab-name">{{ h.name }}</span>
+          <span class="hab-sched">{{ describe(h) }}<template v-if="!h.active"> · inaktiv</template></span>
         </div>
-      </li>
-    </ul>
+        <div class="hab-num">
+          <span class="n" :class="{ cold: !streaks[h.id] }">{{ streaks[h.id] ?? 0 }}</span>
+          <span class="u">Tage Serie</span>
+        </div>
+        <div class="hab-track" role="img" :aria-label="`Letzte 28 Tage: ${doneCount(h)} Tage erledigt`">
+          <i v-for="(c, i) in cells(h)" :key="i" :class="c"></i>
+        </div>
+        <div class="hab-meta">
+          <span>Letzte 7 Tage <span class="mono">{{ week(h) }}/7</span> · {{ todayState(h) }}</span>
+          <span class="acts">
+            <button class="btn btn-ghost" type="button" @click="run(() => updateHabit(h.id, { active: !h.active }))">{{ h.active ? 'Deaktivieren' : 'Aktivieren' }}</button>
+            <DeleteButton :text="`„${h.name}“ löschen?`" @confirm="run(() => deleteHabit(h.id))" />
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" :class="{ open: dialog }" @click.self="dialog = false" @keydown.esc="dialog = false">
+      <form class="dialog" role="dialog" aria-label="Neue Gewohnheit" @submit.prevent="add">
+        <div class="dlg-head">
+          <h3>Neue Gewohnheit</h3>
+          <button class="icon-btn" type="button" aria-label="Schließen" @click="dialog = false"><svg class="ic"><use href="#i-x" /></svg></button>
+        </div>
+        <div class="dlg-body">
+          <div class="field"><label for="h-name">Name</label><input id="h-name" v-model="form.name" class="input" placeholder="Neue Gewohnheit" /></div>
+          <div class="field">
+            <label for="h-type">Rhythmus</label>
+            <select id="h-type" v-model="form.type" class="input">
+              <option v-for="(l, v) in TYPE_LABEL" :key="v" :value="v">{{ l }}</option>
+            </select>
+          </div>
+          <div v-if="form.type === 'WEEKLY'" class="field">
+            <label for="h-day">Wochentag</label>
+            <select id="h-day" v-model="form.weekday" class="input"><option v-for="d in WEEKDAYS" :key="d">{{ d }}</option></select>
+          </div>
+          <div v-if="form.type === 'SPECIFIC_WEEKDAYS'" class="seg">
+            <button v-for="d in WEEKDAYS" :key="d" type="button" :aria-pressed="form.weekdays.includes(d)" @click="toggleDay(d)">{{ d }}</button>
+          </div>
+          <div v-if="form.type === 'TIMES_PER_WEEK'" class="field">
+            <label for="h-times">Pro Woche</label>
+            <input id="h-times" v-model.number="form.times" class="input" type="number" min="1" max="7" />
+          </div>
+        </div>
+        <div class="dlg-foot">
+          <button class="btn btn-ghost" type="button" @click="dialog = false">Abbrechen</button>
+          <button class="btn btn-primary" type="submit">Anlegen</button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.w-name { width: 220px; }
-.w-type { width: 220px; }
-.w-day { width: 90px; }
-.day { gap: 4px; font-size: 13px; }
+.inactive .hab-name, .inactive .hab-num { opacity: .5; }
+.acts { display: inline-flex; gap: 4px; }
 </style>

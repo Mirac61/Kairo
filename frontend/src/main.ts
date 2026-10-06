@@ -8,9 +8,18 @@ import de from 'primelocale/de.json'
 import App from './App.vue'
 import router from './router'
 import './styles.css'
+import './design.css'
+
+// Vor dem Mounten setzen, damit nichts aufblitzt: gespeichertes Theme, sonst System.
+try {
+  document.documentElement.dataset.theme =
+    localStorage.getItem('kairo-theme') ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+} catch {
+  document.documentElement.dataset.theme = 'dark'
+}
 
 createApp(App)
   .use(router)
-  .use(PrimeVue, { theme: { preset, options: { darkModeSelector: 'system' } }, locale: de.de })
+  .use(PrimeVue, { theme: { preset, options: { darkModeSelector: '[data-theme="dark"]' } }, locale: de.de })
   .use(ConfirmationService)
   .mount('#app')

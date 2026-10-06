@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import Checkbox from 'primevue/checkbox'
-import Message from 'primevue/message'
-import { completeHabit, errorMessage, getToday, uncompleteHabit, type Task, type Today } from '@/api/client'
+import {
+  completeHabit, createTask, errorMessage, getToday, uncompleteHabit, type Task, type Today,
+} from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { projectColor } from '@/lib/projectColor'
 import TaskActions from '@/components/TaskActions.vue'
+
+// Planungsfenster der Tagesleiste und des Tagesplans.
+const START_H = 7
+const END_H = 22
+const HOUR = 44
+const SPAN = (END_H - START_H) * 60
 
 const today = ref<Today | null>(null)
 const error = ref('')
 const now = ref(Date.now())
+const quick = ref('')
 let tick: ReturnType<typeof setInterval> | undefined
 
 async function load() {
@@ -31,14 +39,31 @@ async function run(fn: () => Promise<unknown>) {
 
 useLiveEvents(load)
 onMounted(() => {
+  void load()
   tick = setInterval(() => (now.value = Date.now()), 1000)
 })
 onUnmounted(() => clearInterval(tick))
 
-const fmt = (iso: string) =>
-  new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: today.value?.timezone }).format(new Date(iso))
-const hm = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')} h`
+// Das Backend meldet ohne konfigurierte Zeitzone "Local"; das ist kein gültiger IANA-Name.
+const tz = computed(() => (today.value?.timezone === 'Local' ? undefined : today.value?.timezone))
+const fmt = (iso: string) => new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: tz.value }).format(new Date(iso))
+// Minuten seit Mitternacht in der Zeitzone des Backends.
+function minsOf(ms: number) {
+  const p = new Intl.DateTimeFormat('de-DE', { hour: 'numeric', minute: 'numeric', hourCycle: 'h23', timeZone: tz.value }).formatToParts(new Date(ms))
+  const n = (t: string) => Number(p.find((x) => x.type === t)?.value ?? 0)
+  return n('hour') * 60 + n('minute')
+}
+const dur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} Std${m % 60 ? ` ${m % 60} Min` : ''}` : `${m} Min`)
+const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`
 
+const greeting = computed(() => {
+  const h = new Date(now.value).getHours()
+  return h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend'
+})
+const dateLabel = computed(() =>
+  new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(now.value)))
+
+const nowMin = computed(() => minsOf(now.value))
 const runningTaskId = computed(() => today.value?.running_time_entry?.task_id ?? null)
 const elapsed = computed(() => {
   const e = today.value?.running_time_entry
@@ -48,95 +73,178 @@ const elapsed = computed(() => {
   return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`
 })
 
-type Item =
-  | { kind: 'event'; at: string; key: string; title: string; sub: string; end: string }
-  | { kind: 'task'; at: string; key: string; task: Task }
+interface Block { key: string; title: string; start: number; end: number; kind: 'event' | 'task'; done: boolean; color: string; sub: string }
 
-// Zeitleiste: Termine und Tasks mit Uhrzeit, chronologisch.
-const timeline = computed<Item[]>(() => {
+// Termine und Tasks mit Uhrzeit als Blöcke; Tasks ohne Dauer zählen 30 Minuten.
+const blocks = computed<Block[]>(() => {
   const t = today.value
   if (!t) return []
-  const items: Item[] = t.events.map((e) => ({
-    kind: 'event', at: e.occurrence_start, key: `e${e.id}${e.occurrence_start}`,
-    title: e.title, sub: e.location, end: e.occurrence_end,
+  const out: Block[] = t.events.map((e) => ({
+    key: `e${e.id}${e.occurrence_start}`, title: e.title, kind: 'event', done: false, color: 'var(--a-blue)', sub: e.location,
+    start: minsOf(Date.parse(e.occurrence_start)), end: minsOf(Date.parse(e.occurrence_end)) || 24 * 60,
   }))
   for (const task of t.tasks) {
-    if (task.planned_start_at) items.push({ kind: 'task', at: task.planned_start_at, key: `t${task.id}`, task })
+    if (!task.planned_start_at) continue
+    const start = minsOf(Date.parse(task.planned_start_at))
+    out.push({
+      key: `t${task.id}`, title: task.title, kind: 'task', done: task.status === 'COMPLETED', sub: '',
+      color: task.project_id ? projectColor(task.project_id) : 'var(--a-green)', start, end: start + (task.estimated_minutes || 30),
+    })
   }
-  return items.sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+  return out.sort((a, b) => a.start - b.start)
 })
+
+const upcoming = computed(() => blocks.value.filter((b) => b.kind === 'event' && !b.done))
+const current = computed(() => upcoming.value.find((b) => b.start <= nowMin.value && b.end > nowMin.value))
+const next = computed(() => upcoming.value.find((b) => b.start > nowMin.value))
+
+// Tagesleiste: belegte Zeit der Termine im Planungsfenster.
+const loadBar = computed(() => {
+  const von = START_H * 60
+  const bis = END_H * 60
+  const parts: { w: number; busy?: boolean; now?: boolean }[] = []
+  let cursor = von
+  for (const b of upcoming.value) {
+    const s = Math.max(b.start, von, cursor)
+    const e = Math.min(b.end, bis)
+    if (e <= s) continue
+    if (s > cursor) parts.push({ w: ((s - cursor) / SPAN) * 100 })
+    parts.push({ w: ((e - s) / SPAN) * 100, busy: true })
+    cursor = e
+  }
+  if (cursor < bis) parts.push({ w: ((bis - cursor) / SPAN) * 100 })
+  return parts
+})
+
+const openTasks = computed(() => (today.value?.tasks ?? []).filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'))
 const groups = computed(() => [
-  { title: 'Ohne Uhrzeit', tasks: today.value?.tasks.filter((t) => !t.planned_start_at) ?? [] },
+  { title: 'Mit Uhrzeit', tasks: openTasks.value.filter((t) => t.planned_start_at) },
+  { title: 'Ohne Uhrzeit', tasks: openTasks.value.filter((t) => !t.planned_start_at) },
   { title: 'Aktiv, nicht für heute geplant', tasks: today.value?.active_tasks ?? [] },
-])
+].filter((g) => g.tasks.length))
+const doneTasks = computed(() => (today.value?.tasks ?? []).filter((t) => t.status === 'COMPLETED'))
+
+const y = (m: number) => ((m - START_H * 60) / 60) * HOUR
+const style = (b: Block) => {
+  const top = Math.max(y(b.start), 0)
+  const height = Math.max(y(Math.min(b.end, END_H * 60)) - top, 22)
+  return { top: `${top}px`, height: `${height}px`, '--acc': b.color }
+}
+const hours = Array.from({ length: END_H - START_H + 1 }, (_, i) => START_H + i)
+const nowTop = computed(() => (nowMin.value >= START_H * 60 && nowMin.value <= END_H * 60 ? y(nowMin.value) : null))
+
+function addQuick() {
+  const title = quick.value.trim()
+  if (!title || !today.value) return
+  void run(async () => {
+    await createTask({ title, planned_date: today.value!.date })
+    quick.value = ''
+  })
+}
+const taskTitleClass = (t: Task) => ({ done: t.status === 'COMPLETED' })
 </script>
 
 <template>
-  <div class="stack">
-    <h1 class="title">Heute <span class="muted">{{ today?.date }}</span></h1>
-    <Message v-if="error" severity="error">{{ error }}</Message>
+  <div class="view-inner">
+    <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
     <template v-if="today">
-      <div class="row stats">
-        <div><span class="muted">Geplant</span><b>{{ hm(today.planned_minutes) }}</b></div>
-        <div><span class="muted">Termine</span><b>{{ hm(today.calendar_minutes) }}</b></div>
-        <div><span class="muted">Erfasst</span><b>{{ hm(today.tracked_minutes) }}</b></div>
-        <div><span class="muted">Frei</span><b>{{ hm(today.free_minutes) }}</b><span class="muted">von {{ hm(today.work_minutes) }}</span></div>
-      </div>
-      <Message v-if="today.overplanned_minutes" severity="warn">Überplant um {{ hm(today.overplanned_minutes) }}</Message>
-      <Message v-if="today.running_time_entry" severity="success" class="running">Timer läuft: {{ elapsed }}</Message>
+      <section class="focus" aria-label="Fokus">
+        <div class="focus-head">
+          <h1 class="v-title">{{ greeting }}</h1>
+          <div class="v-sub mono">{{ dateLabel }}</div>
+        </div>
 
-      <section class="card">
-        <h2>Zeitleiste</h2>
-        <span v-if="!timeline.length" class="muted">Keine Termine oder Tasks mit Uhrzeit.</span>
-        <ul v-else class="list">
-          <li v-for="i in timeline" :key="i.key">
-            <span class="time">{{ fmt(i.at) }}</span>
-            <span v-if="i.kind === 'event'" class="main">
-              {{ i.title }}
-              <span class="muted">bis {{ fmt(i.end) }}<template v-if="i.sub"> · {{ i.sub }}</template></span>
-            </span>
-            <template v-else>
-              <span class="main" :class="{ done: i.task.status === 'COMPLETED' }">{{ i.task.title }}</span>
-              <TaskActions :task="i.task" :running="runningTaskId === i.task.id" @run="run" />
-            </template>
-          </li>
-        </ul>
+        <div v-if="current" class="focus-next">
+          <span class="fn-when">Läuft gerade</span>
+          <span class="fn-what"><span class="cdot" style="background:var(--a-blue)"></span><span class="fn-t">{{ current.title }}</span><span class="fn-time">noch {{ dur(current.end - nowMin) }}</span></span>
+        </div>
+        <div v-else-if="next" class="focus-next">
+          <span class="fn-when">In {{ dur(next.start - nowMin) }}</span>
+          <span class="fn-what"><span class="cdot" style="background:var(--a-blue)"></span><span class="fn-t">{{ next.title }}</span><span class="fn-time">{{ hm(next.start) }}–{{ hm(next.end) }}</span></span>
+        </div>
+        <div v-else class="focus-next is-free">
+          <span class="fn-when">{{ today.events.length ? 'Termine erledigt' : 'Keine Termine heute' }}</span>
+          <span class="fn-what"><span class="fn-time">Der Rest des Tages gehört dir.</span></span>
+        </div>
+
+        <div class="dayload" role="img" :aria-label="`Tagesauslastung: ${dur(today.calendar_minutes)} Termine`">
+          <span v-for="(p, i) in loadBar" :key="i" :class="{ 'dl-busy': p.busy }" :style="{ width: p.w + '%', '--acc': 'var(--a-blue)' }"></span>
+        </div>
+
+        <div class="focus-stats">
+          <div class="fstat"><span class="n">{{ hm(today.free_minutes) }}<span class="u">h</span></span><span class="c">Frei</span></div>
+          <div class="fstat"><span class="n">{{ hm(today.planned_minutes) }}<span class="u">h</span></span><span class="c">Geplant</span></div>
+          <div class="fstat"><span class="n">{{ hm(today.tracked_minutes) }}<span class="u">h</span></span><span class="c">Erfasst</span></div>
+          <div class="fstat"><span class="n">{{ openTasks.length }}</span><span class="c">Offen heute</span></div>
+          <div v-if="today.running_time_entry" class="fstat"><span class="n">{{ elapsed }}</span><span class="c">Timer läuft</span></div>
+        </div>
+        <div v-if="today.overplanned_minutes" class="badge"><span class="cdot" style="background:var(--a-red)"></span>Überplant um {{ hm(today.overplanned_minutes) }} h</div>
       </section>
 
-      <template v-for="g in groups" :key="g.title">
-        <section v-if="g.tasks.length" class="card">
-          <h2>{{ g.title }}</h2>
-          <ul class="list">
-            <li v-for="task in g.tasks" :key="task.id">
-              <span class="main" :class="{ done: task.status === 'COMPLETED' }">{{ task.title }}</span>
-              <TaskActions :task="task" :running="runningTaskId === task.id" @run="run" />
-            </li>
-          </ul>
+      <div class="start-grid">
+        <section class="start-col">
+          <div class="col-head"><h2 class="col-title">Aufgaben</h2><router-link class="col-link" to="/tasks">Alle ansehen</router-link></div>
+          <div v-for="g in groups" :key="g.title" class="tgroup">
+            <span class="lbl">{{ g.title }}<span class="count">{{ g.tasks.length }}</span></span>
+            <div class="card tasklist">
+              <div v-for="t in g.tasks" :key="t.id" class="task-row">
+                <span class="t" :class="taskTitleClass(t)">{{ t.title }}</span>
+                <span v-if="t.planned_start_at" class="due">{{ fmt(t.planned_start_at) }}</span>
+                <TaskActions :task="t" :running="runningTaskId === t.id" @run="run" />
+              </div>
+            </div>
+          </div>
+          <div v-if="!groups.length" class="v-sub">Keine offenen Aufgaben für heute.</div>
+          <div v-if="doneTasks.length" class="v-sub">{{ doneTasks.length }} erledigt</div>
+          <form class="addrow" @submit.prevent="addQuick">
+            <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
+            <input v-model="quick" type="text" placeholder="Aufgabe für heute hinzufügen" aria-label="Aufgabe für heute hinzufügen" />
+          </form>
+
+          <template v-if="today.habits.length">
+            <div class="col-head" style="margin-top:28px"><h2 class="col-title">Gewohnheiten</h2><router-link class="col-link" to="/habits">Alle ansehen</router-link></div>
+            <div class="card" style="padding:4px 16px">
+              <div v-for="h in today.habits" :key="h.id" class="hb-row" :class="{ doneToday: h.done }">
+                <button
+                  type="button" class="cb cb-orange" role="checkbox" :aria-checked="h.done" :aria-label="h.name"
+                  @click="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
+                ></button>
+                <span class="hb-name">{{ h.name }}</span>
+                <span v-if="h.week_progress" class="hb-streak">{{ h.week_progress.done }}/{{ h.week_progress.target }}</span>
+              </div>
+            </div>
+          </template>
         </section>
-      </template>
 
-      <section v-if="today.habits.length" class="card">
-        <h2>Habits</h2>
-        <ul class="list">
-          <li v-for="h in today.habits" :key="h.id">
-            <Checkbox
-              :model-value="h.done" binary :input-id="`h${h.id}`"
-              @update:model-value="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
-            />
-            <label :for="`h${h.id}`" class="main">
-              {{ h.name }}
-              <span v-if="h.week_progress" class="muted">{{ h.week_progress.done }}/{{ h.week_progress.target }} diese Woche</span>
-            </label>
-          </li>
-        </ul>
-      </section>
+        <section class="start-col">
+          <div class="col-head"><h2 class="col-title">Tagesplan</h2><router-link class="col-link" to="/calendar">Woche ansehen</router-link></div>
+          <div class="card dayplan">
+            <div class="dp-scroll">
+              <div class="dp-body">
+                <div class="hourcol" :style="{ '--hour': HOUR + 'px' }">
+                  <div v-for="h in hours" :key="h" class="hl"><span class="mono">{{ String(h).padStart(2, '0') }}:00</span></div>
+                </div>
+                <div class="dp-grid" :style="{ height: (END_H - START_H) * HOUR + 'px' }">
+                  <div v-for="h in hours" :key="h" class="hline" :style="{ top: (h - START_H) * HOUR + 'px' }"></div>
+                  <div v-if="nowTop !== null" class="now-line" :style="{ top: nowTop + 'px' }"></div>
+                  <div
+                    v-for="b in blocks" :key="b.key" class="dp-ev" :class="[`kind-${b.kind}`, { done: b.done, short: b.end - b.start <= 30 }]" :style="style(b)"
+                  >
+                    <div class="dp-t"><span class="cdot"></span><span class="dp-n">{{ b.title }}</span></div>
+                    <div class="dp-m">{{ hm(b.start) }}–{{ hm(b.end) }}<template v-if="b.sub"> · {{ b.sub }}</template></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </template>
   </div>
 </template>
 
 <style scoped>
-.stats { gap: 32px; }
-.stats div { display: flex; flex-direction: column; }
-.stats b { font-size: 24px; font-weight: 500; }
+.now-line { position: absolute; left: 0; right: 0; height: 1px; background: var(--a-red); z-index: 3; pointer-events: none; }
+.now-line::before { content: ''; position: absolute; left: -4px; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--a-red); }
 </style>
