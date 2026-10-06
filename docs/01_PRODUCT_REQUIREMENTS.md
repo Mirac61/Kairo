@@ -145,7 +145,8 @@ Wochentage oder Anzahl) als JSON (siehe `02_ARCHITECTURE.md`).
 
 `preferred_time` ist eine optionale lokale Uhrzeit (`HH:MM`).
 
-Zusätzlich entstehen Habit Occurrences bzw. Habit Completions.
+Aus der Regel ergeben sich Habit Occurrences (berechnet, siehe Regeln).
+Wenn der Nutzer ein Habit abhakt, wird eine HabitCompletion gespeichert.
 
 ``` text
 HabitCompletion

@@ -104,6 +104,8 @@ type Task struct {
     Status           TaskStatus
     Priority         TaskPriority
     EstimatedMinutes int
+    PlannedDate      *string     // lokaler Tag, YYYY-MM-DD
+    PlannedStartAt   *time.Time  // UTC
     ProjectID        *string
 }
 ```
