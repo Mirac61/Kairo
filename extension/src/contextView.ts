@@ -78,7 +78,7 @@ export class ContextProvider implements vscode.TreeDataProvider<vscode.TreeItem>
     }
     const items = [this.item(`Backend: online (v${s.health.version})`, "check")];
     items.push(this.item(s.project ? `Projekt: ${s.project.name}` : "Projekt: –", "folder"));
-    const current = this.currentTask();
+    const current = this.runningTask();
     items.push(current ? new TaskItem(current, true) : this.item("Aktuelle Task: –", "circle-slash"));
     const today = new vscode.TreeItem("Heute", this.todayTasks().length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None);
     today.id = "today";
@@ -161,7 +161,8 @@ export class ContextProvider implements vscode.TreeDataProvider<vscode.TreeItem>
     return this.state?.today?.running_time_entry?.task_id;
   }
 
-  private currentTask(): Task | undefined {
+  /** Die Task, deren Timer gerade läuft. */
+  runningTask(): Task | undefined {
     const t = this.state?.today;
     const id = this.runningId();
     return id ? [...(t?.tasks ?? []), ...(t?.active_tasks ?? [])].find((x) => x.id === id) : undefined;

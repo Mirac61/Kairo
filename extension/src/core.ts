@@ -120,3 +120,8 @@ export interface Resource {
   target: string;
   label: string;
 }
+
+/** Ob seit lastActivity mindestens thresholdMs vergangen sind. threshold <= 0 schaltet ab. */
+export function isIdle(lastActivity: number, now: number, thresholdMs: number): boolean {
+  return thresholdMs > 0 && now - lastActivity >= thresholdMs;
+}

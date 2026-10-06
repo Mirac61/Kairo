@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { watchIdle } from "./idleWatch";
 import { ContextProvider, openResource, ResourceItem, TaskItem } from "./contextView";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -8,6 +9,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     provider,
     view,
+    watchIdle(provider),
     view.onDidChangeVisibility((e) => provider.setVisible(e.visible)),
     vscode.commands.registerCommand("kairo.refresh", () => provider.refresh()),
     vscode.commands.registerCommand("kairo.openResource", (i?: ResourceItem) => openResource(i)),
