@@ -52,6 +52,7 @@ func run() error {
 
 	services := api.Services{
 		Projects: service.NewProjectService(repository.NewProjectRepository(db), nil),
+		Tasks:    service.NewTaskService(repository.NewTaskRepository(db), nil),
 	}
 
 	srv := &http.Server{

@@ -59,7 +59,7 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (dom
 		ID:          domain.NewID(),
 		Name:        strings.TrimSpace(in.Name),
 		Description: in.Description,
-		LocalPath:   normalizePath(in.LocalPath),
+		LocalPath:   trimOrNil(in.LocalPath),
 		Status:      in.Status,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -93,7 +93,7 @@ func (s *ProjectService) Update(ctx context.Context, id string, in UpdateProject
 		p.Description = *in.Description
 	}
 	if in.LocalPath != nil {
-		p.LocalPath = normalizePath(in.LocalPath)
+		p.LocalPath = trimOrNil(in.LocalPath)
 	}
 	if in.Status != nil {
 		p.Status = *in.Status
@@ -112,7 +112,7 @@ func (s *ProjectService) Delete(ctx context.Context, id string) error {
 	return s.store.Delete(ctx, id)
 }
 
-func normalizePath(p *string) *string {
+func trimOrNil(p *string) *string {
 	if p == nil {
 		return nil
 	}
