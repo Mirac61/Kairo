@@ -88,9 +88,15 @@ useLiveEvents(load)
     <p v-if="!projects.length" class="hint">Keine Projekte.</p>
     <ul class="list">
       <li v-for="p in projects" :key="p.id">
-        <span class="title">
-          {{ p.name }}
-          <small v-if="p.local_path">{{ p.local_path }}</small>
+        <span class="title edit">
+          <input
+            :value="p.name" aria-label="Name"
+            @change="run(() => updateProject(p.id, { name: ($event.target as HTMLInputElement).value.trim() || p.name }))"
+          />
+          <input
+            :value="p.local_path ?? ''" placeholder="Ordner (absoluter Pfad)" aria-label="Ordner"
+            @change="run(() => updateProject(p.id, { local_path: ($event.target as HTMLInputElement).value.trim() }))"
+          />
         </span>
         <select :value="p.status" @change="run(() => updateProject(p.id, { status: ($event.target as HTMLSelectElement).value }))">
           <option v-for="(label, s) in STATUS_LABEL" :key="s" :value="s">{{ label }}</option>
@@ -142,4 +148,8 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 .chip { padding: 2px 8px; border: 1px solid var(--border); border-radius: 12px; font-size: 13px; }
 .chip small { color: var(--text-muted); }
 .chip button { border: 0; background: none; padding: 0 2px; }
+</style>
+<style scoped>
+.edit { display: flex; gap: 8px; }
+.edit input { flex: 1; min-width: 0; }
 </style>
