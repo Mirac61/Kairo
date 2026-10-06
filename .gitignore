@@ -27,3 +27,6 @@ backend/internal/web/dist/*
 
 # Editoren
 .idea/
+
+# AI
+CLAUDE.local.md
