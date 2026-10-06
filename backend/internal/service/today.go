@@ -72,7 +72,11 @@ type Today struct {
 	// Tasks sind die für den Tag geplanten Tasks (ohne CANCELLED): zuerst die
 	// mit planned_start_at nach Uhrzeit, danach die ohne in Anlegereihenfolge.
 	Tasks []domain.Task
-	// ActiveTasks sind IN_PROGRESS-Tasks, die nicht für diesen Tag geplant sind.
+	// Overdue sind offene Tasks (nicht COMPLETED/CANCELLED), die für einen
+	// früheren Tag geplant waren, älteste Planung zuerst.
+	Overdue []domain.Task
+	// ActiveTasks sind IN_PROGRESS-Tasks, die weder für diesen Tag geplant
+	// noch überfällig sind.
 	ActiveTasks []domain.Task
 	Habits      []HabitDay
 	// Running ist der laufende Timer, falls einer läuft (unabhängig vom Tag).
@@ -126,13 +130,24 @@ func (s *TodayService) Get(ctx context.Context, date string) (Today, error) {
 		}
 	}
 	sortPlanned(t.Tasks)
+	before, err := s.tasks.List(ctx, domain.TaskFilter{PlannedBefore: date})
+	if err != nil {
+		return Today{}, err
+	}
+	t.Overdue = []domain.Task{}
+	for _, task := range before {
+		if task.Status != domain.TaskCompleted && task.Status != domain.TaskCancelled {
+			t.Overdue = append(t.Overdue, task)
+		}
+	}
+	sort.SliceStable(t.Overdue, func(i, j int) bool { return *t.Overdue[i].PlannedDate < *t.Overdue[j].PlannedDate })
 	active, err := s.tasks.List(ctx, domain.TaskFilter{Status: domain.TaskInProgress})
 	if err != nil {
 		return Today{}, err
 	}
 	t.ActiveTasks = []domain.Task{}
 	for _, task := range active {
-		if task.PlannedDate == nil || *task.PlannedDate != date {
+		if task.PlannedDate == nil || *task.PlannedDate > date {
 			t.ActiveTasks = append(t.ActiveTasks, task)
 		}
 	}

@@ -80,6 +80,7 @@ export interface Today {
   timezone: string
   events: TodayEvent[]
   tasks: Task[]
+  overdue: Task[]
   active_tasks: Task[]
   habits: TodayHabit[]
   running_time_entry: TimeEntry | null

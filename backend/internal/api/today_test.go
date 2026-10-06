@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -105,5 +106,30 @@ func TestTodayEmptyDayAndErrors(t *testing.T) {
 	}
 	if rec := call(h, "GET", "/api/today?date=morgen", ""); rec.Code != 400 {
 		t.Errorf("falsches Datum = %d", rec.Code)
+	}
+}
+
+func TestTodayOverdue(t *testing.T) {
+	h := newTodayRouter(t, time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC))
+	late := createTask(t, h, `{"title":"vorgestern","planned_date":"2026-10-05"}`)
+	older := createTask(t, h, `{"title":"letzte Woche","planned_date":"2026-09-30"}`)
+	running := createTask(t, h, `{"title":"läuft, gestern geplant","planned_date":"2026-10-06"}`)
+	createTask(t, h, `{"title":"erledigt","planned_date":"2026-10-05","status":"COMPLETED"}`)
+	createTask(t, h, `{"title":"abgebrochen","planned_date":"2026-10-05","status":"CANCELLED"}`)
+	createTask(t, h, `{"title":"heute","planned_date":"2026-10-07"}`)
+	createTask(t, h, `{"title":"ungeplant"}`)
+	timer(t, h, "/api/tasks/"+running.ID+"/start", "", 200)
+
+	var got todayDTO
+	_ = json.Unmarshal(call(h, "GET", "/api/today?date=2026-10-07", "").Body.Bytes(), &got)
+	var ids []string
+	for _, task := range got.Overdue {
+		ids = append(ids, task.ID)
+	}
+	if want := []string{older.ID, late.ID, running.ID}; fmt.Sprint(ids) != fmt.Sprint(want) {
+		t.Errorf("overdue = %v, erwartet %v", ids, want)
+	}
+	if len(got.ActiveTasks) != 0 {
+		t.Errorf("überfällige laufende Task doppelt in active_tasks: %+v", got.ActiveTasks)
 	}
 }

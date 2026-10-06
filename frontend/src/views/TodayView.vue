@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
-  completeHabit, createTask, deleteTimeEntry, errorMessage, getToday, listTasks, listTimeEntries, uncompleteHabit, updateTimeEntry,
+  completeHabit, createTask, deleteTimeEntry, errorMessage, getToday, listTasks, listTimeEntries, uncompleteHabit, updateTask, updateTimeEntry,
   type Task, type TimeEntry, type Today,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
@@ -152,6 +152,13 @@ function addQuick() {
 }
 const taskTitleClass = (t: Task) => ({ done: t.status === 'COMPLETED' })
 
+// Überfällige Task auf heute (0) oder morgen (1) verschieben; die alte Uhrzeit entfällt.
+function moveTo(t: Task, days: number) {
+  const d = new Date(`${today.value!.date}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  void run(() => updateTask(t.id, { planned_date: d.toISOString().slice(0, 10), planned_start_at: '' }))
+}
+
 // Zeiteinträge: HH:MM-Felder in der Zeitzone des Browsers, der Tag bleibt der des Eintrags.
 const hhmm = (iso: string) => new Date(iso).toTimeString().slice(0, 5)
 function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) {
@@ -205,6 +212,17 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
       <div class="start-grid">
         <section class="start-col">
           <div class="col-head"><h2 class="col-title">Aufgaben</h2><router-link class="col-link" to="/tasks">Alle ansehen</router-link></div>
+          <div v-if="today.overdue.length" class="tgroup">
+            <span class="lbl">Überfällig<span class="count">{{ today.overdue.length }}</span></span>
+            <div class="card tasklist">
+              <div v-for="t in today.overdue" :key="t.id" class="task-row">
+                <span class="t">{{ t.title }}</span>
+                <span class="due od">{{ t.planned_date }}</span>
+                <button type="button" class="btn btn-ghost" @click="moveTo(t, 0)">→ Heute</button>
+                <button type="button" class="btn btn-ghost" @click="moveTo(t, 1)">→ Morgen</button>
+              </div>
+            </div>
+          </div>
           <div v-for="g in groups" :key="g.title" class="tgroup">
             <span class="lbl">{{ g.title }}<span class="count">{{ g.tasks.length }}</span></span>
             <div class="card tasklist">

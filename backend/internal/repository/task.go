@@ -137,6 +137,9 @@ func (r *TaskRepository) List(ctx context.Context, f domain.TaskFilter) ([]domai
 	if f.PlannedDate != "" {
 		where, args = append(where, "planned_date = ?"), append(args, f.PlannedDate)
 	}
+	if f.PlannedBefore != "" {
+		where, args = append(where, "planned_date < ?"), append(args, f.PlannedBefore)
+	}
 	q := `SELECT ` + taskColumns + ` FROM tasks`
 	if len(where) > 0 {
 		q += ` WHERE ` + strings.Join(where, " AND ")

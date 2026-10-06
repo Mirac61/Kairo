@@ -40,6 +40,7 @@ type todayDTO struct {
 	DayEnd          string          `json:"day_end"`
 	Events          []todayEventDTO `json:"events"`
 	Tasks           []taskDTO       `json:"tasks"`
+	Overdue         []taskDTO       `json:"overdue"`
 	ActiveTasks     []taskDTO       `json:"active_tasks"`
 	Habits          []todayHabitDTO `json:"habits"`
 	Running         *timeEntryDTO   `json:"running_time_entry"`
@@ -67,6 +68,7 @@ func toTodayDTO(t service.Today) todayDTO {
 		DayEnd:          t.DayEnd.UTC().Format(time.RFC3339),
 		Events:          make([]todayEventDTO, len(t.Events)),
 		Tasks:           make([]taskDTO, len(t.Tasks)),
+		Overdue:         make([]taskDTO, len(t.Overdue)),
 		ActiveTasks:     make([]taskDTO, len(t.ActiveTasks)),
 		Habits:          make([]todayHabitDTO, len(t.Habits)),
 		PlannedMinutes:  t.PlannedMinutes,
@@ -81,6 +83,9 @@ func toTodayDTO(t service.Today) todayDTO {
 	}
 	for i, task := range t.Tasks {
 		out.Tasks[i] = toTaskDTO(task)
+	}
+	for i, task := range t.Overdue {
+		out.Overdue[i] = toTaskDTO(task)
 	}
 	for i, task := range t.ActiveTasks {
 		out.ActiveTasks[i] = toTaskDTO(task)

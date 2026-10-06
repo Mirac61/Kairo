@@ -17,6 +17,9 @@ func (f fakeTodayTasks) List(_ context.Context, fl domain.TaskFilter) ([]domain.
 		if fl.PlannedDate != "" && (t.PlannedDate == nil || *t.PlannedDate != fl.PlannedDate) {
 			continue
 		}
+		if fl.PlannedBefore != "" && (t.PlannedDate == nil || *t.PlannedDate >= fl.PlannedBefore) {
+			continue
+		}
 		if fl.Status != "" && t.Status != fl.Status {
 			continue
 		}

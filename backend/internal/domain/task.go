@@ -65,4 +65,6 @@ type TaskFilter struct {
 	Status      TaskStatus
 	ProjectID   string
 	PlannedDate string
+	// PlannedBefore: nur Tasks mit planned_date vor diesem Tag (YYYY-MM-DD).
+	PlannedBefore string
 }
