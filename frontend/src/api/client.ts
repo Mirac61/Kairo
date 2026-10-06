@@ -162,3 +162,7 @@ export const createEvent = (body: { title: string; start_at: string; end_at: str
   api<unknown>('/calendar/events', { method: 'POST', body: JSON.stringify(body) })
 
 export const deleteEvent = (id: string) => api<void>(`/calendar/events/${id}`, { method: 'DELETE' })
+
+// Beim Ändern entfernt "" einen optionalen Wert (due_at, planned_date, …); null lässt ihn unverändert.
+export const updateTask = (id: string, body: Record<string, unknown>) =>
+  api<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) })

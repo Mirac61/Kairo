@@ -7,6 +7,7 @@ import {
   listProjects,
   listTasks,
   taskAction,
+  updateTask,
   type Project,
   type Task,
 } from '@/api/client'
@@ -71,6 +72,33 @@ function remove(t: Task) {
   if (confirm(`„${t.title}“ löschen?`)) void run(() => deleteTask(t.id))
 }
 
+const pad = (n: number) => String(n).padStart(2, '0')
+const today = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+const startTime = (t: Task) => {
+  if (!t.planned_start_at) return ''
+  const d = new Date(t.planned_start_at)
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+const value = (e: Event) => (e.target as HTMLInputElement).value
+
+// Datum und Uhrzeit hängen zusammen: Ohne Datum gibt es keine Uhrzeit, ein neues Datum behält sie.
+function setDate(t: Task, date: string) {
+  const time = startTime(t)
+  void run(() =>
+    updateTask(t.id, {
+      planned_date: date,
+      planned_start_at: date && time ? new Date(`${date}T${time}`).toISOString() : '',
+    }),
+  )
+}
+function setTime(t: Task, time: string) {
+  if (!t.planned_date) return
+  void run(() => updateTask(t.id, { planned_start_at: time ? new Date(`${t.planned_date}T${time}`).toISOString() : '' }))
+}
+
 const open = (t: Task) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
 
 onMounted(load)
@@ -116,6 +144,15 @@ useLiveEvents(load)
             <template v-if="t.planned_date"> · {{ t.planned_date }}</template>
           </small>
         </span>
+        <span v-if="open(t)" class="plan">
+          <input type="date" :value="t.planned_date ?? ''" title="Geplant für" @change="setDate(t, value($event))" />
+          <input type="time" :value="startTime(t)" :disabled="!t.planned_date" title="Uhrzeit" @change="setTime(t, value($event))" />
+          <input
+            type="number" min="0" class="num" :value="t.estimated_minutes" title="Schätzung in Minuten"
+            @change="run(() => updateTask(t.id, { estimated_minutes: Number(value($event)) || 0 }))"
+          />
+          <button v-if="t.planned_date !== today()" @click="setDate(t, today())">Heute</button>
+        </span>
         <span class="actions">
           <template v-if="open(t)">
             <button v-if="t.status === 'IN_PROGRESS'" @click="run(() => taskAction(t.id, 'pause'))">Pause</button>
@@ -150,5 +187,5 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 .title { flex: 1; }
 .title small { display: block; color: var(--text-muted); font-size: 13px; }
 .done { text-decoration: line-through; color: var(--text-muted); }
-.actions { display: flex; gap: 6px; }
+.actions, .plan { display: flex; gap: 6px; align-items: center; }
 </style>
