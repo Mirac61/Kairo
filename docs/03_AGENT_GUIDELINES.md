@@ -216,6 +216,9 @@ x times per week
 Die Habit-Logik muss so implementiert werden, dass spätere Frequenztypen
 möglich sind.
 
+Habit Occurrences werden berechnet, nicht gespeichert (siehe
+`01_PRODUCT_REQUIREMENTS.md`).
+
 ------------------------------------------------------------------------
 
 # Calendar
@@ -257,6 +260,9 @@ ended_at
 ```
 
 Pausen werden ebenfalls über Zeitintervalle abgebildet.
+
+Es gibt höchstens einen laufenden Timer. Wird ein anderer Task gestartet,
+wird der laufende automatisch pausiert.
 
 ------------------------------------------------------------------------
 

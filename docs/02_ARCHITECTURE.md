@@ -166,6 +166,10 @@ GET    /api/tasks/:id
 PATCH  /api/tasks/:id
 DELETE /api/tasks/:id
 
+POST   /api/tasks/:id/start
+POST   /api/tasks/:id/pause
+POST   /api/tasks/:id/complete
+
 GET    /api/projects
 POST   /api/projects
 
@@ -174,6 +178,16 @@ POST   /api/habits
 
 GET    /api/calendar/events
 POST   /api/calendar/events
+
+GET    /api/time-entries
+POST   /api/time-entries
+
+POST   /api/habits/:id/completions
+DELETE /api/habits/:id/completions/:date
+
+GET    /api/resources
+POST   /api/resources
+DELETE /api/resources/:id
 
 GET    /api/today
 ```
@@ -185,6 +199,9 @@ GET    /api/today
 WebSocket Events:
 
 ``` text
+TASK_CREATED
+TASK_UPDATED
+TASK_DELETED
 TASK_STARTED
 TASK_PAUSED
 TASK_COMPLETED
@@ -192,12 +209,15 @@ TASK_COMPLETED
 TIMER_STARTED
 TIMER_STOPPED
 
-PROJECT_CHANGED
+PROJECT_CREATED
+PROJECT_UPDATED
+PROJECT_DELETED
 
 HABIT_COMPLETED
 
 CALENDAR_EVENT_CREATED
 CALENDAR_EVENT_UPDATED
+CALENDAR_EVENT_DELETED
 ```
 
 Die WebUI und Extension können dadurch sofort reagieren.
@@ -215,7 +235,6 @@ id
 name
 description
 local_path
-workspace_path
 status
 created_at
 updated_at
@@ -236,6 +255,7 @@ priority
 estimated_minutes
 due_at
 planned_date
+planned_start_at
 created_at
 updated_at
 completed_at
@@ -253,6 +273,7 @@ frequency_type
 frequency_config
 target_value
 unit
+preferred_time
 start_date
 end_date
 active
@@ -278,6 +299,8 @@ completed_at
 note
 ```
 
+`(habit_id, date)` ist eindeutig (Unique-Index).
+
 ------------------------------------------------------------------------
 
 ## CalendarEvent
@@ -295,6 +318,7 @@ url
 project_id
 task_id
 recurrence_rule
+recurrence_exdates
 created_at
 updated_at
 ```
@@ -328,6 +352,23 @@ started_at
 ended_at
 source
 ```
+
+Höchstens ein Eintrag mit `ended_at IS NULL` (partieller Unique-Index).
+
+------------------------------------------------------------------------
+
+# Zeit und Zeitzonen
+
+-   Zeitpunkte (`*_at`) werden in UTC im Format RFC 3339 gespeichert.
+-   Tage (`planned_date`, `start_date`, `end_date`,
+    `habit_completions.date`) werden als lokales Datum `YYYY-MM-DD`
+    gespeichert.
+-   Uhrzeiten ohne Datum (`preferred_time`) werden als lokale Zeit
+    `HH:MM` gespeichert.
+-   Die Zeitzone (IANA, z. B. `Europe/Berlin`) steht in der
+    Konfiguration. Standard ist die Systemzeitzone.
+-   Die Today View und `GET /api/today?date=…` rechnen in dieser
+    Zeitzone.
 
 ------------------------------------------------------------------------
 
@@ -391,12 +432,37 @@ Beispielsweise:
 
 Keine öffentliche Bind-Adresse im MVP.
 
+Ein localhost-Bind allein reicht nicht, weil Webseiten im Browser
+ebenfalls 127.0.0.1 ansprechen können. Deshalb:
+
+-   Der `Host`-Header muss `127.0.0.1:<port>` oder `localhost:<port>`
+    sein (Schutz gegen DNS-Rebinding).
+-   Ändernde Requests und WebSocket-Verbindungen werden nur akzeptiert,
+    wenn `Origin` der eigene Origin ist.
+-   Die Extension authentifiziert sich zusätzlich mit einem lokalen
+    Token (`Authorization: Bearer …`). Das Token wird beim ersten Start
+    in `~/.config/kairo/token` mit Dateirechten `0600` erzeugt.
+
+------------------------------------------------------------------------
+
+# Betrieb
+
+-   Autostart: `kairo install` richtet einen macOS-LaunchAgent
+    (`~/Library/LaunchAgents/`) ein, sodass das Backend beim Login
+    startet. `kairo uninstall` entfernt ihn.
+-   Läuft das Backend nicht, zeigt die Extension „Backend offline“ und
+    versucht regelmäßig, sich neu zu verbinden.
+-   WebUI: Das Go-Binary liefert die gebaute WebUI selbst aus (`embed`),
+    erreichbar unter `http://127.0.0.1:<port>/`.
+-   Entwicklung: Der Vite-Dev-Server leitet `/api` und `/ws` an das
+    Backend weiter. Dadurch ist kein CORS nötig.
+
 ------------------------------------------------------------------------
 
 # Konfigurierbarkeit
 
-Port, Datenbankpfad und ggf. Log-Level sollen über Konfiguration
-steuerbar sein.
+Port, Datenbankpfad, Zeitzone und ggf. Log-Level sollen über
+Konfiguration steuerbar sein.
 
 ------------------------------------------------------------------------
 

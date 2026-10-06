@@ -29,9 +29,18 @@ url
 project_id?
 task_id?
 recurrence_rule?
+recurrence_exdates?
 ```
 
 Ein Event muss nicht mit einem Task verbunden sein.
+
+Kalender-Events sind feste Termine. Geplante Arbeitszeit für Tasks wird
+über `planned_start_at` am Task abgebildet, nicht über Events.
+
+`recurrence_rule` verwendet das RRULE-Format aus RFC 5545. Im MVP werden
+unterstützt: `FREQ=DAILY|WEEKLY`, `BYDAY`, `INTERVAL`, `UNTIL`, `COUNT`.
+Einzelne ausgelassene Termine stehen in `recurrence_exdates` (Liste von
+Daten, als JSON gespeichert).
 
 ------------------------------------------------------------------------
 
@@ -48,12 +57,19 @@ priority
 estimated_minutes
 due_at?
 planned_date?
+planned_start_at?
 project_id?
 parent_task_id?
 created_at
 updated_at
 completed_at?
 ```
+
+`planned_date` ist der lokale Tag, an dem der Task geplant ist.
+`planned_start_at` ist optional die geplante Startzeit an diesem Tag.
+Zusammen mit `estimated_minutes` ergibt das den Zeitblock in der Today
+View. Tasks ohne `planned_start_at` erscheinen in der Today View als
+Liste ohne Uhrzeit.
 
 ### Status
 
@@ -116,6 +132,7 @@ frequency_type
 frequency_config
 target_value?
 unit?
+preferred_time?
 start_date
 end_date?
 active
@@ -125,6 +142,8 @@ created_at
 `frequency_type` ist z. B. `DAILY`, `WEEKLY`, `SPECIFIC_WEEKDAYS` oder
 `TIMES_PER_WEEK`. `frequency_config` enthält die Details (z. B.
 Wochentage oder Anzahl) als JSON (siehe `02_ARCHITECTURE.md`).
+
+`preferred_time` ist eine optionale lokale Uhrzeit (`HH:MM`).
 
 Zusätzlich entstehen Habit Occurrences bzw. Habit Completions.
 
@@ -141,6 +160,17 @@ HabitCompletion
 Der Nutzer soll Habits abhaken können, ohne jedes Mal eine komplett neue
 Task manuell anzulegen.
 
+## Regeln
+
+-   Habit Occurrences werden aus der Regel berechnet und nicht
+    gespeichert. Gespeichert werden nur HabitCompletions.
+-   Pro Habit gibt es höchstens eine Completion pro Tag.
+-   `TIMES_PER_WEEK` erscheint täglich mit Fortschritt (z. B. „1/3 diese
+    Woche“), bis das Wochenziel erreicht ist. Die Woche läuft von Montag
+    bis Sonntag.
+-   Habits mit `preferred_time` erscheinen in der Zeitleiste der Today
+    View, Habits ohne Uhrzeit in einer Liste „Heute noch offen“.
+
 ------------------------------------------------------------------------
 
 # 4. Projects
@@ -152,7 +182,6 @@ id
 name
 description
 local_path?
-workspace_path?
 status
 created_at
 updated_at
@@ -172,7 +201,7 @@ Ein Projekt kann besitzen:
 -   Tasks
 -   Ressourcen
 -   Zeitentries
--   VSCodium Workspace
+-   VSCodium Workspace (über `local_path`)
 -   URLs
 -   Dokumentreferenzen
 
@@ -188,7 +217,6 @@ Typen:
 FILE
 FOLDER
 URL
-WORKSPACE
 ```
 
 Beispiel:
@@ -288,6 +316,11 @@ Zeit wird aus echten Zeitstempeln berechnet.
 
 Nicht über einen einfachen Counter.
 
+Es läuft immer höchstens ein Timer, d. h. es gibt höchstens einen
+TimeEntry ohne `ended_at`. Wird ein anderer Task gestartet, wird der
+laufende automatisch pausiert: sein TimeEntry wird geschlossen, sein
+Status wird `PAUSED`, danach startet der neue Task.
+
 ------------------------------------------------------------------------
 
 # 9. VSCodium Integration
@@ -337,6 +370,9 @@ Project: AlgoDat
 
 Ein Workspace gilt auch dann als erkannt, wenn ein Unterordner geöffnet
 wird (z. B. `~/Documents/Uni/AlgoDat/CodeAlgorithmen` → AlgoDat).
+
+Die Erkennung nutzt `local_path`. Passen mehrere Projekte, gewinnt der
+längste passende Pfad.
 
 zeigt die Extension die dazugehörigen Tasks.
 

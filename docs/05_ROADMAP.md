@@ -20,6 +20,8 @@ Ziel: Repository und lokale Entwicklungsumgebung.
 -   configuration
 -   HTTP server
 -   health endpoint
+-   Host-/Origin-Prüfung und lokales Token
+-   WebUI per embed ausliefern (Dev: Vite-Proxy)
 
 ### Frontend
 
@@ -122,6 +124,11 @@ VSCodium:
 Task = IN_PROGRESS
 Timer = running
 ```
+
+Außerdem:
+
+-   Autostart per LaunchAgent (kairo install)
+-   „Backend offline“-Anzeige in der Extension
 
 Mit Phase 5 ist der MVP abgeschlossen.
 
