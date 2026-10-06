@@ -1,0 +1,70 @@
+{
+  "name": "kairo",
+  "displayName": "Kairo",
+  "description": "Kairo: Planen in der WebUI, Arbeiten in VSCodium.",
+  "publisher": "kairo-local",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kairo",
+          "title": "Kairo",
+          "icon": "media/kairo.svg"
+        }
+      ]
+    },
+    "views": {
+      "kairo": [
+        {
+          "id": "kairo.context",
+          "name": "Kontext"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "kairo.refresh",
+        "title": "Kairo: Aktualisieren",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "kairo.refresh",
+          "when": "view == kairo.context",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Kairo",
+      "properties": {
+        "kairo.backendUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8742",
+          "description": "Basis-URL des lokalen Kairo-Backends."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "~1.90.0",
+    "typescript": "^5.5.0"
+  }
+}
