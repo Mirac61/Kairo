@@ -98,3 +98,26 @@ export const completeHabit = (id: string, date: string) =>
 
 export const uncompleteHabit = (id: string, date: string) =>
   api<unknown>(`/habits/${id}/completions/${date}`, { method: 'DELETE' })
+
+export interface Project {
+  id: string
+  name: string
+  description: string
+  local_path: string | null
+  status: string
+}
+
+export const listProjects = () => api<Project[]>('/projects')
+
+export const listTasks = (query = '') => api<Task[]>(`/tasks${query}`)
+
+export const createTask = (body: Partial<Task>) =>
+  api<Task>('/tasks', { method: 'POST', body: JSON.stringify(body) })
+
+export const deleteTask = (id: string) => api<void>(`/tasks/${id}`, { method: 'DELETE' })
+
+// Fehlertext aus {"error": "..."} des Backends, sonst Standardtext.
+export function errorMessage(e: unknown): string {
+  const body = e instanceof ApiError ? (e.body as { error?: string } | undefined) : undefined
+  return body?.error ?? 'Backend nicht erreichbar.'
+}
