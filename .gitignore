@@ -8,7 +8,10 @@
 
 # Node
 node_modules/
-dist/
+frontend/dist/
+extension/out/
+backend/internal/web/dist/*
+!backend/internal/web/dist/.gitkeep
 *.vsix
 
 # SQLite-Daten
