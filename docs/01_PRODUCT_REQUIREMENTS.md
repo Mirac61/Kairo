@@ -334,6 +334,30 @@ TimeEntry ohne `ended_at`. Wird ein anderer Task gestartet, wird der
 laufende automatisch pausiert: sein TimeEntry wird geschlossen, sein
 Status wird `PAUSED`, danach startet der neue Task.
 
+## Regeln
+
+-   **Start:** setzt die Task auf `IN_PROGRESS` und öffnet einen
+    TimeEntry. Läuft die Task schon, ändert sich nichts. Tasks mit Status
+    `COMPLETED` oder `CANCELLED` lassen sich nicht starten (409);
+    wieder öffnen geht über `PATCH` auf den Status.
+-   **Pause:** schließt den TimeEntry und setzt die Task auf `PAUSED`.
+    Läuft für die Task kein Timer, ist das ein Konflikt (409).
+-   **Complete:** schließt einen laufenden TimeEntry der Task und setzt
+    sie auf `COMPLETED`. Eine schon abgeschlossene Task bleibt
+    unverändert, eine abgebrochene ist ein Konflikt (409). Läuft der
+    Timer einer anderen Task, bleibt er unberührt.
+-   Verlässt eine Task per `PATCH` den Status `IN_PROGRESS`, wird ihr
+    laufender Timer beendet. So läuft nie ein Timer auf einer
+    abgeschlossenen oder pausierten Task weiter.
+-   Ein Timer startet nur durch ausdrückliches Starten, nie durch das
+    Öffnen eines Workspace.
+-   `POST /api/time-entries` erfasst nur nachträglich einen beendeten
+    Eintrag: `started_at` und `ended_at` sind Pflicht, `ended_at` liegt
+    nach `started_at` und nicht in der Zukunft. Angegeben wird genau eines
+    von `task_id` und `project_id`. `source` ist standardmäßig `MANUAL`.
+-   Einträge werden nicht geändert oder gelöscht (`GET`, `POST`).
+    Eine Korrektur ist im MVP nicht vorgesehen.
+
 ------------------------------------------------------------------------
 
 # 9. VSCodium Integration

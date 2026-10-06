@@ -14,6 +14,7 @@ type Services struct {
 	Calendar  CalendarService
 	Habits    HabitService
 	Resources ResourceService
+	Time      TimeTrackingService
 }
 
 // NewRouter baut den HTTP-Handler. Die Security-Middleware läuft vor dem Routing.
@@ -34,6 +35,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	}
 	if svc.Resources != nil {
 		resourceHandlers{svc.Resources}.register(mux)
+	}
+	if svc.Time != nil {
+		timeHandlers{svc.Time}.register(mux)
 	}
 	mux.Handle("/", webUI)
 	return Security(port, token, mux)

@@ -98,9 +98,21 @@ func (r *TaskRepository) Create(ctx context.Context, t domain.Task) error {
 	return nil
 }
 
+// dbtx ist die gemeinsame Teilmenge von *sql.DB und *sql.Tx, damit dieselben
+// Abfragen auch innerhalb einer Transaktion laufen.
+type dbtx interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
 // Get liefert eine Task oder domain.ErrNotFound.
 func (r *TaskRepository) Get(ctx context.Context, id string) (domain.Task, error) {
-	t, err := scanTask(r.db.QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id))
+	return getTask(ctx, r.db, id)
+}
+
+func getTask(ctx context.Context, q dbtx, id string) (domain.Task, error) {
+	t, err := scanTask(q.QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Task{}, domain.ErrNotFound
 	}
@@ -147,7 +159,11 @@ func (r *TaskRepository) List(ctx context.Context, f domain.TaskFilter) ([]domai
 
 // Update überschreibt die veränderlichen Felder einer Task.
 func (r *TaskRepository) Update(ctx context.Context, t domain.Task) error {
-	res, err := r.db.ExecContext(ctx,
+	return updateTask(ctx, r.db, t)
+}
+
+func updateTask(ctx context.Context, q dbtx, t domain.Task) error {
+	res, err := q.ExecContext(ctx,
 		`UPDATE tasks SET project_id = ?, parent_task_id = ?, title = ?, description = ?, status = ?,
 			priority = ?, estimated_minutes = ?, due_at = ?, planned_date = ?, planned_start_at = ?,
 			updated_at = ?, completed_at = ? WHERE id = ?`,

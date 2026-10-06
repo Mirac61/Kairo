@@ -27,6 +27,9 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 	q.Add("_pragma", "foreign_keys(1)")
 	q.Add("_pragma", "journal_mode(WAL)")
 	q.Add("_pragma", "busy_timeout(5000)")
+	// Transaktionen nehmen die Schreibsperre sofort. So warten zwei Timer-Wechsel
+	// aufeinander (busy_timeout), statt beim Lock-Upgrade mit SQLITE_BUSY zu scheitern.
+	q.Add("_txlock", "immediate")
 	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?"+q.Encode())
 	if err != nil {
 		return nil, fmt.Errorf("repository: öffnen: %w", err)

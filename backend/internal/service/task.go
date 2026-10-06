@@ -22,10 +22,16 @@ type TaskStore interface {
 // maxTaskDepth begrenzt die Suche nach Zyklen in der Subtask-Kette.
 const maxTaskDepth = 100
 
+// TimerStopper beendet den laufenden Timer einer Task.
+type TimerStopper interface {
+	StopTimer(ctx context.Context, taskID string) error
+}
+
 // TaskService enthält die Regeln für Tasks.
 type TaskService struct {
-	store TaskStore
-	now   func() time.Time
+	store  TaskStore
+	now    func() time.Time
+	timers TimerStopper
 }
 
 // NewTaskService erzeugt einen TaskService. now ist die Uhr (nil = time.Now).
@@ -34,6 +40,14 @@ func NewTaskService(store TaskStore, now func() time.Time) *TaskService {
 		now = time.Now
 	}
 	return &TaskService{store: store, now: now}
+}
+
+// WithTimerStopper sorgt dafür, dass Update den Timer einer Task beendet,
+// sobald sie IN_PROGRESS verlässt. Ohne das könnte ein Timer auf einer
+// abgeschlossenen Task weiterlaufen.
+func (s *TaskService) WithTimerStopper(ts TimerStopper) *TaskService {
+	s.timers = ts
+	return s
 }
 
 // CreateTaskInput sind die Felder beim Anlegen. Status ist standardmäßig
@@ -129,6 +143,7 @@ func (s *TaskService) Update(ctx context.Context, id string, in UpdateTaskInput)
 		return domain.Task{}, err
 	}
 	now := s.now().UTC()
+	wasInProgress := t.Status == domain.TaskInProgress
 	if in.Title != nil {
 		t.Title = strings.TrimSpace(*in.Title)
 	}
@@ -177,6 +192,12 @@ func (s *TaskService) Update(ctx context.Context, id string, in UpdateTaskInput)
 		}
 	}
 	t.UpdatedAt = now
+	if wasInProgress && t.Status != domain.TaskInProgress && s.timers != nil {
+		// Zuerst den Timer, dann die Task: Schlägt Update fehl, ist nur der Timer beendet.
+		if err := s.timers.StopTimer(ctx, t.ID); err != nil {
+			return domain.Task{}, err
+		}
+	}
 	if err := s.store.Update(ctx, t); err != nil {
 		return domain.Task{}, err
 	}

@@ -371,6 +371,34 @@ source
 
 Höchstens ein Eintrag mit `ended_at IS NULL` (partieller Unique-Index).
 
+`source` ist `MANUAL`, `VSCODIUM` oder `AUTOMATIC`. Genau eines von
+`task_id` und `project_id` ist gespeichert (CHECK): Ein Task-Eintrag
+speichert kein Projekt, `project_id` in der API ist dann das Projekt der
+Task zum Zeitpunkt der Abfrage. Löscht man Task oder Projekt, werden die
+Einträge mit gelöscht (`ON DELETE CASCADE`). Zeitpunkte stehen in dieser
+Tabelle mit fester Breite (`YYYY-MM-DDTHH:MM:SS.mmmZ`), damit Textvergleich
+und Zeitreihenfolge übereinstimmen.
+
+Start, Pause und Abschluss laufen in einer Transaktion (Task-Status und
+Zeiteintrag ändern sich gemeinsam). Die Datenbank öffnet Transaktionen mit
+`_txlock=immediate`, damit sich gleichzeitige Timer-Wechsel
+hintereinander einreihen.
+
+API:
+
+``` text
+GET  /api/time-entries   ?task_id= ?project_id= ?from= ?to= ?running=true
+POST /api/time-entries   {task_id|project_id, started_at, ended_at, source?}
+POST /api/tasks/:id/start     {source?}   (Body optional)
+POST /api/tasks/:id/pause
+POST /api/tasks/:id/complete
+```
+
+`from` ist inklusive, `to` exklusiv, beide gelten für `started_at`
+(RFC 3339, ein `+` im Offset als `%2B` kodieren). `?running=true` liefert
+den laufenden Timer. Start, Pause und Abschluss antworten mit
+`{"task": …, "time_entry": … | null}`.
+
 ------------------------------------------------------------------------
 
 # Zeit und Zeitzonen

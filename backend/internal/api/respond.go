@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -35,9 +36,18 @@ func writeError(w http.ResponseWriter, err error) {
 
 // decodeJSON liest einen JSON-Body und lehnt unbekannte Felder ab.
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	return decodeBody(w, r, dst, false)
+}
+
+// decodeOptionalJSON wie decodeJSON, akzeptiert aber auch einen leeren Body.
+func decodeOptionalJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	return decodeBody(w, r, dst, true)
+}
+
+func decodeBody(w http.ResponseWriter, r *http.Request, dst any, allowEmpty bool) bool {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
+	if err := dec.Decode(dst); err != nil && !(allowEmpty && errors.Is(err, io.EOF)) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ungültiger JSON-Body: " + err.Error()})
 		return false
 	}
