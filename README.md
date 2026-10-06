@@ -2,7 +2,7 @@
 
 Kairo ist ein lokales Personal OS für Planung und Arbeit: WebUI = Planen, VSCodium = Arbeiten.
 
-**Status:** Planungsphase – bisher existiert nur Dokumentation, noch kein Code.
+**Status:** Phase 0 (Gerüst) – Backend, WebUI und Extension starten und sprechen miteinander (`/api/health`). Fachlogik folgt ab Phase 1.
 
 ## Dokumentation
 
@@ -21,3 +21,22 @@ frontend/    Vue 3 + TypeScript + Vite
 extension/   VSCodium-Extension
 docs/        Projektdokumentation
 ```
+
+## Entwicklung
+
+Entwicklungsmodus (zwei Terminals):
+
+```
+cd backend  && go run ./cmd/server      # http://127.0.0.1:8742
+cd frontend && npm install && npm run dev   # http://127.0.0.1:5173, leitet /api ans Backend
+```
+
+Ein einzelnes Binary mit eingebetteter WebUI (die Reihenfolge ist wichtig, weil `embed` beim Kompilieren greift):
+
+```
+cd frontend && npm run build            # schreibt nach backend/internal/web/dist
+cd backend  && go build -o kairo ./cmd/server
+```
+
+Die Extension steht in `extension/` (siehe dortige README, Start per F5 in VSCodium).
+Details zu Konfiguration und Sicherheit: `backend/README.md`.
