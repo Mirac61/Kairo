@@ -129,3 +129,28 @@ export const updateProject = (id: string, body: Partial<Project>) =>
   api<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
 export const deleteProject = (id: string) => api<void>(`/projects/${id}`, { method: 'DELETE' })
+
+export interface FrequencyConfig {
+  weekday?: string
+  weekdays?: string[]
+  times?: number
+}
+
+export interface Habit {
+  id: string
+  name: string
+  description: string
+  frequency_type: 'DAILY' | 'WEEKLY' | 'SPECIFIC_WEEKDAYS' | 'TIMES_PER_WEEK'
+  frequency_config: FrequencyConfig
+  active: boolean
+}
+
+export const listHabits = () => api<Habit[]>('/habits')
+
+export const createHabit = (body: Partial<Habit>) =>
+  api<Habit>('/habits', { method: 'POST', body: JSON.stringify(body) })
+
+export const updateHabit = (id: string, body: Partial<Habit>) =>
+  api<Habit>(`/habits/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const deleteHabit = (id: string) => api<void>(`/habits/${id}`, { method: 'DELETE' })
