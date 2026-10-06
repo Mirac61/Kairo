@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
-  completeHabit,
-  getToday,
-  taskAction,
-  uncompleteHabit,
-  type Task,
-  type Today,
-} from '@/api/client'
+  NAlert, NCard, NCheckbox, NH1, NList, NListItem, NSpace, NStatistic, NText,
+} from 'naive-ui'
+import { completeHabit, errorMessage, getToday, uncompleteHabit, type Task, type Today } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import TaskActions from '@/components/TaskActions.vue'
 
 const today = ref<Today | null>(null)
 const error = ref('')
@@ -19,16 +16,16 @@ async function load() {
   try {
     today.value = await getToday()
     error.value = ''
-  } catch {
-    error.value = 'Backend nicht erreichbar.'
+  } catch (e) {
+    error.value = errorMessage(e)
   }
 }
 
 async function run(fn: () => Promise<unknown>) {
   try {
     await fn()
-  } catch {
-    error.value = 'Aktion fehlgeschlagen.'
+  } catch (e) {
+    error.value = errorMessage(e)
   }
   await load() // das /ws-Ereignis lädt ebenfalls, aber so ist die Anzeige auch ohne /ws aktuell
 }
@@ -40,12 +37,7 @@ onMounted(() => {
 onUnmounted(() => clearInterval(tick))
 
 const fmt = (iso: string) =>
-  new Intl.DateTimeFormat('de-DE', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: today.value?.timezone,
-  }).format(new Date(iso))
-
+  new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: today.value?.timezone }).format(new Date(iso))
 const hm = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')} h`
 
 const runningTaskId = computed(() => today.value?.running_time_entry?.task_id ?? null)
@@ -66,111 +58,78 @@ const timeline = computed<Item[]>(() => {
   const t = today.value
   if (!t) return []
   const items: Item[] = t.events.map((e) => ({
-    kind: 'event',
-    at: e.occurrence_start,
-    key: `e${e.id}${e.occurrence_start}`,
-    title: e.title,
-    sub: e.location,
-    end: e.occurrence_end,
+    kind: 'event', at: e.occurrence_start, key: `e${e.id}${e.occurrence_start}`,
+    title: e.title, sub: e.location, end: e.occurrence_end,
   }))
   for (const task of t.tasks) {
     if (task.planned_start_at) items.push({ kind: 'task', at: task.planned_start_at, key: `t${task.id}`, task })
   }
   return items.sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
 })
-const untimed = computed(() => today.value?.tasks.filter((t) => !t.planned_start_at) ?? [])
+const groups = computed(() => [
+  { title: 'Ohne Uhrzeit', tasks: today.value?.tasks.filter((t) => !t.planned_start_at) ?? [] },
+  { title: 'Aktiv, nicht für heute geplant', tasks: today.value?.active_tasks ?? [] },
+])
 </script>
 
 <template>
-  <section>
-    <h1>Heute <small v-if="today">{{ today.date }}</small></h1>
-    <p v-if="error" class="error">{{ error }}</p>
+  <n-space vertical :size="16">
+    <n-h1 style="margin: 0">Heute <n-text depth="3" style="font-size: 14px">{{ today?.date }}</n-text></n-h1>
+    <n-alert v-if="error" type="error">{{ error }}</n-alert>
 
     <template v-if="today">
-      <p class="summary">
-        Geplant {{ hm(today.planned_minutes) }} · Termine {{ hm(today.calendar_minutes) }} · Erfasst
-        {{ hm(today.tracked_minutes) }} · Frei {{ hm(today.free_minutes) }} von {{ hm(today.work_minutes) }}
-      </p>
-      <p v-if="today.overplanned_minutes" class="error">
-        Überplant um {{ hm(today.overplanned_minutes) }}
-      </p>
-      <p v-if="today.running_time_entry" class="running">● Timer läuft: {{ elapsed }}</p>
+      <n-space :size="32">
+        <n-statistic label="Geplant" :value="hm(today.planned_minutes)" />
+        <n-statistic label="Termine" :value="hm(today.calendar_minutes)" />
+        <n-statistic label="Erfasst" :value="hm(today.tracked_minutes)" />
+        <n-statistic label="Frei" :value="hm(today.free_minutes)">
+          <template #suffix><n-text depth="3" style="font-size: 14px">von {{ hm(today.work_minutes) }}</n-text></template>
+        </n-statistic>
+      </n-space>
+      <n-alert v-if="today.overplanned_minutes" type="warning">Überplant um {{ hm(today.overplanned_minutes) }}</n-alert>
+      <n-alert v-if="today.running_time_entry" class="running" type="success">Timer läuft: {{ elapsed }}</n-alert>
 
-      <h2>Zeitleiste</h2>
-      <p v-if="!timeline.length" class="hint">Keine Termine oder Tasks mit Uhrzeit.</p>
-      <ul class="list">
-        <li v-for="i in timeline" :key="i.key">
-          <span class="time">{{ fmt(i.at) }}</span>
-          <template v-if="i.kind === 'event'">
-            <span class="title">{{ i.title }} <small>bis {{ fmt(i.end) }}<template v-if="i.sub"> · {{ i.sub }}</template></small></span>
-          </template>
-          <template v-else>
-            <span class="title" :class="{ done: i.task.status === 'COMPLETED' }">{{ i.task.title }}</span>
-            <span class="actions">
-              <button v-if="runningTaskId === i.task.id" @click="run(() => taskAction(i.task.id, 'pause'))">Pause</button>
-              <button v-else-if="i.task.status !== 'COMPLETED'" @click="run(() => taskAction(i.task.id, 'start'))">Start</button>
-              <button v-if="i.task.status !== 'COMPLETED'" @click="run(() => taskAction(i.task.id, 'complete'))">Fertig</button>
-            </span>
-          </template>
-        </li>
-      </ul>
+      <n-card title="Zeitleiste" size="small">
+        <n-text v-if="!timeline.length" depth="3">Keine Termine oder Tasks mit Uhrzeit.</n-text>
+        <n-list v-else>
+          <n-list-item v-for="i in timeline" :key="i.key">
+            <template #prefix><n-text depth="3">{{ fmt(i.at) }}</n-text></template>
+            <template v-if="i.kind === 'event'">
+              {{ i.title }}
+              <n-text depth="3">bis {{ fmt(i.end) }}<template v-if="i.sub"> · {{ i.sub }}</template></n-text>
+            </template>
+            <n-text v-else :delete="i.task.status === 'COMPLETED'">{{ i.task.title }}</n-text>
+            <template v-if="i.kind === 'task'" #suffix>
+              <task-actions :task="i.task" :running="runningTaskId === i.task.id" @run="run" />
+            </template>
+          </n-list-item>
+        </n-list>
+      </n-card>
 
-      <template v-for="[title, tasks] in [['Ohne Uhrzeit', untimed], ['Aktiv, nicht für heute geplant', today.active_tasks]] as const" :key="title">
-        <template v-if="tasks.length">
-          <h2>{{ title }}</h2>
-          <ul class="list">
-            <li v-for="task in tasks" :key="task.id">
-              <span class="title" :class="{ done: task.status === 'COMPLETED' }">{{ task.title }}</span>
-              <span class="actions">
-                <button v-if="runningTaskId === task.id" @click="run(() => taskAction(task.id, 'pause'))">Pause</button>
-                <button v-else-if="task.status !== 'COMPLETED'" @click="run(() => taskAction(task.id, 'start'))">Start</button>
-                <button v-if="task.status !== 'COMPLETED'" @click="run(() => taskAction(task.id, 'complete'))">Fertig</button>
-              </span>
-            </li>
-          </ul>
-        </template>
+      <template v-for="g in groups" :key="g.title">
+        <n-card v-if="g.tasks.length" :title="g.title" size="small">
+          <n-list>
+            <n-list-item v-for="task in g.tasks" :key="task.id">
+              <n-text :delete="task.status === 'COMPLETED'">{{ task.title }}</n-text>
+              <template #suffix><task-actions :task="task" :running="runningTaskId === task.id" @run="run" /></template>
+            </n-list-item>
+          </n-list>
+        </n-card>
       </template>
 
-      <template v-if="today.habits.length">
-        <h2>Habits</h2>
-        <ul class="list">
-          <li v-for="h in today.habits" :key="h.id">
-            <label class="title">
-              <input
-                type="checkbox"
-                :checked="h.done"
-                @change="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
-              />
+      <n-card v-if="today.habits.length" title="Habits" size="small">
+        <n-list>
+          <n-list-item v-for="h in today.habits" :key="h.id">
+            <n-checkbox
+              :checked="h.done"
+              @update:checked="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
+            >
               {{ h.name }}
-              <small v-if="h.week_progress">{{ h.week_progress.done }}/{{ h.week_progress.target }} diese Woche</small>
-            </label>
-          </li>
-        </ul>
-      </template>
+              <n-text v-if="h.week_progress" depth="3">{{ h.week_progress.done }}/{{ h.week_progress.target }} diese Woche</n-text>
+            </n-checkbox>
+          </n-list-item>
+        </n-list>
+      </n-card>
     </template>
-  </section>
+  </n-space>
 </template>
-
-<style scoped>
-h1 { margin: 0 0 8px; font-size: 24px; }
-h1 small, .title small { color: var(--text-muted); font-size: 13px; font-weight: 400; }
-h2 { margin: 24px 0 8px; font-size: 16px; }
-.summary, .hint { margin: 0; color: var(--text-muted); }
-.running { color: var(--ok); font-weight: 600; }
-.error { color: var(--err); }
-.list { list-style: none; margin: 0; padding: 0; }
-.list li {
-  display: flex; align-items: center; gap: 12px;
-  padding: 8px 12px; margin-bottom: 4px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
-}
-.time { width: 48px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.title { flex: 1; }
-.done { text-decoration: line-through; color: var(--text-muted); }
-.actions { display: flex; gap: 6px; }
-button {
-  padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--bg); color: var(--text); cursor: pointer;
-}
-button:hover { border-color: var(--accent); color: var(--accent); }
-</style>

@@ -1,33 +1,24 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import {
-  createHabit,
-  deleteHabit,
-  errorMessage,
-  listHabits,
-  updateHabit,
-  type FrequencyConfig,
-  type Habit,
+  NAlert, NButton, NCheckbox, NCheckboxGroup, NH1, NInput, NInputNumber, NList, NListItem, NSelect, NSpace, NText,
+} from 'naive-ui'
+import {
+  createHabit, deleteHabit, errorMessage, listHabits, updateHabit, type FrequencyConfig, type Habit,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import DeleteButton from '@/components/DeleteButton.vue'
 
 const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 const TYPE_LABEL: Record<Habit['frequency_type'], string> = {
-  DAILY: 'Täglich',
-  WEEKLY: 'Wöchentlich',
-  SPECIFIC_WEEKDAYS: 'Bestimmte Wochentage',
-  TIMES_PER_WEEK: 'X-mal pro Woche',
+  DAILY: 'Täglich', WEEKLY: 'Wöchentlich', SPECIFIC_WEEKDAYS: 'Bestimmte Wochentage', TIMES_PER_WEEK: 'X-mal pro Woche',
 }
+const typeOptions = Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label }))
+const weekdayOptions = WEEKDAYS.map((v) => ({ value: v, label: v }))
 
 const habits = ref<Habit[]>([])
 const error = ref('')
-const form = ref({
-  name: '',
-  type: 'DAILY' as Habit['frequency_type'],
-  weekday: 'MO',
-  weekdays: ['MO'] as string[],
-  times: 3,
-})
+const form = ref({ name: '', type: 'DAILY' as Habit['frequency_type'], weekday: 'MO', weekdays: ['MO'] as string[], times: 3 as number | null })
 
 async function load() {
   try {
@@ -52,7 +43,7 @@ function config(): FrequencyConfig {
   const f = form.value
   if (f.type === 'WEEKLY') return { weekday: f.weekday }
   if (f.type === 'SPECIFIC_WEEKDAYS') return { weekdays: f.weekdays }
-  if (f.type === 'TIMES_PER_WEEK') return { times: f.times }
+  if (f.type === 'TIMES_PER_WEEK') return { times: f.times ?? 1 }
   return {}
 }
 
@@ -73,68 +64,44 @@ function describe(h: Habit) {
   return TYPE_LABEL[h.frequency_type]
 }
 
-function remove(h: Habit) {
-  if (confirm(`„${h.name}“ löschen?`)) void run(() => deleteHabit(h.id))
-}
-
 onMounted(load)
 useLiveEvents(load)
 </script>
 
 <template>
-  <section>
-    <h1>Habits</h1>
-    <p v-if="error" class="error">{{ error }}</p>
+  <n-space vertical :size="16">
+    <n-h1 style="margin: 0">Habits</n-h1>
+    <n-alert v-if="error" type="error">{{ error }}</n-alert>
 
-    <form class="row" @submit.prevent="add">
-      <input v-model="form.name" placeholder="Neues Habit" required />
-      <select v-model="form.type">
-        <option v-for="(label, t) in TYPE_LABEL" :key="t" :value="t">{{ label }}</option>
-      </select>
-      <select v-if="form.type === 'WEEKLY'" v-model="form.weekday">
-        <option v-for="d in WEEKDAYS" :key="d">{{ d }}</option>
-      </select>
-      <span v-if="form.type === 'SPECIFIC_WEEKDAYS'" class="days">
-        <label v-for="d in WEEKDAYS" :key="d"><input v-model="form.weekdays" type="checkbox" :value="d" /> {{ d }}</label>
-      </span>
-      <input v-if="form.type === 'TIMES_PER_WEEK'" v-model.number="form.times" type="number" min="1" max="7" class="num" />
-      <button>Anlegen</button>
+    <form @submit.prevent="add">
+      <n-space align="center">
+        <n-input v-model:value="form.name" placeholder="Neues Habit" style="width: 220px" />
+        <n-select v-model:value="form.type" :options="typeOptions" style="width: 200px" />
+        <n-select v-if="form.type === 'WEEKLY'" v-model:value="form.weekday" :options="weekdayOptions" style="width: 90px" />
+        <n-checkbox-group v-if="form.type === 'SPECIFIC_WEEKDAYS'" v-model:value="form.weekdays">
+          <n-space :size="8"><n-checkbox v-for="d in WEEKDAYS" :key="d" :value="d" :label="d" /></n-space>
+        </n-checkbox-group>
+        <n-input-number v-if="form.type === 'TIMES_PER_WEEK'" v-model:value="form.times" :min="1" :max="7" style="width: 90px" />
+        <n-button type="primary" attr-type="submit">Anlegen</n-button>
+      </n-space>
     </form>
 
-    <p v-if="!habits.length" class="hint">Keine Habits.</p>
-    <ul class="list">
-      <li v-for="h in habits" :key="h.id">
-        <span class="title" :class="{ off: !h.active }">
-          {{ h.name }} <small>{{ describe(h) }}<template v-if="!h.active"> · inaktiv</template></small>
-        </span>
-        <button @click="run(() => updateHabit(h.id, { active: !h.active }))">{{ h.active ? 'Deaktivieren' : 'Aktivieren' }}</button>
-        <button @click="remove(h)">Löschen</button>
-      </li>
-    </ul>
-  </section>
+    <n-text v-if="!habits.length" depth="3">Keine Habits.</n-text>
+    <n-list v-else bordered>
+      <n-list-item v-for="h in habits" :key="h.id">
+        <n-space vertical :size="2">
+          <n-text :depth="h.active ? 1 : 3">{{ h.name }}</n-text>
+          <n-text depth="3" style="font-size: 13px">{{ describe(h) }}<template v-if="!h.active"> · inaktiv</template></n-text>
+        </n-space>
+        <template #suffix>
+          <n-space :size="6" :wrap="false">
+            <n-button size="small" @click="run(() => updateHabit(h.id, { active: !h.active }))">
+              {{ h.active ? 'Deaktivieren' : 'Aktivieren' }}
+            </n-button>
+            <delete-button :text="`„${h.name}“ löschen?`" @confirm="run(() => deleteHabit(h.id))" />
+          </n-space>
+        </template>
+      </n-list-item>
+    </n-list>
+  </n-space>
 </template>
-
-<style scoped>
-h1 { margin: 0 0 16px; font-size: 24px; }
-.hint { color: var(--text-muted); }
-.error { color: var(--err); }
-.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-.row > input:first-child { flex: 1; min-width: 160px; }
-.num { width: 64px; }
-.days { display: flex; gap: 8px; font-size: 13px; }
-input, select, button {
-  padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--surface); color: var(--text); font: inherit;
-}
-.days input { padding: 0; }
-button { background: var(--bg); cursor: pointer; }
-button:hover { border-color: var(--accent); color: var(--accent); }
-.list { list-style: none; margin: 0; padding: 0; }
-.list li {
-  display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 4px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
-}
-.title { flex: 1; }
-.title small { color: var(--text-muted); font-size: 13px; }
-.off { color: var(--text-muted); }
-</style>

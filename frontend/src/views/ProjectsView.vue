@@ -1,32 +1,25 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { NAlert, NButton, NCard, NH1, NInput, NSelect, NSpace, NTag, NText } from 'naive-ui'
 import {
-  createProject,
-  createResource,
-  deleteResource,
-  listResources,
-  type Resource,
-  deleteProject,
-  errorMessage,
-  listProjects,
-  updateProject,
-  type Project,
+  createProject, createResource, deleteProject, deleteResource, errorMessage, listProjects, listResources,
+  updateProject, type Project, type Resource,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import DeleteButton from '@/components/DeleteButton.vue'
 
-const STATUS_LABEL: Record<string, string> = {
-  ACTIVE: 'Aktiv',
-  PAUSED: 'Pausiert',
-  COMPLETED: 'Abgeschlossen',
-  ARCHIVED: 'Archiviert',
-}
+const statusOptions = [
+  { value: 'ACTIVE', label: 'Aktiv' }, { value: 'PAUSED', label: 'Pausiert' },
+  { value: 'COMPLETED', label: 'Abgeschlossen' }, { value: 'ARCHIVED', label: 'Archiviert' },
+]
+const typeOptions = ['URL', 'FILE', 'FOLDER'].map((v) => ({ value: v, label: v }))
 
 const projects = ref<Project[]>([])
 const resources = ref<Resource[]>([])
-const resForm = ref<Record<string, { type: Resource['type']; target: string; label: string }>>({})
-const resFor = (id: string) => (resForm.value[id] ??= { type: 'URL', target: '', label: '' })
 const error = ref('')
 const form = ref({ name: '', local_path: '' })
+const resForm = ref<Record<string, { type: Resource['type']; target: string; label: string }>>({})
+const resFor = (id: string) => (resForm.value[id] ??= { type: 'URL', target: '', label: '' })
 
 async function load() {
   try {
@@ -66,90 +59,52 @@ function addResource(p: Project) {
   })
 }
 
-function remove(p: Project) {
-  if (confirm(`„${p.name}“ löschen?`)) void run(() => deleteProject(p.id))
-}
-
 onMounted(load)
 useLiveEvents(load)
 </script>
 
 <template>
-  <section>
-    <h1>Projekte</h1>
-    <p v-if="error" class="error">{{ error }}</p>
+  <n-space vertical :size="16">
+    <n-h1 style="margin: 0">Projekte</n-h1>
+    <n-alert v-if="error" type="error">{{ error }}</n-alert>
 
-    <form class="row" @submit.prevent="add">
-      <input v-model="form.name" placeholder="Neues Projekt" required />
-      <input v-model="form.local_path" placeholder="Ordner (optional, z. B. /Users/…/repo)" />
-      <button>Anlegen</button>
+    <form @submit.prevent="add">
+      <n-space>
+        <n-input v-model:value="form.name" placeholder="Neues Projekt" style="width: 220px" />
+        <n-input v-model:value="form.local_path" placeholder="Ordner (optional, absoluter Pfad)" style="width: 320px" />
+        <n-button type="primary" attr-type="submit">Anlegen</n-button>
+      </n-space>
     </form>
 
-    <p v-if="!projects.length" class="hint">Keine Projekte.</p>
-    <ul class="list">
-      <li v-for="p in projects" :key="p.id">
-        <span class="title edit">
-          <input
-            :value="p.name" aria-label="Name"
-            @change="run(() => updateProject(p.id, { name: ($event.target as HTMLInputElement).value.trim() || p.name }))"
+    <n-text v-if="!projects.length" depth="3">Keine Projekte.</n-text>
+    <n-card v-for="p in projects" :key="p.id" size="small">
+      <n-space vertical>
+        <n-space align="center">
+          <n-input :default-value="p.name" style="width: 220px" @change="(v: string) => run(() => updateProject(p.id, { name: v.trim() || p.name }))" />
+          <n-input
+            :default-value="p.local_path ?? ''" placeholder="Ordner (absoluter Pfad)" style="width: 320px"
+            @change="(v: string) => run(() => updateProject(p.id, { local_path: v.trim() }))"
           />
-          <input
-            :value="p.local_path ?? ''" placeholder="Ordner (absoluter Pfad)" aria-label="Ordner"
-            @change="run(() => updateProject(p.id, { local_path: ($event.target as HTMLInputElement).value.trim() }))"
+          <n-select
+            :value="p.status" :options="statusOptions" style="width: 150px"
+            @update:value="(v: string) => run(() => updateProject(p.id, { status: v }))"
           />
-        </span>
-        <select :value="p.status" @change="run(() => updateProject(p.id, { status: ($event.target as HTMLSelectElement).value }))">
-          <option v-for="(label, s) in STATUS_LABEL" :key="s" :value="s">{{ label }}</option>
-        </select>
-        <button @click="remove(p)">Löschen</button>
-        <div class="res">
-          <span v-for="r in resources.filter((x) => x.project_id === p.id)" :key="r.id" class="chip">
-            {{ r.label || r.target }} <small>{{ r.type }}</small>
-            <button title="Entfernen" @click="run(() => deleteResource(r.id))">×</button>
-          </span>
-          <form class="row" @submit.prevent="addResource(p)">
-            <select v-model="resFor(p.id).type">
-              <option>URL</option><option>FILE</option><option>FOLDER</option>
-            </select>
-            <input v-model="resFor(p.id).target" placeholder="URL oder Pfad (~ erlaubt)" />
-            <input v-model="resFor(p.id).label" placeholder="Name (optional)" />
-            <button>+ Ressource</button>
-          </form>
-        </div>
-      </li>
-    </ul>
-  </section>
+          <delete-button :text="`„${p.name}“ löschen?`" @confirm="run(() => deleteProject(p.id))" />
+        </n-space>
+        <n-space align="center" :size="6">
+          <n-tag v-for="r in resources.filter((x) => x.project_id === p.id)" :key="r.id" closable class="chip" @close="run(() => deleteResource(r.id))">
+            {{ r.label || r.target }}<n-text depth="3"> · {{ r.type }}</n-text>
+          </n-tag>
+        </n-space>
+        <form @submit.prevent="addResource(p)">
+          <n-space>
+            <n-select v-model:value="resFor(p.id).type" :options="typeOptions" size="small" style="width: 100px" />
+            <n-input v-model:value="resFor(p.id).target" size="small" placeholder="URL oder Pfad (~ erlaubt)" style="width: 260px" />
+            <n-input v-model:value="resFor(p.id).label" size="small" placeholder="Name (optional)" style="width: 160px" />
+            <n-button size="small" attr-type="submit">+ Ressource</n-button>
+          </n-space>
+        </form>
+      </n-space>
+    </n-card>
+  </n-space>
 </template>
-
-<style scoped>
-h1 { margin: 0 0 16px; font-size: 24px; }
-.hint { color: var(--text-muted); }
-.error { color: var(--err); }
-.row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-.row input { flex: 1; min-width: 160px; }
-input, select, button {
-  padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--surface); color: var(--text); font: inherit;
-}
-button { background: var(--bg); cursor: pointer; }
-button:hover { border-color: var(--accent); color: var(--accent); }
-.list { list-style: none; margin: 0; padding: 0; }
-.list li {
-  flex-wrap: wrap;
-  display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 4px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
-}
-.title { flex: 1; }
-.title small { display: block; color: var(--text-muted); font-size: 13px; }
-</style>
-<style scoped>
-.res { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.res .row { margin: 0; }
-.chip { padding: 2px 8px; border: 1px solid var(--border); border-radius: 12px; font-size: 13px; }
-.chip small { color: var(--text-muted); }
-.chip button { border: 0; background: none; padding: 0 2px; }
-</style>
-<style scoped>
-.edit { display: flex; gap: 8px; }
-.edit input { flex: 1; min-width: 0; }
-</style>

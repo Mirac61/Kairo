@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import {
-  createEvent,
-  deleteEvent,
-  errorMessage,
-  getToday,
-  type Today,
-} from '@/api/client'
+import { NAlert, NButton, NCard, NDatePicker, NH1, NInput, NList, NListItem, NSpace, NText } from 'naive-ui'
+import { createEvent, deleteEvent, errorMessage, getToday, type Today } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import DeleteButton from '@/components/DeleteButton.vue'
 
 // Wochenansicht: pro Tag ein /api/today?date=…, damit Serientermine als
 // einzelne Vorkommen erscheinen. Neue Termine nutzen die Zeitzone des Browsers.
@@ -23,7 +19,7 @@ function monday(d: Date) {
 const weekStart = ref(monday(new Date()))
 const days = ref<Today[]>([])
 const error = ref('')
-const form = ref({ title: '', start: '', end: '', location: '' })
+const form = ref({ title: '', start: null as number | null, end: null as number | null, location: '' })
 
 const range = computed(() => {
   const end = new Date(weekStart.value)
@@ -64,20 +60,14 @@ async function run(fn: () => Promise<unknown>) {
 
 function add() {
   const f = form.value
-  if (!f.title.trim() || !f.start || !f.end) return
+  if (!f.title.trim() || f.start === null || f.end === null) return
+  const [start, end] = [f.start, f.end]
   void run(async () => {
     await createEvent({
-      title: f.title.trim(),
-      start_at: new Date(f.start).toISOString(),
-      end_at: new Date(f.end).toISOString(),
-      location: f.location,
+      title: f.title.trim(), start_at: new Date(start).toISOString(), end_at: new Date(end).toISOString(), location: f.location,
     })
-    form.value = { title: '', start: '', end: '', location: '' }
+    form.value = { title: '', start: null, end: null, location: '' }
   })
-}
-
-function remove(id: string, title: string) {
-  if (confirm(`„${title}“ löschen? Bei Serien entfällt die ganze Serie.`)) void run(() => deleteEvent(id))
 }
 
 const time = (iso: string, tz: string) =>
@@ -90,57 +80,37 @@ useLiveEvents(load)
 </script>
 
 <template>
-  <section>
-    <h1>Kalender</h1>
-    <p v-if="error" class="error">{{ error }}</p>
+  <n-space vertical :size="16">
+    <n-h1 style="margin: 0">Kalender</n-h1>
+    <n-alert v-if="error" type="error">{{ error }}</n-alert>
 
-    <form class="row" @submit.prevent="add">
-      <input v-model="form.title" placeholder="Neuer Termin" required />
-      <input v-model="form.start" type="datetime-local" required />
-      <input v-model="form.end" type="datetime-local" required />
-      <input v-model="form.location" placeholder="Ort" />
-      <button>Anlegen</button>
+    <form @submit.prevent="add">
+      <n-space>
+        <n-input v-model:value="form.title" placeholder="Neuer Termin" style="width: 200px" />
+        <n-date-picker v-model:value="form.start" type="datetime" placeholder="Beginn" style="width: 200px" />
+        <n-date-picker v-model:value="form.end" type="datetime" placeholder="Ende" style="width: 200px" />
+        <n-input v-model:value="form.location" placeholder="Ort" style="width: 140px" />
+        <n-button type="primary" attr-type="submit">Anlegen</n-button>
+      </n-space>
     </form>
 
-    <div class="nav">
-      <button @click="shift(-1)">←</button>
-      <strong>{{ range }}</strong>
-      <button @click="shift(1)">→</button>
-    </div>
+    <n-space align="center">
+      <n-button @click="shift(-1)">←</n-button>
+      <n-text strong>{{ range }}</n-text>
+      <n-button @click="shift(1)">→</n-button>
+    </n-space>
 
-    <div v-for="d in days" :key="d.date" class="day">
-      <h2>{{ weekday(d.date) }}</h2>
-      <p v-if="!d.events.length" class="hint">–</p>
-      <ul class="list">
-        <li v-for="e in d.events" :key="e.id + e.occurrence_start">
-          <span class="time">{{ time(e.occurrence_start, d.timezone) }}–{{ time(e.occurrence_end, d.timezone) }}</span>
-          <span class="title">{{ e.title }} <small v-if="e.location">{{ e.location }}</small></span>
-          <button @click="remove(e.id, e.title)">Löschen</button>
-        </li>
-      </ul>
-    </div>
-  </section>
+    <n-card v-for="d in days" :key="d.date" :title="weekday(d.date)" size="small">
+      <n-text v-if="!d.events.length" depth="3">–</n-text>
+      <n-list v-else>
+        <n-list-item v-for="e in d.events" :key="e.id + e.occurrence_start">
+          <template #prefix><n-text depth="3">{{ time(e.occurrence_start, d.timezone) }}–{{ time(e.occurrence_end, d.timezone) }}</n-text></template>
+          {{ e.title }} <n-text v-if="e.location" depth="3">{{ e.location }}</n-text>
+          <template #suffix>
+            <delete-button :text="`„${e.title}“ löschen? Bei Serien entfällt die ganze Serie.`" @confirm="run(() => deleteEvent(e.id))" />
+          </template>
+        </n-list-item>
+      </n-list>
+    </n-card>
+  </n-space>
 </template>
-
-<style scoped>
-h1 { margin: 0 0 16px; font-size: 24px; }
-h2 { margin: 16px 0 6px; font-size: 15px; }
-.hint { margin: 0; color: var(--text-muted); }
-.error { color: var(--err); }
-.row, .nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-.row > input:first-child { flex: 1; min-width: 160px; }
-input, button {
-  padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--surface); color: var(--text); font: inherit;
-}
-button { background: var(--bg); cursor: pointer; }
-button:hover { border-color: var(--accent); color: var(--accent); }
-.list { list-style: none; margin: 0; padding: 0; }
-.list li {
-  display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 4px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
-}
-.time { width: 110px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.title { flex: 1; }
-.title small { margin-left: 8px; color: var(--text-muted); font-size: 13px; }
-</style>
