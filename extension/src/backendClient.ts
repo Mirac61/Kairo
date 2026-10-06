@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { checkHealth, HealthResult, readToken } from "./core";
+import { apiRequest, checkHealth, HealthResult, Project, readToken, Today } from "./core";
 
 export { HealthResult, readToken };
 
@@ -12,3 +12,13 @@ export function backendUrl(): string {
 export function getHealth(): Promise<HealthResult> {
   return checkHealth(backendUrl(), readToken());
 }
+
+export const getProjects = (): Promise<Project[]> => apiRequest(backendUrl(), readToken(), "/projects");
+
+export const getToday = (): Promise<Today> => apiRequest(backendUrl(), readToken(), "/today");
+
+export const taskAction = (id: string, action: "start" | "pause" | "complete"): Promise<unknown> =>
+  apiRequest(backendUrl(), readToken(), `/tasks/${id}/${action}`, {
+    method: "POST",
+    body: action === "start" ? { source: "VSCODIUM" } : undefined,
+  });

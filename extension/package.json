@@ -36,6 +36,21 @@
         "command": "kairo.refresh",
         "title": "Kairo: Aktualisieren",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "kairo.startTask",
+        "title": "Kairo: Task starten",
+        "icon": "$(play)"
+      },
+      {
+        "command": "kairo.pauseTask",
+        "title": "Kairo: Task pausieren",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "kairo.completeTask",
+        "title": "Kairo: Task abschließen",
+        "icon": "$(check)"
       }
     ],
     "menus": {
@@ -44,6 +59,23 @@
           "command": "kairo.refresh",
           "when": "view == kairo.context",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "kairo.startTask",
+          "when": "view == kairo.context && viewItem == task",
+          "group": "inline@1"
+        },
+        {
+          "command": "kairo.pauseTask",
+          "when": "view == kairo.context && viewItem == task.running",
+          "group": "inline@1"
+        },
+        {
+          "command": "kairo.completeTask",
+          "when": "view == kairo.context && viewItem =~ /^task/",
+          "group": "inline@2"
         }
       ]
     },
@@ -60,11 +92,16 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "test": "tsc -p ./ && node out/core.test.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/vscode": "~1.90.0",
+    "@types/ws": "^8.18.2",
     "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
   }
 }
