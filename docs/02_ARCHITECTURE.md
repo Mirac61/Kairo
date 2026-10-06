@@ -347,7 +347,12 @@ project_id
 type
 target
 label
+created_at
 ```
+
+`type` ist `FILE`, `FOLDER` oder `URL`. Genau eines von `task_id` und
+`project_id` ist gesetzt (CHECK). Löscht man die Task oder das Projekt,
+werden seine Ressourcen mit gelöscht (`ON DELETE CASCADE`).
 
 ------------------------------------------------------------------------
 

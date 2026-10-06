@@ -237,6 +237,18 @@ Die Anwendung soll Dateien nicht unnötig kopieren.
 
 Sie speichert Referenzen.
 
+## Regeln
+
+-   Eine Ressource gehört genau einer Task oder genau einem Projekt.
+    Wird der Besitzer gelöscht, wird die Ressource mit gelöscht.
+-   `FILE` und `FOLDER` brauchen einen absoluten Pfad (`/…`) oder einen
+    Pfad mit `~/…`. Der Pfad wird nicht auf Existenz geprüft, weil die
+    Ressource auch auf ein nicht eingehängtes Laufwerk zeigen darf.
+-   `URL` muss eine `http`- oder `https`-URL sein.
+-   `label` ist optionaler Anzeigetext. Ressourcen werden nicht geändert,
+    sondern gelöscht und neu angelegt (`GET`, `POST`, `DELETE`).
+-   Notizen sind keine Ressourcen (komplexes Notizsystem ist Nicht-MVP).
+
 ------------------------------------------------------------------------
 
 # 6. Today View

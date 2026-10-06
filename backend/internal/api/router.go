@@ -9,10 +9,11 @@ import (
 // Services bündelt die Geschäftslogik, die der Router an die Handler gibt.
 // Nicht gesetzte Services registrieren ihre Routen nicht.
 type Services struct {
-	Projects ProjectService
-	Tasks    TaskService
-	Calendar CalendarService
-	Habits   HabitService
+	Projects  ProjectService
+	Tasks     TaskService
+	Calendar  CalendarService
+	Habits    HabitService
+	Resources ResourceService
 }
 
 // NewRouter baut den HTTP-Handler. Die Security-Middleware läuft vor dem Routing.
@@ -30,6 +31,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	}
 	if svc.Habits != nil {
 		habitHandlers{svc.Habits}.register(mux)
+	}
+	if svc.Resources != nil {
+		resourceHandlers{svc.Resources}.register(mux)
 	}
 	mux.Handle("/", webUI)
 	return Security(port, token, mux)
