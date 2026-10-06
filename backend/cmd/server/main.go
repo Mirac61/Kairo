@@ -54,6 +54,7 @@ func run() error {
 		Projects: service.NewProjectService(repository.NewProjectRepository(db), nil),
 		Tasks:    service.NewTaskService(repository.NewTaskRepository(db), nil),
 		Calendar: service.NewCalendarService(repository.NewCalendarRepository(db), cfg.Location, nil),
+		Habits:   service.NewHabitService(repository.NewHabitRepository(db), cfg.Location, nil),
 	}
 
 	srv := &http.Server{

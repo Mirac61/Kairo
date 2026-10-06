@@ -284,6 +284,15 @@ created_at
 
 `frequency_config` kann zunächst als JSON gespeichert werden.
 
+Aktuelles Format je `frequency_type` (Wochentage als `MO`..`SU`):
+
+``` text
+DAILY              {}
+WEEKLY             {"weekday": "WE"}            (ohne Angabe: Wochentag von start_date)
+SPECIFIC_WEEKDAYS  {"weekdays": ["MO", "TH"]}
+TIMES_PER_WEEK     {"times": 3}                 (1 bis 7)
+```
+
 Später kann daraus bei Bedarf ein stärker typisiertes Modell entstehen.
 
 ------------------------------------------------------------------------
