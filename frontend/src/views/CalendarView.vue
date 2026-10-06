@@ -131,12 +131,26 @@ const options: CalendarOptions = {
   firstDay: 1,
   allDayText: 'Ganztag',
   initialView: 'timeGridWeek',
-  headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+  headerToolbar: { left: 'prev,next today title', center: '', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+  buttonText: { prev: '‹', next: '›', today: 'Heute', month: 'Monat', week: 'Woche', day: 'Tag' },
+  buttonHints: { prev: 'Zurück', next: 'Weiter' },
+  buttonIcons: false,
   height: '100%',
   nowIndicator: true,
+  slotMinTime: '06:00:00',
+  slotMaxTime: '23:00:00',
   scrollTime: '08:00:00',
+  dayHeaderContent: (a) => {
+    const wd = a.date.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')
+    const html = a.view.type === 'dayGridMonth'
+      ? wd
+      : `<span class="kt-dh${a.isToday ? ' today' : ''}"><small>${wd}</small><b>${a.date.getDate()}</b></span>`
+    return { html }
+  },
+  expandRows: true,
   snapDuration: '00:15:00',
   slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+  displayEventEnd: false,
   eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
   selectable: true,
   selectMirror: true,
@@ -163,7 +177,7 @@ useLiveEvents(() => cal.value?.getApi().refetchEvents())
   <div class="wide stack page">
     <h1 class="title">Kalender</h1>
     <Message v-if="error" severity="error">{{ error }}</Message>
-    <div class="cal"><FullCalendar ref="cal" :options="options" /></div>
+    <div class="cal card"><FullCalendar ref="cal" :options="options" /></div>
 
     <Dialog :visible="!!sel" modal header="Neuer Eintrag" :style="{ width: '24rem' }" @update:visible="sel = null">
       <form class="stack" @submit.prevent="save">
@@ -185,5 +199,5 @@ useLiveEvents(() => cal.value?.getApi().refetchEvents())
 
 <style scoped>
 .page { height: 100%; }
-.cal { flex: 1; min-height: 0; }
+.cal { flex: 1; min-height: 0; padding: 12px 16px 8px; }
 </style>

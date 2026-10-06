@@ -1,18 +1,31 @@
-html, body, #app { height: 100%; margin: 0; }
-body {
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  background: #f6f7f9;
-  color: var(--p-text-color);
+/* Kanagawa-Dragon-Akzente (gedämpft); eine Farbe pro Bedeutung. */
+:root {
+  --k-bg: #f4f2ee; --k-border-subtle: #e6e2da;
+  --k-blue: #4d7080; --k-green: #4f7a52; --k-orange: #94683f; --k-yellow: #8a7437; --k-red: #a8453f; --k-violet: #5c6685;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', monospace;
 }
 @media (prefers-color-scheme: dark) {
-  body { background: #14161a; }
+  :root {
+    --k-bg: #0b0a0a; --k-border-subtle: #232220;
+    --k-blue: #8ba4b0; --k-green: #87a987; --k-orange: #b6927b; --k-yellow: #c4b28a; --k-red: #c4746e; --k-violet: #8992a7;
+  }
 }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  font-family: 'Geist Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px; letter-spacing: -0.005em;
+  background: var(--k-bg);
+  color: var(--p-text-color);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { letter-spacing: -0.02em; }
+:focus-visible { outline: 2px solid color-mix(in srgb, var(--k-blue) 50%, transparent); outline-offset: 2px; }
 
 .stack { display: flex; flex-direction: column; gap: 16px; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .nowrap { flex-wrap: nowrap; }
 .muted { color: var(--p-text-muted-color); font-size: 13px; }
-.title { margin: 0; font-size: 24px; }
+.title { margin: 0; font-size: 28px; font-weight: 600; }
 .list { list-style: none; margin: 0; padding: 0; }
 .list > li {
   display: flex; align-items: center; gap: 16px; padding: 10px 4px;
@@ -23,28 +36,74 @@ body {
 .list .time { color: var(--p-text-muted-color); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .done { text-decoration: line-through; color: var(--p-text-muted-color); }
 .card { background: var(--p-content-background); border: 1px solid var(--p-content-border-color); border-radius: 10px; padding: 12px 16px; }
+.mono, .list .time { font-family: var(--font-mono); }
 .card > h2 { margin: 0 0 4px; font-size: 16px; }
 
 /* FullCalendar an das PrimeVue-Theme anpassen */
 .fc {
+  font-size: 13px;
   --fc-border-color: var(--p-content-border-color);
-  --fc-page-bg-color: var(--p-content-background);
+  --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: var(--p-content-hover-background);
-  --fc-today-bg-color: color-mix(in srgb, var(--p-primary-color) 10%, transparent);
-  --fc-now-indicator-color: var(--p-red-500);
-  --fc-event-bg-color: var(--p-primary-color);
-  --fc-event-border-color: var(--p-primary-color);
-  --fc-event-text-color: var(--p-primary-contrast-color);
-  --fc-button-bg-color: var(--p-primary-color);
-  --fc-button-border-color: var(--p-primary-color);
-  --fc-button-hover-bg-color: var(--p-primary-hover-color);
-  --fc-button-hover-border-color: var(--p-primary-hover-color);
-  --fc-button-active-bg-color: var(--p-primary-active-color);
-  --fc-button-active-border-color: var(--p-primary-active-color);
-  --fc-button-text-color: var(--p-primary-contrast-color);
+  --fc-today-bg-color: color-mix(in srgb, var(--k-blue) 6%, transparent);
+  --fc-now-indicator-color: var(--k-red);
+  --fc-event-bg-color: color-mix(in srgb, var(--k-blue) 15%, var(--p-content-background));
+  --fc-event-border-color: var(--k-blue);
+  --fc-event-text-color: var(--p-text-color);
+  --fc-button-bg-color: transparent;
+  --fc-button-border-color: var(--p-content-border-color);
+  --fc-button-text-color: var(--p-text-color);
+  --fc-button-hover-bg-color: var(--p-content-hover-background);
+  --fc-button-hover-border-color: var(--p-content-border-color);
+  --fc-button-active-bg-color: var(--p-highlight-background);
+  --fc-button-active-border-color: var(--k-blue);
 }
-.fc .fc-toolbar-title { font-size: 18px; }
-.fc .kt-task { --fc-event-bg-color: var(--p-blue-600); --fc-event-border-color: var(--p-blue-600); --fc-event-text-color: #fff; }
+/* Toolbar */
+.fc .fc-toolbar.fc-header-toolbar { flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.fc .fc-toolbar-chunk { display: flex; align-items: center; gap: 8px; }
+.fc .fc-toolbar-title { font-size: 20px; font-weight: 600; margin-left: 8px; }
+.fc .fc-button { font-size: 13px; padding: 5px 12px; border-radius: 8px; box-shadow: none !important; }
+.fc .fc-button-group { gap: 0; }
+.fc .fc-button-group > .fc-button:not(:first-child) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.fc .fc-button-group > .fc-button:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.fc .fc-prev-button, .fc .fc-next-button { font-size: 18px; line-height: 1; padding: 3px 10px; }
+.fc .fc-button-active { color: var(--p-highlight-color); font-weight: 600; }
+.fc .fc-button:disabled { opacity: 0.5; }
+/* Raster */
+.fc .fc-scrollgrid, .fc .fc-scrollgrid td:last-child, .fc .fc-scrollgrid th:last-child { border-right-width: 0; }
+.fc .fc-scrollgrid { border-width: 0; }
+.fc .fc-timegrid-slot-minor { border-top-style: none; }
+.fc .fc-timegrid-slot { height: 2.6em; }
+.fc .fc-timegrid-slot-lane { border-color: color-mix(in srgb, var(--p-content-border-color) 60%, transparent); }
+.fc .fc-timegrid-axis-cushion, .fc .fc-timegrid-slot-label-cushion { font-size: 11px; color: var(--p-text-muted-color); font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+.fc .fc-day-sat, .fc .fc-day-sun { background: color-mix(in srgb, var(--p-content-hover-background) 50%, transparent); }
+.fc .fc-day-today { background: var(--fc-today-bg-color) !important; }
+.fc .fc-timegrid-now-indicator-arrow { display: none; }
+.fc .fc-timegrid-now-indicator-line::before {
+  content: ''; position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--fc-now-indicator-color);
+}
+/* Tageskopf: Wochentag klein, Datum groß, heute als Kreis */
+.fc .fc-col-header-cell { border-bottom-width: 1px; }
+.fc .fc-col-header-cell-cushion { padding: 8px 2px; display: inline-block; }
+.fc .kt-dh { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.fc .kt-dh small { font-size: 11px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: var(--p-text-muted-color); }
+.fc .kt-dh b { display: grid; place-items: center; min-width: 28px; height: 28px; border-radius: 14px; font-size: 16px; font-weight: 500; }
+.fc .kt-dh.today small { color: var(--p-text-color); }
+.fc .kt-dh.today b { background: var(--p-primary-color); color: var(--p-primary-contrast-color); }
+.fc .fc-daygrid-day-number { padding: 6px 8px; font-size: 12px; color: var(--p-text-muted-color); }
+.fc .fc-day-today .fc-daygrid-day-number { color: var(--p-text-color); font-weight: 700; }
+.fc .fc-more-link { color: var(--k-blue); font-size: 12px; }
+/* Einträge */
+.fc .fc-event { border-width: 0 0 0 3px; border-radius: 6px; padding: 1px 4px; cursor: pointer; box-shadow: none; }
+.fc .fc-event .fc-event-title { font-weight: 600; }
+.fc .fc-event .fc-event-time { font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--p-text-muted-color); }
+.fc .fc-daygrid-event-dot { border-color: var(--k-blue); }
+.fc .kt-task { --fc-event-bg-color: color-mix(in srgb, var(--k-green) 15%, var(--p-content-background)); --fc-event-border-color: var(--k-green); }
+.fc .kt-task .fc-daygrid-event-dot { border-color: var(--k-green); }
 .fc .kt-done { opacity: 0.5; text-decoration: line-through; }
 .fc a { color: inherit; text-decoration: none; }
-.fc .fc-timegrid-axis-cushion { font-size: 12px; }
+
+@media (max-width: 720px) {
+  .fc .fc-toolbar-title { font-size: 16px; margin-left: 0; }
+}
