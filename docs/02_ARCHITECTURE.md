@@ -474,6 +474,14 @@ free_minutes         work_minutes minus Termine im Fenster minus
 overplanned_minutes  der negative Rest davon (sonst 0)
 ```
 
+## GET /api/calendar/occurrences
+
+`?from=…&to=…` (beide Pflicht, RFC 3339, ein `+` im Offset als `%2B`).
+Liefert die konkreten Termine, die das Fenster berühren, nach Beginn
+sortiert, Serien aufgelöst. Format wie `events` in `GET /api/today`
+(Termin plus `occurrence_start` und `occurrence_end`). Die Kalenderansicht
+der WebUI liest damit Wochen und Monate in einem Aufruf.
+
 ## Arbeitszeitfenster
 
 Ein festes Fenster pro Tag, gleich für alle Wochentage. Es kommt aus der

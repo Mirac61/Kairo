@@ -126,3 +126,20 @@ func TestCalendarErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestCalendarOccurrences(t *testing.T) {
+	h := newCalendarRouter(t)
+	call(h, "POST", "/api/calendar/events", `{"title":"Serie","start_at":"2026-10-07T08:30:00Z","end_at":"2026-10-07T10:00:00Z",
+		"recurrence_rule":"FREQ=WEEKLY;BYDAY=WE"}`)
+
+	q := url.Values{"from": {"2026-10-05T00:00:00Z"}, "to": {"2026-10-26T00:00:00Z"}}.Encode()
+	rec := call(h, "GET", "/api/calendar/occurrences?"+q, "")
+	var list []todayEventDTO
+	_ = json.Unmarshal(rec.Body.Bytes(), &list)
+	if rec.Code != 200 || len(list) != 3 || list[1].OccurrenceStart != "2026-10-14T08:30:00Z" {
+		t.Errorf("3 Vorkommen erwartet: %d %s", rec.Code, rec.Body)
+	}
+	if rec := call(h, "GET", "/api/calendar/occurrences?from=2026-10-05T00:00:00Z", ""); rec.Code != 400 {
+		t.Errorf("ohne to = %d, erwartet 400", rec.Code)
+	}
+}

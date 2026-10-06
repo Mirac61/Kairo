@@ -17,6 +17,7 @@ type CalendarService interface {
 	List(ctx context.Context, from, to *time.Time) ([]domain.CalendarEvent, error)
 	Update(ctx context.Context, id string, in service.UpdateEventInput) (domain.CalendarEvent, error)
 	Delete(ctx context.Context, id string) error
+	Occurrences(ctx context.Context, from, to time.Time) ([]domain.EventInstance, error)
 }
 
 type calendarEventDTO struct {
@@ -62,6 +63,7 @@ type calendarHandlers struct{ svc CalendarService }
 func (h calendarHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/calendar/events", h.list)
 	mux.HandleFunc("POST /api/calendar/events", h.create)
+	mux.HandleFunc("GET /api/calendar/occurrences", h.occurrences)
 	mux.HandleFunc("GET /api/calendar/events/{id}", h.get)
 	mux.HandleFunc("PATCH /api/calendar/events/{id}", h.update)
 	mux.HandleFunc("DELETE /api/calendar/events/{id}", h.delete)
@@ -173,4 +175,27 @@ func (h calendarHandlers) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// occurrences liefert die konkreten Termine im Fenster ?from=&to= (beide
+// Pflicht, RFC 3339), Serien aufgelöst; Format wie events in GET /api/today.
+func (h calendarHandlers) occurrences(w http.ResponseWriter, r *http.Request) {
+	from, err := queryTime(r, "from")
+	if err == nil {
+		var to *time.Time
+		if to, err = queryTime(r, "to"); err == nil && (from == nil || to == nil) {
+			err = fmt.Errorf("%w: from und to sind Pflicht", domain.ErrInvalid)
+		} else if err == nil {
+			var es []domain.EventInstance
+			if es, err = h.svc.Occurrences(r.Context(), *from, *to); err == nil {
+				out := make([]todayEventDTO, len(es))
+				for i, e := range es {
+					out[i] = toTodayEventDTO(e)
+				}
+				writeJSON(w, http.StatusOK, out)
+				return
+			}
+		}
+	}
+	writeError(w, err)
 }

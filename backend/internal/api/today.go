@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"kairo/internal/domain"
 	"kairo/internal/service"
 )
 
@@ -50,6 +51,14 @@ type todayDTO struct {
 	Overplanned     int             `json:"overplanned_minutes"`
 }
 
+func toTodayEventDTO(e domain.EventInstance) todayEventDTO {
+	return todayEventDTO{
+		calendarEventDTO: toCalendarEventDTO(e.Event),
+		OccurrenceStart:  e.Start.UTC().Format(time.RFC3339),
+		OccurrenceEnd:    e.End.UTC().Format(time.RFC3339),
+	}
+}
+
 func toTodayDTO(t service.Today) todayDTO {
 	out := todayDTO{
 		Date:            t.Date,
@@ -68,11 +77,7 @@ func toTodayDTO(t service.Today) todayDTO {
 		Overplanned:     t.OverplannedMinutes,
 	}
 	for i, e := range t.Events {
-		out.Events[i] = todayEventDTO{
-			calendarEventDTO: toCalendarEventDTO(e.Event),
-			OccurrenceStart:  e.Start.UTC().Format(time.RFC3339),
-			OccurrenceEnd:    e.End.UTC().Format(time.RFC3339),
-		}
+		out.Events[i] = toTodayEventDTO(e)
 	}
 	for i, task := range t.Tasks {
 		out.Tasks[i] = toTaskDTO(task)
