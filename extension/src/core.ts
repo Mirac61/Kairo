@@ -113,3 +113,10 @@ export async function apiRequest<T>(
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
+
+export interface Resource {
+  id: string;
+  type: "FILE" | "FOLDER" | "URL";
+  target: string;
+  label: string;
+}

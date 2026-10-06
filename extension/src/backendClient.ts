@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { apiRequest, checkHealth, HealthResult, Project, readToken, Today } from "./core";
+import { apiRequest, checkHealth, HealthResult, Project, readToken, Resource, Today } from "./core";
 
 export { HealthResult, readToken };
 
@@ -22,3 +22,6 @@ export const taskAction = (id: string, action: "start" | "pause" | "complete"): 
     method: "POST",
     body: action === "start" ? { source: "VSCODIUM" } : undefined,
   });
+
+export const getResources = (query: string): Promise<Resource[]> =>
+  apiRequest(backendUrl(), readToken(), `/resources?${query}`);

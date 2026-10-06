@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { ContextProvider, TaskItem } from "./contextView";
+import { ContextProvider, openResource, ResourceItem, TaskItem } from "./contextView";
 
 export function activate(context: vscode.ExtensionContext): void {
   const provider = new ContextProvider();
@@ -10,6 +10,7 @@ export function activate(context: vscode.ExtensionContext): void {
     view,
     view.onDidChangeVisibility((e) => provider.setVisible(e.visible)),
     vscode.commands.registerCommand("kairo.refresh", () => provider.refresh()),
+    vscode.commands.registerCommand("kairo.openResource", (i?: ResourceItem) => openResource(i)),
     vscode.commands.registerCommand("kairo.startTask", (i?: TaskItem) => provider.act(i, "start")),
     vscode.commands.registerCommand("kairo.pauseTask", (i?: TaskItem) => provider.act(i, "pause")),
     vscode.commands.registerCommand("kairo.completeTask", (i?: TaskItem) => provider.act(i, "complete")),

@@ -1,12 +1,14 @@
+import * as os from "node:os";
 import * as vscode from "vscode";
-import { backendUrl, getHealth, getProjects, getToday, HealthResult, readToken, taskAction } from "./backendClient";
-import { matchProject, Project, Task, Today } from "./core";
+import { backendUrl, getHealth, getResources, getProjects, getToday, HealthResult, readToken, taskAction } from "./backendClient";
+import { matchProject, Project, Resource, Task, Today } from "./core";
 import { LiveEvents } from "./liveEvents";
 
 interface State {
   health: HealthResult;
   project?: Project;
   today?: Today;
+  resources: Resource[];
 }
 
 export class TaskItem extends vscode.TreeItem {
@@ -18,6 +20,32 @@ export class TaskItem extends vscode.TreeItem {
     this.contextValue = running ? "task.running" : "task";
     this.iconPath = new vscode.ThemeIcon(running ? "debug-pause" : "circle-outline");
     this.description = task.status === "PAUSED" ? "pausiert" : undefined;
+  }
+}
+
+export class ResourceItem extends vscode.TreeItem {
+  constructor(readonly resource: Resource) {
+    super(resource.label || resource.target);
+    this.description = resource.label ? resource.target : undefined;
+    this.iconPath = new vscode.ThemeIcon({ FILE: "file", FOLDER: "folder", URL: "link" }[resource.type]);
+    this.command = { command: "kairo.openResource", title: "Öffnen", arguments: [this] };
+  }
+}
+
+export async function openResource(item: ResourceItem | undefined): Promise<void> {
+  const r = item?.resource;
+  if (!r) {
+    return;
+  }
+  if (r.type === "URL") {
+    await vscode.env.openExternal(vscode.Uri.parse(r.target));
+    return;
+  }
+  const uri = vscode.Uri.file(r.target.replace(/^~(?=$|\/)/, os.homedir()));
+  if (r.type === "FOLDER") {
+    await vscode.commands.executeCommand("revealFileInOS", uri);
+  } else {
+    await vscode.window.showTextDocument(uri);
   }
 }
 
@@ -36,6 +64,9 @@ export class ContextProvider implements vscode.TreeDataProvider<vscode.TreeItem>
     if (element?.id === "today") {
       return this.todayTasks().map((t) => new TaskItem(t, t.id === this.runningId()));
     }
+    if (element?.id === "resources") {
+      return (this.state?.resources ?? []).map((r) => new ResourceItem(r));
+    }
     const s = this.state;
     if (!s) {
       return [this.item("Backend: prüfe …", "sync")];
@@ -53,6 +84,12 @@ export class ContextProvider implements vscode.TreeDataProvider<vscode.TreeItem>
     today.id = "today";
     today.iconPath = new vscode.ThemeIcon("calendar");
     items.push(today);
+    if (s.resources.length) {
+      const res = new vscode.TreeItem("Ressourcen", vscode.TreeItemCollapsibleState.Expanded);
+      res.id = "resources";
+      res.iconPath = new vscode.ThemeIcon("library");
+      items.push(res);
+    }
     return items;
   }
 
@@ -64,13 +101,17 @@ export class ContextProvider implements vscode.TreeDataProvider<vscode.TreeItem>
     try {
       const health = await getHealth();
       if (!health.online) {
-        this.state = { health };
+        this.state = { health, resources: [] };
       } else {
         const [projects, today] = await Promise.all([getProjects(), getToday()]);
-        this.state = { health, today, project: this.detectProject(projects) };
+        const project = this.detectProject(projects);
+        this.state = { health, today, project, resources: [] };
+        const taskId = this.runningId();
+        const queries = [project && `project_id=${project.id}`, taskId && `task_id=${taskId}`].filter(Boolean) as string[];
+        this.state.resources = (await Promise.all(queries.map(getResources))).flat();
       }
     } catch (err) {
-      this.state = { health: { online: false, reason: err instanceof Error ? err.message : "Fehler" } };
+      this.state = { health: { online: false, reason: err instanceof Error ? err.message : "Fehler" }, resources: [] };
     } finally {
       this.checking = false;
     }

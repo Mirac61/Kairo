@@ -51,6 +51,10 @@
         "command": "kairo.completeTask",
         "title": "Kairo: Task abschließen",
         "icon": "$(check)"
+      },
+      {
+        "command": "kairo.openResource",
+        "title": "Kairo: Ressource öffnen"
       }
     ],
     "menus": {
