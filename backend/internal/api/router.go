@@ -6,10 +6,19 @@ import (
 	"net/http"
 )
 
+// Services bündelt die Geschäftslogik, die der Router an die Handler gibt.
+// Nicht gesetzte Services registrieren ihre Routen nicht.
+type Services struct {
+	Projects ProjectService
+}
+
 // NewRouter baut den HTTP-Handler. Die Security-Middleware läuft vor dem Routing.
-func NewRouter(port int, token, version string, webUI http.Handler) http.Handler {
+func NewRouter(port int, token, version string, webUI http.Handler, svc Services) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", health(version))
+	if svc.Projects != nil {
+		projectHandlers{svc.Projects}.register(mux)
+	}
 	mux.Handle("/", webUI)
 	return Security(port, token, mux)
 }

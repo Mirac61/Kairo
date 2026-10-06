@@ -69,7 +69,7 @@ func TestSecurity(t *testing.T) {
 }
 
 func TestHealth(t *testing.T) {
-	h := NewRouter(8742, testToken, "dev", http.NotFoundHandler())
+	h := NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{})
 	req := httptest.NewRequest("GET", "/api/health", nil)
 	req.Host = "127.0.0.1:8742"
 	rec := httptest.NewRecorder()

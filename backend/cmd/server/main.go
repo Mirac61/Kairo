@@ -16,6 +16,7 @@ import (
 	"kairo/internal/api"
 	"kairo/internal/config"
 	"kairo/internal/repository"
+	"kairo/internal/service"
 	"kairo/internal/web"
 )
 
@@ -49,9 +50,13 @@ func run() error {
 	}
 	defer db.Close()
 
+	services := api.Services{
+		Projects: service.NewProjectService(repository.NewProjectRepository(db), nil),
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.Addr(),
-		Handler:           api.NewRouter(cfg.Port, token, version, web.Handler()),
+		Handler:           api.NewRouter(cfg.Port, token, version, web.Handler(), services),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
