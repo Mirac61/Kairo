@@ -74,7 +74,7 @@ func backup(args []string) error {
 	if err != nil {
 		return err
 	}
-	dest := filepath.Join(filepath.Dir(cfg.DBPath), "backups", "kairo-"+time.Now().Format("20060102-150405")+".db")
+	dest := filepath.Join(backupDir(cfg), "kairo-"+time.Now().Format("20060102-150405")+".db")
 	if len(args) > 0 {
 		dest = args[0]
 	}
@@ -91,6 +91,9 @@ func backup(args []string) error {
 	return nil
 }
 
+// backupDir ist das Verzeichnis für Backups: backups/ neben der Datenbank.
+func backupDir(cfg config.Config) string { return filepath.Join(filepath.Dir(cfg.DBPath), "backups") }
+
 func run() error {
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
@@ -105,7 +108,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	db, err := repository.Open(ctx, cfg.DBPath)
+	db, err := repository.OpenWithBackup(ctx, cfg.DBPath, backupDir(cfg))
 	if err != nil {
 		return err
 	}

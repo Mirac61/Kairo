@@ -173,19 +173,20 @@ func TestPatchingRunningTaskStopsTimer(t *testing.T) {
 	}
 }
 
-func TestDeletingTaskRemovesItsEntries(t *testing.T) {
+func TestDeletingTrackedTaskIsRefused(t *testing.T) {
 	h := newTimeRouter(t)
 	task := createTask(t, h, `{"title":"A"}`)
 	timer(t, h, "/api/tasks/"+task.ID+"/start", "", 200)
-	if rec := call(h, "DELETE", "/api/tasks/"+task.ID, ""); rec.Code != 204 {
-		t.Fatalf("DELETE = %d", rec.Code)
+	if rec := call(h, "DELETE", "/api/tasks/"+task.ID, ""); rec.Code != 409 {
+		t.Fatalf("DELETE = %d, erwartet 409", rec.Code)
 	}
-	if all := listEntries(t, h, ""); len(all) != 0 {
-		t.Errorf("Einträge der gelöschten Task: %+v", all)
+	if all := listEntries(t, h, ""); len(all) != 1 {
+		t.Errorf("Einträge nach abgelehntem Löschen: %+v", all)
 	}
-	// Der Timer ist frei: eine neue Task lässt sich starten.
-	other := createTask(t, h, `{"title":"B"}`)
-	timer(t, h, "/api/tasks/"+other.ID+"/start", "", 200)
+	untracked := createTask(t, h, `{"title":"B"}`)
+	if rec := call(h, "DELETE", "/api/tasks/"+untracked.ID, ""); rec.Code != 204 {
+		t.Fatalf("DELETE ohne Einträge = %d", rec.Code)
+	}
 }
 
 func TestTimeEntriesManualCreateAndFilters(t *testing.T) {

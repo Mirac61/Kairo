@@ -176,8 +176,18 @@ func updateTask(ctx context.Context, q dbtx, t domain.Task) error {
 	return requireAffected(res)
 }
 
-// Delete löscht eine Task samt Subtasks.
+// Delete löscht eine Task samt Subtasks. Hat eine davon Zeiteinträge, liefert
+// es domain.ErrConflict, weil ON DELETE CASCADE sie sonst mitlöschen würde.
 func (r *TaskRepository) Delete(ctx context.Context, id string) error {
+	var tracked bool
+	if err := r.db.QueryRowContext(ctx, `WITH RECURSIVE sub(id) AS (
+		SELECT ? UNION ALL SELECT t.id FROM tasks t JOIN sub ON t.parent_task_id = sub.id
+	) SELECT EXISTS (SELECT 1 FROM time_entries WHERE task_id IN (SELECT id FROM sub))`, id).Scan(&tracked); err != nil {
+		return fmt.Errorf("repository: Zeiteinträge prüfen: %w", err)
+	}
+	if tracked {
+		return fmt.Errorf("%w: Task hat Zeiteinträge, stattdessen abbrechen", domain.ErrConflict)
+	}
 	res, err := r.db.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("repository: Task löschen: %w", err)

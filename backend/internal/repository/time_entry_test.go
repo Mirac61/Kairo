@@ -158,36 +158,39 @@ func TestTimeEntryRepositoryAllowsOnlyOneRunning(t *testing.T) {
 	}
 }
 
-func TestTimeEntriesCascadeWithOwner(t *testing.T) {
+func TestOwnersWithTimeEntriesCannotBeDeleted(t *testing.T) {
 	ctx := context.Background()
 	entries, tasks, projects, db := newTimeRepos(t)
 	if err := projects.Create(ctx, domain.Project{ID: "p1", Name: "P", Status: domain.ProjectActive, CreatedAt: t0, UpdatedAt: t0}); err != nil {
 		t.Fatal(err)
 	}
-	task := newTask("t1")
-	task.ProjectID = ptr("p1")
-	if err := tasks.Create(ctx, task); err != nil {
-		t.Fatal(err)
+	parent, child := newTask("t1"), newTask("t2")
+	child.ParentTaskID = ptr("t1")
+	for _, task := range []domain.Task{parent, child} {
+		if err := tasks.Create(ctx, task); err != nil {
+			t.Fatal(err)
+		}
 	}
-	onTask, onProject := newEntry("a", 0, time.Hour), newEntry("b", 2*time.Hour, time.Hour)
-	onTask.TaskID, onProject.ProjectID = ptr("t1"), ptr("p1")
-	for _, e := range []domain.TimeEntry{onTask, onProject} {
+	onChild, onProject := newEntry("a", 0, time.Hour), newEntry("b", 2*time.Hour, time.Hour)
+	onChild.TaskID, onProject.ProjectID = ptr("t2"), ptr("p1")
+	for _, e := range []domain.TimeEntry{onChild, onProject} {
 		if err := entries.Create(ctx, e); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	if err := tasks.Delete(ctx, "t1"); err != nil {
-		t.Fatal(err)
+	// Die Eltern-Task würde die Subtask samt Eintrag mitlöschen.
+	if err := tasks.Delete(ctx, "t1"); !errors.Is(err, domain.ErrConflict) {
+		t.Errorf("Task mit Einträgen in Subtask gelöscht: %v", err)
 	}
-	if n := count(t, db, `SELECT COUNT(*) FROM time_entries`); n != 1 {
-		t.Errorf("nach Task-Löschen: %d Einträge, erwartet 1", n)
+	if err := projects.Delete(ctx, "p1"); !errors.Is(err, domain.ErrConflict) {
+		t.Errorf("Projekt mit Einträgen gelöscht: %v", err)
 	}
-	if err := projects.Delete(ctx, "p1"); err != nil {
-		t.Fatal(err)
+	if n := count(t, db, `SELECT COUNT(*) FROM time_entries`); n != 2 {
+		t.Errorf("%d Einträge, erwartet 2", n)
 	}
-	if n := count(t, db, `SELECT COUNT(*) FROM time_entries`); n != 0 {
-		t.Errorf("nach Projekt-Löschen: %d Einträge, erwartet 0", n)
+	if err := tasks.Delete(ctx, "gibt-es-nicht"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("unbekannte Task: %v", err)
 	}
 }
 

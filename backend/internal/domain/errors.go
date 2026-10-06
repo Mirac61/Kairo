@@ -6,8 +6,9 @@ import "errors"
 var (
 	// ErrNotFound: das angefragte Objekt existiert nicht.
 	ErrNotFound = errors.New("nicht gefunden")
-	// ErrConflict: das Objekt existiert bereits (z. B. zweite Completion am selben Tag).
-	ErrConflict = errors.New("existiert bereits")
+	// ErrConflict: die Aktion widerspricht dem aktuellen Zustand (z. B. zweite
+	// Completion am selben Tag, Löschen einer Task mit Zeiteinträgen).
+	ErrConflict = errors.New("Konflikt")
 	// ErrInvalid: die Eingabe verletzt eine Regel. Die Fehlermeldung nennt den Grund.
 	ErrInvalid = errors.New("ungültige Eingabe")
 )

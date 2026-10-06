@@ -100,8 +100,17 @@ func (r *ProjectRepository) Update(ctx context.Context, p domain.Project) error 
 	return requireAffected(res)
 }
 
-// Delete löscht ein Projekt.
+// Delete löscht ein Projekt. Hat es direkte Zeiteinträge, liefert es
+// domain.ErrConflict, weil ON DELETE CASCADE sie sonst mitlöschen würde.
+// Tasks bleiben erhalten (project_id wird NULL).
 func (r *ProjectRepository) Delete(ctx context.Context, id string) error {
+	var tracked bool
+	if err := r.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM time_entries WHERE project_id = ?)`, id).Scan(&tracked); err != nil {
+		return fmt.Errorf("repository: Zeiteinträge prüfen: %w", err)
+	}
+	if tracked {
+		return fmt.Errorf("%w: Projekt hat Zeiteinträge, stattdessen archivieren", domain.ErrConflict)
+	}
 	res, err := r.db.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("repository: Projekt löschen: %w", err)
