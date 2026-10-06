@@ -468,11 +468,26 @@ calendar_minutes     belegte Zeit der Termine im Tag; Überlappungen zählen
                      einmal, Termine über Mitternacht anteilig
 tracked_minutes      erfasste Zeit der Einträge, die an dem Tag gestartet
                      sind; ein laufender Timer zählt bis jetzt
+work_minutes         Länge des Arbeitsfensters an dem Tag
+free_minutes         work_minutes minus Termine im Fenster minus
+                     planned_minutes, mindestens 0
+overplanned_minutes  der negative Rest davon (sonst 0)
 ```
 
-Freie Zeit und Überplanung fehlen bewusst: Sie brauchen ein Zeitfenster
-für Arbeitszeit, das es noch nicht gibt (Phase 3, Planning). Die Today
-View kann `planned_minutes` und `calendar_minutes` schon anzeigen.
+## Arbeitszeitfenster
+
+Ein festes Fenster pro Tag, gleich für alle Wochentage. Es kommt aus der
+Konfiguration: `KAIRO_WORK_START` und `KAIRO_WORK_END` (`HH:MM`, Ortszeit
+der konfigurierten Zeitzone, Standard `09:00` bis `17:00`; Ende muss nach
+dem Start liegen). An Zeitumstellungen ist das Fenster entsprechend
+länger oder kürzer.
+
+Termine zählen nur mit dem Anteil im Fenster. Geplante Tasks zählen mit
+ihrer vollen Schätzung, auch wenn ihre Uhrzeit außerhalb des Fensters
+liegt, und überlappen sich nicht mit Terminen: Die Rechnung ist eine
+Summe, keine Slot-Suche. Pro Wochentag abweichende Zeiten und eine
+Vorschlagslogik für freie Slots gibt es nicht; das kommt erst, wenn es
+gebraucht wird.
 
 ------------------------------------------------------------------------
 
@@ -571,8 +586,8 @@ ebenfalls 127.0.0.1 ansprechen können. Deshalb:
 
 # Konfigurierbarkeit
 
-Port, Datenbankpfad, Zeitzone und ggf. Log-Level sollen über
-Konfiguration steuerbar sein.
+Port, Datenbankpfad, Zeitzone, Arbeitszeitfenster und ggf. Log-Level
+sollen über Konfiguration steuerbar sein.
 
 ------------------------------------------------------------------------
 

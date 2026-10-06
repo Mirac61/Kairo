@@ -86,6 +86,9 @@ export interface Today {
   planned_minutes: number
   calendar_minutes: number
   tracked_minutes: number
+  work_minutes: number
+  free_minutes: number
+  overplanned_minutes: number
 }
 
 export const getToday = (date?: string) => api<Today>(`/today${date ? `?date=${date}` : ''}`)

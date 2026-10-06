@@ -102,7 +102,7 @@ func run() error {
 		Habits:    habits,
 		Resources: service.NewResourceService(repository.NewResourceRepository(db), nil),
 		Time:      timeTracking,
-		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil),
+		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil).WithWorkWindow(cfg.WorkStart, cfg.WorkEnd),
 		Hub:       hub,
 	}
 

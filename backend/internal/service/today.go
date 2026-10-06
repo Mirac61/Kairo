@@ -38,6 +38,15 @@ type TodayService struct {
 	times  TodayTimes
 	loc    *time.Location
 	now    func() time.Time
+	// workStart und workEnd sind das Arbeitsfenster in Minuten seit
+	// Mitternacht; 0/0 heißt unbekannt (keine freie Zeit berechnet).
+	workStart, workEnd int
+}
+
+// WithWorkWindow setzt das Arbeitsfenster (Minuten seit Mitternacht, Ortszeit).
+func (s *TodayService) WithWorkWindow(start, end int) *TodayService {
+	s.workStart, s.workEnd = start, end
+	return s
 }
 
 // NewTodayService erzeugt einen TodayService. loc ist die Zeitzone, in der
@@ -76,6 +85,13 @@ type Today struct {
 	// TrackedMinutes ist die erfasste Arbeitszeit der Einträge, die an diesem
 	// Tag gestartet sind. Ein laufender Timer zählt bis jetzt.
 	TrackedMinutes int
+	// WorkMinutes ist die Länge des Arbeitsfensters an diesem Tag.
+	WorkMinutes int
+	// FreeMinutes ist die Arbeitszeit, die nach Terminen im Fenster und
+	// geplanten Tasks übrig bleibt (nie negativ).
+	FreeMinutes int
+	// OverplannedMinutes ist, was darüber hinaus geplant ist (nie negativ).
+	OverplannedMinutes int
 }
 
 // Get stellt den Kontext für date (YYYY-MM-DD) zusammen. Leer heißt heute
@@ -144,6 +160,15 @@ func (s *TodayService) Get(ctx context.Context, date string) (Today, error) {
 		}
 	}
 	t.CalendarMinutes = busyMinutes(t.Events, start, end)
+	if s.workEnd > s.workStart {
+		// Mit time.Date statt Addition, damit Zeitumstellungen stimmen.
+		ws := time.Date(day.Year(), day.Month(), day.Day(), 0, s.workStart, 0, 0, s.loc)
+		we := time.Date(day.Year(), day.Month(), day.Day(), 0, s.workEnd, 0, 0, s.loc)
+		t.WorkMinutes = int(we.Sub(ws) / time.Minute)
+		// ponytail: geplante Tasks zählen voll, auch wenn ihre Uhrzeit außerhalb des Fensters liegt.
+		rest := t.WorkMinutes - busyMinutes(t.Events, ws, we) - t.PlannedMinutes
+		t.FreeMinutes, t.OverplannedMinutes = max(rest, 0), max(-rest, 0)
+	}
 	return t, nil
 }
 

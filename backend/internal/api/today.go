@@ -45,6 +45,9 @@ type todayDTO struct {
 	PlannedMinutes  int             `json:"planned_minutes"`
 	CalendarMinutes int             `json:"calendar_minutes"`
 	TrackedMinutes  int             `json:"tracked_minutes"`
+	WorkMinutes     int             `json:"work_minutes"`
+	FreeMinutes     int             `json:"free_minutes"`
+	Overplanned     int             `json:"overplanned_minutes"`
 }
 
 func toTodayDTO(t service.Today) todayDTO {
@@ -60,6 +63,9 @@ func toTodayDTO(t service.Today) todayDTO {
 		PlannedMinutes:  t.PlannedMinutes,
 		CalendarMinutes: t.CalendarMinutes,
 		TrackedMinutes:  t.TrackedMinutes,
+		WorkMinutes:     t.WorkMinutes,
+		FreeMinutes:     t.FreeMinutes,
+		Overplanned:     t.OverplannedMinutes,
 	}
 	for i, e := range t.Events {
 		out.Events[i] = todayEventDTO{

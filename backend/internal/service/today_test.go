@@ -184,3 +184,29 @@ func TestBusyMinutesClipsToDay(t *testing.T) {
 		t.Errorf("busyMinutes = %d", got)
 	}
 }
+
+func TestTodayWorkWindow(t *testing.T) {
+	loc := berlin(t)
+	at := func(h, m int) time.Time { return time.Date(2026, 10, 7, h, m, 0, 0, loc).UTC() }
+	d := "2026-10-07"
+	// Fenster 9-17 = 480; Termine im Fenster: 8-10 zählt ab 9 (60) + 12-13 (60) = 120.
+	ev := &fakeTodayEvents{out: []domain.EventInstance{
+		{Start: at(8, 0), End: at(10, 0)},
+		{Start: at(12, 0), End: at(13, 0)},
+	}}
+	plan := func(min int) fakeTodayTasks {
+		return fakeTodayTasks{[]domain.Task{{ID: "x", Status: domain.TaskPlanned, PlannedDate: &d, EstimatedMinutes: min}}}
+	}
+	mk := func(tasks fakeTodayTasks) *TodayService {
+		return NewTodayService(tasks, ev, &fakeTodayHabits{}, fakeTodayTimes{}, loc, nil).WithWorkWindow(9*60, 17*60)
+	}
+
+	got, err := mk(plan(100)).Get(context.Background(), d)
+	if err != nil || got.WorkMinutes != 480 || got.FreeMinutes != 480-120-100 || got.OverplannedMinutes != 0 {
+		t.Errorf("frei: %+v, %v", got, err)
+	}
+	got, _ = mk(plan(400)).Get(context.Background(), d)
+	if got.FreeMinutes != 0 || got.OverplannedMinutes != 400+120-480 {
+		t.Errorf("überplant: %+v", got)
+	}
+}

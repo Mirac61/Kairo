@@ -89,7 +89,10 @@ const untimed = computed(() => today.value?.tasks.filter((t) => !t.planned_start
     <template v-if="today">
       <p class="summary">
         Geplant {{ hm(today.planned_minutes) }} · Termine {{ hm(today.calendar_minutes) }} · Erfasst
-        {{ hm(today.tracked_minutes) }}
+        {{ hm(today.tracked_minutes) }} · Frei {{ hm(today.free_minutes) }} von {{ hm(today.work_minutes) }}
+      </p>
+      <p v-if="today.overplanned_minutes" class="error">
+        Überplant um {{ hm(today.overplanned_minutes) }}
       </p>
       <p v-if="today.running_time_entry" class="running">● Timer läuft: {{ elapsed }}</p>
 

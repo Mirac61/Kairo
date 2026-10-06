@@ -60,3 +60,23 @@ func TestLoadInvalid(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadWorkWindow(t *testing.T) {
+	cfg, err := Load(env(nil))
+	if err != nil || cfg.WorkStart != 540 || cfg.WorkEnd != 1020 {
+		t.Fatalf("Default 09:00-17:00 erwartet: %+v, %v", cfg, err)
+	}
+	cfg, err = Load(env(map[string]string{"KAIRO_WORK_START": "08:30", "KAIRO_WORK_END": "16:00"}))
+	if err != nil || cfg.WorkStart != 510 || cfg.WorkEnd != 960 {
+		t.Fatalf("08:30-16:00 erwartet: %+v, %v", cfg, err)
+	}
+	for _, bad := range []map[string]string{
+		{"KAIRO_WORK_START": "9"},
+		{"KAIRO_WORK_END": "25:00"},
+		{"KAIRO_WORK_START": "18:00"}, // Ende 17:00 liegt davor
+	} {
+		if _, err := Load(env(bad)); err == nil {
+			t.Errorf("%v sollte ungültig sein", bad)
+		}
+	}
+}
