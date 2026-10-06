@@ -29,6 +29,7 @@ type TimerStopper interface {
 
 // TaskService enthält die Regeln für Tasks.
 type TaskService struct {
+	publisher
 	store  TaskStore
 	now    func() time.Time
 	timers TimerStopper
@@ -118,6 +119,7 @@ func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (domain.Ta
 	if err := s.store.Create(ctx, t); err != nil {
 		return domain.Task{}, err
 	}
+	s.emit(domain.Event{Type: domain.EventTaskCreated, ID: t.ID})
 	return t, nil
 }
 
@@ -201,11 +203,16 @@ func (s *TaskService) Update(ctx context.Context, id string, in UpdateTaskInput)
 	if err := s.store.Update(ctx, t); err != nil {
 		return domain.Task{}, err
 	}
+	s.emit(domain.Event{Type: domain.EventTaskUpdated, ID: t.ID})
 	return t, nil
 }
 
 func (s *TaskService) Delete(ctx context.Context, id string) error {
-	return s.store.Delete(ctx, id)
+	if err := s.store.Delete(ctx, id); err != nil {
+		return err
+	}
+	s.emit(domain.Event{Type: domain.EventTaskDeleted, ID: id})
+	return nil
 }
 
 // checkNoCycle stellt sicher, dass id nicht unter seinen eigenen Nachfahren hängt.

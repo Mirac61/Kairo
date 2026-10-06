@@ -32,6 +32,7 @@ type TimeTx interface {
 // TimeTrackingService enthält die Timer-Regeln: höchstens ein laufender
 // Timer, Zeit nur aus echten Zeitstempeln, kein automatischer Start.
 type TimeTrackingService struct {
+	publisher
 	store TimeStore
 	now   func() time.Time
 }
@@ -56,8 +57,12 @@ func (s *TimeTrackingService) Start(ctx context.Context, taskID string, source d
 	if !source.Valid() {
 		return domain.TimerResult{}, fmt.Errorf("%w: unbekannte Quelle %q", domain.ErrInvalid, source)
 	}
-	var res domain.TimerResult
+	var (
+		res domain.TimerResult
+		evs []domain.Event
+	)
 	err := s.store.Tx(ctx, func(tx TimeTx) error {
+		evs = evs[:0]
 		now := s.now().UTC()
 		task, err := tx.GetTask(ctx, taskID)
 		if err != nil {
@@ -73,10 +78,15 @@ func (s *TimeTrackingService) Start(ctx context.Context, taskID string, source d
 		if running != nil {
 			if running.TaskID != nil && *running.TaskID == taskID {
 				res = domain.TimerResult{Task: task, Entry: running}
+				evs = nil
 				return nil
 			}
 			if err := pauseRunning(ctx, tx, *running, now); err != nil {
 				return err
+			}
+			evs = append(evs, domain.Event{Type: domain.EventTimerStopped, ID: running.ID, TaskID: deref(running.TaskID)})
+			if running.TaskID != nil {
+				evs = append(evs, domain.Event{Type: domain.EventTaskPaused, ID: *running.TaskID})
 			}
 		}
 		task.Status, task.CompletedAt, task.UpdatedAt = domain.TaskInProgress, nil, now
@@ -88,8 +98,14 @@ func (s *TimeTrackingService) Start(ctx context.Context, taskID string, source d
 			return err
 		}
 		res = domain.TimerResult{Task: task, Entry: &entry}
+		evs = append(evs,
+			domain.Event{Type: domain.EventTaskStarted, ID: task.ID},
+			domain.Event{Type: domain.EventTimerStarted, ID: entry.ID, TaskID: task.ID})
 		return nil
 	})
+	if err == nil {
+		s.emit(evs...)
+	}
 	return res, err
 }
 
@@ -121,6 +137,11 @@ func (s *TimeTrackingService) Pause(ctx context.Context, taskID string) (domain.
 		res = domain.TimerResult{Task: task, Entry: &closed}
 		return nil
 	})
+	if err == nil {
+		s.emit(
+			domain.Event{Type: domain.EventTimerStopped, ID: res.Entry.ID, TaskID: taskID},
+			domain.Event{Type: domain.EventTaskPaused, ID: taskID})
+	}
 	return res, err
 }
 
@@ -128,7 +149,11 @@ func (s *TimeTrackingService) Pause(ctx context.Context, taskID string) (domain.
 // COMPLETED. Eine schon abgeschlossene Task bleibt unverändert; eine
 // abgebrochene liefert domain.ErrConflict.
 func (s *TimeTrackingService) Complete(ctx context.Context, taskID string) (domain.TimerResult, error) {
-	var res domain.TimerResult
+	var (
+		res       domain.TimerResult
+		completed bool
+		changed   bool
+	)
 	err := s.store.Tx(ctx, func(tx TimeTx) error {
 		now := s.now().UTC()
 		task, err := tx.GetTask(ctx, taskID)
@@ -150,14 +175,24 @@ func (s *TimeTrackingService) Complete(ctx context.Context, taskID string) (doma
 			res.Entry = &closed
 		}
 		if task.Status != domain.TaskCompleted {
+			changed = true
 			task.Status, task.CompletedAt, task.UpdatedAt = domain.TaskCompleted, &now, now
 			if err := tx.UpdateTask(ctx, task); err != nil {
 				return err
 			}
 		}
 		res.Task = task
+		completed = task.Status == domain.TaskCompleted && changed
 		return nil
 	})
+	if err == nil {
+		if res.Entry != nil {
+			s.emit(domain.Event{Type: domain.EventTimerStopped, ID: res.Entry.ID, TaskID: taskID})
+		}
+		if completed {
+			s.emit(domain.Event{Type: domain.EventTaskCompleted, ID: taskID})
+		}
+	}
 	return res, err
 }
 
@@ -165,14 +200,21 @@ func (s *TimeTrackingService) Complete(ctx context.Context, taskID string) (doma
 // Status der Task ändert es nicht; das tut der Aufrufer (z. B. TaskService
 // beim Ändern des Status).
 func (s *TimeTrackingService) StopTimer(ctx context.Context, taskID string) error {
-	return s.store.Tx(ctx, func(tx TimeTx) error {
+	var stopped *domain.TimeEntry
+	err := s.store.Tx(ctx, func(tx TimeTx) error {
+		stopped = nil
 		running, err := tx.RunningEntry(ctx)
 		if err != nil || !runsFor(running, taskID) {
 			return err
 		}
-		_, err = closeEntry(ctx, tx, *running, s.now().UTC())
+		closed, err := closeEntry(ctx, tx, *running, s.now().UTC())
+		stopped = &closed
 		return err
 	})
+	if err == nil && stopped != nil {
+		s.emit(domain.Event{Type: domain.EventTimerStopped, ID: stopped.ID, TaskID: taskID})
+	}
+	return err
 }
 
 // CreateTimeEntryInput beschreibt einen nachträglich erfassten, schon
@@ -265,4 +307,11 @@ func pauseRunning(ctx context.Context, tx TimeTx, running domain.TimeEntry, now 
 	}
 	task.Status, task.UpdatedAt = domain.TaskPaused, now
 	return tx.UpdateTask(ctx, task)
+}
+
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }

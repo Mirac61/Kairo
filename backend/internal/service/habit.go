@@ -23,6 +23,7 @@ type HabitStore interface {
 
 // HabitService enthält die Regeln für Habits und Completions.
 type HabitService struct {
+	publisher
 	store HabitStore
 	loc   *time.Location
 	now   func() time.Time
@@ -113,6 +114,7 @@ func (s *HabitService) Create(ctx context.Context, in CreateHabitInput) (domain.
 	if err := s.store.Create(ctx, h); err != nil {
 		return domain.Habit{}, err
 	}
+	s.emit(domain.Event{Type: domain.EventHabitCreated, ID: h.ID})
 	return h, nil
 }
 
@@ -169,11 +171,16 @@ func (s *HabitService) Update(ctx context.Context, id string, in UpdateHabitInpu
 	if err := s.store.Update(ctx, h); err != nil {
 		return domain.Habit{}, err
 	}
+	s.emit(domain.Event{Type: domain.EventHabitUpdated, ID: h.ID})
 	return h, nil
 }
 
 func (s *HabitService) Delete(ctx context.Context, id string) error {
-	return s.store.Delete(ctx, id)
+	if err := s.store.Delete(ctx, id); err != nil {
+		return err
+	}
+	s.emit(domain.Event{Type: domain.EventHabitDeleted, ID: id})
+	return nil
 }
 
 // Complete hakt ein Habit an einem Tag ab. Der Tag muss zwischen start_date
@@ -214,6 +221,7 @@ func (s *HabitService) Complete(ctx context.Context, habitID string, in Complete
 	if err := s.store.CreateCompletion(ctx, c); err != nil {
 		return domain.HabitCompletion{}, err
 	}
+	s.emit(domain.Event{Type: domain.EventHabitCompleted, ID: habitID})
 	return c, nil
 }
 
@@ -222,7 +230,11 @@ func (s *HabitService) Uncomplete(ctx context.Context, habitID, date string) err
 	if err := validateDate("date", date); err != nil {
 		return err
 	}
-	return s.store.DeleteCompletion(ctx, habitID, date)
+	if err := s.store.DeleteCompletion(ctx, habitID, date); err != nil {
+		return err
+	}
+	s.emit(domain.Event{Type: domain.EventHabitUncompleted, ID: habitID})
+	return nil
 }
 
 // Completions liefert die Completions eines Habits, optional auf [from, to]

@@ -354,3 +354,54 @@ func TestTaskUpdateWithoutStopperStillWorks(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+type recPublisher struct{ got []domain.EventType }
+
+func (r *recPublisher) Publish(e domain.Event) { r.got = append(r.got, e.Type) }
+
+func (r *recPublisher) take() []domain.EventType {
+	out := r.got
+	r.got = nil
+	return out
+}
+
+func TestTimeEventsAreEmittedAfterSuccess(t *testing.T) {
+	svc, _, _ := newTimeSvc(map[string]domain.TaskStatus{"a": domain.TaskPlanned, "b": domain.TaskPlanned, "done": domain.TaskCompleted})
+	pub := &recPublisher{}
+	svc.SetPublisher(pub)
+	ctx := context.Background()
+	check := func(step string, want ...domain.EventType) {
+		t.Helper()
+		got := pub.take()
+		if len(got) != len(want) {
+			t.Errorf("%s: %v, erwartet %v", step, got, want)
+			return
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("%s: %v, erwartet %v", step, got, want)
+			}
+		}
+	}
+
+	_, _ = svc.Start(ctx, "done", "")
+	check("Start fehlgeschlagen")
+	_, _ = svc.Start(ctx, "a", "")
+	check("Start a", domain.EventTaskStarted, domain.EventTimerStarted)
+	_, _ = svc.Start(ctx, "a", "")
+	check("Start a nochmal")
+	_, _ = svc.Start(ctx, "b", "")
+	check("Wechsel a→b", domain.EventTimerStopped, domain.EventTaskPaused, domain.EventTaskStarted, domain.EventTimerStarted)
+	_, _ = svc.Pause(ctx, "a")
+	check("Pause ohne Timer")
+	_, _ = svc.Complete(ctx, "b")
+	check("Complete b", domain.EventTimerStopped, domain.EventTaskCompleted)
+	_, _ = svc.Complete(ctx, "b")
+	check("Complete nochmal")
+	_, _ = svc.Start(ctx, "a", "")
+	pub.take()
+	_ = svc.StopTimer(ctx, "a")
+	check("StopTimer", domain.EventTimerStopped)
+	_ = svc.StopTimer(ctx, "a")
+	check("StopTimer ohne Timer")
+}

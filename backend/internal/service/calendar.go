@@ -22,6 +22,7 @@ type CalendarStore interface {
 
 // CalendarService enthält die Regeln für Kalender-Events.
 type CalendarService struct {
+	publisher
 	store CalendarStore
 	loc   *time.Location
 	now   func() time.Time
@@ -99,6 +100,7 @@ func (s *CalendarService) Create(ctx context.Context, in CreateEventInput) (doma
 	if err := s.store.Create(ctx, e); err != nil {
 		return domain.CalendarEvent{}, err
 	}
+	s.emit(domain.Event{Type: domain.EventCalendarEventCreated, ID: e.ID})
 	return e, nil
 }
 
@@ -205,11 +207,16 @@ func (s *CalendarService) Update(ctx context.Context, id string, in UpdateEventI
 	if err := s.store.Update(ctx, e); err != nil {
 		return domain.CalendarEvent{}, err
 	}
+	s.emit(domain.Event{Type: domain.EventCalendarEventUpdated, ID: e.ID})
 	return e, nil
 }
 
 func (s *CalendarService) Delete(ctx context.Context, id string) error {
-	return s.store.Delete(ctx, id)
+	if err := s.store.Delete(ctx, id); err != nil {
+		return err
+	}
+	s.emit(domain.Event{Type: domain.EventCalendarEventDeleted, ID: id})
+	return nil
 }
 
 // occurrences liefert die Termine von e, die das Fenster [from, to) berühren,

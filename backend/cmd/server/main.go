@@ -15,6 +15,7 @@ import (
 
 	"kairo/internal/api"
 	"kairo/internal/config"
+	"kairo/internal/realtime"
 	"kairo/internal/repository"
 	"kairo/internal/service"
 	"kairo/internal/web"
@@ -50,18 +51,24 @@ func run() error {
 	}
 	defer db.Close()
 
+	hub := realtime.NewHub()
 	tasks := service.NewTaskService(repository.NewTaskRepository(db), nil)
 	calendar := service.NewCalendarService(repository.NewCalendarRepository(db), cfg.Location, nil)
 	habits := service.NewHabitService(repository.NewHabitRepository(db), cfg.Location, nil)
 	timeTracking := service.NewTimeTrackingService(repository.NewTimeEntryRepository(db), nil)
+	projects := service.NewProjectService(repository.NewProjectRepository(db), nil)
+	for _, p := range []interface{ SetPublisher(service.Publisher) }{projects, tasks, calendar, habits, timeTracking} {
+		p.SetPublisher(hub)
+	}
 	services := api.Services{
-		Projects:  service.NewProjectService(repository.NewProjectRepository(db), nil),
+		Projects:  projects,
 		Tasks:     tasks.WithTimerStopper(timeTracking),
 		Calendar:  calendar,
 		Habits:    habits,
 		Resources: service.NewResourceService(repository.NewResourceRepository(db), nil),
 		Time:      timeTracking,
 		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil),
+		Hub:       hub,
 	}
 
 	srv := &http.Server{

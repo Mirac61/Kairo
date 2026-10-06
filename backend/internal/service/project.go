@@ -21,6 +21,7 @@ type ProjectStore interface {
 
 // ProjectService enthält die Regeln für Projekte.
 type ProjectService struct {
+	publisher
 	store ProjectStore
 	now   func() time.Time
 }
@@ -70,6 +71,7 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (dom
 	if err := s.store.Create(ctx, p); err != nil {
 		return domain.Project{}, err
 	}
+	s.emit(domain.Event{Type: domain.EventProjectCreated, ID: p.ID})
 	return p, nil
 }
 
@@ -105,11 +107,16 @@ func (s *ProjectService) Update(ctx context.Context, id string, in UpdateProject
 	if err := s.store.Update(ctx, p); err != nil {
 		return domain.Project{}, err
 	}
+	s.emit(domain.Event{Type: domain.EventProjectUpdated, ID: p.ID})
 	return p, nil
 }
 
 func (s *ProjectService) Delete(ctx context.Context, id string) error {
-	return s.store.Delete(ctx, id)
+	if err := s.store.Delete(ctx, id); err != nil {
+		return err
+	}
+	s.emit(domain.Event{Type: domain.EventProjectDeleted, ID: id})
+	return nil
 }
 
 func trimOrNil(p *string) *string {

@@ -224,6 +224,37 @@ CALENDAR_EVENT_DELETED
 
 Die WebUI und Extension können dadurch sofort reagieren.
 
+Zusätzlich gibt es `HABIT_CREATED`, `HABIT_UPDATED`, `HABIT_DELETED` und
+`HABIT_UNCOMPLETED`, damit auch Habit-Änderungen ankommen.
+
+## Verbindung
+
+`GET /ws` (WebSocket-Upgrade). Origin oder Token wie bei ändernden
+Requests, sonst 403 oder 401. Der Server sendet pro Ereignis eine
+Textnachricht:
+
+``` json
+{"type": "TIMER_STARTED", "id": "<Zeiteintrag>", "task_id": "<Task>"}
+```
+
+`id` ist das betroffene Objekt (bei Timer-Ereignissen der Zeiteintrag),
+`task_id` kommt nur bei Timer-Ereignissen. Ereignisse tragen nur IDs; der
+Client liest den neuen Stand per REST nach (z. B. `GET /api/today`).
+
+-   Ereignisse entstehen im Service, erst nach erfolgreichem Speichern.
+-   Ein Start, der eine andere Task pausiert, sendet `TIMER_STOPPED` und
+    `TASK_PAUSED` für die alte, dann `TASK_STARTED` und `TIMER_STARTED`
+    für die neue Task. Ein wirkungsloser Start (Timer läuft schon) und
+    abgelehnte Aktionen senden nichts.
+-   Verlässt eine Task per `PATCH` den Status `IN_PROGRESS`, kommen
+    `TIMER_STOPPED` und `TASK_UPDATED`.
+-   `TASK_DELETED` kann einen laufenden Timer mit löschen, ohne
+    `TIMER_STOPPED`. Clients prüfen den Timer dann neu.
+-   Es gibt keinen Verlauf. Nach einem Verbindungsabbruch liest der
+    Client beim Wiederverbinden den Stand neu. Ein zu langsamer Client
+    (64 Nachrichten Rückstand) wird getrennt.
+-   Clients senden nichts. Der Server pingt alle 30 s.
+
 ------------------------------------------------------------------------
 
 # Datenmodell

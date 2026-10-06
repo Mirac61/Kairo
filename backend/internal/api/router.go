@@ -4,6 +4,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+
+	"kairo/internal/realtime"
 )
 
 // Services bündelt die Geschäftslogik, die der Router an die Handler gibt.
@@ -16,6 +18,8 @@ type Services struct {
 	Resources ResourceService
 	Time      TimeTrackingService
 	Today     TodayService
+	// Hub speist /ws mit Ereignissen. Ohne Hub gibt es keinen WebSocket.
+	Hub *realtime.Hub
 }
 
 // NewRouter baut den HTTP-Handler. Die Security-Middleware läuft vor dem Routing.
@@ -42,6 +46,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	}
 	if svc.Today != nil {
 		todayHandlers{svc.Today}.register(mux)
+	}
+	if svc.Hub != nil {
+		mux.HandleFunc("GET /ws", handleWebSocket(svc.Hub))
 	}
 	mux.Handle("/", webUI)
 	return Security(port, token, mux)
