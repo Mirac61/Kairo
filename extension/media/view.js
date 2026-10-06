@@ -36,6 +36,7 @@ const icon = {
   file: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 1.5H3.5v13h9V5zM9 1.5V5h3.5"/></svg>',
   finder: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 4h4.5l1.5 1.5h7v7.5h-13z"/><path d="M8 7.5v3.5M6.3 9.3L8 7.5l1.7 1.8"/></svg>',
   refresh: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v2.6h-2.6"/></svg>',
+  link: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M6.5 9.5l3-3M7 4.5l1.5-1.5a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5L7.5 13A2.5 2.5 0 0 1 4 9.5L5.5 8"/></svg>',
   window: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M9 3h4v4M13 3L7.5 8.5M11 9.5V13H3V5h3.5"/></svg>',
 };
 
@@ -80,11 +81,51 @@ function showTab() {
   });
 }
 
+/** @param {any} t @param {string | undefined} runningId */
+function taskRow(t, runningId) {
+  const done = t.status === "COMPLETED";
+  const time = t.planned_start_at ? new Date(t.planned_start_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "";
+  return `<div class="task ${done ? "done" : ""} ${t.id === runningId ? "running" : ""}">
+    <input type="checkbox" class="task-check" ${done ? "checked" : ""} data-cmd="${done ? "reopen" : "complete"}" data-id="${esc(t.id)}" aria-label="Abhaken: ${esc(t.title)}">
+    <div class="task-body">
+      <div class="task-name trunc" title="${esc(t.title)}">${esc(t.title)}</div>
+      <div class="task-meta">
+        ${time ? `<span>${time}</span>` : ""}
+        ${t.estimated_minutes ? `<span>${t.estimated_minutes} Min</span>` : ""}
+        ${PRIO[t.priority] ? `<span class="chip warn">Priorität ${PRIO[t.priority]}</span>` : ""}
+        ${t.status === "PAUSED" ? '<span class="chip">pausiert</span>' : ""}
+        ${t.id === runningId ? '<span class="chip ok">läuft</span>' : ""}
+      </div>
+    </div>
+    ${done || t.id === runningId ? "" : `<button class="startbtn" title="Timer starten" data-cmd="start" data-id="${esc(t.id)}">${icon.play}</button>`}
+  </div>`;
+}
+
+/** Ressourcen und offene Tasks des erkannten Projekts. */
+function projectCard() {
+  if (!state.project) {
+    return "";
+  }
+  const res = state.resources
+    .map(
+      (/** @type {any} */ r) => `<button class="doc row" style="--depth:0" data-cmd="openResource" data-id="${esc(r.id)}" title="${esc(r.label)}">
+        <span class="doc-icon ${r.type === "FOLDER" ? "is-dir" : ""}">${r.type === "URL" ? icon.link : r.type === "FOLDER" ? icon.folder : icon.file}</span>
+        <span class="fill trunc">${esc(r.label)}</span></button>`,
+    )
+    .join("");
+  const tasks = state.projectTasks.map((/** @type {any} */ t) => taskRow(t, state.running?.task.id)).join("");
+  return `<div class="card">
+    <div class="row"><h2 class="fill trunc">${esc(state.project)}</h2><span class="chip">${state.projectTasks.length} offen</span></div>
+    ${res ? `<div class="list docs">${res}</div>` : ""}
+    ${tasks ? `<div class="list">${tasks}</div>` : '<p class="muted small">Keine offenen Tasks in diesem Projekt.</p>'}
+  </div>`;
+}
+
 function renderNow() {
   const r = state.running;
   const pct = state.planned ? Math.min(100, (state.tracked / state.planned) * 100) : 0;
   const open = state.tasks.filter((/** @type {any} */ t) => t.status !== "COMPLETED").length;
-  $("v-now").innerHTML = `
+  $("v-now").innerHTML = `${projectCard()}
     <div class="card">
       <div class="row"><h2 class="fill">Jetzt</h2>${r ? '<span class="live">läuft</span>' : ""}</div>
       ${
@@ -116,26 +157,7 @@ function renderToday() {
   const open = tasks.filter((t) => t.status !== "COMPLETED").length;
   $("today-count").textContent = `${open} offen`;
   $("today-list").innerHTML = tasks.length
-    ? tasks
-        .map((/** @type {any} */ t) => {
-          const done = t.status === "COMPLETED";
-          const time = t.planned_start_at ? new Date(t.planned_start_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "";
-          return `<div class="task ${done ? "done" : ""} ${t.id === runningId ? "running" : ""}">
-            <input type="checkbox" class="task-check" ${done ? "checked" : ""} data-cmd="${done ? "reopen" : "complete"}" data-id="${esc(t.id)}" aria-label="Abhaken: ${esc(t.title)}">
-            <div class="task-body">
-              <div class="task-name trunc" title="${esc(t.title)}">${esc(t.title)}</div>
-              <div class="task-meta">
-                ${time ? `<span>${time}</span>` : ""}
-                ${t.estimated_minutes ? `<span>${t.estimated_minutes} Min</span>` : ""}
-                ${PRIO[t.priority] ? `<span class="chip warn">Priorität ${PRIO[t.priority]}</span>` : ""}
-                ${t.status === "PAUSED" ? '<span class="chip">pausiert</span>' : ""}
-                ${t.id === runningId ? '<span class="chip ok">läuft</span>' : ""}
-              </div>
-            </div>
-            ${done || t.id === runningId ? "" : `<button class="startbtn" title="Timer starten" data-cmd="start" data-id="${esc(t.id)}">${icon.play}</button>`}
-          </div>`;
-        })
-        .join("")
+    ? tasks.map((t) => taskRow(t, runningId)).join("")
     : '<p class="empty">Nichts geplant. Lege unten eine Aufgabe an.</p>';
 }
 

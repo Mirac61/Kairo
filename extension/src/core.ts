@@ -70,6 +70,13 @@ export interface Task {
   project_id: string | null;
 }
 
+export interface Resource {
+  id: string;
+  type: "FILE" | "FOLDER" | "URL";
+  target: string;
+  label: string;
+}
+
 export interface TimeEntry {
   task_id: string | null;
   project_id: string | null;
@@ -88,8 +95,11 @@ export interface Today {
 
 const trimSlashes = (p: string): string => (p.length > 1 ? p.replace(/\/+$/, "") : p);
 
-/** Projekt mit dem längsten local_path, der folder gleich ist oder umfasst. */
-export function matchProject(projects: Project[], folder: string): Project | undefined {
+/** Ersetzt ein führendes "~" durch das Home-Verzeichnis. */
+export const expandHome = (p: string, home: string = homedir()): string => p.replace(/^~(?=$|\/)/, home);
+
+/** Projekt mit dem längsten local_path, der folder gleich ist oder umfasst. "~" in local_path steht für home. */
+export function matchProject(projects: Project[], folder: string, home: string = homedir()): Project | undefined {
   const f = trimSlashes(folder);
   let best: Project | undefined;
   let bestLen = -1;
@@ -97,7 +107,7 @@ export function matchProject(projects: Project[], folder: string): Project | und
     if (!p.local_path) {
       continue;
     }
-    const lp = trimSlashes(p.local_path);
+    const lp = trimSlashes(expandHome(p.local_path, home));
     const covers = f === lp || f.startsWith(lp === "/" ? "/" : `${lp}/`);
     if (covers && lp.length > bestLen) {
       best = p;

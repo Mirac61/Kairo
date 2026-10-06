@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { apiRequest, checkHealth, HealthResult, Project, readToken, Task, Today, TimeEntry } from "./core";
+import { apiRequest, checkHealth, HealthResult, Project, readToken, Resource, Task, Today, TimeEntry } from "./core";
 
 export { HealthResult, readToken };
 
@@ -26,6 +26,9 @@ export const taskAction = (id: string, action: "start" | "pause" | "complete"): 
 /** Pausiert den Timer einer Task; der Eintrag endet zum Zeitpunkt endedAt. */
 export const pauseTaskAt = (id: string, endedAt: Date): Promise<unknown> =>
   apiRequest(backendUrl(), readToken(), `/tasks/${id}/pause`, { method: "POST", body: { ended_at: endedAt.toISOString() } });
+
+export const getResources = (projectId: string): Promise<Resource[]> =>
+  apiRequest(backendUrl(), readToken(), `/resources?project_id=${encodeURIComponent(projectId)}`);
 
 export const getTasks = (): Promise<Task[]> => apiRequest(backendUrl(), readToken(), "/tasks");
 

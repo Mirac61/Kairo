@@ -7,6 +7,7 @@ import {
   createTask,
   getHealth,
   getProjects,
+  getResources,
   getTasks,
   getTimeEntries,
   getToday,
@@ -15,7 +16,7 @@ import {
   taskAction,
   updateTask,
 } from "./backendClient";
-import { matchProject, Project, Task, TimeEntry, Today } from "./core";
+import { expandHome, matchProject, Project, Resource, Task, TimeEntry, Today } from "./core";
 import { LiveEvents } from "./liveEvents";
 
 const STATS_DAYS = 84; // 12 Wochen für die Heatmap
@@ -26,12 +27,13 @@ interface State {
   projects: Project[];
   tasks: Task[];
   entries: TimeEntry[];
+  resources: Resource[];
   today?: Today;
 }
 
 type Message =
   | { cmd: "refresh" | "openWeb" }
-  | { cmd: "start" | "pause" | "complete" | "reopen" | "openProject"; id: string }
+  | { cmd: "start" | "pause" | "complete" | "reopen" | "openProject" | "openResource"; id: string }
   | { cmd: "addTask"; title: string; minutes: number }
   | { cmd: "listDir" | "openFile" | "reveal"; path: string };
 
@@ -39,8 +41,7 @@ type Message =
 const EXTERNAL = /\.(pdf|key|pages|numbers|docx?|pptx?|xlsx?|odt|zip|dmg|png|jpe?g|heic|mp4|mov)$/i;
 
 function documentsRoot(): string {
-  const dir = vscode.workspace.getConfiguration("kairo").get<string>("documentsFolder", "~/Documents");
-  return dir.replace(/^~(?=$|\/)/, os.homedir());
+  return expandHome(vscode.workspace.getConfiguration("kairo").get<string>("documentsFolder", "~/Documents"));
 }
 
 /** Pfad relativ zum Dokumente-Ordner auflösen; alles außerhalb wird abgelehnt. */
@@ -105,6 +106,8 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
         const uri = insideDocuments(m.path);
         return void (uri && vscode.commands.executeCommand("revealFileInOS", uri));
       }
+      case "openResource":
+        return openResource(this.state?.resources.find((r) => r.id === m.id));
       case "reopen":
         return this.run(() => updateTask(m.id, { status: "PLANNED" }));
       default:
@@ -123,6 +126,8 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
       reason: s.health.online ? undefined : s.health.reason,
       version: s.health.online ? s.health.version : undefined,
       project: s.project?.name,
+      projectTasks: s.tasks.filter((t) => t.project_id === s.project?.id && t.status !== "COMPLETED" && t.status !== "CANCELLED"),
+      resources: s.resources.map((r) => ({ id: r.id, type: r.type, label: r.label || r.target })),
       running: running && { task: running, startedAt: s.today?.running_time_entry?.started_at },
       tasks: s.today?.tasks ?? [],
       projects: s.projects.map((p) => {
@@ -152,16 +157,18 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
     try {
       const health = await getHealth();
       if (!health.online) {
-        this.state = { health, projects: [], tasks: [], entries: [] };
+        this.state = { health, projects: [], tasks: [], entries: [], resources: [] };
       } else {
         const from = new Date();
         from.setHours(0, 0, 0, 0);
         from.setDate(from.getDate() - STATS_DAYS);
         const [projects, today, tasks, entries] = await Promise.all([getProjects(), getToday(), getTasks(), getTimeEntries(from)]);
-        this.state = { health, today, project: this.detectProject(projects), projects, tasks, entries };
+        const project = this.detectProject(projects);
+        const resources = project ? await getResources(project.id) : [];
+        this.state = { health, today, project, projects, tasks, entries, resources };
       }
     } catch (err) {
-      this.state = { health: { online: false, reason: err instanceof Error ? err.message : "Fehler" }, projects: [], tasks: [], entries: [] };
+      this.state = { health: { online: false, reason: err instanceof Error ? err.message : "Fehler" }, projects: [], tasks: [], entries: [], resources: [] };
     } finally {
       this.checking = false;
     }
@@ -218,7 +225,8 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
     let best: Project | undefined;
     for (const folder of vscode.workspace.workspaceFolders ?? []) {
       const p = matchProject(projects, folder.uri.fsPath);
-      if (p && (p.local_path?.length ?? 0) > (best?.local_path?.length ?? -1)) {
+      const len = (x: Project | undefined) => (x?.local_path ? expandHome(x.local_path).length : -1);
+      if (p && len(p) > len(best)) {
         best = p;
       }
     }
@@ -233,7 +241,7 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
   runningTask(): Task | undefined {
     const t = this.state?.today;
     const id = this.runningId();
-    return id ? [...(t?.tasks ?? []), ...(t?.active_tasks ?? [])].find((x) => x.id === id) : undefined;
+    return id ? [...(t?.tasks ?? []), ...(t?.active_tasks ?? []), ...(this.state?.tasks ?? [])].find((x) => x.id === id) : undefined;
   }
 }
 
@@ -247,6 +255,22 @@ async function openProject(p: Project | undefined): Promise<void> {
     void vscode.window.showInformationMessage(`Kairo: „${p?.name ?? "Projekt"}“ hat keinen lokalen Ordner.`);
     return;
   }
-  const uri = vscode.Uri.file(p.local_path.replace(/^~(?=$|\/)/, os.homedir()));
+  const uri = vscode.Uri.file(expandHome(p.local_path));
   await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: true });
+}
+
+/** URLs im Browser, Ordner im Finder, Dateien im Editor oder mit der Standard-App. */
+async function openResource(r: Resource | undefined): Promise<void> {
+  if (!r) {
+    return;
+  }
+  if (r.type === "URL") {
+    const uri = vscode.Uri.parse(r.target);
+    return void (/^https?$/.test(uri.scheme) && vscode.env.openExternal(uri));
+  }
+  const uri = vscode.Uri.file(expandHome(r.target));
+  if (r.type === "FOLDER") {
+    return void vscode.commands.executeCommand("revealFileInOS", uri);
+  }
+  await (EXTERNAL.test(uri.path) ? vscode.env.openExternal(uri) : vscode.commands.executeCommand("vscode.open", uri));
 }

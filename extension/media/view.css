@@ -133,6 +133,7 @@ h2 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: 
 .docs { padding: 4px 4px; }
 .doc { padding: 3px 4px 3px calc(4px + var(--depth) * 14px); border-radius: 4px; cursor: pointer; min-height: 24px; gap: 4px; }
 .doc:hover { background: var(--vscode-list-hoverBackground); }
+button.doc { width: 100%; background: none; border: 0; text-align: left; color: inherit; }
 .doc.muted { cursor: default; font-size: 12px; padding-left: calc(26px + var(--depth) * 14px); }
 .doc .chev.open { transform: rotate(90deg); }
 .doc-icon { flex: none; display: grid; place-items: center; color: var(--muted); }
