@@ -1,13 +1,24 @@
 <script setup lang="ts">
-import { NButton, NPopconfirm } from 'naive-ui'
+import Button from 'primevue/button'
+import { useConfirm } from 'primevue/useconfirm'
 
-defineProps<{ text: string }>()
-defineEmits<{ confirm: [] }>()
+const props = defineProps<{ text: string }>()
+const emit = defineEmits<{ confirm: [] }>()
+const confirm = useConfirm()
+
+function ask(e: Event) {
+  confirm.require({
+    target: e.currentTarget as HTMLElement,
+    message: props.text,
+    acceptLabel: 'Löschen',
+    rejectLabel: 'Abbrechen',
+    acceptProps: { severity: 'danger', size: 'small' },
+    rejectProps: { severity: 'secondary', size: 'small', text: true },
+    accept: () => emit('confirm'),
+  })
+}
 </script>
 
 <template>
-  <n-popconfirm positive-text="Löschen" negative-text="Abbrechen" @positive-click="$emit('confirm')">
-    <template #trigger><n-button size="small" quaternary type="error">Löschen</n-button></template>
-    {{ text }}
-  </n-popconfirm>
+  <Button label="Löschen" size="small" severity="danger" text @click="ask" />
 </template>

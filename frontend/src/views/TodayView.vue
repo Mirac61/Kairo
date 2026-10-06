@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import {
-  NAlert, NCard, NCheckbox, NH1, NList, NListItem, NSpace, NStatistic, NText,
-} from 'naive-ui'
+import Checkbox from 'primevue/checkbox'
+import Message from 'primevue/message'
 import { completeHabit, errorMessage, getToday, uncompleteHabit, type Task, type Today } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import TaskActions from '@/components/TaskActions.vue'
@@ -73,63 +72,71 @@ const groups = computed(() => [
 </script>
 
 <template>
-  <n-space vertical :size="16">
-    <n-h1 style="margin: 0">Heute <n-text depth="3" style="font-size: 14px">{{ today?.date }}</n-text></n-h1>
-    <n-alert v-if="error" type="error">{{ error }}</n-alert>
+  <div class="stack">
+    <h1 class="title">Heute <span class="muted">{{ today?.date }}</span></h1>
+    <Message v-if="error" severity="error">{{ error }}</Message>
 
     <template v-if="today">
-      <n-space :size="32">
-        <n-statistic label="Geplant" :value="hm(today.planned_minutes)" />
-        <n-statistic label="Termine" :value="hm(today.calendar_minutes)" />
-        <n-statistic label="Erfasst" :value="hm(today.tracked_minutes)" />
-        <n-statistic label="Frei" :value="hm(today.free_minutes)">
-          <template #suffix><n-text depth="3" style="font-size: 14px">von {{ hm(today.work_minutes) }}</n-text></template>
-        </n-statistic>
-      </n-space>
-      <n-alert v-if="today.overplanned_minutes" type="warning">Überplant um {{ hm(today.overplanned_minutes) }}</n-alert>
-      <n-alert v-if="today.running_time_entry" class="running" type="success">Timer läuft: {{ elapsed }}</n-alert>
+      <div class="row stats">
+        <div><span class="muted">Geplant</span><b>{{ hm(today.planned_minutes) }}</b></div>
+        <div><span class="muted">Termine</span><b>{{ hm(today.calendar_minutes) }}</b></div>
+        <div><span class="muted">Erfasst</span><b>{{ hm(today.tracked_minutes) }}</b></div>
+        <div><span class="muted">Frei</span><b>{{ hm(today.free_minutes) }}</b><span class="muted">von {{ hm(today.work_minutes) }}</span></div>
+      </div>
+      <Message v-if="today.overplanned_minutes" severity="warn">Überplant um {{ hm(today.overplanned_minutes) }}</Message>
+      <Message v-if="today.running_time_entry" severity="success" class="running">Timer läuft: {{ elapsed }}</Message>
 
-      <n-card title="Zeitleiste" size="small">
-        <n-text v-if="!timeline.length" depth="3">Keine Termine oder Tasks mit Uhrzeit.</n-text>
-        <n-list v-else>
-          <n-list-item v-for="i in timeline" :key="i.key">
-            <template #prefix><n-text depth="3">{{ fmt(i.at) }}</n-text></template>
-            <template v-if="i.kind === 'event'">
+      <section class="card">
+        <h2>Zeitleiste</h2>
+        <span v-if="!timeline.length" class="muted">Keine Termine oder Tasks mit Uhrzeit.</span>
+        <ul v-else class="list">
+          <li v-for="i in timeline" :key="i.key">
+            <span class="time">{{ fmt(i.at) }}</span>
+            <span v-if="i.kind === 'event'" class="main">
               {{ i.title }}
-              <n-text depth="3">bis {{ fmt(i.end) }}<template v-if="i.sub"> · {{ i.sub }}</template></n-text>
+              <span class="muted">bis {{ fmt(i.end) }}<template v-if="i.sub"> · {{ i.sub }}</template></span>
+            </span>
+            <template v-else>
+              <span class="main" :class="{ done: i.task.status === 'COMPLETED' }">{{ i.task.title }}</span>
+              <TaskActions :task="i.task" :running="runningTaskId === i.task.id" @run="run" />
             </template>
-            <n-text v-else :delete="i.task.status === 'COMPLETED'">{{ i.task.title }}</n-text>
-            <template v-if="i.kind === 'task'" #suffix>
-              <task-actions :task="i.task" :running="runningTaskId === i.task.id" @run="run" />
-            </template>
-          </n-list-item>
-        </n-list>
-      </n-card>
+          </li>
+        </ul>
+      </section>
 
       <template v-for="g in groups" :key="g.title">
-        <n-card v-if="g.tasks.length" :title="g.title" size="small">
-          <n-list>
-            <n-list-item v-for="task in g.tasks" :key="task.id">
-              <n-text :delete="task.status === 'COMPLETED'">{{ task.title }}</n-text>
-              <template #suffix><task-actions :task="task" :running="runningTaskId === task.id" @run="run" /></template>
-            </n-list-item>
-          </n-list>
-        </n-card>
+        <section v-if="g.tasks.length" class="card">
+          <h2>{{ g.title }}</h2>
+          <ul class="list">
+            <li v-for="task in g.tasks" :key="task.id">
+              <span class="main" :class="{ done: task.status === 'COMPLETED' }">{{ task.title }}</span>
+              <TaskActions :task="task" :running="runningTaskId === task.id" @run="run" />
+            </li>
+          </ul>
+        </section>
       </template>
 
-      <n-card v-if="today.habits.length" title="Habits" size="small">
-        <n-list>
-          <n-list-item v-for="h in today.habits" :key="h.id">
-            <n-checkbox
-              :checked="h.done"
-              @update:checked="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
-            >
+      <section v-if="today.habits.length" class="card">
+        <h2>Habits</h2>
+        <ul class="list">
+          <li v-for="h in today.habits" :key="h.id">
+            <Checkbox
+              :model-value="h.done" binary :input-id="`h${h.id}`"
+              @update:model-value="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
+            />
+            <label :for="`h${h.id}`" class="main">
               {{ h.name }}
-              <n-text v-if="h.week_progress" depth="3">{{ h.week_progress.done }}/{{ h.week_progress.target }} diese Woche</n-text>
-            </n-checkbox>
-          </n-list-item>
-        </n-list>
-      </n-card>
+              <span v-if="h.week_progress" class="muted">{{ h.week_progress.done }}/{{ h.week_progress.target }} diese Woche</span>
+            </label>
+          </li>
+        </ul>
+      </section>
     </template>
-  </n-space>
+  </div>
 </template>
+
+<style scoped>
+.stats { gap: 32px; }
+.stats div { display: flex; flex-direction: column; }
+.stats b { font-size: 24px; font-weight: 500; }
+</style>

@@ -1,45 +1,41 @@
 <script setup lang="ts">
-import { computed, h } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
-import {
-  NConfigProvider, NGlobalStyle, NLayout, NLayoutContent, NLayoutSider, NMenu, NTag,
-  dateDeDE, darkTheme, deDE, useOsTheme, type MenuOption,
-} from 'naive-ui'
+import { RouterLink, RouterView } from 'vue-router'
+import ConfirmPopup from 'primevue/confirmpopup'
+import Tag from 'primevue/tag'
 import { navItems } from '@/router'
 import { useBackendStatus } from '@/composables/useBackendStatus'
 
 const { online, version } = useBackendStatus()
-const os = useOsTheme()
-const theme = computed(() => (os.value === 'dark' ? darkTheme : null))
-const route = useRoute()
-const menu: MenuOption[] = navItems.map((i) => ({
-  key: i.name,
-  label: () => h(RouterLink, { to: i.path }, () => i.label),
-}))
 </script>
 
 <template>
-  <n-config-provider :theme="theme" :locale="deDE" :date-locale="dateDeDE" class="root">
-    <n-global-style />
-    <n-layout has-sider class="root">
-      <n-layout-sider bordered :width="220" content-style="display:flex;flex-direction:column;height:100%">
-        <div class="brand">Kairo</div>
-        <n-menu :value="route.name as string" :options="menu" />
-        <div class="status">
-          <n-tag :type="online ? 'success' : 'error'" round size="small">
-            {{ online ? `Backend online${version ? ` (${version})` : ''}` : 'Backend offline' }}
-          </n-tag>
-        </div>
-      </n-layout-sider>
-      <n-layout-content content-style="padding:32px 40px;max-width:960px">
-        <RouterView />
-      </n-layout-content>
-    </n-layout>
-  </n-config-provider>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">Kairo</div>
+      <nav>
+        <RouterLink v-for="item in navItems" :key="item.path" :to="item.path">{{ item.label }}</RouterLink>
+      </nav>
+      <Tag :severity="online ? 'success' : 'danger'" rounded class="status">
+        {{ online ? `Backend online${version ? ` (${version})` : ''}` : 'Backend offline' }}
+      </Tag>
+    </aside>
+    <main class="content"><RouterView /></main>
+    <ConfirmPopup />
+  </div>
 </template>
 
 <style scoped>
-.root { height: 100%; }
-.brand { font-size: 20px; font-weight: 700; padding: 20px 24px 12px; color: #6f86ff; }
-.status { margin-top: auto; padding: 16px; }
+.shell { display: flex; height: 100%; }
+.sidebar {
+  width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; padding: 16px 12px;
+  background: var(--p-content-background); border-right: 1px solid var(--p-content-border-color);
+}
+.brand { font-size: 20px; font-weight: 700; padding: 4px 10px 16px; color: var(--p-primary-color); }
+nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+nav a { padding: 8px 10px; border-radius: 8px; color: var(--p-text-color); text-decoration: none; }
+nav a:hover { background: var(--p-content-hover-background); }
+nav a.router-link-active { background: var(--p-highlight-background); color: var(--p-highlight-color); font-weight: 600; }
+.status { align-self: flex-start; }
+.content { flex: 1; min-width: 0; overflow-y: auto; padding: 32px 40px; }
+.content > * { max-width: 960px; }
 </style>

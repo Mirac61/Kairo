@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { NAlert, NButton, NCard, NH1, NInput, NSelect, NSpace, NTag, NText } from 'naive-ui'
+import Button from 'primevue/button'
+import Chip from 'primevue/chip'
+import InputText from 'primevue/inputtext'
+import Message from 'primevue/message'
+import Select from 'primevue/select'
 import {
   createProject, createResource, deleteProject, deleteResource, errorMessage, listProjects, listResources,
   updateProject, type Project, type Resource,
@@ -12,7 +16,7 @@ const statusOptions = [
   { value: 'ACTIVE', label: 'Aktiv' }, { value: 'PAUSED', label: 'Pausiert' },
   { value: 'COMPLETED', label: 'Abgeschlossen' }, { value: 'ARCHIVED', label: 'Archiviert' },
 ]
-const typeOptions = ['URL', 'FILE', 'FOLDER'].map((v) => ({ value: v, label: v }))
+const typeOptions = ['URL', 'FILE', 'FOLDER']
 
 const projects = ref<Project[]>([])
 const resources = ref<Resource[]>([])
@@ -59,52 +63,50 @@ function addResource(p: Project) {
   })
 }
 
+// Name und Ordner speichern beim Verlassen des Felds.
+const valueOf = (e: Event) => (e.target as HTMLInputElement).value.trim()
+
 onMounted(load)
 useLiveEvents(load)
 </script>
 
 <template>
-  <n-space vertical :size="16">
-    <n-h1 style="margin: 0">Projekte</n-h1>
-    <n-alert v-if="error" type="error">{{ error }}</n-alert>
+  <div class="stack">
+    <h1 class="title">Projekte</h1>
+    <Message v-if="error" severity="error">{{ error }}</Message>
 
-    <form @submit.prevent="add">
-      <n-space>
-        <n-input v-model:value="form.name" placeholder="Neues Projekt" style="width: 220px" />
-        <n-input v-model:value="form.local_path" placeholder="Ordner (optional, absoluter Pfad)" style="width: 320px" />
-        <n-button type="primary" attr-type="submit">Anlegen</n-button>
-      </n-space>
+    <form class="row" @submit.prevent="add">
+      <InputText v-model="form.name" placeholder="Neues Projekt" class="w-name" />
+      <InputText v-model="form.local_path" placeholder="Ordner (optional, absoluter Pfad)" class="w-path" />
+      <Button type="submit" label="Anlegen" />
     </form>
 
-    <n-text v-if="!projects.length" depth="3">Keine Projekte.</n-text>
-    <n-card v-for="p in projects" :key="p.id" size="small">
-      <n-space vertical>
-        <n-space align="center">
-          <n-input :default-value="p.name" style="width: 220px" @change="(v: string) => run(() => updateProject(p.id, { name: v.trim() || p.name }))" />
-          <n-input
-            :default-value="p.local_path ?? ''" placeholder="Ordner (absoluter Pfad)" style="width: 320px"
-            @change="(v: string) => run(() => updateProject(p.id, { local_path: v.trim() }))"
-          />
-          <n-select
-            :value="p.status" :options="statusOptions" style="width: 150px"
-            @update:value="(v: string) => run(() => updateProject(p.id, { status: v }))"
-          />
-          <delete-button :text="`„${p.name}“ löschen?`" @confirm="run(() => deleteProject(p.id))" />
-        </n-space>
-        <n-space align="center" :size="6">
-          <n-tag v-for="r in resources.filter((x) => x.project_id === p.id)" :key="r.id" closable class="chip" @close="run(() => deleteResource(r.id))">
-            {{ r.label || r.target }}<n-text depth="3"> · {{ r.type }}</n-text>
-          </n-tag>
-        </n-space>
-        <form @submit.prevent="addResource(p)">
-          <n-space>
-            <n-select v-model:value="resFor(p.id).type" :options="typeOptions" size="small" style="width: 100px" />
-            <n-input v-model:value="resFor(p.id).target" size="small" placeholder="URL oder Pfad (~ erlaubt)" style="width: 260px" />
-            <n-input v-model:value="resFor(p.id).label" size="small" placeholder="Name (optional)" style="width: 160px" />
-            <n-button size="small" attr-type="submit">+ Ressource</n-button>
-          </n-space>
-        </form>
-      </n-space>
-    </n-card>
-  </n-space>
+    <span v-if="!projects.length" class="muted">Keine Projekte.</span>
+    <section v-for="p in projects" :key="p.id" class="card stack">
+      <div class="row">
+        <InputText :default-value="p.name" aria-label="Name" class="w-name" @change="(e: Event) => run(() => updateProject(p.id, { name: valueOf(e) || p.name }))" />
+        <InputText :default-value="p.local_path ?? ''" aria-label="Ordner" placeholder="Ordner (absoluter Pfad)" class="w-path" @change="(e: Event) => run(() => updateProject(p.id, { local_path: valueOf(e) }))" />
+        <Select :model-value="p.status" :options="statusOptions" option-label="label" option-value="value" class="w-status" @update:model-value="(v: string) => run(() => updateProject(p.id, { status: v }))" />
+        <DeleteButton :text="`„${p.name}“ löschen?`" @confirm="run(() => deleteProject(p.id))" />
+      </div>
+      <div v-if="resources.some((x) => x.project_id === p.id)" class="row">
+        <Chip v-for="r in resources.filter((x) => x.project_id === p.id)" :key="r.id" :label="`${r.label || r.target} · ${r.type}`" removable @remove="run(() => deleteResource(r.id))" />
+      </div>
+      <form class="row" @submit.prevent="addResource(p)">
+        <Select v-model="resFor(p.id).type" :options="typeOptions" size="small" class="w-type" />
+        <InputText v-model="resFor(p.id).target" size="small" placeholder="URL oder Pfad (~ erlaubt)" class="w-target" />
+        <InputText v-model="resFor(p.id).label" size="small" placeholder="Name (optional)" class="w-label" />
+        <Button type="submit" label="+ Ressource" size="small" severity="secondary" />
+      </form>
+    </section>
+  </div>
 </template>
+
+<style scoped>
+.w-name { width: 220px; }
+.w-path { width: 300px; }
+.w-status { width: 150px; }
+.w-type { width: 100px; }
+.w-target { width: 260px; }
+.w-label { width: 160px; }
+</style>

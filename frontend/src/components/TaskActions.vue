@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NButton, NSpace } from 'naive-ui'
+import Button from 'primevue/button'
 import { taskAction, type Task } from '@/api/client'
 
 defineProps<{ task: Task; running: boolean }>()
@@ -7,9 +7,9 @@ defineEmits<{ run: [fn: () => Promise<unknown>] }>()
 </script>
 
 <template>
-  <n-space v-if="task.status !== 'COMPLETED' && task.status !== 'CANCELLED'" :size="6" :wrap="false">
-    <n-button v-if="running" size="small" @click="$emit('run', () => taskAction(task.id, 'pause'))">Pause</n-button>
-    <n-button v-else size="small" type="primary" @click="$emit('run', () => taskAction(task.id, 'start'))">Start</n-button>
-    <n-button size="small" @click="$emit('run', () => taskAction(task.id, 'complete'))">Fertig</n-button>
-  </n-space>
+  <div v-if="task.status !== 'COMPLETED' && task.status !== 'CANCELLED'" class="row nowrap">
+    <Button v-if="running" label="Pause" size="small" severity="secondary" @click="$emit('run', () => taskAction(task.id, 'pause'))" />
+    <Button v-else label="Start" size="small" @click="$emit('run', () => taskAction(task.id, 'start'))" />
+    <Button label="Fertig" size="small" severity="secondary" @click="$emit('run', () => taskAction(task.id, 'complete'))" />
+  </div>
 </template>

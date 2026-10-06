@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import {
-  NAlert, NButton, NCheckbox, NCheckboxGroup, NH1, NInput, NInputNumber, NList, NListItem, NSelect, NSpace, NText,
-} from 'naive-ui'
+import Button from 'primevue/button'
+import Checkbox from 'primevue/checkbox'
+import InputNumber from 'primevue/inputnumber'
+import InputText from 'primevue/inputtext'
+import Message from 'primevue/message'
+import Select from 'primevue/select'
 import {
   createHabit, deleteHabit, errorMessage, listHabits, updateHabit, type FrequencyConfig, type Habit,
 } from '@/api/client'
@@ -14,7 +17,6 @@ const TYPE_LABEL: Record<Habit['frequency_type'], string> = {
   DAILY: 'Täglich', WEEKLY: 'Wöchentlich', SPECIFIC_WEEKDAYS: 'Bestimmte Wochentage', TIMES_PER_WEEK: 'X-mal pro Woche',
 }
 const typeOptions = Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label }))
-const weekdayOptions = WEEKDAYS.map((v) => ({ value: v, label: v }))
 
 const habits = ref<Habit[]>([])
 const error = ref('')
@@ -69,39 +71,40 @@ useLiveEvents(load)
 </script>
 
 <template>
-  <n-space vertical :size="16">
-    <n-h1 style="margin: 0">Habits</n-h1>
-    <n-alert v-if="error" type="error">{{ error }}</n-alert>
+  <div class="stack">
+    <h1 class="title">Habits</h1>
+    <Message v-if="error" severity="error">{{ error }}</Message>
 
-    <form @submit.prevent="add">
-      <n-space align="center">
-        <n-input v-model:value="form.name" placeholder="Neues Habit" style="width: 220px" />
-        <n-select v-model:value="form.type" :options="typeOptions" style="width: 200px" />
-        <n-select v-if="form.type === 'WEEKLY'" v-model:value="form.weekday" :options="weekdayOptions" style="width: 90px" />
-        <n-checkbox-group v-if="form.type === 'SPECIFIC_WEEKDAYS'" v-model:value="form.weekdays">
-          <n-space :size="8"><n-checkbox v-for="d in WEEKDAYS" :key="d" :value="d" :label="d" /></n-space>
-        </n-checkbox-group>
-        <n-input-number v-if="form.type === 'TIMES_PER_WEEK'" v-model:value="form.times" :min="1" :max="7" style="width: 90px" />
-        <n-button type="primary" attr-type="submit">Anlegen</n-button>
-      </n-space>
+    <form class="row" @submit.prevent="add">
+      <InputText v-model="form.name" placeholder="Neues Habit" class="w-name" />
+      <Select v-model="form.type" :options="typeOptions" option-label="label" option-value="value" class="w-type" />
+      <Select v-if="form.type === 'WEEKLY'" v-model="form.weekday" :options="WEEKDAYS" class="w-day" />
+      <template v-if="form.type === 'SPECIFIC_WEEKDAYS'">
+        <label v-for="d in WEEKDAYS" :key="d" class="row day"><Checkbox v-model="form.weekdays" :value="d" /> {{ d }}</label>
+      </template>
+      <InputNumber v-if="form.type === 'TIMES_PER_WEEK'" v-model="form.times" :min="1" :max="7" input-class="w-day" />
+      <Button type="submit" label="Anlegen" />
     </form>
 
-    <n-text v-if="!habits.length" depth="3">Keine Habits.</n-text>
-    <n-list v-else bordered>
-      <n-list-item v-for="h in habits" :key="h.id">
-        <n-space vertical :size="2">
-          <n-text :depth="h.active ? 1 : 3">{{ h.name }}</n-text>
-          <n-text depth="3" style="font-size: 13px">{{ describe(h) }}<template v-if="!h.active"> · inaktiv</template></n-text>
-        </n-space>
-        <template #suffix>
-          <n-space :size="6" :wrap="false">
-            <n-button size="small" @click="run(() => updateHabit(h.id, { active: !h.active }))">
-              {{ h.active ? 'Deaktivieren' : 'Aktivieren' }}
-            </n-button>
-            <delete-button :text="`„${h.name}“ löschen?`" @confirm="run(() => deleteHabit(h.id))" />
-          </n-space>
-        </template>
-      </n-list-item>
-    </n-list>
-  </n-space>
+    <span v-if="!habits.length" class="muted">Keine Habits.</span>
+    <ul v-else class="list card">
+      <li v-for="h in habits" :key="h.id">
+        <span class="main">
+          <span :class="{ done: !h.active }">{{ h.name }}</span>
+          <span class="muted">{{ describe(h) }}<template v-if="!h.active"> · inaktiv</template></span>
+        </span>
+        <div class="row nowrap">
+          <Button :label="h.active ? 'Deaktivieren' : 'Aktivieren'" size="small" severity="secondary" @click="run(() => updateHabit(h.id, { active: !h.active }))" />
+          <DeleteButton :text="`„${h.name}“ löschen?`" @confirm="run(() => deleteHabit(h.id))" />
+        </div>
+      </li>
+    </ul>
+  </div>
 </template>
+
+<style scoped>
+.w-name { width: 220px; }
+.w-type { width: 220px; }
+.w-day { width: 90px; }
+.day { gap: 4px; font-size: 13px; }
+</style>

@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import {
-  NAlert, NButton, NDatePicker, NH1, NInput, NInputNumber, NList, NListItem, NSelect, NSpace, NText, NTimePicker,
-} from 'naive-ui'
+import Button from 'primevue/button'
+import DatePicker from 'primevue/datepicker'
+import InputNumber from 'primevue/inputnumber'
+import InputText from 'primevue/inputtext'
+import Message from 'primevue/message'
+import Select from 'primevue/select'
 import {
   createTask, deleteTask, errorMessage, listProjects, listTasks, updateTask,
   type Project, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { dateOf, hhmm, single, timeOf, ymd } from '@/lib/dates'
 import DeleteButton from '@/components/DeleteButton.vue'
 import TaskActions from '@/components/TaskActions.vue'
 
@@ -22,10 +26,9 @@ const projects = ref<Project[]>([])
 const error = ref('')
 const status = ref<string | null>(null)
 const projectId = ref<string | null>(null)
-const form = ref({ title: '', project_id: null as string | null, estimated_minutes: null as number | null, planned_date: null as string | null })
+const form = ref({ title: '', project_id: null as string | null, estimated_minutes: null as number | null, planned_date: null as Date | null })
 
 const projectName = computed(() => new Map(projects.value.map((p) => [p.id, p.name])))
-const projectOptions = computed(() => projects.value.map((p) => ({ value: p.id, label: p.name })))
 
 async function load() {
   const q = new URLSearchParams()
@@ -55,22 +58,14 @@ function add() {
   if (!title) return
   void run(async () => {
     await createTask({
-      title, project_id: f.project_id, estimated_minutes: f.estimated_minutes || 0, planned_date: f.planned_date,
+      title, project_id: f.project_id, estimated_minutes: f.estimated_minutes || 0,
+      planned_date: f.planned_date ? ymd(f.planned_date) : null,
     })
     form.value.title = ''
   })
 }
 
-const pad = (n: number) => String(n).padStart(2, '0')
-const today = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-const startTime = (t: Task) => {
-  if (!t.planned_start_at) return null
-  const d = new Date(t.planned_start_at)
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
+const startTime = (t: Task) => (t.planned_start_at ? hhmm(new Date(t.planned_start_at)) : null)
 
 // Datum und Uhrzeit hängen zusammen: Ohne Datum gibt es keine Uhrzeit, ein neues Datum behält sie.
 function setDate(t: Task, date: string | null) {
@@ -82,13 +77,12 @@ function setDate(t: Task, date: string | null) {
     }),
   )
 }
-function setTime(t: Task, time: string | null) {
+function setTime(t: Task, d: Date | null) {
   if (!t.planned_date) return
-  void run(() => updateTask(t.id, { planned_start_at: time ? new Date(`${t.planned_date}T${time}`).toISOString() : '' }))
+  void run(() => updateTask(t.id, { planned_start_at: d ? new Date(`${t.planned_date}T${hhmm(d)}`).toISOString() : '' }))
 }
 // Erst beim Verlassen des Felds speichern, nicht bei jeder Ziffer.
-const setEstimate = (t: Task, e: FocusEvent) =>
-  void run(() => updateTask(t.id, { estimated_minutes: Number((e.target as HTMLInputElement).value) || 0 }))
+const setEstimate = (t: Task, value: string) => void run(() => updateTask(t.id, { estimated_minutes: Number(value) || 0 }))
 
 const open = (t: Task) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
 
@@ -97,56 +91,58 @@ useLiveEvents(load)
 </script>
 
 <template>
-  <n-space vertical :size="16">
-    <n-h1 style="margin: 0">Tasks</n-h1>
-    <n-alert v-if="error" type="error">{{ error }}</n-alert>
+  <div class="stack">
+    <h1 class="title">Tasks</h1>
+    <Message v-if="error" severity="error">{{ error }}</Message>
 
-    <form @submit.prevent="add">
-      <n-space>
-        <n-input v-model:value="form.title" placeholder="Neue Task" style="width: 240px" />
-        <n-select v-model:value="form.project_id" :options="projectOptions" clearable placeholder="Projekt" style="width: 160px" />
-        <n-input-number v-model:value="form.estimated_minutes" :min="0" :show-button="false" placeholder="Min." style="width: 80px" />
-        <n-date-picker v-model:formatted-value="form.planned_date" value-format="yyyy-MM-dd" type="date" clearable placeholder="Datum" style="width: 150px" />
-        <n-button type="primary" attr-type="submit">Anlegen</n-button>
-      </n-space>
+    <form class="row" @submit.prevent="add">
+      <InputText v-model="form.title" placeholder="Neue Task" class="w-title" />
+      <Select v-model="form.project_id" :options="projects" option-label="name" option-value="id" show-clear placeholder="Projekt" class="w-select" />
+      <InputNumber v-model="form.estimated_minutes" :min="0" :use-grouping="false" placeholder="Min." input-class="w-num" />
+      <DatePicker v-model="form.planned_date" show-icon placeholder="Datum" date-format="dd.mm.yy" show-button-bar class="w-date" />
+      <Button type="submit" label="Anlegen" />
     </form>
 
-    <n-space>
-      <n-select v-model:value="status" :options="statusOptions" clearable placeholder="Alle Status" style="width: 160px" @update:value="load" />
-      <n-select v-model:value="projectId" :options="projectOptions" clearable placeholder="Alle Projekte" style="width: 180px" @update:value="load" />
-    </n-space>
+    <div class="row">
+      <Select v-model="status" :options="statusOptions" option-label="label" option-value="value" show-clear placeholder="Alle Status" class="w-select" @change="load" />
+      <Select v-model="projectId" :options="projects" option-label="name" option-value="id" show-clear placeholder="Alle Projekte" class="w-select" @change="load" />
+    </div>
 
-    <n-text v-if="!tasks.length" depth="3">Keine Tasks.</n-text>
-    <n-list v-else bordered>
-      <n-list-item v-for="t in tasks" :key="t.id">
-        <n-space vertical :size="2">
-          <n-text :delete="!open(t)">{{ t.title }}</n-text>
-          <n-text depth="3" style="font-size: 13px">
-            {{ STATUS_LABEL[t.status] }}<template v-if="t.project_id"> · {{ projectName.get(t.project_id) }}</template>
-          </n-text>
-        </n-space>
-        <template #suffix>
-          <n-space :size="8" align="center" :wrap="false">
-            <template v-if="open(t)">
-              <n-date-picker
-                :formatted-value="t.planned_date" value-format="yyyy-MM-dd" type="date" clearable size="small" placeholder="Datum" style="width: 140px"
-                @update:formatted-value="(v: string | null) => setDate(t, v)"
-              />
-              <n-time-picker
-                :formatted-value="startTime(t)" format="HH:mm" value-format="HH:mm" clearable size="small" placeholder="Uhrzeit"
-                :disabled="!t.planned_date" style="width: 100px" @update:formatted-value="(v: string | null) => setTime(t, v)"
-              />
-              <n-input-number
-                :value="t.estimated_minutes" :min="0" :show-button="false" size="small" style="width: 64px"
-                @blur="(e: FocusEvent) => setEstimate(t, e)"
-              />
-              <n-button v-if="t.planned_date !== today()" size="small" @click="setDate(t, today())">Heute</n-button>
-            </template>
-            <task-actions :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
-            <delete-button :text="`„${t.title}“ löschen?`" @confirm="run(() => deleteTask(t.id))" />
-          </n-space>
-        </template>
-      </n-list-item>
-    </n-list>
-  </n-space>
+    <span v-if="!tasks.length" class="muted">Keine Tasks.</span>
+    <ul v-else class="list card">
+      <li v-for="t in tasks" :key="t.id">
+        <span class="main">
+          <span :class="{ done: !open(t) }">{{ t.title }}</span>
+          <span class="muted">{{ STATUS_LABEL[t.status] }}<template v-if="t.project_id"> · {{ projectName.get(t.project_id) }}</template></span>
+        </span>
+        <div class="row nowrap">
+          <template v-if="open(t)">
+            <DatePicker
+              :model-value="dateOf(t.planned_date)" placeholder="Datum" date-format="dd.mm.yy" show-button-bar class="w-date"
+              @update:model-value="(v) => setDate(t, single(v) ? ymd(single(v)!) : null)"
+            />
+            <DatePicker
+              :model-value="timeOf(startTime(t))" time-only hour-format="24" placeholder="Uhrzeit" :disabled="!t.planned_date" class="w-time"
+              @update:model-value="(v) => setTime(t, single(v))"
+            />
+            <InputNumber
+              :model-value="t.estimated_minutes" :min="0" :use-grouping="false" input-class="w-num" suffix=" min"
+              @blur="(e) => setEstimate(t, e.value)"
+            />
+            <Button v-if="t.planned_date !== ymd(new Date())" label="Heute" size="small" severity="secondary" @click="setDate(t, ymd(new Date()))" />
+          </template>
+          <TaskActions :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
+          <DeleteButton :text="`„${t.title}“ löschen?`" @confirm="run(() => deleteTask(t.id))" />
+        </div>
+      </li>
+    </ul>
+  </div>
 </template>
+
+<style scoped>
+.w-title { width: 220px; }
+.w-select { width: 170px; }
+.w-date { width: 150px; }
+.w-time { width: 100px; }
+:deep(.w-num) { width: 80px; }
+</style>
