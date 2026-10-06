@@ -154,3 +154,8 @@ export const updateHabit = (id: string, body: Partial<Habit>) =>
   api<Habit>(`/habits/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
 export const deleteHabit = (id: string) => api<void>(`/habits/${id}`, { method: 'DELETE' })
+
+export const createEvent = (body: { title: string; start_at: string; end_at: string; location?: string }) =>
+  api<unknown>('/calendar/events', { method: 'POST', body: JSON.stringify(body) })
+
+export const deleteEvent = (id: string) => api<void>(`/calendar/events/${id}`, { method: 'DELETE' })
