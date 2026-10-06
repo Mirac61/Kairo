@@ -132,6 +132,30 @@ func (s *CalendarService) List(ctx context.Context, from, to *time.Time) ([]doma
 	return out, nil
 }
 
+// Occurrences liefert alle konkreten Termine, die das Fenster [from, to)
+// berühren, nach Beginn sortiert. Wiederkehrende Events erscheinen einmal je Termin.
+func (s *CalendarService) Occurrences(ctx context.Context, from, to time.Time) ([]domain.EventInstance, error) {
+	if !to.After(from) {
+		return nil, fmt.Errorf("%w: to muss nach from liegen", domain.ErrInvalid)
+	}
+	all, err := s.store.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := []domain.EventInstance{}
+	for _, e := range all {
+		occ, err := s.occurrences(e, from, to)
+		if err != nil {
+			return nil, err
+		}
+		for _, o := range occ {
+			out = append(out, domain.EventInstance{Event: e, Start: o.Start, End: o.End})
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Start.Before(out[j].Start) })
+	return out, nil
+}
+
 func (s *CalendarService) Update(ctx context.Context, id string, in UpdateEventInput) (domain.CalendarEvent, error) {
 	e, err := s.store.Get(ctx, id)
 	if err != nil {

@@ -414,6 +414,35 @@ den laufenden Timer. Start, Pause und Abschluss antworten mit
 -   Die Today View und `GET /api/today?date=…` rechnen in dieser
     Zeitzone.
 
+## GET /api/today
+
+`?date=YYYY-MM-DD`, Standard ist heute in der konfigurierten Zeitzone.
+Die Antwort ist nur lesend und enthält:
+
+``` text
+date, timezone, day_start, day_end   Tag [day_start, day_end) in UTC
+                                     (an Zeitumstellungen 23 oder 25 h)
+events               Termine, die den Tag berühren, nach Beginn sortiert.
+                     Wie GET /api/calendar/events plus occurrence_start
+                     und occurrence_end (der konkrete Termin; bei Serien
+                     gehören start_at/end_at zur ersten Wiederholung)
+tasks                für den Tag geplante Tasks ohne CANCELLED; zuerst mit
+                     planned_start_at nach Uhrzeit, dann ohne Uhrzeit
+active_tasks         IN_PROGRESS-Tasks, die nicht für den Tag geplant sind
+habits               fällige Habits (Habit-Felder plus done und
+                     week_progress bei TIMES_PER_WEEK)
+running_time_entry   laufender Timer oder null (unabhängig vom Tag)
+planned_minutes      Summe estimated_minutes von tasks
+calendar_minutes     belegte Zeit der Termine im Tag; Überlappungen zählen
+                     einmal, Termine über Mitternacht anteilig
+tracked_minutes      erfasste Zeit der Einträge, die an dem Tag gestartet
+                     sind; ein laufender Timer zählt bis jetzt
+```
+
+Freie Zeit und Überplanung fehlen bewusst: Sie brauchen ein Zeitfenster
+für Arbeitszeit, das es noch nicht gibt (Phase 3, Planning). Die Today
+View kann `planned_minutes` und `calendar_minutes` schon anzeigen.
+
 ------------------------------------------------------------------------
 
 # SQLite

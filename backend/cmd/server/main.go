@@ -50,14 +50,18 @@ func run() error {
 	}
 	defer db.Close()
 
+	tasks := service.NewTaskService(repository.NewTaskRepository(db), nil)
+	calendar := service.NewCalendarService(repository.NewCalendarRepository(db), cfg.Location, nil)
+	habits := service.NewHabitService(repository.NewHabitRepository(db), cfg.Location, nil)
 	timeTracking := service.NewTimeTrackingService(repository.NewTimeEntryRepository(db), nil)
 	services := api.Services{
 		Projects:  service.NewProjectService(repository.NewProjectRepository(db), nil),
-		Tasks:     service.NewTaskService(repository.NewTaskRepository(db), nil).WithTimerStopper(timeTracking),
-		Calendar:  service.NewCalendarService(repository.NewCalendarRepository(db), cfg.Location, nil),
-		Habits:    service.NewHabitService(repository.NewHabitRepository(db), cfg.Location, nil),
+		Tasks:     tasks.WithTimerStopper(timeTracking),
+		Calendar:  calendar,
+		Habits:    habits,
 		Resources: service.NewResourceService(repository.NewResourceRepository(db), nil),
 		Time:      timeTracking,
+		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil),
 	}
 
 	srv := &http.Server{

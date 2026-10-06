@@ -25,3 +25,10 @@ type EventOccurrence struct {
 	Start time.Time
 	End   time.Time
 }
+
+// EventInstance ist ein konkreter Termin zusammen mit seinem Event.
+type EventInstance struct {
+	Event CalendarEvent
+	Start time.Time // UTC
+	End   time.Time // UTC
+}
