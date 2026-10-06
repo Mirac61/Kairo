@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
 
 	"kairo/internal/api"
 	"kairo/internal/config"
+	"kairo/internal/launchd"
 	"kairo/internal/realtime"
 	"kairo/internal/repository"
 	"kairo/internal/service"
@@ -25,9 +27,42 @@ import (
 var version = "dev"
 
 func main() {
-	if err := run(); err != nil {
+	if err := dispatch(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "kairo:", err)
 		os.Exit(1)
+	}
+}
+
+// dispatch führt "install", "uninstall" oder (ohne Argument) den Server aus.
+func dispatch(args []string) error {
+	if len(args) == 0 {
+		return run()
+	}
+	switch args[0] {
+	case "install":
+		bin, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		if bin, err = filepath.EvalSymlinks(bin); err != nil {
+			return err
+		}
+		plist, err := launchd.Install(bin, os.Environ())
+		if err != nil {
+			return err
+		}
+		fmt.Println("LaunchAgent eingerichtet:", plist)
+		fmt.Println("Das Backend startet jetzt bei jedem Login. Log:", filepath.Join(os.Getenv("HOME"), "Library", "Logs", "kairo.log"))
+		return nil
+	case "uninstall":
+		plist, err := launchd.Uninstall()
+		if err != nil {
+			return err
+		}
+		fmt.Println("LaunchAgent entfernt:", plist)
+		return nil
+	default:
+		return fmt.Errorf("unbekannter Befehl %q (erlaubt: install, uninstall oder ohne Argument den Server starten)", args[0])
 	}
 }
 

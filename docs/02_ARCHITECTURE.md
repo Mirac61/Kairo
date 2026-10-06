@@ -554,6 +554,12 @@ ebenfalls 127.0.0.1 ansprechen können. Deshalb:
 -   Autostart: `kairo install` richtet einen macOS-LaunchAgent
     (`~/Library/LaunchAgents/`) ein, sodass das Backend beim Login
     startet. `kairo uninstall` entfernt ihn.
+    Gebaut wird mit `go build -o ~/.local/bin/kairo ./cmd/server`; der
+    Agent (`app.kairo.backend`) startet genau dieses Binary mit den beim
+    Installieren gesetzten `KAIRO_*`-Variablen, hält es am Laufen
+    (`KeepAlive`) und schreibt das Log nach `~/Library/Logs/kairo.log`.
+    Nach einem Update das Binary ersetzen und `kairo install` erneut
+    ausführen. Ein Binary von `go run` wird abgelehnt.
 -   Läuft das Backend nicht, zeigt die Extension „Backend offline“ und
     versucht regelmäßig, sich neu zu verbinden.
 -   WebUI: Das Go-Binary liefert die gebaute WebUI selbst aus (`embed`),

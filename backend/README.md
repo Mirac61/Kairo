@@ -3,6 +3,7 @@
 Go-Backend (stdlib `net/http`, SQLite via `modernc.org/sqlite`, ohne cgo).
 
 - Starten: `go run ./cmd/server` (Version: `-ldflags "-X main.version=1.0"`)
+- Autostart (macOS): `go build -o ~/.local/bin/kairo ./cmd/server`, dann `kairo install` (entfernen: `kairo uninstall`)
 - Testen: `go test ./...` (auch `go vet ./...`, `gofmt -l .`)
 - WebUI: `frontend/` baut nach `internal/web/dist` und wird per `embed` ausgeliefert.
 
