@@ -166,3 +166,18 @@ export const deleteEvent = (id: string) => api<void>(`/calendar/events/${id}`, {
 // Beim Ändern entfernt "" einen optionalen Wert (due_at, planned_date, …); null lässt ihn unverändert.
 export const updateTask = (id: string, body: Record<string, unknown>) =>
   api<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export interface Resource {
+  id: string
+  project_id: string | null
+  type: 'FILE' | 'FOLDER' | 'URL'
+  target: string
+  label: string
+}
+
+export const listResources = () => api<Resource[]>('/resources')
+
+export const createResource = (body: Partial<Resource>) =>
+  api<Resource>('/resources', { method: 'POST', body: JSON.stringify(body) })
+
+export const deleteResource = (id: string) => api<void>(`/resources/${id}`, { method: 'DELETE' })
