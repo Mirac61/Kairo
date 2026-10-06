@@ -1,7 +1,7 @@
 import * as assert from "node:assert/strict";
 import { isIdle, matchProject, Project } from "./core";
 
-const p = (id: string, local_path: string | null): Project => ({ id, name: id, local_path });
+const p = (id: string, local_path: string | null): Project => ({ id, name: id, description: "", status: "ACTIVE", local_path });
 const projects = [p("root", "/code"), p("kairo", "/code/kairo/"), p("ohne", null), p("kairo2", "/code/kairo2")];
 
 assert.equal(matchProject(projects, "/code/kairo/backend")?.id, "kairo"); // längster Pfad gewinnt

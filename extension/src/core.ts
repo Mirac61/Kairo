@@ -55,6 +55,8 @@ export async function checkHealth(baseUrl: string, token?: string): Promise<Heal
 export interface Project {
   id: string;
   name: string;
+  description: string;
+  status: string;
   local_path: string | null;
 }
 
@@ -62,13 +64,26 @@ export interface Task {
   id: string;
   title: string;
   status: string;
+  priority: string;
+  estimated_minutes: number;
+  planned_start_at: string | null;
   project_id: string | null;
 }
 
+export interface TimeEntry {
+  task_id: string | null;
+  project_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+}
+
 export interface Today {
+  date: string;
   tasks: Task[];
   active_tasks: Task[];
-  running_time_entry: { task_id: string | null } | null;
+  running_time_entry: { task_id: string | null; started_at: string } | null;
+  planned_minutes: number;
+  tracked_minutes: number;
 }
 
 const trimSlashes = (p: string): string => (p.length > 1 ? p.replace(/\/+$/, "") : p);
@@ -112,13 +127,6 @@ export async function apiRequest<T>(
     throw new Error(`HTTP ${res.status}`);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
-}
-
-export interface Resource {
-  id: string;
-  type: "FILE" | "FOLDER" | "URL";
-  target: string;
-  label: string;
 }
 
 /** Ob seit lastActivity mindestens thresholdMs vergangen sind. threshold <= 0 schaltet ab. */

@@ -26,6 +26,7 @@
     "views": {
       "kairo": [
         {
+          "type": "webview",
           "id": "kairo.context",
           "name": "Kontext"
         }
@@ -38,48 +39,22 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "kairo.startTask",
-        "title": "Kairo: Task starten",
-        "icon": "$(play)"
-      },
-      {
-        "command": "kairo.pauseTask",
-        "title": "Kairo: Task pausieren",
-        "icon": "$(debug-pause)"
-      },
-      {
-        "command": "kairo.completeTask",
-        "title": "Kairo: Task abschließen",
-        "icon": "$(check)"
-      },
-      {
-        "command": "kairo.openResource",
-        "title": "Kairo: Ressource öffnen"
+        "command": "kairo.openWeb",
+        "title": "Kairo: WebUI öffnen",
+        "icon": "$(link-external)"
       }
     ],
     "menus": {
       "view/title": [
         {
+          "command": "kairo.openWeb",
+          "when": "view == kairo.context",
+          "group": "navigation@1"
+        },
+        {
           "command": "kairo.refresh",
           "when": "view == kairo.context",
-          "group": "navigation"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "kairo.startTask",
-          "when": "view == kairo.context && viewItem == task",
-          "group": "inline@1"
-        },
-        {
-          "command": "kairo.pauseTask",
-          "when": "view == kairo.context && viewItem == task.running",
-          "group": "inline@1"
-        },
-        {
-          "command": "kairo.completeTask",
-          "when": "view == kairo.context && viewItem =~ /^task/",
-          "group": "inline@2"
+          "group": "navigation@2"
         }
       ]
     },
@@ -96,6 +71,11 @@
           "default": 10,
           "minimum": 0,
           "description": "Nach so vielen Minuten ohne Aktivität in VSCodium fragt Kairo bei laufendem Timer, ob er pausiert werden soll (0 = aus). Kairo pausiert nie von selbst."
+        },
+        "kairo.documentsFolder": {
+          "type": "string",
+          "default": "~/Documents",
+          "description": "Ordner, den der Tab „Dokumente“ zeigt."
         }
       }
     }

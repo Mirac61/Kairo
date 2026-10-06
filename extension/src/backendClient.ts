@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { apiRequest, checkHealth, HealthResult, Project, readToken, Resource, Today } from "./core";
+import { apiRequest, checkHealth, HealthResult, Project, readToken, Task, Today, TimeEntry } from "./core";
 
 export { HealthResult, readToken };
 
@@ -23,5 +23,13 @@ export const taskAction = (id: string, action: "start" | "pause" | "complete"): 
     body: action === "start" ? { source: "VSCODIUM" } : undefined,
   });
 
-export const getResources = (query: string): Promise<Resource[]> =>
-  apiRequest(backendUrl(), readToken(), `/resources?${query}`);
+export const getTasks = (): Promise<Task[]> => apiRequest(backendUrl(), readToken(), "/tasks");
+
+export const getTimeEntries = (from: Date): Promise<TimeEntry[]> =>
+  apiRequest(backendUrl(), readToken(), `/time-entries?from=${encodeURIComponent(from.toISOString())}`);
+
+export const createTask = (body: Record<string, unknown>): Promise<Task> =>
+  apiRequest(backendUrl(), readToken(), "/tasks", { method: "POST", body });
+
+export const updateTask = (id: string, body: Record<string, unknown>): Promise<Task> =>
+  apiRequest(backendUrl(), readToken(), `/tasks/${id}`, { method: "PATCH", body });
