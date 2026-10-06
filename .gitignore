@@ -30,3 +30,4 @@ backend/internal/web/dist/*
 
 # AI
 CLAUDE.local.md
+FIX_PROMPT.md
