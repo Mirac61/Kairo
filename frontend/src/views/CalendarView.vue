@@ -351,6 +351,14 @@ useShortcuts((e) => {
   e.preventDefault()
 })
 
+// Das Zeitraster beginnt ein bis anderthalb Stunden vor jetzt, nie vor dem ersten Slot.
+// Der Start liegt auf :30, weil das Label einer vollen Stunde am oberen Rand sonst halb abgeschnitten wird.
+const SLOT_MIN_HOUR = 7
+const scrollStart = () => {
+  const h = new Date().getHours() - 1
+  return h <= SLOT_MIN_HOUR ? `${String(SLOT_MIN_HOUR).padStart(2, '0')}:00:00` : `${String(h - 1).padStart(2, '0')}:30:00`
+}
+
 const options: CalendarOptions = {
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
   locales: [deLocale],
@@ -364,9 +372,9 @@ const options: CalendarOptions = {
   height: '100%',
   nowIndicator: true,
   slotEventOverlap: false, // gleichzeitige Einträge nebeneinander statt gestapelt
-  slotMinTime: '07:00:00', // Mockup: 07–18 Uhr; bis 22 Uhr, damit Abendtermine nicht verschwinden
+  slotMinTime: `${String(SLOT_MIN_HOUR).padStart(2, '0')}:00:00`, // bis 22 Uhr, damit Abendtermine nicht verschwinden
   slotMaxTime: '22:00:00',
-  scrollTime: '07:00:00',
+  scrollTime: scrollStart(),
   eventClassNames: (a) => (a.event.id === nextId ? ['kt-next'] : []),
   datesSet: (a) => {
     const day = a.view.type === 'timeGridDay'
@@ -374,6 +382,7 @@ const options: CalendarOptions = {
     week.value = day ? isoWeek(a.view.currentStart) : 0
     view.value = a.view.type
     store.set('kairo-cal-view', a.view.type)
+    a.view.calendar.scrollToTime(scrollStart()) // scrollTime stammt vom Seitenaufruf, die Seite kann länger offen sein
   },
   dayHeaderContent: (a) => {
     const month = a.view.type === 'dayGridMonth'

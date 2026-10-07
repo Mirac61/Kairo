@@ -88,7 +88,7 @@ UI-Änderungen werden angesehen, nicht nur gebaut. Mit laufendem `npm run dev` e
 ```sh
 cd frontend
 npm run shot -- --view week|work|day|month     # Kalender
-npm run shot -- --route tasks|habits|projects|review|trash [--theme light] [--size 1280x800]
+npm run shot -- --route tasks|habits|projects|review|trash [--theme light] [--size 1280x800] [--time 10:30]
 ```
 
 ## Konfiguration und Sicherheit

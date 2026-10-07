@@ -2,6 +2,7 @@
 //   npm run dev            (in einem zweiten Terminal)
 //   npm run shot -- --view day --theme light --size 1280x800
 //   npm run shot -- --route tasks|habits|projects|review|trash
+//   npm run shot -- --view work --time 10:30       (Uhrzeit festsetzen: Jetzt-Linie und Scrollposition des Kalenders)
 // Kalender-Ansichten: week (Mo–So), work (Mo–Fr), day, month. Ergebnis: frontend/.shots/<view|route>-<theme>.png
 // Das Backend wird nur für nicht gemockte Pfade gebraucht (z. B. /api/health); die Kalenderdaten stammen aus diesem Skript.
 import { mkdirSync } from 'node:fs'
@@ -16,6 +17,7 @@ const { values: o } = parseArgs({
     size: { type: 'string', default: '1555x900' },
     aside: { type: 'string', default: 'open' }, // „Ungeplant“-Spalte: open | closed
     click: { type: 'string' }, // CSS-Selektor, der vor dem Screenshot angeklickt wird (z. B. '.task-row .row-title')
+    time: { type: 'string' }, // HH:MM: setzt die Uhrzeit fest (z. B. 10:30), damit Bilder zu jeder Tageszeit gleich aussehen
     out: { type: 'string' },
   },
 })
@@ -120,6 +122,7 @@ try {
   throw new Error(`Chromium fehlt: npx playwright install chromium (${e.message.split('\n')[0]})`)
 }
 const page = await (await browser.newContext({ viewport: { width, height }, colorScheme: o.theme })).newPage()
+if (o.time) await page.clock.setFixedTime(new Date(`${day(todayIdx)}T${o.time}:00`))
 await page.addInitScript(([view, theme, aside]) => {
   localStorage.setItem('kairo-cal-view', view)
   localStorage.setItem('kairo-cal-weekend', '1')
