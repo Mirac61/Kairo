@@ -19,4 +19,6 @@ build:
 check:
 	cd backend && test -z "$$(gofmt -l .)" && go vet ./... && go test ./...
 	cd frontend && npm run type-check && npm test
+	# Die Extension trägt eine Kopie des Schnelleingabe-Parsers der WebUI; beide müssen gleich bleiben.
+	cmp frontend/src/lib/quickAdd.ts extension/src/quickAdd.ts
 	cd extension && npm run compile && npm test

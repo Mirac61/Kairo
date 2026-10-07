@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
-import { errorMessage, expandHome, formatElapsed, isIdle, matchProject, parseQuickAdd, parseUriTarget, pendingFresh, Project, Resource, resourcesFirst, startable, Task, todayList, weekRange } from "./core";
+import { parseQuickAdd, taskBody } from "./quickAdd";
+import { errorMessage, expandHome, formatElapsed, isIdle, matchProject, parseUriTarget, pendingFresh, Project, Resource, resourcesFirst, startable, Task, todayList, weekRange } from "./core";
 
 const p = (id: string, local_path: string | null): Project => ({ id, name: id, description: "", status: "ACTIVE", local_path });
 const projects = [p("root", "/code"), p("kairo", "/code/kairo/"), p("ohne", null), p("kairo2", "/code/kairo2")];
@@ -20,10 +21,16 @@ assert.equal(errorMessage(409, '{"error":"Task hat Zeiteinträge"}'), "Task hat 
 assert.equal(errorMessage(502, "<html>"), "HTTP 502"); // kein JSON
 assert.equal(errorMessage(500, "null"), "HTTP 500");
 assert.equal(errorMessage(400, '{"error":""}'), "HTTP 400");
-assert.deepEqual(parseQuickAdd("30 min Sport"), { title: "Sport", minutes: 30 });
-assert.deepEqual(parseQuickAdd(" Sport 45m "), { title: "Sport", minutes: 45 });
-assert.deepEqual(parseQuickAdd("Mathe lernen"), { title: "Mathe lernen", minutes: 0 });
-assert.deepEqual(parseQuickAdd("3D Druck 30 min"), { title: "3D Druck", minutes: 30 }); // Titel darf mit einer Ziffer beginnen
+const qp = [{ id: "u", name: "Uni" }, { id: "k", name: "Kairo" }];
+const q = (s: string) => parseQuickAdd(s, qp, "2026-10-07");
+assert.deepEqual([q("30 min Sport").title, q("30 min Sport").minutes], ["Sport", 30]);
+assert.deepEqual([q(" Sport 45m ").title, q(" Sport 45m ").minutes], ["Sport", 45]);
+assert.deepEqual([q("Mathe lernen").title, q("Mathe lernen").minutes], ["Mathe lernen", 0]);
+assert.deepEqual([q("3D Druck 30 min").title, q("3D Druck 30 min").minutes], ["3D Druck", 30]); // Titel darf mit einer Ziffer beginnen
+const full = q("Paper lesen 1h !hoch #uni @morgen @14:30");
+assert.deepEqual([full.title, full.minutes, full.priority, full.project?.id, full.date, full.time], ["Paper lesen", 60, "HIGH", "u", "2026-10-08", "14:30"]);
+assert.equal(q("Foo #gibtsnicht").title, "Foo #gibtsnicht"); // unbekanntes Projekt bleibt im Titel
+assert.deepEqual(taskBody(q("Sport 30m !hoch #Kairo"), "2026-10-07"), { estimated_minutes: 30, priority: "HIGH", project_id: "k", planned_date: "2026-10-07", status: "PLANNED" }); // heute als Vorgabe
 assert.equal(formatElapsed(32_000), "0:32");
 assert.equal(formatElapsed(3_725_000), "1:02:05");
 assert.equal(formatElapsed(-5), "0:00"); // Uhr-Versatz nie negativ

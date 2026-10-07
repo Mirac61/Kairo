@@ -14,7 +14,8 @@ import {
   taskAction,
   updateTask,
 } from "./backendClient";
-import { expandHome, joinUrl, matchProject, parseQuickAdd, Project, Resource, Task, Today, todayList, weekRange } from "./core";
+import { expandHome, joinUrl, matchProject, Project, Resource, Task, Today, todayList, weekRange } from "./core";
+import { parseQuickAdd, taskBody } from "./quickAdd";
 import { LiveEvents } from "./liveEvents";
 
 export interface State {
@@ -95,7 +96,7 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
     void this.view?.webview.postMessage({
       online: s.health.online,
       reason: s.health.online ? undefined : s.health.reason,
-      version: s.health.online ? s.health.version : undefined,
+      date: s.today?.date,
       project: s.project?.name,
       projectId: s.project?.id,
       folder: vscode.workspace.workspaceFolders?.[0]?.name,
@@ -112,6 +113,7 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
       projects: s.projects.map((p) => {
         const own = s.tasks.filter((t) => t.project_id === p.id && t.status !== "CANCELLED");
         return {
+          open: own.filter((t) => t.status !== "COMPLETED").length,
           id: p.id,
           name: p.name,
           description: p.description,
@@ -154,18 +156,14 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
     this.refreshed.fire();
   }
 
-  /** Legt eine Task für heute im erkannten Projekt an; „30 min Sport“ setzt die Schätzung. */
+  /** Legt eine Task an, standardmäßig für heute im erkannten Projekt; „Sport 30m !hoch @morgen #Uni“ überschreibt das (wie in der WebUI). */
   addTask(raw: string): Promise<void> {
-    const { title, minutes } = parseQuickAdd(raw);
-    return this.run(() =>
-      createTask({
-        title,
-        estimated_minutes: minutes,
-        status: "PLANNED",
-        planned_date: this.state?.today?.date,
-        project_id: this.state?.project?.id,
-      }),
-    );
+    const s = this.state;
+    const q = parseQuickAdd(raw, s?.projects.filter((p) => p.status !== "ARCHIVED") ?? [], s?.today?.date);
+    if (!q.title) {
+      return Promise.resolve();
+    }
+    return this.run(() => createTask({ title: q.title, status: "PLANNED", planned_date: s?.today?.date, project_id: s?.project?.id, ...taskBody(q, s?.today?.date) }));
   }
 
   act(id: string, action: "start" | "pause" | "complete"): Promise<void> {

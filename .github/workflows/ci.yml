@@ -49,6 +49,7 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: extension/package-lock.json
+      - run: cmp ../frontend/src/lib/quickAdd.ts src/quickAdd.ts
       - run: npm ci
       - run: npm run compile
       - run: npm test
