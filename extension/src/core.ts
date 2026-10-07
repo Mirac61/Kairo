@@ -58,6 +58,7 @@ export interface Project {
   description: string;
   status: string;
   local_path: string | null;
+  color?: string;
 }
 
 export interface Task {

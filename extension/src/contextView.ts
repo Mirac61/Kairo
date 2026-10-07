@@ -105,9 +105,10 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
         task: running,
         startedAt: s.today?.running_time_entry?.started_at,
         project: projectOf(running.project_id)?.name,
+        color: projectOf(running.project_id)?.color,
         projectHasFolder: !!projectOf(running.project_id)?.local_path,
       },
-      tasks: (s.today?.tasks ?? []).map((t) => ({ ...t, project: projectOf(t.project_id)?.name })),
+      tasks: (s.today?.tasks ?? []).map((t) => ({ ...t, project: projectOf(t.project_id)?.name, color: projectOf(t.project_id)?.color })),
       projects: s.projects.map((p) => {
         const own = s.tasks.filter((t) => t.project_id === p.id && t.status !== "CANCELLED");
         return {
@@ -115,6 +116,7 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
           name: p.name,
           description: p.description,
           status: p.status,
+          color: p.color,
           current: p.id === s.project?.id,
           hasFolder: !!p.local_path,
           total: own.length,

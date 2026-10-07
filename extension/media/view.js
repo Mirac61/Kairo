@@ -49,7 +49,7 @@ document.getElementById("app").innerHTML = `
   <div id="offline" class="offline" hidden></div>
   <section class="view" data-view="today" id="v-today" role="tabpanel" aria-labelledby="tab-today">
     <div id="t-timer"></div>
-    <div><div class="row" style="margin-bottom:6px"><h2 class="fill">Heute</h2><span class="chip warn" id="today-count"></span></div>
+    <div><div class="row" style="margin-bottom:6px"><h2 class="fill">Heute</h2><span class="chip" id="today-count"></span></div>
       <div class="card list" id="today-list"></div></div>
     <div id="t-project"></div>
     <form class="quickadd" id="quickadd" autocomplete="off">
@@ -81,12 +81,12 @@ function taskRow(t, runningId) {
     <div class="task-body">
       <div class="task-name trunc" title="${esc(t.title)}">${esc(t.title)}</div>
       <div class="task-meta">
-        ${t.project && !mine ? `<span class="chip">${esc(t.project)}</span>` : ""}
+        ${t.project && !mine ? `<span class="pname-cell p-${esc(t.color)}"><span class="pdot"></span><span class="trunc">${esc(t.project)}</span></span>` : ""}
         ${time ? `<span>${time}</span>` : ""}
         ${t.estimated_minutes ? `<span>${t.estimated_minutes} Min</span>` : ""}
-        ${PRIO[t.priority] ? `<span class="chip warn">Priorität ${PRIO[t.priority]}</span>` : ""}
+        ${PRIO[t.priority] ? `<span class="chip">Priorität ${PRIO[t.priority]}</span>` : ""}
         ${t.status === "PAUSED" ? '<span class="chip">pausiert</span>' : ""}
-        ${t.id === runningId ? '<span class="chip ok">läuft</span>' : ""}
+        ${t.id === runningId ? '<span class="chip">läuft</span>' : ""}
       </div>
     </div>
     ${done || t.id === runningId ? "" : `<button class="startbtn" title="Timer starten" data-cmd="start" data-id="${esc(t.id)}">${icon.play}</button>`}
@@ -127,12 +127,11 @@ function timerBlock() {
         ${r.projectHasFolder ? `<div class="btnrow"><button class="btn" data-cmd="openProject" data-id="${esc(r.task.project_id)}">${icon.window}Zu „${esc(r.project)}“ wechseln</button></div>` : ""}</div>`
     : "";
   return `${notice}<div class="card">
-    <div class="row"><h2 class="fill">Jetzt</h2>${r ? '<span class="live">läuft</span>' : ""}</div>
+    <div class="row"><h2 class="fill">Jetzt</h2>${r ? `<span class="live">läuft</span><span class="timer-time" id="timer">${clock(Date.now() - Date.parse(r.startedAt))}</span>` : ""}</div>
     ${
       r
         ? `<p class="timer-task trunc" title="${esc(r.task.title)}">${esc(r.task.title)}</p>
-           <p class="timer-project trunc">${esc(r.project ?? "Ohne Projekt")}</p>
-           <p class="timer-time" id="timer">${clock(Date.now() - Date.parse(r.startedAt))}</p>
+           <p class="timer-project trunc pname-cell p-${esc(r.color)}"><span class="pdot"></span>${esc(r.project ?? "Ohne Projekt")}</p>
            <div class="btnrow">
              <button class="btn" data-cmd="pause" data-id="${esc(r.task.id)}">${icon.pause}Pause</button>
              <button class="btn" data-cmd="complete" data-id="${esc(r.task.id)}">${icon.check}Fertig</button>
@@ -171,7 +170,7 @@ function renderProjects() {
   /** @param {any} p */
   const row = (p) => {
     const pct = p.total ? Math.round((p.done / p.total) * 100) : null;
-    return `<div class="proj ${esc(p.status)} ${p.current ? "current" : ""}" title="${esc(p.description || p.name)}">
+    return `<div class="proj p-${esc(p.color)} ${esc(p.status)} ${p.current ? "current" : ""}" title="${esc(p.description || p.name)}">
       <div class="row"><span class="dot"></span><span class="pname fill trunc">${esc(p.name)}</span>
         ${pct === null ? "" : `<span class="pct">${p.done}/${p.total}</span>`}
         ${p.hasFolder && !p.current ? `<button class="iconbtn" title="In neuem Fenster öffnen" data-cmd="openProject" data-id="${esc(p.id)}">${icon.window}</button>` : ""}
