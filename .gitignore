@@ -9,6 +9,7 @@
 # Node
 node_modules/
 frontend/dist/
+frontend/.shots/
 extension/out/
 backend/internal/web/dist/*
 !backend/internal/web/dist/.gitkeep

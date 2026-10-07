@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "type-check": "vue-tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "shot": "node scripts/shot.mjs"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
@@ -30,6 +31,7 @@
     "@types/node": "^26.6.4",
     "@vitejs/plugin-vue": "^6.0.9",
     "@vue/tsconfig": "^0.9.1",
+    "playwright": "^1.63.0",
     "typescript": "~5.9.3",
     "vite": "^8.3.3",
     "vue-tsc": "^3.3.12"
