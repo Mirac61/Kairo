@@ -19,6 +19,7 @@ Kairo ist ein lokales Personal OS für Planung und Arbeit: WebUI = Planen, VSCod
 backend/     Go + SQLite
 frontend/    Vue 3 + TypeScript + Vite
 extension/   VSCodium-Extension
+tools/       Hilfsskripte (Menüleiste)
 docs/        Projektdokumentation
 ```
 
@@ -40,3 +41,5 @@ cd backend  && go build -o kairo ./cmd/server
 
 Die Extension steht in `extension/` (siehe dortige README, Start per F5 in VSCodium).
 Details zu Konfiguration und Sicherheit: `backend/README.md`.
+
+Timer in der macOS-Menüleiste: `brew install --cask swiftbar`, dann `tools/menubar/kairo.10s.sh` in den SwiftBar-Plugin-Ordner verlinken. Das Skript zeigt den laufenden Timer und bietet Pause, Fertig und das Starten heutiger Tasks an (Backend-URL und Token per `KAIRO_URL` und `KAIRO_TOKEN_PATH`).

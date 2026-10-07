@@ -180,6 +180,7 @@ POST   /api/habits
 
 GET    /api/calendar/events
 POST   /api/calendar/events
+POST   /api/calendar/import
 
 GET    /api/time-entries
 POST   /api/time-entries
@@ -361,9 +362,17 @@ project_id
 task_id
 recurrence_rule
 recurrence_exdates
+external_uid
 created_at
 updated_at
 ```
+
+`external_uid` ist die UID aus einem ICS-Import (eindeutig, sonst NULL). Ein
+erneuter Import aktualisiert den Termin, statt ihn doppelt anzulegen.
+`POST /api/calendar/import` nimmt den rohen `.ics`-Text (höchstens 5 MiB) und
+antwortet mit `{created, updated, skipped, unsupported_rules, notes}`. Serien
+importiert er nur mit den Regeln, die `recurrence_rule` kennt; alles andere
+wird ein Einzeltermin mit Notiz. Fehlende Termine löscht er nicht.
 
 ------------------------------------------------------------------------
 
@@ -381,7 +390,8 @@ label
 created_at
 ```
 
-`type` ist `FILE`, `FOLDER` oder `URL`. Genau eines von `task_id` und
+`type` ist `FILE`, `FOLDER` oder `URL`. Beim Anlegen darf er fehlen: `http(s)://`
+ist `URL`, ein vorhandenes Verzeichnis `FOLDER`, alles andere `FILE`. Genau eines von `task_id` und
 `project_id` ist gesetzt (CHECK). Löscht man die Task oder das Projekt,
 werden seine Ressourcen mit gelöscht (`ON DELETE CASCADE`).
 
@@ -469,9 +479,11 @@ calendar_minutes     belegte Zeit der Termine im Tag; Überlappungen zählen
 tracked_minutes      erfasste Zeit der Einträge, die an dem Tag gestartet
                      sind; ein laufender Timer zählt bis jetzt
 work_minutes         Länge des Arbeitsfensters an dem Tag
-free_minutes         work_minutes minus Termine im Fenster minus
-                     planned_minutes, mindestens 0
+free_minutes         Rest des Arbeitsfensters (heute ab jetzt, sonst ganz)
+                     minus Termine darin minus offene geplante Tasks
+                     (ohne Schätzung 30 Min), mindestens 0
 overplanned_minutes  der negative Rest davon (sonst 0)
+unestimated_tasks    Anzahl der Tasks ohne Schätzung in free_minutes
 ```
 
 ## GET /api/calendar/occurrences
