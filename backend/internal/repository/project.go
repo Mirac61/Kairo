@@ -16,7 +16,7 @@ type ProjectRepository struct{ db *sql.DB }
 // NewProjectRepository erzeugt ein ProjectRepository.
 func NewProjectRepository(db *sql.DB) *ProjectRepository { return &ProjectRepository{db: db} }
 
-const projectColumns = `id, name, description, local_path, status, created_at, updated_at`
+const projectColumns = `id, name, description, local_path, status, color, created_at, updated_at`
 
 // formatTime speichert Zeitpunkte in UTC als RFC 3339.
 func formatTime(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
@@ -31,7 +31,7 @@ func scanProject(s scanner) (domain.Project, error) {
 		path                 sql.NullString
 		status, created, upd string
 	)
-	if err := s.Scan(&p.ID, &p.Name, &p.Description, &path, &status, &created, &upd); err != nil {
+	if err := s.Scan(&p.ID, &p.Name, &p.Description, &path, &status, &p.Color, &created, &upd); err != nil {
 		return domain.Project{}, err
 	}
 	if path.Valid {
@@ -51,8 +51,8 @@ func scanProject(s scanner) (domain.Project, error) {
 // Create legt ein Projekt an.
 func (r *ProjectRepository) Create(ctx context.Context, p domain.Project) error {
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO projects (`+projectColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		p.ID, p.Name, p.Description, p.LocalPath, string(p.Status), formatTime(p.CreatedAt), formatTime(p.UpdatedAt))
+		`INSERT INTO projects (`+projectColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.ID, p.Name, p.Description, p.LocalPath, string(p.Status), p.Color, formatTime(p.CreatedAt), formatTime(p.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("repository: Projekt anlegen: %w", err)
 	}
@@ -92,8 +92,8 @@ func (r *ProjectRepository) List(ctx context.Context) ([]domain.Project, error) 
 // Update überschreibt die veränderlichen Felder eines Projekts.
 func (r *ProjectRepository) Update(ctx context.Context, p domain.Project) error {
 	res, err := r.db.ExecContext(ctx,
-		`UPDATE projects SET name = ?, description = ?, local_path = ?, status = ?, updated_at = ? WHERE id = ?`,
-		p.Name, p.Description, p.LocalPath, string(p.Status), formatTime(p.UpdatedAt), p.ID)
+		`UPDATE projects SET name = ?, description = ?, local_path = ?, status = ?, color = ?, updated_at = ? WHERE id = ?`,
+		p.Name, p.Description, p.LocalPath, string(p.Status), p.Color, formatTime(p.UpdatedAt), p.ID)
 	if err != nil {
 		return fmt.Errorf("repository: Projekt ändern: %w", err)
 	}

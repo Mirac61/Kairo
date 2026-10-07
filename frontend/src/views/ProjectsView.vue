@@ -6,7 +6,7 @@ import {
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { vDialog } from '@/lib/dialog'
-import { projectColor } from '@/lib/projectColor'
+import { PROJECT_COLORS, projectColor } from '@/lib/projectColor'
 import { ymd } from '@/lib/dates'
 import DeleteButton from '@/components/DeleteButton.vue'
 import ResourceList from '@/components/ResourceList.vue'
@@ -26,7 +26,7 @@ const progress = ref<Record<string, Progress>>({})
 const error = ref('')
 const dialog = ref(false)
 const editId = ref<string | null>(null)
-const form = ref({ name: '', description: '', local_path: '', status: 'ACTIVE' })
+const form = ref({ name: '', description: '', local_path: '', status: 'ACTIVE', color: '' }) // color '' = automatisch (neues Projekt)
 
 const editing = computed(() => projects.value.find((p) => p.id === editId.value))
 const resOf = (id: string) => resources.value.filter((r) => r.project_id === id)
@@ -80,7 +80,8 @@ async function run(fn: () => Promise<unknown>) {
 
 function openDialog(p?: Project) {
   editId.value = p?.id ?? null
-  form.value = { name: p?.name ?? '', description: p?.description ?? '', local_path: p?.local_path ?? '', status: p?.status ?? 'ACTIVE' }
+  form.value = { name: p?.name ?? '', description: p?.description ?? '', local_path: p?.local_path ?? '', status: p?.status ?? 'ACTIVE', color: p?.color ?? '' }
+  error.value = ''
   dialog.value = true
 }
 
@@ -90,8 +91,8 @@ async function save() {
   if (!name) return
   const ok = await run(() =>
     editId.value
-      ? updateProject(editId.value, { name, description: f.description.trim(), local_path: f.local_path.trim(), status: f.status })
-      : createProject({ name, description: f.description.trim(), local_path: f.local_path.trim() || null }),
+      ? updateProject(editId.value, { name, description: f.description.trim(), local_path: f.local_path.trim(), status: f.status, color: f.color })
+      : createProject({ name, description: f.description.trim(), local_path: f.local_path.trim() || null, color: f.color || undefined }),
   )
   if (ok) dialog.value = false
 }
@@ -124,7 +125,7 @@ useLiveEvents(load)
       </div>
       <button class="btn btn-secondary" type="button" @click="openDialog()"><svg class="ic"><use href="#i-plus" /></svg>Neues Projekt</button>
     </div>
-    <div v-if="error" class="badge" role="alert">{{ error }}</div>
+    <div v-if="error && !dialog" class="badge" role="alert">{{ error }}</div>
 
     <div class="proj-list">
       <div v-if="!projects.length" class="v-sub">Keine Projekte.</div>
@@ -171,7 +172,16 @@ useLiveEvents(load)
           <div class="dlg-body">
             <div class="field"><label for="p-name">Name</label><input id="p-name" v-model="form.name" class="input" placeholder="Projektname" /></div>
             <div class="field"><label for="p-desc">Beschreibung</label><input id="p-desc" v-model="form.description" class="input" /></div>
-            <div class="field"><label for="p-path">Ordner</label><input id="p-path" v-model="form.local_path" class="input" placeholder="Absoluter Pfad (optional)" /></div>
+            <div v-if="error" class="badge" role="alert">{{ error }}</div>
+            <div class="field"><label for="p-path">Ordner</label><input id="p-path" v-model="form.local_path" class="input" placeholder="Absoluter Pfad oder ~/…, muss existieren (optional)" /></div>
+            <div class="field">
+              <label id="p-color-l">Farbe</label>
+              <div class="swatches" role="radiogroup" aria-labelledby="p-color-l">
+                <label v-for="[c, label] in PROJECT_COLORS" :key="c" class="swatch" :title="label">
+                  <input v-model="form.color" type="radio" name="p-color" :value="c" :aria-label="label" /><span :style="{ background: `var(--a-${c})` }"></span>
+                </label>
+              </div>
+            </div>
             <div v-if="editing" class="field">
               <label for="p-status">Status</label>
               <select id="p-status" v-model="form.status" class="input"><option v-for="(l, v) in STATUS" :key="v" :value="v">{{ l }}</option></select>
@@ -193,6 +203,12 @@ useLiveEvents(load)
 
 <style scoped>
 .spacer { flex: 1; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch { position: relative; display: inline-flex; cursor: pointer; }
+.swatch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.swatch span { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; box-shadow: inset 0 0 0 2px var(--bg-1); }
+.swatch input:checked + span { border-color: var(--tx-primary); }
+.swatch input:focus-visible + span { outline: 2px solid var(--tx-primary); outline-offset: 2px; }
 .dlg-res { border-top: 1px solid var(--br-subtle); }
 .proj-toggle { text-align: left; background: none; border: 0; color: inherit; cursor: pointer; }
 .proj-more { display: grid; gap: 8px; border-top: 1px solid var(--br-subtle); padding-top: 10px; }

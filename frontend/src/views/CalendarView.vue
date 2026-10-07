@@ -39,7 +39,9 @@ const unplanned = ref<Task[]>([]) // offene Tasks ohne planned_date: Quelle zum 
 
 // Termine und Tasks als Kalendereinträge. Zeiten rechnen in der Zeitzone des Browsers.
 async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
-  const [occ, tasks] = await Promise.all([getOccurrences(from, to), listTasks()])
+  // Projekte mitladen, damit die Projektfarben für die Einträge feststehen.
+  const [occ, tasks, ps] = await Promise.all([getOccurrences(from, to), listTasks(), listProjects()])
+  projects.value = ps
   unplanned.value = tasks.filter((t) => !t.planned_date && t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
   const entries: EventInput[] = occ.map((e) => {
     const [s, en] = [new Date(e.occurrence_start), new Date(e.occurrence_end)]

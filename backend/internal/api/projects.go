@@ -24,6 +24,7 @@ type projectDTO struct {
 	Description string  `json:"description"`
 	LocalPath   *string `json:"local_path"`
 	Status      string  `json:"status"`
+	Color       string  `json:"color"`
 	CreatedAt   string  `json:"created_at"`
 	UpdatedAt   string  `json:"updated_at"`
 }
@@ -35,6 +36,7 @@ func toProjectDTO(p domain.Project) projectDTO {
 		Description: p.Description,
 		LocalPath:   p.LocalPath,
 		Status:      string(p.Status),
+		Color:       p.Color,
 		CreatedAt:   p.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:   p.UpdatedAt.UTC().Format(time.RFC3339),
 	}
@@ -69,6 +71,7 @@ func (h projectHandlers) create(w http.ResponseWriter, r *http.Request) {
 		Description string  `json:"description"`
 		LocalPath   *string `json:"local_path"`
 		Status      string  `json:"status"`
+		Color       string  `json:"color"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
@@ -78,6 +81,7 @@ func (h projectHandlers) create(w http.ResponseWriter, r *http.Request) {
 		Description: in.Description,
 		LocalPath:   in.LocalPath,
 		Status:      domain.ProjectStatus(in.Status),
+		Color:       in.Color,
 	})
 	if err != nil {
 		writeError(w, err)
@@ -103,11 +107,12 @@ func (h projectHandlers) update(w http.ResponseWriter, r *http.Request) {
 		Description *string `json:"description"`
 		LocalPath   *string `json:"local_path"`
 		Status      *string `json:"status"`
+		Color       *string `json:"color"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
 	}
-	upd := service.UpdateProjectInput{Name: in.Name, Description: in.Description, LocalPath: in.LocalPath}
+	upd := service.UpdateProjectInput{Name: in.Name, Description: in.Description, LocalPath: in.LocalPath, Color: in.Color}
 	if in.Status != nil {
 		s := domain.ProjectStatus(*in.Status)
 		upd.Status = &s

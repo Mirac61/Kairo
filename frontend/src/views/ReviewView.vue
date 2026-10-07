@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { errorMessage, getReview, listHabits, listTasks, type Habit, type Review, type Task } from '@/api/client'
+import { errorMessage, getReview, listHabits, listProjects, listTasks, type Habit, type Review, type Task } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { daysAgo, ymd } from '@/lib/dates'
 import { projectColor } from '@/lib/projectColor'
@@ -29,7 +29,7 @@ const range = computed(() => `${short.format(monday.value)} – ${short.format(a
 async function load() {
   const f = from.value
   try {
-    const [rv, ts, hs] = await Promise.all([getReview(f, to.value), listTasks(), listHabits()])
+    const [rv, ts, hs] = await Promise.all([getReview(f, to.value), listTasks(), listHabits(), listProjects()]) // Projekte für die Farben
     if (f !== from.value) return // inzwischen andere Woche gewählt
     review.value = rv
     tasks.value = ts as DoneTask[]

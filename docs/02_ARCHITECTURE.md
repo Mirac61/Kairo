@@ -279,9 +279,17 @@ name
 description
 local_path
 status
+color
 created_at
 updated_at
 ```
+
+`local_path` muss ein absoluter Pfad (oder mit `~` beginnend) sein und
+existieren; das Backend prüft das beim Anlegen und beim Ändern des
+Pfads, gespeichert wird die Eingabe (die Extension löst `~` selbst
+auf). `color` ist ein Name aus der Palette `violet`, `blue`, `orange`,
+`aqua`, `pink`, `yellow`, `green`, `red`; ein neues Projekt ohne Angabe
+bekommt die am wenigsten benutzte Farbe.
 
 ## Task
 

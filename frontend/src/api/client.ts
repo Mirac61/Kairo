@@ -1,3 +1,5 @@
+import { setProjectColors } from '@/lib/projectColor'
+
 export class ApiError extends Error {
   readonly status: number
   readonly body: unknown
@@ -123,9 +125,10 @@ export interface Project {
   description: string
   local_path: string | null
   status: string
+  color: string
 }
 
-export const listProjects = () => api<Project[]>('/projects')
+export const listProjects = () => api<Project[]>('/projects').then((ps) => (setProjectColors(ps), ps))
 
 export const listTasks = (query = '') => api<Task[]>(`/tasks${query}`)
 

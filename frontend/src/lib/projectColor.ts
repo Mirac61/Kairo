@@ -1,9 +1,16 @@
-const COLORS = ['violet', 'blue', 'orange', 'aqua', 'pink']
+import { reactive } from 'vue'
 
-// Feste Farbreihenfolge je Projekt-ID, damit ein Projekt überall gleich aussieht.
+// Palette wie im Backend (domain.ProjectColors) mit Anzeigenamen für die Auswahl.
+export const PROJECT_COLORS = [
+  ['violet', 'Violett'], ['blue', 'Blau'], ['orange', 'Orange'], ['aqua', 'Türkis'],
+  ['pink', 'Rosa'], ['yellow', 'Gelb'], ['green', 'Grün'], ['red', 'Rot'],
+] as const
+
+// Farbe je Projekt-ID. listProjects füllt sie, damit jede Ansicht dieselbe Farbe zeigt.
+const colors = reactive(new Map<string, string>())
+export const setProjectColors = (ps: { id: string; color: string }[]) => ps.forEach((p) => colors.set(p.id, p.color))
+
 export function projectColor(id: string | null | undefined): string {
-  if (!id) return 'var(--a-neutral)'
-  let h = 0
-  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0
-  return `var(--a-${COLORS[h % COLORS.length]})`
+  const c = id ? colors.get(id) : undefined
+  return `var(--a-${c ?? 'neutral'})`
 }

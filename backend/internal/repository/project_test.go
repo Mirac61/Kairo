@@ -26,7 +26,7 @@ func TestProjectRepositoryRoundTrip(t *testing.T) {
 	path := "~/code/personal/Kairo"
 	now := time.Date(2026, 10, 6, 12, 0, 0, 123, time.UTC)
 	p := domain.Project{ID: "p1", Name: "Kairo", Description: "d", LocalPath: &path,
-		Status: domain.ProjectActive, CreatedAt: now, UpdatedAt: now}
+		Status: domain.ProjectActive, Color: "blue", CreatedAt: now, UpdatedAt: now}
 	if err := r.Create(ctx, p); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestProjectRepositoryRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Name != "Kairo" || got.LocalPath == nil || *got.LocalPath != path || !got.CreatedAt.Equal(now) {
+	if got.Name != "Kairo" || got.Color != "blue" || got.LocalPath == nil || *got.LocalPath != path || !got.CreatedAt.Equal(now) {
 		t.Errorf("Get = %+v", got)
 	}
 

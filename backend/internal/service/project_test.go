@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -61,7 +63,7 @@ func TestProjectCreateDefaultsAndValidation(t *testing.T) {
 func TestProjectUpdateIsPartial(t *testing.T) {
 	svc, clock := newSvc()
 	ctx := context.Background()
-	p, _ := svc.Create(ctx, CreateProjectInput{Name: "Kairo", Description: "d", LocalPath: ptr("~/k")})
+	p, _ := svc.Create(ctx, CreateProjectInput{Name: "Kairo", Description: "d", LocalPath: ptr(t.TempDir())})
 
 	*clock = clock.Add(time.Hour)
 	got, err := svc.Update(ctx, p.ID, UpdateProjectInput{Status: ptr(domain.ProjectPaused)})
@@ -84,5 +86,55 @@ func TestProjectUpdateIsPartial(t *testing.T) {
 	}
 	if _, err := svc.Update(ctx, "missing", UpdateProjectInput{}); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("unbekannte ID: %v", err)
+	}
+}
+
+func TestProjectLocalPathMustExist(t *testing.T) {
+	svc, _ := newSvc()
+	ctx := context.Background()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.Mkdir(filepath.Join(home, "proj"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, path := range map[string]string{"relativ": "proj", "fehlt": filepath.Join(home, "gibt-es-nicht"), "~ fehlt": "~/gibt-es-nicht"} {
+		if _, err := svc.Create(ctx, CreateProjectInput{Name: "x", LocalPath: ptr(path)}); !errors.Is(err, domain.ErrInvalid) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+	// ~ wird für die Prüfung aufgelöst, gespeichert wird die Eingabe.
+	p, err := svc.Create(ctx, CreateProjectInput{Name: "x", LocalPath: ptr(" ~/proj ")})
+	if err != nil || p.LocalPath == nil || *p.LocalPath != "~/proj" {
+		t.Fatalf("Create mit ~ = %+v, %v", p, err)
+	}
+
+	// Geprüft wird nur eine Änderung: ein verschwundener Ordner sperrt das Bearbeiten nicht.
+	if err := os.Remove(filepath.Join(home, "proj")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Update(ctx, p.ID, UpdateProjectInput{Name: ptr("y"), LocalPath: ptr("~/proj")}); err != nil {
+		t.Errorf("unveränderter Pfad: %v", err)
+	}
+	if _, err := svc.Update(ctx, p.ID, UpdateProjectInput{LocalPath: ptr("~/anders")}); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("geänderter, fehlender Pfad: %v", err)
+	}
+}
+
+func TestProjectColorValidation(t *testing.T) {
+	svc, _ := newSvc()
+	ctx := context.Background()
+	if _, err := svc.Create(ctx, CreateProjectInput{Name: "x", Color: "pink-ish"}); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("unbekannte Farbe beim Anlegen: %v", err)
+	}
+	p, err := svc.Create(ctx, CreateProjectInput{Name: "x", Color: "red"})
+	if err != nil || p.Color != "red" {
+		t.Fatalf("Create = %+v, %v", p, err)
+	}
+	if _, err := svc.Update(ctx, p.ID, UpdateProjectInput{Color: ptr("")}); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("leere Farbe: %v", err)
+	}
+	if got, err := svc.Update(ctx, p.ID, UpdateProjectInput{Color: ptr("blue")}); err != nil || got.Color != "blue" {
+		t.Errorf("Farbe ändern = %+v, %v", got, err)
 	}
 }
