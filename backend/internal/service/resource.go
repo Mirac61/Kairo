@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -32,7 +34,7 @@ func NewResourceService(store ResourceStore, now func() time.Time) *ResourceServ
 }
 
 // CreateResourceInput sind die Felder beim Anlegen. Genau eines von TaskID
-// und ProjectID muss gesetzt sein.
+// und ProjectID muss gesetzt sein. Ohne Type wird er aus Target abgeleitet.
 type CreateResourceInput struct {
 	TaskID    *string
 	ProjectID *string
@@ -50,6 +52,9 @@ func (s *ResourceService) Create(ctx context.Context, in CreateResourceInput) (d
 		Target:    strings.TrimSpace(in.Target),
 		Label:     strings.TrimSpace(in.Label),
 		CreatedAt: s.now().UTC(),
+	}
+	if r.Type == "" {
+		r.Type = inferResourceType(r.Target)
 	}
 	if err := validateResource(r); err != nil {
 		return domain.Resource{}, err
@@ -92,4 +97,25 @@ func validateResource(r domain.Resource) error {
 		return fmt.Errorf("%w: target muss ein absoluter Pfad sein (/… oder ~/…)", domain.ErrInvalid)
 	}
 	return nil
+}
+
+// inferResourceType: http(s)-Präfix = URL; sonst Ordner, wenn der Pfad (~ = Home,
+// nur zum Prüfen) ein vorhandenes Verzeichnis ist, sonst Datei. Eine nicht
+// vorhandene Datei ist kein Fehler, Clients prüfen den Pfad beim Öffnen.
+func inferResourceType(target string) domain.ResourceType {
+	if l := strings.ToLower(target); strings.HasPrefix(l, "http://") || strings.HasPrefix(l, "https://") {
+		return domain.ResourceURL
+	}
+	path := target
+	if home, err := os.UserHomeDir(); err == nil {
+		if target == "~" {
+			path = home
+		} else if rest, ok := strings.CutPrefix(target, "~/"); ok {
+			path = filepath.Join(home, rest)
+		}
+	}
+	if fi, err := os.Stat(path); err == nil && fi.IsDir() {
+		return domain.ResourceFolder
+	}
+	return domain.ResourceFile
 }

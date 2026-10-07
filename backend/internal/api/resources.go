@@ -65,6 +65,7 @@ func (h resourceHandlers) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// create: type ist optional (URL, FOLDER, FILE); ohne ihn leitet der Service ihn aus target ab.
 func (h resourceHandlers) create(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		TaskID    *string `json:"task_id"`

@@ -200,8 +200,9 @@ func TestTodayWorkWindow(t *testing.T) {
 	plan := func(min int) fakeTodayTasks {
 		return fakeTodayTasks{[]domain.Task{{ID: "x", Status: domain.TaskPlanned, PlannedDate: &d, EstimatedMinutes: min}}}
 	}
+	now := time.Date(2026, 10, 7, 7, 0, 0, 0, loc) // vor dem Fenster
 	mk := func(tasks fakeTodayTasks) *TodayService {
-		return NewTodayService(tasks, ev, &fakeTodayHabits{}, fakeTodayTimes{}, loc, nil).WithWorkWindow(9*60, 17*60)
+		return NewTodayService(tasks, ev, &fakeTodayHabits{}, fakeTodayTimes{}, loc, func() time.Time { return now }).WithWorkWindow(9*60, 17*60)
 	}
 
 	got, err := mk(plan(100)).Get(context.Background(), d)
@@ -211,5 +212,33 @@ func TestTodayWorkWindow(t *testing.T) {
 	got, _ = mk(plan(400)).Get(context.Background(), d)
 	if got.FreeMinutes != 0 || got.OverplannedMinutes != 400+120-480 {
 		t.Errorf("überplant: %+v", got)
+	}
+}
+
+func TestTodayFreeFromNow(t *testing.T) {
+	loc := berlin(t)
+	now := time.Date(2026, 10, 7, 14, 0, 0, 0, loc)
+	d := "2026-10-07"
+	tasks := fakeTodayTasks{[]domain.Task{
+		{ID: "erledigt", Status: domain.TaskCompleted, PlannedDate: &d, EstimatedMinutes: 120},
+		{ID: "offen", Status: domain.TaskPlanned, PlannedDate: &d, EstimatedMinutes: 60},
+		{ID: "ohne", Status: domain.TaskPlanned, PlannedDate: &d},
+	}}
+	svc := NewTodayService(tasks, &fakeTodayEvents{}, &fakeTodayHabits{}, fakeTodayTimes{}, loc, func() time.Time { return now }).
+		WithWorkWindow(9*60, 17*60)
+
+	// Rest 14-17 = 180, offen 60 + ohne Schätzung 30, erledigt zählt nicht.
+	got, err := svc.Get(context.Background(), d)
+	if err != nil || got.FreeMinutes != 180-60-30 || got.UnestimatedTasks != 1 || got.WorkMinutes != 480 {
+		t.Errorf("heute: %+v, %v", got, err)
+	}
+	// Anderer Tag: ganzes Fenster, erledigte Tasks zählen weiter.
+	other := "2026-10-08"
+	for i := range tasks.all {
+		tasks.all[i].PlannedDate = &other
+	}
+	got, _ = svc.Get(context.Background(), other)
+	if got.FreeMinutes != 480-120-60-30 {
+		t.Errorf("anderer Tag: %+v", got)
 	}
 }

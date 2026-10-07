@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -18,6 +20,7 @@ type CalendarService interface {
 	Update(ctx context.Context, id string, in service.UpdateEventInput) (domain.CalendarEvent, error)
 	Delete(ctx context.Context, id string) error
 	Occurrences(ctx context.Context, from, to time.Time) ([]domain.EventInstance, error)
+	ImportICS(ctx context.Context, data string) (service.ImportResult, error)
 }
 
 type calendarEventDTO struct {
@@ -64,6 +67,7 @@ func (h calendarHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/calendar/events", h.list)
 	mux.HandleFunc("POST /api/calendar/events", h.create)
 	mux.HandleFunc("GET /api/calendar/occurrences", h.occurrences)
+	mux.HandleFunc("POST /api/calendar/import", h.importICS)
 	mux.HandleFunc("GET /api/calendar/events/{id}", h.get)
 	mux.HandleFunc("PATCH /api/calendar/events/{id}", h.update)
 	mux.HandleFunc("DELETE /api/calendar/events/{id}", h.delete)
@@ -198,4 +202,36 @@ func (h calendarHandlers) occurrences(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeError(w, err)
+}
+
+// maxICSBytes begrenzt den Body von POST /api/calendar/import (ein Semester-Stundenplan ist wenige KiB groß).
+const maxICSBytes = 5 << 20
+
+type importResultDTO struct {
+	Created          int      `json:"created"`
+	Updated          int      `json:"updated"`
+	Skipped          int      `json:"skipped"`
+	UnsupportedRules int      `json:"unsupported_rules"`
+	Notes            []string `json:"notes"`
+}
+
+// importICS nimmt den rohen ICS-Text (Content-Type text/calendar) entgegen.
+// Termine mit bekannter UID werden aktualisiert, die anderen angelegt.
+func (h calendarHandlers) importICS(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxICSBytes))
+	var tooBig *http.MaxBytesError
+	if errors.As(err, &tooBig) {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "ICS-Datei ist größer als 5 MiB"})
+		return
+	}
+	if err != nil {
+		writeError(w, fmt.Errorf("%w: Body nicht lesbar", domain.ErrInvalid))
+		return
+	}
+	res, err := h.svc.ImportICS(r.Context(), string(body))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, importResultDTO(res))
 }

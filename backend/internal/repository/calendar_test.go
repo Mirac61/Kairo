@@ -111,3 +111,32 @@ func TestCalendarForeignKeys(t *testing.T) {
 		t.Errorf("nach Delete: %+v, %v", got, err)
 	}
 }
+
+func TestCalendarExternalUIDUnique(t *testing.T) {
+	ctx := context.Background()
+	cal, _, _ := newCalendarRepos(t)
+
+	// Mehrere Events ohne UID dürfen nebeneinander existieren (partieller Index).
+	for _, id := range []string{"a", "b"} {
+		if err := cal.Create(ctx, newEvent(id)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e := newEvent("c")
+	e.ExternalUID = ptr("uid-1@uni")
+	if err := cal.Create(ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	got, err := cal.Get(ctx, "c")
+	if err != nil || got.ExternalUID == nil || *got.ExternalUID != "uid-1@uni" {
+		t.Errorf("Get = %+v, %v", got, err)
+	}
+	if a, _ := cal.Get(ctx, "a"); a.ExternalUID != nil {
+		t.Errorf("ohne UID: %v", *a.ExternalUID)
+	}
+	dup := newEvent("d")
+	dup.ExternalUID = ptr("uid-1@uni")
+	if err := cal.Create(ctx, dup); err == nil {
+		t.Error("doppelte UID wurde angelegt")
+	}
+}

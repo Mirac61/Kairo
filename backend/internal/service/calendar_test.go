@@ -195,3 +195,29 @@ func TestEventOccurrenceKeepsLocalTimeAcrossDST(t *testing.T) {
 		t.Errorf("Dauer = %s", occ[0].End.Sub(occ[0].Start))
 	}
 }
+
+func TestImportICSEmitsEventsAndNamesUntitled(t *testing.T) {
+	svc := newCalSvc(t)
+	pub := &recPublisher{}
+	svc.SetPublisher(pub)
+	ics := "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:u1\r\nDTSTART:20261009T120000Z\r\nDTEND:20261009T130000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	ctx := context.Background()
+
+	res, err := svc.ImportICS(ctx, ics)
+	if err != nil || res.Created != 1 || len(res.Notes) != 0 || res.Notes == nil {
+		t.Fatalf("1. Import = %+v, %v", res, err)
+	}
+	if res, err = svc.ImportICS(ctx, ics); err != nil || res.Created != 0 || res.Updated != 1 {
+		t.Fatalf("2. Import = %+v, %v", res, err)
+	}
+	all, _ := svc.List(ctx, nil, nil)
+	if len(all) != 1 || all[0].Title != "(ohne Titel)" || *all[0].ExternalUID != "u1" {
+		t.Errorf("Events = %+v", all)
+	}
+	if want := []domain.EventType{domain.EventCalendarEventCreated, domain.EventCalendarEventUpdated}; !reflect.DeepEqual(pub.got, want) {
+		t.Errorf("Ereignisse = %v, want %v", pub.got, want)
+	}
+	if _, err := svc.ImportICS(ctx, "nope"); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("kein ICS: %v", err)
+	}
+}

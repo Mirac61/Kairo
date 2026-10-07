@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"sort"
@@ -92,11 +93,19 @@ type Today struct {
 	// WorkMinutes ist die Länge des Arbeitsfensters an diesem Tag.
 	WorkMinutes int
 	// FreeMinutes ist die Arbeitszeit, die nach Terminen im Fenster und
-	// geplanten Tasks übrig bleibt (nie negativ).
+	// geplanten Tasks übrig bleibt (nie negativ). Heute zählt nur der Rest des
+	// Fensters ab jetzt, erledigte Tasks zählen dann nicht mehr. Tasks ohne
+	// Schätzung zählen mit defaultEstimateMinutes.
 	FreeMinutes int
+	// UnestimatedTasks sind die in FreeMinutes mitgezählten Tasks ohne Schätzung.
+	UnestimatedTasks int
 	// OverplannedMinutes ist, was darüber hinaus geplant ist (nie negativ).
 	OverplannedMinutes int
 }
+
+// defaultEstimateMinutes ist die Dauer, mit der Tasks ohne Schätzung gerechnet
+// werden (wie die WebUI sie im Tagesplan zeichnet).
+const defaultEstimateMinutes = 30
 
 // Get stellt den Kontext für date (YYYY-MM-DD) zusammen. Leer heißt heute
 // in der konfigurierten Zeitzone.
@@ -180,8 +189,25 @@ func (s *TodayService) Get(ctx context.Context, date string) (Today, error) {
 		ws := time.Date(day.Year(), day.Month(), day.Day(), 0, s.workStart, 0, 0, s.loc)
 		we := time.Date(day.Year(), day.Month(), day.Day(), 0, s.workEnd, 0, 0, s.loc)
 		t.WorkMinutes = int(we.Sub(ws) / time.Minute)
+		from := ws
+		if date == now.In(s.loc).Format("2006-01-02") && now.After(from) {
+			from = now
+		}
+		if from.After(we) {
+			from = we
+		}
 		// ponytail: geplante Tasks zählen voll, auch wenn ihre Uhrzeit außerhalb des Fensters liegt.
-		rest := t.WorkMinutes - busyMinutes(t.Events, ws, we) - t.PlannedMinutes
+		planned := 0
+		for _, task := range t.Tasks {
+			if from.After(ws) && task.Status == domain.TaskCompleted {
+				continue
+			}
+			if task.EstimatedMinutes == 0 {
+				t.UnestimatedTasks++
+			}
+			planned += cmp.Or(task.EstimatedMinutes, defaultEstimateMinutes)
+		}
+		rest := int(we.Sub(from)/time.Minute) - busyMinutes(t.Events, from, we) - planned
 		t.FreeMinutes, t.OverplannedMinutes = max(rest, 0), max(-rest, 0)
 	}
 	return t, nil

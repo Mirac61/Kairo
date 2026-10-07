@@ -16,6 +16,7 @@ type CalendarEvent struct {
 	TaskID            *string
 	RecurrenceRule    *string  // RRULE-Teilmenge, siehe ParseRule
 	RecurrenceExdates []string // ausgelassene lokale Tage, YYYY-MM-DD, aufsteigend
+	ExternalUID       *string  // UID aus einem ICS-Import, sonst nil
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }

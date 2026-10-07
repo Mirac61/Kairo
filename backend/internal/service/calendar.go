@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"kairo/internal/domain"
+	"kairo/internal/ics"
 )
 
 // CalendarStore ist der Speicher, den der CalendarService braucht.
@@ -209,6 +211,78 @@ func (s *CalendarService) Update(ctx context.Context, id string, in UpdateEventI
 	}
 	s.emit(domain.Event{Type: domain.EventCalendarEventUpdated, ID: e.ID})
 	return e, nil
+}
+
+// ImportResult fasst einen ICS-Import zusammen.
+type ImportResult struct {
+	Created          int
+	Updated          int
+	Skipped          int // VEVENTs, die nicht importiert werden konnten (Grund in Notes)
+	UnsupportedRules int // Serien mit nicht unterstützter Regel, als Einzeltermin importiert
+	Notes            []string
+}
+
+// ImportICS legt die VEVENTs aus einem ICS-Text als Events an. Ein Termin mit
+// bekannter UID (external_uid) wird aktualisiert, ein erneuter Import legt also
+// nichts doppelt an. Projekt, Task und URL eines vorhandenen Termins bleiben.
+// Serien, die ParseRule nicht kennt, kommen als Einzeltermin zum ersten Datum.
+func (s *CalendarService) ImportICS(ctx context.Context, data string) (ImportResult, error) {
+	evs, skipped, err := ics.Parse(data, s.loc)
+	if err != nil {
+		return ImportResult{}, fmt.Errorf("%w: %s", domain.ErrInvalid, err)
+	}
+	res := ImportResult{Skipped: len(skipped), Notes: append([]string{}, skipped...)}
+	existing, err := s.store.List(ctx)
+	if err != nil {
+		return res, err
+	}
+	byUID := map[string]domain.CalendarEvent{}
+	for _, e := range existing {
+		if e.ExternalUID != nil {
+			byUID[*e.ExternalUID] = e
+		}
+	}
+	now := s.now().UTC()
+	for _, ev := range evs {
+		if ev.Note != "" {
+			res.Notes = append(res.Notes, ev.Note)
+		}
+		e, found := byUID[ev.UID]
+		if !found {
+			e = domain.CalendarEvent{ID: domain.NewID(), ExternalUID: &ev.UID, CreatedAt: now}
+		}
+		e.Title, e.Description, e.Location = cmp.Or(ev.Summary, "(ohne Titel)"), ev.Description, ev.Location
+		e.StartAt, e.EndAt, e.UpdatedAt = ev.Start, ev.End, now
+		e.RecurrenceRule, e.RecurrenceExdates = nil, nil
+		if ev.Rule != "" {
+			if _, err := domain.ParseRule(ev.Rule, s.loc); err != nil {
+				res.UnsupportedRules++
+				res.Notes = append(res.Notes, fmt.Sprintf("%q: Regel %q nicht unterstützt, als Einzeltermin importiert", e.Title, ev.Rule))
+			} else {
+				e.RecurrenceRule, e.RecurrenceExdates = &ev.Rule, ev.Exdates
+			}
+		}
+		if err := s.validate(&e); err != nil {
+			res.Skipped++
+			res.Notes = append(res.Notes, fmt.Sprintf("%q: %s", e.Title, err))
+			continue
+		}
+		save, kind := s.store.Create, domain.EventCalendarEventCreated
+		if found {
+			save, kind = s.store.Update, domain.EventCalendarEventUpdated
+		}
+		if err := save(ctx, e); err != nil {
+			return res, err
+		}
+		if found {
+			res.Updated++
+		} else {
+			res.Created++
+		}
+		byUID[ev.UID] = e
+		s.emit(domain.Event{Type: kind, ID: e.ID})
+	}
+	return res, nil
 }
 
 func (s *CalendarService) Delete(ctx context.Context, id string) error {

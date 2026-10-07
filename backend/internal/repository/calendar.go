@@ -17,19 +17,19 @@ type CalendarRepository struct{ db *sql.DB }
 func NewCalendarRepository(db *sql.DB) *CalendarRepository { return &CalendarRepository{db: db} }
 
 const calendarColumns = `id, title, description, start_at, end_at, location, url, project_id, task_id,
-	recurrence_rule, recurrence_exdates, created_at, updated_at`
+	recurrence_rule, recurrence_exdates, created_at, updated_at, external_uid`
 
 func scanEvent(s scanner) (domain.CalendarEvent, error) {
 	var (
 		e                                 domain.CalendarEvent
-		project, task, rule               sql.NullString
+		project, task, rule, uid          sql.NullString
 		start, end, exdates, created, upd string
 	)
 	if err := s.Scan(&e.ID, &e.Title, &e.Description, &start, &end, &e.Location, &e.URL,
-		&project, &task, &rule, &exdates, &created, &upd); err != nil {
+		&project, &task, &rule, &exdates, &created, &upd, &uid); err != nil {
 		return domain.CalendarEvent{}, err
 	}
-	e.ProjectID, e.TaskID, e.RecurrenceRule = nullStr(project), nullStr(task), nullStr(rule)
+	e.ProjectID, e.TaskID, e.RecurrenceRule, e.ExternalUID = nullStr(project), nullStr(task), nullStr(rule), nullStr(uid)
 	if err := json.Unmarshal([]byte(exdates), &e.RecurrenceExdates); err != nil {
 		return domain.CalendarEvent{}, fmt.Errorf("recurrence_exdates: %w", err)
 	}
@@ -64,9 +64,9 @@ func (r *CalendarRepository) Create(ctx context.Context, e domain.CalendarEvent)
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO calendar_events (`+calendarColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO calendar_events (`+calendarColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.ID, e.Title, e.Description, formatTime(e.StartAt), formatTime(e.EndAt), e.Location, e.URL,
-		e.ProjectID, e.TaskID, e.RecurrenceRule, ex, formatTime(e.CreatedAt), formatTime(e.UpdatedAt))
+		e.ProjectID, e.TaskID, e.RecurrenceRule, ex, formatTime(e.CreatedAt), formatTime(e.UpdatedAt), e.ExternalUID)
 	if err != nil {
 		return fmt.Errorf("repository: Event anlegen: %w", mapFK(err))
 	}

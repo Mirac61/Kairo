@@ -87,3 +87,32 @@ func TestResourcesErrors(t *testing.T) {
 		t.Errorf("GET mit falschem Typ = %d", rec.Code)
 	}
 }
+
+func TestResourceTypeOptional(t *testing.T) {
+	h := newResourcesRouter(t)
+	var project projectDTO
+	_ = json.Unmarshal(call(h, "POST", "/api/projects", `{"name":"Uni"}`).Body.Bytes(), &project)
+	dir := t.TempDir()
+	for target, want := range map[string]string{
+		"https://moodle.example.org": "URL",
+		dir:                          "FOLDER",
+		dir + "/gibt-es-nicht.pdf":   "FILE",
+	} {
+		rec := call(h, "POST", "/api/resources", `{"project_id":"`+project.ID+`","target":"`+target+`"}`)
+		var res resourceDTO
+		_ = json.Unmarshal(rec.Body.Bytes(), &res)
+		if rec.Code != 201 || res.Type != want || res.Target != target {
+			t.Errorf("%q: %d %+v, erwartet Typ %s", target, rec.Code, res, want)
+		}
+	}
+	// Ein gesetzter Typ gewinnt; leeres Ziel bleibt ein Fehler.
+	rec := call(h, "POST", "/api/resources", `{"project_id":"`+project.ID+`","type":"FILE","target":"`+dir+`"}`)
+	var res resourceDTO
+	_ = json.Unmarshal(rec.Body.Bytes(), &res)
+	if rec.Code != 201 || res.Type != "FILE" {
+		t.Errorf("expliziter Typ: %d %+v", rec.Code, res)
+	}
+	if rec := call(h, "POST", "/api/resources", `{"project_id":"`+project.ID+`","target":" "}`); rec.Code != 400 {
+		t.Errorf("leeres Ziel = %d, erwartet 400", rec.Code)
+	}
+}

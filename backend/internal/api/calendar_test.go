@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -141,5 +144,102 @@ func TestCalendarOccurrences(t *testing.T) {
 	}
 	if rec := call(h, "GET", "/api/calendar/occurrences?from=2026-10-05T00:00:00Z", ""); rec.Code != 400 {
 		t.Errorf("ohne to = %d, erwartet 400", rec.Code)
+	}
+}
+
+const importICS = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" +
+	"BEGIN:VEVENT\r\nUID:a@uni\r\nSUMMARY:Arzt\r\nDTSTART:20261009T120000Z\r\nDTEND:20261009T130000Z\r\nEND:VEVENT\r\n" +
+	"BEGIN:VEVENT\r\nUID:w@uni\r\nSUMMARY:AlgoDat\r\nLOCATION:HS 1\r\nDTSTART:20261007T083000Z\r\nDTEND:20261007T100000Z\r\n" +
+	"RRULE:FREQ=WEEKLY;BYDAY=WE;UNTIL=20261031T000000Z\r\nEXDATE:20261014T083000Z\r\nEND:VEVENT\r\n" +
+	"BEGIN:VEVENT\r\nUID:d@uni\r\nSUMMARY:Ferien\r\nDTSTART;VALUE=DATE:20261224\r\nDTEND;VALUE=DATE:20261227\r\nEND:VEVENT\r\n" +
+	"BEGIN:VEVENT\r\nUID:m@uni\r\nSUMMARY:Monatlich\r\nDTSTART:20261001T080000Z\r\nDTEND:20261001T090000Z\r\nRRULE:FREQ=MONTHLY\r\nEND:VEVENT\r\n" +
+	"BEGIN:VEVENT\r\nUID:w@uni\r\nSUMMARY:AlgoDat verschoben\r\nRECURRENCE-ID:20261021T083000Z\r\nDTSTART:20261022T083000Z\r\nDTEND:20261022T100000Z\r\nEND:VEVENT\r\n" +
+	"END:VCALENDAR\r\n"
+
+func TestCalendarImportICSIsIdempotent(t *testing.T) {
+	h := newCalendarRouter(t)
+	doImport := func(ics string) importResultDTO {
+		t.Helper()
+		rec := call(h, "POST", "/api/calendar/import", ics)
+		var res importResultDTO
+		_ = json.Unmarshal(rec.Body.Bytes(), &res)
+		if rec.Code != 200 {
+			t.Fatalf("Import = %d %s", rec.Code, rec.Body)
+		}
+		return res
+	}
+	listEvents := func() map[string]calendarEventDTO {
+		var list []calendarEventDTO
+		_ = json.Unmarshal(call(h, "GET", "/api/calendar/events", "").Body.Bytes(), &list)
+		byTitle := map[string]calendarEventDTO{}
+		for _, e := range list {
+			byTitle[e.Title] = e
+		}
+		return byTitle
+	}
+
+	res := doImport(importICS)
+	if res.Created != 4 || res.Updated != 0 || res.Skipped != 1 || res.UnsupportedRules != 1 || len(res.Notes) != 2 {
+		t.Errorf("1. Import = %+v", res)
+	}
+	events := listEvents()
+	if len(events) != 4 || events["Monatlich"].RecurrenceRule != nil || events["Ferien"].StartAt != "2026-12-24T00:00:00Z" {
+		t.Errorf("Events = %+v", events)
+	}
+
+	// Projekt am Termin setzen; ein erneuter Import ändert Felder aus der ICS, lässt das Projekt aber stehen.
+	var p projectDTO
+	_ = json.Unmarshal(call(h, "POST", "/api/projects", `{"name":"AlgoDat"}`).Body.Bytes(), &p)
+	call(h, "PATCH", "/api/calendar/events/"+events["AlgoDat"].ID, `{"project_id":"`+p.ID+`"}`)
+
+	res = doImport(strings.Replace(importICS, "SUMMARY:Arzt", "SUMMARY:Zahnarzt", 1))
+	if res.Created != 0 || res.Updated != 4 || res.Skipped != 1 {
+		t.Errorf("2. Import = %+v", res)
+	}
+	events = listEvents()
+	if _, ok := events["Zahnarzt"]; len(events) != 4 || !ok {
+		t.Errorf("Duplikate oder fehlendes Update: %+v", events)
+	}
+	if pid := events["AlgoDat"].ProjectID; pid == nil || *pid != p.ID {
+		t.Errorf("Projekt nach Re-Import: %v", pid)
+	}
+
+	q := url.Values{"from": {"2026-10-05T00:00:00Z"}, "to": {"2026-10-26T00:00:00Z"}}.Encode()
+	var occ []todayEventDTO
+	_ = json.Unmarshal(call(h, "GET", "/api/calendar/occurrences?"+q, "").Body.Bytes(), &occ)
+	var starts []string
+	for _, o := range occ {
+		if o.Title == "AlgoDat" {
+			starts = append(starts, o.OccurrenceStart)
+		}
+	}
+	if want := []string{"2026-10-07T08:30:00Z", "2026-10-21T08:30:00Z"}; !reflect.DeepEqual(starts, want) {
+		t.Errorf("Serie mit EXDATE = %v, want %v", starts, want)
+	}
+}
+
+func TestCalendarImportICSRejects(t *testing.T) {
+	h := newCalendarRouter(t)
+	if rec := call(h, "POST", "/api/calendar/import", "das ist kein Kalender"); rec.Code != 400 {
+		t.Errorf("kein ICS = %d, erwartet 400", rec.Code)
+	}
+	big := "BEGIN:VCALENDAR\r\n" + strings.Repeat("X-PAD:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n", maxICSBytes/60) + "END:VCALENDAR\r\n"
+	if rec := call(h, "POST", "/api/calendar/import", big); rec.Code != 413 {
+		t.Errorf("zu groß = %d, erwartet 413", rec.Code)
+	}
+	// Gleiche Absicherung wie die anderen Schreib-Endpunkte: ohne Origin oder Token kein Import.
+	req := httptest.NewRequest("POST", "/api/calendar/import", strings.NewReader(importICS))
+	req.Host = "127.0.0.1:8742"
+	req.Header.Set("Content-Type", "text/calendar")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 403 {
+		t.Errorf("ohne Origin/Token = %d, erwartet 403", rec.Code)
+	}
+	req.Header.Set("Authorization", "Bearer "+testToken)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Errorf("mit Token = %d %s", rec.Code, rec.Body)
 	}
 }
