@@ -105,7 +105,12 @@
 .fc .fc-timegrid .fc-daygrid-event .kt-title { -webkit-line-clamp: 1; }
 .fc .fc-timegrid .fc-daygrid-event .kt-meta { display: none; }
 /* Tag: volle Breite, gleiche Stundenhöhe wie die Woche; Titel, Zeit und Projekt stehen in einer Zeile */
-.fc .fc-timeGridDay-view .fc-day-today { background: transparent; }
+.fc .fc-timeGridDay-view .fc-day-today, .fc .fc-timeGridDay-view .fc-day-today.fc-col-header-cell { background: transparent; }
+.fc .fc-timeGridDay-view .fc-timegrid-slot { height: 36px; }
+.fc .fc-timeGridDay-view .kt-dh { gap: 10px; }
+.fc .fc-timeGridDay-view .kt-dh small { font-size: 15px; }
+.fc .fc-timeGridDay-view .kt-dh b { min-width: 34px; height: 34px; border-radius: 17px; font-size: 18px; }
+.fc .fc-timeGridDay-view .kt-row { font-size: 12px; }
 .fc .fc-timeGridDay-view .kt-in { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 12px; }
 .fc .fc-timeGridDay-view .kt-title { -webkit-line-clamp: 1; }
 
