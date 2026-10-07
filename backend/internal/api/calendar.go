@@ -19,6 +19,9 @@ type CalendarService interface {
 	List(ctx context.Context, from, to *time.Time) ([]domain.CalendarEvent, error)
 	Update(ctx context.Context, id string, in service.UpdateEventInput) (domain.CalendarEvent, error)
 	Delete(ctx context.Context, id string) error
+	Trash(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) (domain.CalendarEvent, error)
+	ListTrashed(ctx context.Context) ([]domain.CalendarEvent, error)
 	Occurrences(ctx context.Context, from, to time.Time) ([]domain.EventInstance, error)
 	ImportICS(ctx context.Context, data string) (service.ImportResult, error)
 }
@@ -37,6 +40,7 @@ type calendarEventDTO struct {
 	RecurrenceExdates []string `json:"recurrence_exdates"`
 	CreatedAt         string   `json:"created_at"`
 	UpdatedAt         string   `json:"updated_at"`
+	DeletedAt         *string  `json:"deleted_at,omitempty"` // nur im Papierkorb
 }
 
 func toCalendarEventDTO(e domain.CalendarEvent) calendarEventDTO {
@@ -58,6 +62,7 @@ func toCalendarEventDTO(e domain.CalendarEvent) calendarEventDTO {
 		RecurrenceExdates: ex,
 		CreatedAt:         e.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:         e.UpdatedAt.UTC().Format(time.RFC3339),
+		DeletedAt:         formatOptTime(e.DeletedAt),
 	}
 }
 
@@ -70,7 +75,8 @@ func (h calendarHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/calendar/import", h.importICS)
 	mux.HandleFunc("GET /api/calendar/events/{id}", h.get)
 	mux.HandleFunc("PATCH /api/calendar/events/{id}", h.update)
-	mux.HandleFunc("DELETE /api/calendar/events/{id}", h.delete)
+	mux.HandleFunc("DELETE /api/calendar/events/{id}", deleteHandler(h.svc.Trash, h.svc.Delete))
+	mux.HandleFunc("POST /api/calendar/events/{id}/restore", restoreHandler(h.svc.Restore, toCalendarEventDTO))
 }
 
 // queryTime liest einen optionalen RFC-3339-Parameter. Ein "+" im Offset
@@ -171,14 +177,6 @@ func (h calendarHandlers) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toCalendarEventDTO(e))
-}
-
-func (h calendarHandlers) delete(w http.ResponseWriter, r *http.Request) {
-	if err := h.svc.Delete(r.Context(), r.PathValue("id")); err != nil {
-		writeError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // occurrences liefert die konkreten Termine im Fenster ?from=&to= (beide

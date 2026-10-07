@@ -40,6 +40,13 @@ func (s *memEvents) Update(_ context.Context, e domain.CalendarEvent) error {
 }
 func (s *memEvents) Delete(_ context.Context, id string) error { delete(s.m, id); return nil }
 
+// Papierkorb: gegen echtes SQLite getestet (api/trash_test.go).
+func (s *memEvents) Trash(context.Context, string, time.Time) error { return nil }
+func (s *memEvents) Restore(context.Context, string) (domain.CalendarEvent, error) {
+	return domain.CalendarEvent{}, nil
+}
+func (s *memEvents) ListTrashed(context.Context) ([]domain.CalendarEvent, error) { return nil, nil }
+
 func newCalSvc(t *testing.T) *CalendarService {
 	t.Helper()
 	loc, err := time.LoadLocation("Europe/Berlin")

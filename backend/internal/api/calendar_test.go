@@ -97,7 +97,8 @@ func TestCalendarLinksToTask(t *testing.T) {
 	}
 	var e calendarEventDTO
 	_ = json.Unmarshal(rec.Body.Bytes(), &e)
-	call(h, "DELETE", "/api/tasks/"+task.ID, "")
+	// Im Papierkorb bleibt die Verknüpfung (für restore); erst das endgültige Löschen löst sie.
+	call(h, "DELETE", "/api/tasks/"+task.ID+"?permanent=true", "")
 	rec = call(h, "GET", "/api/calendar/events/"+e.ID, "")
 	_ = json.Unmarshal(rec.Body.Bytes(), &e)
 	if rec.Code != 200 || e.TaskID != nil {

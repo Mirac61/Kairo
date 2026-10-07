@@ -58,6 +58,7 @@ type Task struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	CompletedAt      *time.Time
+	DeletedAt        *time.Time // UTC; nur in der Papierkorb-Liste gesetzt
 }
 
 // TaskFilter schränkt die Task-Liste ein. Leere Felder filtern nicht.

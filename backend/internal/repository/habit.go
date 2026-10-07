@@ -29,7 +29,8 @@ func nullInt(v *int) any {
 	return *v
 }
 
-func scanHabit(s scanner) (domain.Habit, error) {
+// scanHabit liest habitColumns; extra sind weitere Zielvariablen für Spalten dahinter.
+func scanHabit(s scanner, extra ...any) (domain.Habit, error) {
 	var (
 		h                     domain.Habit
 		target                sql.NullInt64
@@ -37,8 +38,8 @@ func scanHabit(s scanner) (domain.Habit, error) {
 		freq, config, created string
 		active                int
 	)
-	if err := s.Scan(&h.ID, &h.Name, &h.Description, &freq, &config, &target, &h.Unit,
-		&preferred, &h.StartDate, &end, &active, &created); err != nil {
+	if err := s.Scan(append([]any{&h.ID, &h.Name, &h.Description, &freq, &config, &target, &h.Unit,
+		&preferred, &h.StartDate, &end, &active, &created}, extra...)...); err != nil {
 		return domain.Habit{}, err
 	}
 	h.FrequencyType = domain.FrequencyType(freq)
@@ -102,7 +103,7 @@ func (r *HabitRepository) Create(ctx context.Context, h domain.Habit) error {
 
 // Get liefert ein Habit oder domain.ErrNotFound.
 func (r *HabitRepository) Get(ctx context.Context, id string) (domain.Habit, error) {
-	h, err := scanHabit(r.db.QueryRowContext(ctx, `SELECT `+habitColumns+` FROM habits WHERE id = ?`, id))
+	h, err := scanHabit(r.db.QueryRowContext(ctx, `SELECT `+habitColumns+` FROM habits WHERE id = ? AND deleted_at IS NULL`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Habit{}, domain.ErrNotFound
 	}
@@ -114,7 +115,7 @@ func (r *HabitRepository) Get(ctx context.Context, id string) (domain.Habit, err
 
 // List liefert alle Habits, nach Name sortiert.
 func (r *HabitRepository) List(ctx context.Context) ([]domain.Habit, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT `+habitColumns+` FROM habits ORDER BY name COLLATE NOCASE, id`)
+	rows, err := r.db.QueryContext(ctx, `SELECT `+habitColumns+` FROM habits WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE, id`)
 	if err != nil {
 		return nil, fmt.Errorf("repository: Habits lesen: %w", err)
 	}
@@ -138,7 +139,7 @@ func (r *HabitRepository) Update(ctx context.Context, h domain.Habit) error {
 	}
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE habits SET name = ?, description = ?, frequency_type = ?, frequency_config = ?, target_value = ?,
-			unit = ?, preferred_time = ?, start_date = ?, end_date = ?, active = ? WHERE id = ?`,
+			unit = ?, preferred_time = ?, start_date = ?, end_date = ?, active = ? WHERE id = ? AND deleted_at IS NULL`,
 		h.Name, h.Description, string(h.FrequencyType), string(cfg), nullInt(h.TargetValue),
 		h.Unit, h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), h.ID)
 	if err != nil {
@@ -147,7 +148,7 @@ func (r *HabitRepository) Update(ctx context.Context, h domain.Habit) error {
 	return requireAffected(res)
 }
 
-// Delete löscht ein Habit samt Completions.
+// Delete löscht ein Habit (auch aus dem Papierkorb) endgültig samt Completions.
 func (r *HabitRepository) Delete(ctx context.Context, id string) error {
 	res, err := r.db.ExecContext(ctx, `DELETE FROM habits WHERE id = ?`, id)
 	if err != nil {

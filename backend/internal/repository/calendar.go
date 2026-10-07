@@ -19,14 +19,15 @@ func NewCalendarRepository(db *sql.DB) *CalendarRepository { return &CalendarRep
 const calendarColumns = `id, title, description, start_at, end_at, location, url, project_id, task_id,
 	recurrence_rule, recurrence_exdates, created_at, updated_at, external_uid`
 
-func scanEvent(s scanner) (domain.CalendarEvent, error) {
+// scanEvent liest calendarColumns; extra sind weitere Zielvariablen für Spalten dahinter.
+func scanEvent(s scanner, extra ...any) (domain.CalendarEvent, error) {
 	var (
 		e                                 domain.CalendarEvent
 		project, task, rule, uid          sql.NullString
 		start, end, exdates, created, upd string
 	)
-	if err := s.Scan(&e.ID, &e.Title, &e.Description, &start, &end, &e.Location, &e.URL,
-		&project, &task, &rule, &exdates, &created, &upd, &uid); err != nil {
+	if err := s.Scan(append([]any{&e.ID, &e.Title, &e.Description, &start, &end, &e.Location, &e.URL,
+		&project, &task, &rule, &exdates, &created, &upd, &uid}, extra...)...); err != nil {
 		return domain.CalendarEvent{}, err
 	}
 	e.ProjectID, e.TaskID, e.RecurrenceRule, e.ExternalUID = nullStr(project), nullStr(task), nullStr(rule), nullStr(uid)
@@ -75,7 +76,7 @@ func (r *CalendarRepository) Create(ctx context.Context, e domain.CalendarEvent)
 
 // Get liefert ein Event oder domain.ErrNotFound.
 func (r *CalendarRepository) Get(ctx context.Context, id string) (domain.CalendarEvent, error) {
-	e, err := scanEvent(r.db.QueryRowContext(ctx, `SELECT `+calendarColumns+` FROM calendar_events WHERE id = ?`, id))
+	e, err := scanEvent(r.db.QueryRowContext(ctx, `SELECT `+calendarColumns+` FROM calendar_events WHERE id = ? AND deleted_at IS NULL`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.CalendarEvent{}, domain.ErrNotFound
 	}
@@ -87,7 +88,7 @@ func (r *CalendarRepository) Get(ctx context.Context, id string) (domain.Calenda
 
 // List liefert alle Events nach Beginn sortiert.
 func (r *CalendarRepository) List(ctx context.Context) ([]domain.CalendarEvent, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT `+calendarColumns+` FROM calendar_events ORDER BY start_at, id`)
+	rows, err := r.db.QueryContext(ctx, `SELECT `+calendarColumns+` FROM calendar_events WHERE deleted_at IS NULL ORDER BY start_at, id`)
 	if err != nil {
 		return nil, fmt.Errorf("repository: Events lesen: %w", err)
 	}
@@ -111,7 +112,7 @@ func (r *CalendarRepository) Update(ctx context.Context, e domain.CalendarEvent)
 	}
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE calendar_events SET title = ?, description = ?, start_at = ?, end_at = ?, location = ?, url = ?,
-			project_id = ?, task_id = ?, recurrence_rule = ?, recurrence_exdates = ?, updated_at = ? WHERE id = ?`,
+			project_id = ?, task_id = ?, recurrence_rule = ?, recurrence_exdates = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
 		e.Title, e.Description, formatTime(e.StartAt), formatTime(e.EndAt), e.Location, e.URL,
 		e.ProjectID, e.TaskID, e.RecurrenceRule, ex, formatTime(e.UpdatedAt), e.ID)
 	if err != nil {
@@ -120,7 +121,7 @@ func (r *CalendarRepository) Update(ctx context.Context, e domain.CalendarEvent)
 	return requireAffected(res)
 }
 
-// Delete löscht ein Event.
+// Delete löscht ein Event (auch aus dem Papierkorb) endgültig.
 func (r *CalendarRepository) Delete(ctx context.Context, id string) error {
 	res, err := r.db.ExecContext(ctx, `DELETE FROM calendar_events WHERE id = ?`, id)
 	if err != nil {

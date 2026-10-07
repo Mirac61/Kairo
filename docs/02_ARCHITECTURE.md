@@ -166,7 +166,8 @@ GET    /api/tasks
 POST   /api/tasks
 GET    /api/tasks/:id
 PATCH  /api/tasks/:id
-DELETE /api/tasks/:id
+DELETE /api/tasks/:id            (Papierkorb; ?permanent=true endgültig)
+POST   /api/tasks/:id/restore
 
 POST   /api/tasks/:id/start
 POST   /api/tasks/:id/pause
@@ -187,6 +188,11 @@ POST   /api/time-entries
 
 POST   /api/habits/:id/completions
 DELETE /api/habits/:id/completions/:date
+DELETE /api/habits/:id           (Papierkorb; ?permanent=true endgültig)
+POST   /api/habits/:id/restore
+DELETE /api/calendar/events/:id  (Papierkorb; ?permanent=true endgültig)
+POST   /api/calendar/events/:id/restore
+GET    /api/trash
 
 GET    /api/resources
 POST   /api/resources
@@ -251,6 +257,9 @@ Client liest den neuen Stand per REST nach (z. B. `GET /api/today`).
     `TIMER_STOPPED` und `TASK_UPDATED`.
 -   `TASK_DELETED` kann einen laufenden Timer mit löschen, ohne
     `TIMER_STOPPED`. Clients prüfen den Timer dann neu.
+-   Die `*_DELETED`-Ereignisse von Tasks, Terminen und Habits melden auch
+    das Verschieben in den Papierkorb; `restore` sendet `TASK_CREATED`,
+    `CALENDAR_EVENT_CREATED` bzw. `HABIT_CREATED`.
 -   Es gibt keinen Verlauf. Nach einem Verbindungsabbruch liest der
     Client beim Wiederverbinden den Stand neu. Ein zu langsamer Client
     (64 Nachrichten Rückstand) wird getrennt.
@@ -439,6 +448,35 @@ POST /api/tasks/:id/complete
 (RFC 3339, ein `+` im Offset als `%2B` kodieren). `?running=true` liefert
 den laufenden Timer. Start, Pause und Abschluss antworten mit
 `{"task": …, "time_entry": … | null}`.
+
+------------------------------------------------------------------------
+
+# Papierkorb
+
+Tasks, Termine und Habits werden beim Löschen nur markiert
+(`deleted_at`, Migration 0009; `NULL` = aktiv). Projekte, Zeiteinträge
+und Ressourcen werden weiterhin hart gelöscht.
+
+-   `DELETE /api/tasks|calendar/events|habits/:id` antwortet `204` und
+    setzt `deleted_at`. Bei einer Task tragen auch ihre Teilaufgaben
+    denselben Zeitstempel. Läuft ein Timer auf der Task oder einer
+    Teilaufgabe, kommt `409` („erst pausieren“).
+-   `?permanent=true` löscht endgültig, auch aus dem Papierkorb. Eine
+    Task mit Zeiteinträgen bleibt `409` („stattdessen abbrechen“), weil
+    `ON DELETE CASCADE` die Zeit sonst mitlöschen würde.
+-   `POST …/:id/restore` antwortet `200` mit dem Objekt und ist
+    idempotent. Eine Task holt die mit ihr gelöschten Teilaufgaben
+    (gleicher `deleted_at`) zurück, früher einzeln gelöschte nicht.
+-   `GET /api/trash` liefert `{tasks, events, habits}`, jeweils neueste
+    zuerst, mit `deleted_at`. Zusammen mit der Elterntask gelöschte
+    Teilaufgaben stehen nicht einzeln darin.
+-   Alle Lese-Abfragen blenden Papierkorb-Zeilen aus (Listen, `GET` →
+    `404`, `/api/today`, Occurrences, Habit-Fälligkeit, Rückblick);
+    `PATCH`, `start`, `pause` und `complete` auf ihnen sind `404`. Die
+    Zeit auf Papierkorb-Tasks zählt in den Summen weiter, und Termine
+    behalten ihren `task_id` (erst das endgültige Löschen löst ihn).
+-   Der ICS-Import belebt Termine im Papierkorb nicht wieder und legt
+    sie nicht doppelt an (`skipped`, Notiz „im Papierkorb“).
 
 ------------------------------------------------------------------------
 

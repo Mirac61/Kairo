@@ -16,6 +16,9 @@ type TaskService interface {
 	List(ctx context.Context, f domain.TaskFilter) ([]domain.Task, error)
 	Update(ctx context.Context, id string, in service.UpdateTaskInput) (domain.Task, error)
 	Delete(ctx context.Context, id string) error
+	Trash(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) (domain.Task, error)
+	ListTrashed(ctx context.Context) ([]domain.Task, error)
 }
 
 type taskDTO struct {
@@ -33,6 +36,7 @@ type taskDTO struct {
 	CreatedAt        string  `json:"created_at"`
 	UpdatedAt        string  `json:"updated_at"`
 	CompletedAt      *string `json:"completed_at"`
+	DeletedAt        *string `json:"deleted_at,omitempty"` // nur im Papierkorb
 }
 
 func formatOptTime(t *time.Time) *string {
@@ -59,6 +63,7 @@ func toTaskDTO(t domain.Task) taskDTO {
 		CreatedAt:        t.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:        t.UpdatedAt.UTC().Format(time.RFC3339),
 		CompletedAt:      formatOptTime(t.CompletedAt),
+		DeletedAt:        formatOptTime(t.DeletedAt),
 	}
 }
 
@@ -69,7 +74,8 @@ func (h taskHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/tasks", h.create)
 	mux.HandleFunc("GET /api/tasks/{id}", h.get)
 	mux.HandleFunc("PATCH /api/tasks/{id}", h.update)
-	mux.HandleFunc("DELETE /api/tasks/{id}", h.delete)
+	mux.HandleFunc("DELETE /api/tasks/{id}", deleteHandler(h.svc.Trash, h.svc.Delete))
+	mux.HandleFunc("POST /api/tasks/{id}/restore", restoreHandler(h.svc.Restore, toTaskDTO))
 }
 
 // list unterstützt die Filter ?status=, ?project_id= und ?planned_date=.
@@ -178,12 +184,4 @@ func (h taskHandlers) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toTaskDTO(t))
-}
-
-func (h taskHandlers) delete(w http.ResponseWriter, r *http.Request) {
-	if err := h.svc.Delete(r.Context(), r.PathValue("id")); err != nil {
-		writeError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }

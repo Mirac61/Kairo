@@ -45,15 +45,16 @@ func nullStr(s sql.NullString) *string {
 	return &s.String
 }
 
-func scanTask(s scanner) (domain.Task, error) {
+// scanTask liest taskColumns; extra sind weitere Zielvariablen für Spalten dahinter.
+func scanTask(s scanner, extra ...any) (domain.Task, error) {
 	var (
 		t                                           domain.Task
 		project, parent, due, planned, plannedStart sql.NullString
 		completed                                   sql.NullString
 		status, priority, created, updated          string
 	)
-	if err := s.Scan(&t.ID, &project, &parent, &t.Title, &t.Description, &status, &priority,
-		&t.EstimatedMinutes, &due, &planned, &plannedStart, &created, &updated, &completed); err != nil {
+	if err := s.Scan(append([]any{&t.ID, &project, &parent, &t.Title, &t.Description, &status, &priority,
+		&t.EstimatedMinutes, &due, &planned, &plannedStart, &created, &updated, &completed}, extra...)...); err != nil {
 		return domain.Task{}, err
 	}
 	t.Status, t.Priority = domain.TaskStatus(status), domain.TaskPriority(priority)
@@ -112,7 +113,7 @@ func (r *TaskRepository) Get(ctx context.Context, id string) (domain.Task, error
 }
 
 func getTask(ctx context.Context, q dbtx, id string) (domain.Task, error) {
-	t, err := scanTask(q.QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id))
+	t, err := scanTask(q.QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ? AND deleted_at IS NULL`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Task{}, domain.ErrNotFound
 	}
@@ -125,7 +126,7 @@ func getTask(ctx context.Context, q dbtx, id string) (domain.Task, error) {
 // List liefert Tasks nach Filter, älteste zuerst.
 func (r *TaskRepository) List(ctx context.Context, f domain.TaskFilter) ([]domain.Task, error) {
 	var (
-		where []string
+		where = []string{"deleted_at IS NULL"}
 		args  []any
 	)
 	if f.Status != "" {
@@ -169,7 +170,7 @@ func updateTask(ctx context.Context, q dbtx, t domain.Task) error {
 	res, err := q.ExecContext(ctx,
 		`UPDATE tasks SET project_id = ?, parent_task_id = ?, title = ?, description = ?, status = ?,
 			priority = ?, estimated_minutes = ?, due_at = ?, planned_date = ?, planned_start_at = ?,
-			updated_at = ?, completed_at = ? WHERE id = ?`,
+			updated_at = ?, completed_at = ? WHERE id = ? AND deleted_at IS NULL`,
 		t.ProjectID, t.ParentTaskID, t.Title, t.Description, string(t.Status), string(t.Priority),
 		t.EstimatedMinutes, nullTime(t.DueAt), t.PlannedDate, nullTime(t.PlannedStartAt),
 		formatTime(t.UpdatedAt), nullTime(t.CompletedAt), t.ID)
@@ -179,7 +180,7 @@ func updateTask(ctx context.Context, q dbtx, t domain.Task) error {
 	return requireAffected(res)
 }
 
-// Delete löscht eine Task samt Subtasks. Hat eine davon Zeiteinträge, liefert
+// Delete löscht eine Task (auch aus dem Papierkorb) endgültig samt Subtasks. Hat eine davon Zeiteinträge, liefert
 // es domain.ErrConflict, weil ON DELETE CASCADE sie sonst mitlöschen würde.
 func (r *TaskRepository) Delete(ctx context.Context, id string) error {
 	var tracked bool

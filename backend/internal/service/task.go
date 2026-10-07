@@ -17,6 +17,9 @@ type TaskStore interface {
 	List(ctx context.Context, f domain.TaskFilter) ([]domain.Task, error)
 	Update(ctx context.Context, t domain.Task) error
 	Delete(ctx context.Context, id string) error
+	Trash(ctx context.Context, id string, at time.Time) error
+	Restore(ctx context.Context, id string) (domain.Task, error)
+	ListTrashed(ctx context.Context) ([]domain.Task, error)
 }
 
 // maxTaskDepth begrenzt die Suche nach Zyklen in der Subtask-Kette.
@@ -207,12 +210,35 @@ func (s *TaskService) Update(ctx context.Context, id string, in UpdateTaskInput)
 	return t, nil
 }
 
+// Delete löscht endgültig; die Zeiteinträge bleiben dabei geschützt (domain.ErrConflict).
 func (s *TaskService) Delete(ctx context.Context, id string) error {
 	if err := s.store.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.emit(domain.Event{Type: domain.EventTaskDeleted, ID: id})
 	return nil
+}
+
+// Trash legt die Task samt Teilaufgaben in den Papierkorb; mit laufendem Timer domain.ErrConflict.
+func (s *TaskService) Trash(ctx context.Context, id string) error {
+	if err := s.store.Trash(ctx, id, s.now()); err != nil {
+		return err
+	}
+	s.emit(domain.Event{Type: domain.EventTaskDeleted, ID: id})
+	return nil
+}
+
+func (s *TaskService) Restore(ctx context.Context, id string) (domain.Task, error) {
+	t, err := s.store.Restore(ctx, id)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	s.emit(domain.Event{Type: domain.EventTaskCreated, ID: id})
+	return t, nil
+}
+
+func (s *TaskService) ListTrashed(ctx context.Context) ([]domain.Task, error) {
+	return s.store.ListTrashed(ctx)
 }
 
 // checkNoCycle stellt sicher, dass id nicht unter seinen eigenen Nachfahren hängt.

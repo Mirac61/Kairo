@@ -33,6 +33,13 @@ func (s *memHabits) List(context.Context) ([]domain.Habit, error) {
 }
 func (s *memHabits) Update(_ context.Context, h domain.Habit) error { s.habits[h.ID] = h; return nil }
 func (s *memHabits) Delete(_ context.Context, id string) error      { delete(s.habits, id); return nil }
+
+// Papierkorb: gegen echtes SQLite getestet (api/trash_test.go).
+func (s *memHabits) Trash(context.Context, string, time.Time) error { return nil }
+func (s *memHabits) Restore(context.Context, string) (domain.Habit, error) {
+	return domain.Habit{}, nil
+}
+func (s *memHabits) ListTrashed(context.Context) ([]domain.Habit, error) { return nil, nil }
 func (s *memHabits) CreateCompletion(_ context.Context, c domain.HabitCompletion) error {
 	for _, x := range s.comps {
 		if x.HabitID == c.HabitID && x.Date == c.Date {

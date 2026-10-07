@@ -23,6 +23,11 @@ func (s *memTasks) List(context.Context, domain.TaskFilter) ([]domain.Task, erro
 func (s *memTasks) Update(_ context.Context, t domain.Task) error                  { s.m[t.ID] = t; return nil }
 func (s *memTasks) Delete(_ context.Context, id string) error                      { delete(s.m, id); return nil }
 
+// Papierkorb: gegen echtes SQLite getestet (api/trash_test.go).
+func (s *memTasks) Trash(context.Context, string, time.Time) error       { return nil }
+func (s *memTasks) Restore(context.Context, string) (domain.Task, error) { return domain.Task{}, nil }
+func (s *memTasks) ListTrashed(context.Context) ([]domain.Task, error)   { return nil, nil }
+
 func newTaskSvc() (*TaskService, *time.Time) {
 	clock := time.Date(2026, 10, 6, 9, 0, 0, 0, time.UTC)
 	return NewTaskService(&memTasks{m: map[string]domain.Task{}}, func() time.Time { return clock }), &clock

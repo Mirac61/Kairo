@@ -16,6 +16,9 @@ type HabitStore interface {
 	List(ctx context.Context) ([]domain.Habit, error)
 	Update(ctx context.Context, h domain.Habit) error
 	Delete(ctx context.Context, id string) error
+	Trash(ctx context.Context, id string, at time.Time) error
+	Restore(ctx context.Context, id string) (domain.Habit, error)
+	ListTrashed(ctx context.Context) ([]domain.Habit, error)
 	CreateCompletion(ctx context.Context, c domain.HabitCompletion) error
 	DeleteCompletion(ctx context.Context, habitID, date string) error
 	ListCompletions(ctx context.Context, habitID, from, to string) ([]domain.HabitCompletion, error)
@@ -175,12 +178,35 @@ func (s *HabitService) Update(ctx context.Context, id string, in UpdateHabitInpu
 	return h, nil
 }
 
+// Delete löscht endgültig, samt Completions.
 func (s *HabitService) Delete(ctx context.Context, id string) error {
 	if err := s.store.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.emit(domain.Event{Type: domain.EventHabitDeleted, ID: id})
 	return nil
+}
+
+// Trash legt das Habit in den Papierkorb; die Completions bleiben für die Wiederherstellung erhalten.
+func (s *HabitService) Trash(ctx context.Context, id string) error {
+	if err := s.store.Trash(ctx, id, s.now()); err != nil {
+		return err
+	}
+	s.emit(domain.Event{Type: domain.EventHabitDeleted, ID: id})
+	return nil
+}
+
+func (s *HabitService) Restore(ctx context.Context, id string) (domain.Habit, error) {
+	h, err := s.store.Restore(ctx, id)
+	if err != nil {
+		return domain.Habit{}, err
+	}
+	s.emit(domain.Event{Type: domain.EventHabitCreated, ID: id})
+	return h, nil
+}
+
+func (s *HabitService) ListTrashed(ctx context.Context) ([]domain.Habit, error) {
+	return s.store.ListTrashed(ctx)
 }
 
 // Complete hakt ein Habit an einem Tag ab. Der Tag muss zwischen start_date

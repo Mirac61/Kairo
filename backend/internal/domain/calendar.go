@@ -19,6 +19,7 @@ type CalendarEvent struct {
 	ExternalUID       *string  // UID aus einem ICS-Import, sonst nil
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	DeletedAt         *time.Time // UTC; nur in der Papierkorb-Liste gesetzt
 }
 
 // EventOccurrence ist ein konkreter Termin eines (ggf. wiederkehrenden) Events.

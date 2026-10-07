@@ -20,6 +20,9 @@ type CalendarStore interface {
 	List(ctx context.Context) ([]domain.CalendarEvent, error)
 	Update(ctx context.Context, e domain.CalendarEvent) error
 	Delete(ctx context.Context, id string) error
+	Trash(ctx context.Context, id string, at time.Time) error
+	Restore(ctx context.Context, id string) (domain.CalendarEvent, error)
+	ListTrashed(ctx context.Context) ([]domain.CalendarEvent, error)
 }
 
 // CalendarService enthält die Regeln für Kalender-Events.
@@ -242,10 +245,25 @@ func (s *CalendarService) ImportICS(ctx context.Context, data string) (ImportRes
 			byUID[*e.ExternalUID] = e
 		}
 	}
+	trashed, err := s.store.ListTrashed(ctx)
+	if err != nil {
+		return res, err
+	}
+	inTrash := map[string]bool{}
+	for _, e := range trashed {
+		if e.ExternalUID != nil {
+			inTrash[*e.ExternalUID] = true
+		}
+	}
 	now := s.now().UTC()
 	for _, ev := range evs {
 		if ev.Note != "" {
 			res.Notes = append(res.Notes, ev.Note)
+		}
+		if inTrash[ev.UID] {
+			res.Skipped++
+			res.Notes = append(res.Notes, fmt.Sprintf("%q: im Papierkorb", cmp.Or(ev.Summary, "(ohne Titel)")))
+			continue
 		}
 		e, found := byUID[ev.UID]
 		if !found {
@@ -285,12 +303,35 @@ func (s *CalendarService) ImportICS(ctx context.Context, data string) (ImportRes
 	return res, nil
 }
 
+// Delete löscht endgültig.
 func (s *CalendarService) Delete(ctx context.Context, id string) error {
 	if err := s.store.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.emit(domain.Event{Type: domain.EventCalendarEventDeleted, ID: id})
 	return nil
+}
+
+// Trash legt den Termin (bei Serien die ganze Serie) in den Papierkorb.
+func (s *CalendarService) Trash(ctx context.Context, id string) error {
+	if err := s.store.Trash(ctx, id, s.now()); err != nil {
+		return err
+	}
+	s.emit(domain.Event{Type: domain.EventCalendarEventDeleted, ID: id})
+	return nil
+}
+
+func (s *CalendarService) Restore(ctx context.Context, id string) (domain.CalendarEvent, error) {
+	e, err := s.store.Restore(ctx, id)
+	if err != nil {
+		return domain.CalendarEvent{}, err
+	}
+	s.emit(domain.Event{Type: domain.EventCalendarEventCreated, ID: id})
+	return e, nil
+}
+
+func (s *CalendarService) ListTrashed(ctx context.Context) ([]domain.CalendarEvent, error) {
+	return s.store.ListTrashed(ctx)
 }
 
 // occurrences liefert die Termine von e, die das Fenster [from, to) berühren,

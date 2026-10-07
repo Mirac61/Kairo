@@ -147,6 +147,7 @@ type Habit struct {
 	EndDate         *string // lokaler Tag, inklusive
 	Active          bool
 	CreatedAt       time.Time
+	DeletedAt       *time.Time // UTC; nur in der Papierkorb-Liste gesetzt
 }
 
 // HabitCompletion ist das Abhaken eines Habits an einem lokalen Tag.

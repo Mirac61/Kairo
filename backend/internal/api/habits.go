@@ -16,6 +16,9 @@ type HabitService interface {
 	List(ctx context.Context) ([]domain.Habit, error)
 	Update(ctx context.Context, id string, in service.UpdateHabitInput) (domain.Habit, error)
 	Delete(ctx context.Context, id string) error
+	Trash(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) (domain.Habit, error)
+	ListTrashed(ctx context.Context) ([]domain.Habit, error)
 	Complete(ctx context.Context, habitID string, in service.CompleteHabitInput) (domain.HabitCompletion, error)
 	Uncomplete(ctx context.Context, habitID, date string) error
 	Completions(ctx context.Context, habitID, from, to string) ([]domain.HabitCompletion, error)
@@ -34,6 +37,7 @@ type habitDTO struct {
 	EndDate         *string                `json:"end_date"`
 	Active          bool                   `json:"active"`
 	CreatedAt       string                 `json:"created_at"`
+	DeletedAt       *string                `json:"deleted_at,omitempty"` // nur im Papierkorb
 }
 
 func toHabitDTO(h domain.Habit) habitDTO {
@@ -50,6 +54,7 @@ func toHabitDTO(h domain.Habit) habitDTO {
 		EndDate:         h.EndDate,
 		Active:          h.Active,
 		CreatedAt:       h.CreatedAt.UTC().Format(time.RFC3339),
+		DeletedAt:       formatOptTime(h.DeletedAt),
 	}
 }
 
@@ -80,7 +85,8 @@ func (h habitHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/habits", h.create)
 	mux.HandleFunc("GET /api/habits/{id}", h.get)
 	mux.HandleFunc("PATCH /api/habits/{id}", h.update)
-	mux.HandleFunc("DELETE /api/habits/{id}", h.delete)
+	mux.HandleFunc("DELETE /api/habits/{id}", deleteHandler(h.svc.Trash, h.svc.Delete))
+	mux.HandleFunc("POST /api/habits/{id}/restore", restoreHandler(h.svc.Restore, toHabitDTO))
 	mux.HandleFunc("GET /api/habits/{id}/completions", h.listCompletions)
 	mux.HandleFunc("POST /api/habits/{id}/completions", h.complete)
 	mux.HandleFunc("DELETE /api/habits/{id}/completions/{date}", h.uncomplete)
@@ -184,14 +190,6 @@ func (h habitHandlers) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toHabitDTO(x))
-}
-
-func (h habitHandlers) delete(w http.ResponseWriter, r *http.Request) {
-	if err := h.svc.Delete(r.Context(), r.PathValue("id")); err != nil {
-		writeError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // listCompletions unterstützt ?from= und ?to= (YYYY-MM-DD, inklusive).

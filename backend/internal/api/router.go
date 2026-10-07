@@ -39,6 +39,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	if svc.Habits != nil {
 		habitHandlers{svc.Habits}.register(mux)
 	}
+	if svc.Tasks != nil && svc.Calendar != nil && svc.Habits != nil {
+		trashHandlers{svc.Tasks, svc.Calendar, svc.Habits}.register(mux)
+	}
 	if svc.Resources != nil {
 		resourceHandlers{svc.Resources}.register(mux)
 	}
