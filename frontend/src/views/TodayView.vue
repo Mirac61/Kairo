@@ -7,6 +7,7 @@ import {
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useUndo } from '@/composables/useUndo'
 import { daysAgo, ymd } from '@/lib/dates'
+import { parseQuickAdd } from '@/lib/quickAdd'
 import { projectColor } from '@/lib/projectColor'
 import TaskActions from '@/components/TaskActions.vue'
 import DeleteButton from '@/components/DeleteButton.vue'
@@ -208,10 +209,10 @@ function dropTask(e: DragEvent) {
 }
 
 function addQuick() {
-  const title = quick.value.trim()
+  const { title, minutes } = parseQuickAdd(quick.value)
   if (!title || !today.value) return
   void run(async () => {
-    await createTask({ title, planned_date: today.value!.date })
+    await createTask({ title, estimated_minutes: minutes, planned_date: today.value!.date })
     quick.value = ''
   })
 }
@@ -340,7 +341,7 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
           <div v-if="doneTasks.length" class="v-sub">{{ doneTasks.length }} erledigt</div>
           <form class="addrow" @submit.prevent="addQuick">
             <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-            <input v-model="quick" type="text" placeholder="Aufgabe für heute hinzufügen" aria-label="Aufgabe für heute hinzufügen" />
+            <input v-model="quick" type="text" placeholder="Aufgabe für heute hinzufügen, z. B. 30 min Sport" aria-label="Aufgabe für heute hinzufügen" />
           </form>
 
           <div class="col-head" style="margin-top:28px"><h2 class="col-title">Zeiterfassung</h2></div>

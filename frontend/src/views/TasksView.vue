@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
-  createTask, deleteTask, errorMessage, listProjects, listResources, listTasks, restoreTask, updateTask,
+  createTask, deleteTask, errorMessage, listProjects, listResources, listTasks, restoreTask, taskAction, updateTask,
   type Project, type Resource, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useUndo } from '@/composables/useUndo'
 import { hhmm, ymd } from '@/lib/dates'
 import { projectColor } from '@/lib/projectColor'
+import { parseQuickAdd } from '@/lib/quickAdd'
 import ResourceList from '@/components/ResourceList.vue'
 import TaskActions from '@/components/TaskActions.vue'
 
@@ -27,6 +29,11 @@ const FILTERS = [
 // Per Auswahl setzbar; Läuft, Pausiert und Erledigt ergeben sich aus Timer und Häkchen.
 const SETTABLE: Task['status'][] = ['BACKLOG', 'PLANNED', 'CANCELLED']
 
+const SORTS = [['created', 'Angelegt'], ['day', 'Tag'], ['prio', 'Priorität'], ['title', 'Titel']] as const
+const GROUPS = [['none', 'Keine'], ['project', 'Projekt'], ['day', 'Tag']] as const
+const PRIO_RANK: Record<string, number> = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
+const VIEW_KEY = 'kairo-tasks-view' // Sortierung und Gruppierung merkt sich der Browser
+
 const tasks = ref<Task[]>([])
 const projects = ref<Project[]>([])
 const resources = ref<Resource[]>([])
@@ -36,6 +43,13 @@ const projectId = ref('alle')
 const openId = ref<string | null>(null)
 const quick = ref('')
 const subTitle = ref('')
+const search = ref('')
+const sel = ref<string | null>(null) // Auswahl für die Tastenkürzel
+const quickEl = ref<HTMLInputElement>()
+const view = ref({ sort: 'created', group: 'none' })
+try { Object.assign(view.value, JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}')) } catch { /* privater Modus oder kaputter Wert */ }
+watch(view, (v) => { try { localStorage.setItem(VIEW_KEY, JSON.stringify(v)) } catch { /* privater Modus */ } }, { deep: true })
+const route = useRoute()
 
 const { offer, setDone } = useUndo()
 
@@ -48,6 +62,8 @@ const dayOf = (t: Task) => t.planned_date ?? (t.due_at ? ymd(new Date(t.due_at))
 
 const visible = computed(() => tasks.value.filter((t) => {
   if (projectId.value !== 'alle' && t.project_id !== projectId.value) return false
+  const q = search.value.trim().toLowerCase()
+  if (q && !`${t.title} ${t.description}`.toLowerCase().includes(q)) return false
   const d = dayOf(t)
   switch (filter.value) {
     case 'erledigt': return t.status === 'COMPLETED'
@@ -68,6 +84,34 @@ const rows = computed(() => {
     return !p || p.parent_task_id
   })
 })
+const SORT: Record<string, (a: Task, b: Task) => number> = {
+  created: () => 0, // Reihenfolge der API
+  day: (a, b) => (dayOf(a) ?? '9').localeCompare(dayOf(b) ?? '9') || (a.planned_start_at ?? '').localeCompare(b.planned_start_at ?? ''),
+  prio: (a, b) => (PRIO_RANK[a.priority] ?? 2) - (PRIO_RANK[b.priority] ?? 2),
+  title: (a, b) => a.title.localeCompare(b.title, 'de'),
+}
+
+// Gruppen in Anzeigereihenfolge: Tag aufsteigend, Projekt nach Name; „ohne“ steht zuletzt.
+const groups = computed(() => {
+  const sorted = [...rows.value].sort(SORT[view.value.sort] ?? SORT.created!)
+  const by = view.value.group
+  if (!sorted.length) return []
+  if (by !== 'project' && by !== 'day') return [{ key: '', title: '', rows: sorted }]
+  const keyOf = (t: Task) => (by === 'project' ? t.project_id : dayOf(t)) ?? ''
+  const titleOf = (k: string) => (by === 'project' ? (k ? projectName.value.get(k) ?? 'Projekt' : 'Ohne Projekt') : k ? fmtDay(k) : 'Ohne Tag')
+  const m = new Map<string, Task[]>()
+  for (const t of sorted) m.set(keyOf(t), [...(m.get(keyOf(t)) ?? []), t])
+  return [...m]
+    .sort(([a], [b]) => Number(a === '') - Number(b === '') || (by === 'day' ? a.localeCompare(b) : titleOf(a).localeCompare(titleOf(b), 'de')))
+    .map(([key, rs]) => ({ key, title: titleOf(key), rows: rs }))
+})
+const flat = computed(() => groups.value.flatMap((g) => g.rows))
+// Verschwindet die ausgewählte Task (erledigt, gefiltert), rückt die Auswahl auf die Nachbarin.
+watch(flat, (now, before) => {
+  if (!sel.value || now.some((t) => t.id === sel.value)) return
+  sel.value = now[Math.min(before.findIndex((t) => t.id === sel.value), now.length - 1)]?.id ?? null
+})
+
 const kidsOf = (id: string) => tasks.value.filter((t) => t.parent_task_id === id)
 const progress = (id: string) => {
   const k = kidsOf(id).filter((c) => c.status !== 'CANCELLED')
@@ -95,10 +139,10 @@ async function run(fn: () => Promise<unknown>) {
 }
 
 function add() {
-  const title = quick.value.trim()
+  const { title, minutes } = parseQuickAdd(quick.value)
   if (!title) return
   void run(async () => {
-    await createTask({ title, project_id: projectId.value === 'alle' ? null : projectId.value })
+    await createTask({ title, estimated_minutes: minutes, project_id: projectId.value === 'alle' ? null : projectId.value })
     quick.value = ''
   })
 }
@@ -151,7 +195,43 @@ const dueDay = (t: Task) => (t.due_at ? ymd(new Date(t.due_at)) : '')
 const setDue = (t: Task, day: string) => void run(() => updateTask(t.id, { due_at: day ? new Date(`${day}T23:59:00`).toISOString() : '' }))
 const valueOf = (e: Event) => (e.target as HTMLInputElement).value
 
-onMounted(load)
+// Tastenkürzel: n neu · j/k wählen · x erledigen · Enter öffnen · s Start/Pause · t heute. Nicht beim Tippen, nicht in Dialogen.
+function move(d: number) {
+  const l = flat.value
+  if (!l.length) return
+  const i = l.findIndex((t) => t.id === sel.value)
+  sel.value = l[i < 0 ? (d > 0 ? 0 : l.length - 1) : Math.min(Math.max(i + d, 0), l.length - 1)]!.id
+  void nextTick(() => document.querySelector(`[data-task="${sel.value}"]`)?.scrollIntoView({ block: 'nearest' }))
+}
+function onKey(e: KeyboardEvent) {
+  const el = e.target as HTMLElement
+  if (e.ctrlKey || e.metaKey || e.altKey || el.closest('input, textarea, select, [contenteditable], .overlay')) return
+  const t = flat.value.find((x) => x.id === sel.value)
+  if (e.key === 'n') { e.preventDefault(); quickEl.value?.focus() }
+  else if (e.key === 'j') move(1)
+  else if (e.key === 'k') move(-1)
+  else if (e.key === 'Enter' && t && !el.closest('button, a')) openId.value = openId.value === t.id ? null : t.id
+  else if (e.key === 'x' && t) void toggle(t)
+  else if (e.key === 's' && t && isOpen(t)) void run(() => taskAction(t.id, t.status === 'IN_PROGRESS' ? 'pause' : 'start'))
+  else if (e.key === 't' && t && isOpen(t)) setDate(t, todayStr())
+}
+
+// Aus dem Kalender: /tasks?task=ID öffnet die Task, auch wenn sie erledigt oder abgebrochen ist.
+function focusFromRoute() {
+  const t = tasks.value.find((x) => x.id === route.query.task)
+  if (!t) return
+  filter.value = t.status === 'COMPLETED' ? 'erledigt' : t.status === 'CANCELLED' ? 'abgebrochen' : 'alle'
+  projectId.value = 'alle'
+  search.value = ''
+  openId.value = sel.value = t.id
+  void nextTick(() => document.querySelector(`[data-task="${t.id}"]`)?.scrollIntoView({ block: 'center' }))
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKey)
+  void load().then(focusFromRoute)
+})
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 useLiveEvents(load)
 </script>
 
@@ -169,14 +249,23 @@ useLiveEvents(load)
         <option value="alle">Alle Projekte</option>
         <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
       </select>
+      <input v-model="search" type="search" class="input" placeholder="Suchen …" aria-label="Aufgaben durchsuchen" />
+      <select v-model="view.group" class="input" aria-label="Gruppieren nach">
+        <option v-for="[v, l] in GROUPS" :key="v" :value="v">Gruppe: {{ l }}</option>
+      </select>
+      <select v-model="view.sort" class="input" aria-label="Sortieren nach">
+        <option v-for="[v, l] in SORTS" :key="v" :value="v">Sortierung: {{ l }}</option>
+      </select>
     </div>
 
     <div v-if="!rows.length" class="v-sub">Keine Aufgaben.</div>
-    <div v-else class="card tasklist">
-      <template v-for="t in rows" :key="t.id">
-        <div class="task-row" :class="{ done: !isOpen(t) }">
+    <div v-for="g in groups" :key="g.key" class="tgroup">
+      <span v-if="g.title" class="lbl">{{ g.title }}<span class="count">{{ g.rows.length }}</span></span>
+      <div class="card tasklist">
+      <template v-for="t in g.rows" :key="t.id">
+        <div class="task-row" :class="{ done: !isOpen(t), selected: sel === t.id }" :data-task="t.id">
           <button type="button" class="cb" role="checkbox" :aria-checked="t.status === 'COMPLETED'" :aria-label="`${t.title} erledigt`" :disabled="t.status === 'CANCELLED'" @click="toggle(t)"></button>
-          <button type="button" class="t row-title" :aria-expanded="openId === t.id" @click="openId = openId === t.id ? null : t.id; subTitle = ''">{{ t.title }}</button>
+          <button type="button" class="t row-title" :aria-expanded="openId === t.id" @click="openId = openId === t.id ? null : t.id; sel = t.id; subTitle = ''">{{ t.title }}</button>
           <span v-if="progress(t.id)" class="badge mono" role="img" :aria-label="`Teilaufgaben erledigt: ${progress(t.id)}`">{{ progress(t.id) }}</span>
           <span v-if="t.status === 'IN_PROGRESS' || t.status === 'PAUSED'" class="badge"><span class="cdot" :style="{ background: t.status === 'IN_PROGRESS' ? 'var(--a-green)' : 'var(--a-yellow)' }"></span>{{ STATUS_LABEL[t.status] }}</span>
           <span v-if="t.project_id" class="chip" :style="{ '--chip-c': projectColor(t.project_id) }"><span class="cdot"></span>{{ projectName.get(t.project_id) }}</span>
@@ -227,16 +316,20 @@ useLiveEvents(load)
           <ResourceList class="full" :resources="resOf(t.id)" :task-id="t.id" @changed="load" />
         </div>
       </template>
+      </div>
     </div>
 
     <form class="addrow" @submit.prevent="add">
       <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-      <input v-model="quick" type="text" placeholder="Neue Aufgabe hinzufügen — mit Eingabetaste bestätigen" aria-label="Neue Aufgabe hinzufügen" />
+      <input ref="quickEl" v-model="quick" type="text" placeholder="Neue Aufgabe, z. B. 30 min Sport — mit Eingabetaste bestätigen" aria-label="Neue Aufgabe hinzufügen" />
     </form>
+    <p class="v-sub keys">Tastenkürzel: n neu · j/k wählen · x erledigt · Enter öffnen · s Start/Pause · t heute</p>
   </div>
 </template>
 
 <style scoped>
+.keys { margin-top: 10px; }
+.task-row.selected { background: var(--bg-2); box-shadow: inset 2px 0 0 var(--a-blue); }
 .row-title { text-align: left; background: none; border: 0; color: inherit; cursor: pointer; }
 .task-detail {
   display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 12px 16px 14px 44px;

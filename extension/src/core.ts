@@ -128,8 +128,12 @@ export function errorMessage(status: number, body: string): string {
 /** „30 min Sport“ oder „Sport 30m“ setzt die Schätzung (0 = keine). */
 export function parseQuickAdd(raw: string): { title: string; minutes: number } {
   const t = raw.trim();
-  const m = t.match(/^(\d{1,3})\s*m(?:in)?\s+(.+)$/i) ?? t.match(/^(.+?)\s+(\d{1,3})\s*m(?:in)?$/i);
-  return !m ? { title: t, minutes: 0 } : /^\d/.test(m[1]) ? { title: m[2], minutes: Number(m[1]) } : { title: m[1], minutes: Number(m[2]) };
+  const lead = t.match(/^(\d{1,3})\s*m(?:in)?\s+(.+)$/i);
+  if (lead) {
+    return { title: lead[2], minutes: Number(lead[1]) };
+  }
+  const trail = t.match(/^(.+?)\s+(\d{1,3})\s*m(?:in)?$/i);
+  return trail ? { title: trail[1], minutes: Number(trail[2]) } : { title: t, minutes: 0 };
 }
 
 /** Laufzeit als m:ss, ab einer Stunde h:mm:ss. */

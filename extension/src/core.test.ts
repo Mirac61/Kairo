@@ -23,6 +23,7 @@ assert.equal(errorMessage(400, '{"error":""}'), "HTTP 400");
 assert.deepEqual(parseQuickAdd("30 min Sport"), { title: "Sport", minutes: 30 });
 assert.deepEqual(parseQuickAdd(" Sport 45m "), { title: "Sport", minutes: 45 });
 assert.deepEqual(parseQuickAdd("Mathe lernen"), { title: "Mathe lernen", minutes: 0 });
+assert.deepEqual(parseQuickAdd("3D Druck 30 min"), { title: "3D Druck", minutes: 30 }); // Titel darf mit einer Ziffer beginnen
 assert.equal(formatElapsed(32_000), "0:32");
 assert.equal(formatElapsed(3_725_000), "1:02:05");
 assert.equal(formatElapsed(-5), "0:00"); // Uhr-Versatz nie negativ
