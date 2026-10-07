@@ -18,6 +18,15 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// writeList antwortet mit den DTOs der Liste; auch eine leere Liste wird zu [] statt null.
+func writeList[T, D any](w http.ResponseWriter, items []T, dto func(T) D) {
+	out := make([]D, len(items))
+	for i, v := range items {
+		out[i] = dto(v)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 // writeError übersetzt Domain-Fehler in HTTP-Status. Interne Fehler werden
 // geloggt, aber nicht an den Client durchgereicht.
 func writeError(w http.ResponseWriter, err error) {

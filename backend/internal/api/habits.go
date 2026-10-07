@@ -98,11 +98,7 @@ func (h habitHandlers) list(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	out := make([]habitDTO, len(hs))
-	for i, x := range hs {
-		out[i] = toHabitDTO(x)
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeList(w, hs, toHabitDTO)
 }
 
 // create: start_date ist standardmäßig heute, active standardmäßig true.
@@ -200,11 +196,7 @@ func (h habitHandlers) listCompletions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	out := make([]habitCompletionDTO, len(cs))
-	for i, c := range cs {
-		out[i] = toHabitCompletionDTO(c)
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeList(w, cs, toHabitCompletionDTO)
 }
 
 // complete hakt das Habit ab. date ist optional (Standard: heute); ein

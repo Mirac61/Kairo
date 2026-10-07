@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  api, completeHabit, createHabit, deleteHabit, errorMessage, getToday, listHabits, restoreHabit, uncompleteHabit, updateHabit,
+  api, completeHabit, createHabit, deleteHabit, getToday, listHabits, restoreHabit, uncompleteHabit, updateHabit,
   type FrequencyConfig, type Habit, type TodayHabit,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { useLoader } from '@/composables/useLoader'
 import { useUndo } from '@/composables/useUndo'
 import { vDialog } from '@/lib/dialog'
 import { ymd } from '@/lib/dates'
+import { habitColor } from '@/lib/projectColor'
 import SearchField from '@/components/SearchField.vue'
 
 const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
@@ -20,7 +22,6 @@ const habits = ref<Habit[]>([])
 const todayHabits = ref<TodayHabit[]>([])
 const done = ref<Record<string, Set<string>>>({})
 const streaks = ref<Record<string, number>>({})
-const error = ref('')
 const dialog = ref(false)
 const form = ref({ name: '', type: 'DAILY' as Habit['frequency_type'], weekday: 'MO', weekdays: ['MO'] as string[], times: 3 })
 
@@ -32,34 +33,19 @@ const days = () => Array.from({ length: DAYS }, (_, i) => {
   return d
 })
 
-async function load() {
-  try {
-    const t = today()
-    const from = ymd(days()[0]!)
-    const [hs, td, rv] = await Promise.all([
-      listHabits(), getToday(t), api<{ habits: { habit_id: string; streak: number }[] }>(`/review?from=${t}&to=${t}`),
-    ])
-    const comps = await Promise.all(hs.map((h) =>
-      api<{ date: string }[]>(`/habits/${h.id}/completions?from=${from}&to=${t}`)))
-    habits.value = hs
-    todayHabits.value = td.habits
-    streaks.value = Object.fromEntries(rv.habits.map((h) => [h.habit_id, h.streak]))
-    done.value = Object.fromEntries(hs.map((h, i) => [h.id, new Set(comps[i]!.map((c) => c.date))]))
-    error.value = ''
-  } catch (e) {
-    error.value = errorMessage(e)
-  }
-}
-
-async function run(fn: () => Promise<unknown>) {
-  try {
-    await fn()
-  } catch (e) {
-    error.value = errorMessage(e)
-    return
-  }
-  await load()
-}
+const { error, load, run } = useLoader(async () => {
+  const t = today()
+  const from = ymd(days()[0]!)
+  const [hs, td, rv] = await Promise.all([
+    listHabits(), getToday(t), api<{ habits: { habit_id: string; streak: number }[] }>(`/review?from=${t}&to=${t}`),
+  ])
+  const comps = await Promise.all(hs.map((h) =>
+    api<{ date: string }[]>(`/habits/${h.id}/completions?from=${from}&to=${t}`)))
+  habits.value = hs
+  todayHabits.value = td.habits
+  streaks.value = Object.fromEntries(rv.habits.map((h) => [h.habit_id, h.streak]))
+  done.value = Object.fromEntries(hs.map((h, i) => [h.id, new Set(comps[i]!.map((c) => c.date))]))
+})
 
 const { offer } = useUndo()
 
@@ -129,16 +115,32 @@ const toggleCell = (h: Habit, c: { s: string; isDone: boolean }) =>
   run(() => (c.isDone ? uncompleteHabit(h.id, c.s) : completeHabit(h.id, c.s)))
 const doneCount = (h: Habit) => done.value[h.id]?.size ?? 0
 const week = (h: Habit) => days().slice(-7).filter((d) => done.value[h.id]?.has(ymd(d))).length
-// Wochenfortschritt: das Backend liefert ihn nur, solange der Habit heute fällig ist; sonst aus den Tagen seit Montag.
-const weekProgress = (h: Habit) => {
+// Letzte 7 Tage; bei X-mal pro Woche der Wochenfortschritt (das Backend liefert ihn nur, solange der Habit heute fällig ist; sonst aus den Tagen seit Montag).
+const weekOf = (h: Habit) => {
+  if (h.frequency_type !== 'TIMES_PER_WEEK') return { done: week(h), target: 7 }
   const p = todayHabits.value.find((x) => x.id === h.id)?.week_progress
   const sinceMonday = days().slice(-(((new Date().getDay() + 6) % 7) + 1)).filter((d) => done.value[h.id]?.has(ymd(d))).length
-  return `${p?.done ?? sinceMonday}/${p?.target ?? h.frequency_config.times ?? 1}`
+  return { done: p?.done ?? sinceMonday, target: p?.target ?? h.frequency_config.times ?? 1 }
 }
-const todayState = (h: Habit) => {
-  const t = todayHabits.value.find((x) => x.id === h.id)
-  return t ? (t.done ? 'Heute erledigt' : 'Heute offen') : 'Heute nicht fällig'
+const due = (h: Habit) => todayHabits.value.find((x) => x.id === h.id)
+const cardSub = (h: Habit) => {
+  const t = due(h)
+  return t ? `${t.done ? 'erledigt' : 'offen'} · Serie ${streaks.value[h.id] ?? 0}` : 'heute nicht fällig'
 }
+const activeHabits = computed(() => habits.value.filter((h) => h.active))
+const headline = computed(() =>
+  `${activeHabits.value.length} aktiv · heute ${todayHabits.value.filter((h) => h.done).length} von ${todayHabits.value.length} erledigt`)
+const dayHead = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'short' }).format(new Date())
+// Vier Wochenblöcke à 7 Tage, der letzte endet heute.
+const monthShort = new Intl.DateTimeFormat('de-DE', { month: 'short' })
+const weekLabels = Array.from({ length: 4 }, (_, g) => {
+  const a = days()[g * 7]!
+  const b = days()[g * 7 + 6]!
+  return a.getMonth() === b.getMonth()
+    ? `${a.getDate()}.–${b.getDate()}. ${monthShort.format(b)}`
+    : `${a.getDate()}. ${monthShort.format(a)}–${b.getDate()}. ${monthShort.format(b)}`
+})
+const weeks = (h: Habit) => { const c = cells(h); return [0, 1, 2, 3].map((g) => c.slice(g * 7, g * 7 + 7)) }
 const search = ref('')
 const sorted = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -154,52 +156,65 @@ useLiveEvents(load)
     <div class="v-head v-head-row">
       <div>
         <h1 class="v-title">Gewohnheiten</h1>
-        <div class="v-sub">Die letzten 28 Tage. Gefüllt heißt erledigt, Rahmen offen, gestrichelt nicht geplant. Ein Klick auf ein Feld trägt den Tag nach oder nimmt ihn zurück.</div>
+        <div class="v-sub">{{ headline }}</div>
       </div>
-      <button class="btn btn-secondary" type="button" @click="dialog = true"><svg class="ic"><use href="#i-plus" /></svg>Neue Gewohnheit</button>
+      <button class="btn btn-primary" type="button" @click="dialog = true"><svg class="ic"><use href="#i-plus" /></svg>Neue Gewohnheit</button>
     </div>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-    <div class="card hab-today">
-      <span class="lbl">Heute abhaken</span>
-      <div class="hab-chips">
-        <button v-for="h in todayHabits" :key="h.id" type="button" class="hab-chip" role="checkbox" :aria-checked="h.done" @click="toggle(h)">
-          <span class="cb" aria-hidden="true"></span>
-          <span>{{ h.name }}</span>
-          <span v-if="h.done" class="hc-done">erledigt</span>
+    <section class="hab-today">
+      <h2 class="hab-day">Heute · {{ dayHead }}</h2>
+      <div class="hab-cards">
+        <button v-for="h in activeHabits" :key="h.id" type="button" class="hab-chip" role="checkbox" :aria-checked="!!due(h)?.done" :disabled="!due(h)" @click="toggle(due(h)!)">
+          <span class="cb sq" :style="{ '--rc': habitColor(h.id) }" aria-hidden="true" :aria-checked="!!due(h)?.done"></span>
+          <span class="hc-text"><span class="hc-name">{{ h.name }}</span><span class="hc-sub">{{ cardSub(h) }}</span></span>
         </button>
-        <div v-if="!todayHabits.length" class="v-sub">Heute ist keine Gewohnheit fällig.</div>
+        <div v-if="!activeHabits.length" class="v-sub">Keine aktive Gewohnheit.</div>
       </div>
-    </div>
+    </section>
 
     <div class="filterbar"><SearchField v-model="search" label="Gewohnheiten durchsuchen" /></div>
-    <div class="hab-list">
-      <div v-if="!habits.length" class="v-sub">Keine Gewohnheiten.</div>
-      <div v-else-if="!sorted.length" class="v-sub">Keine Treffer für „{{ search }}“.</div>
-      <div v-for="h in sorted" :key="h.id" class="hab-item" :class="{ inactive: !h.active }">
+    <div v-if="!habits.length" class="v-sub">Keine Gewohnheiten.</div>
+    <div v-else-if="!sorted.length" class="v-sub">Keine Treffer für „{{ search }}“.</div>
+    <div v-else class="card hab-card">
+      <div class="hab-row hab-head" aria-hidden="true">
+        <span class="lbl">Gewohnheit</span>
+        <div class="hab-weeks"><span v-for="l in weekLabels" :key="l" class="lbl">{{ l }}</span></div>
+        <span class="lbl hab-r">Serie</span>
+        <span class="lbl hab-r">7 Tage</span>
+      </div>
+      <div v-for="h in sorted" :key="h.id" class="hab-row hab-item" :class="{ inactive: !h.active }" :style="{ '--hc': habitColor(h.id) }">
         <div class="hab-id">
-          <span class="hab-name">{{ h.name }}</span>
-          <span class="hab-sched">{{ describe(h) }}<template v-if="!h.active"> · inaktiv</template></span>
-        </div>
-        <div class="hab-num">
-          <span class="n" :class="{ cold: !streaks[h.id] }">{{ streaks[h.id] ?? 0 }}</span>
-          <span class="u">Tage Serie</span>
-        </div>
-        <div class="hab-track" role="group" :aria-label="`Letzte 28 Tage: ${doneCount(h)} Tage erledigt`">
-          <i
-            v-for="c in cells(h)" :key="c.s" :class="c.cls" :title="c.pre ? undefined : c.label" :aria-hidden="c.pre || undefined"
-            :role="c.can ? 'checkbox' : undefined" :aria-checked="c.can ? c.isDone : undefined" :aria-label="c.can ? c.label : undefined" :tabindex="c.can ? 0 : undefined"
-            @click="c.can && toggleCell(h, c)" @keydown.enter.prevent="c.can && toggleCell(h, c)" @keydown.space.prevent="c.can && toggleCell(h, c)"
-          ></i>
-        </div>
-        <div class="hab-meta">
-          <span v-if="h.frequency_type === 'TIMES_PER_WEEK'"><span class="mono">{{ weekProgress(h) }}</span> diese Woche · {{ todayState(h) }}</span>
-          <span v-else>Letzte 7 Tage <span class="mono">{{ week(h) }}/7</span> · {{ todayState(h) }}</span>
-          <span class="acts">
-            <button class="btn btn-ghost" type="button" @click="run(() => updateHabit(h.id, { active: !h.active }))">{{ h.active ? 'Deaktivieren' : 'Aktivieren' }}</button>
-            <button type="button" class="btn btn-danger" @click="trash(h)">Löschen</button>
+          <span class="hab-name"><i class="hab-dot"></i>{{ h.name }}</span>
+          <span class="hab-sub">
+            <span class="hab-sched">{{ describe(h) }}<template v-if="!h.active"> · inaktiv</template></span>
+            <span class="acts">
+              <button class="btn btn-ghost" type="button" @click="run(() => updateHabit(h.id, { active: !h.active }))">{{ h.active ? 'Deaktivieren' : 'Aktivieren' }}</button>
+              <button type="button" class="btn btn-ghost" @click="trash(h)">Löschen</button>
+            </span>
           </span>
         </div>
+        <div class="hab-weeks hab-track" role="group" :aria-label="`Letzte 28 Tage: ${doneCount(h)} Tage erledigt`">
+          <div v-for="(wk, g) in weeks(h)" :key="g" class="hab-wk">
+            <i
+              v-for="c in wk" :key="c.s" :class="c.cls" :title="c.pre ? undefined : c.label" :aria-hidden="c.pre || undefined"
+              :role="c.can ? 'checkbox' : undefined" :aria-checked="c.can ? c.isDone : undefined" :aria-label="c.can ? c.label : undefined" :tabindex="c.can ? 0 : undefined"
+              @click="c.can && toggleCell(h, c)" @keydown.enter.prevent="c.can && toggleCell(h, c)" @keydown.space.prevent="c.can && toggleCell(h, c)"
+            ></i>
+          </div>
+        </div>
+        <div class="hab-num hab-r"><span class="n" :class="{ cold: !streaks[h.id] }">{{ streaks[h.id] ?? 0 }}</span></div>
+        <div class="hab-wkn hab-r" :title="h.frequency_type === 'TIMES_PER_WEEK' ? 'Diese Woche' : 'Letzte 7 Tage'">
+          <span class="mono">{{ weekOf(h).done }}/{{ weekOf(h).target }}</span>
+          <div class="pbar" aria-hidden="true"><div class="pbar-fill" :style="{ width: Math.min(100, (weekOf(h).done / weekOf(h).target) * 100) + '%' }"></div></div>
+        </div>
+      </div>
+      <div class="hab-foot">
+        <span class="hab-legend"><i class="done"></i>erledigt</span>
+        <span class="hab-legend"><i></i>offen</span>
+        <span class="hab-legend"><i class="off"></i>nicht geplant</span>
+        <span class="hab-legend"><i class="today"></i>heute</span>
+        <span class="hab-hint">Klick auf ein Feld trägt nach oder nimmt zurück</span>
       </div>
     </div>
 
@@ -240,8 +255,13 @@ useLiveEvents(load)
 
 <style scoped>
 .inactive .hab-name, .inactive .hab-num { opacity: .5; }
-.acts { display: inline-flex; gap: 4px; opacity: 0; transition: opacity var(--dur) ease-out; }
-.hab-item:hover .acts, .hab-item:focus-within .acts { opacity: 1; }
+/* Beim Überfahren ersetzen die Aktionen die Rhythmus-Zeile. */
+.hab-sub { display: grid; align-items: center; min-height: 20px; }
+.hab-sub > * { grid-area: 1 / 1; }
+.acts { display: inline-flex; gap: 2px; margin-left: -8px; opacity: 0; pointer-events: none; transition: opacity var(--dur) ease-out; }
+.acts .btn { min-height: 0; height: 20px; padding: 0 8px; font-size: 12px; }
+.hab-item:hover .acts, .hab-item:focus-within .acts { opacity: 1; pointer-events: auto; }
+.hab-item:hover .hab-sched, .hab-item:focus-within .hab-sched { opacity: 0; }
 .hab-track i.pre { visibility: hidden; }
 .hab-track i[role="checkbox"] { cursor: pointer; }
 .hab-track i[role="checkbox"]:hover { border-color: var(--tx-primary); }

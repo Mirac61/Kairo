@@ -96,11 +96,7 @@ func (h timeHandlers) list(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	out := make([]timeEntryDTO, len(es))
-	for i, e := range es {
-		out[i] = toTimeEntryDTO(e)
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeList(w, es, toTimeEntryDTO)
 }
 
 // create erfasst einen beendeten Eintrag nachträglich (started_at und

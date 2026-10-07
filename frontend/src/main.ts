@@ -9,14 +9,11 @@ import App from './App.vue'
 import router from './router'
 import './styles.css'
 import './design.css'
+import { store } from './lib/storage'
 
 // Vor dem Mounten setzen, damit nichts aufblitzt: gespeichertes Theme, sonst System.
-try {
-  document.documentElement.dataset.theme =
-    localStorage.getItem('kairo-theme') ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-} catch {
-  document.documentElement.dataset.theme = 'dark'
-}
+document.documentElement.dataset.theme =
+  store.get('kairo-theme') ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
 
 createApp(App)
   .use(router)

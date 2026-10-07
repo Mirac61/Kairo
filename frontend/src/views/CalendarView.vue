@@ -10,27 +10,22 @@ import deLocale from '@fullcalendar/core/locales/de'
 import type { CalendarOptions, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
 import Message from 'primevue/message'
 import {
-  createEvent, createTask, deleteEvent, errorMessage, getOccurrences, importIcs, listProjects, listTasks, listTimeEntries, restoreEvent, skipOccurrence, taskAction, updateEvent, updateTask,
+  createEvent, createTask, deleteEvent, errorMessage, getOccurrences, importIcs, isOpen, listProjects, listTasks, listTimeEntries, restoreEvent, skipOccurrence, taskAction, updateEvent, updateTask,
   type CalendarEvent, type EventBody, type Project, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { useShortcuts } from '@/composables/useShortcuts'
 import { useUndo } from '@/composables/useUndo'
 import { vDialog } from '@/lib/dialog'
-import { hhmm, ymd } from '@/lib/dates'
+import { addDays, hhmm, hm, ymd } from '@/lib/dates'
+import { editForm, isAllDay, newForm, ruleOf, WEEKDAYS, type Form } from '@/lib/eventForm'
 import { projectColor } from '@/lib/projectColor'
+import { store } from '@/lib/storage'
 
 // Tasks ohne Dauer erscheinen mit dieser Länge im Raster.
 const DEFAULT_TASK_MINUTES = 30
 
-const nextDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)
-// Letzter Tag eines Zeitraums mit exklusivem Ende.
-const lastDay = (end: Date) => ymd(new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1))
-// Ganztägig = von Mitternacht bis Mitternacht (ab 23 h wegen der Zeitumstellung); das Backend kennt kein eigenes Flag.
-const atMidnight = (d: Date) => d.getHours() === 0 && d.getMinutes() === 0
-const isAllDay = (start: Date, end: Date) => atMidnight(start) && atMidnight(end) && end.getTime() - start.getTime() >= 23 * 3_600_000
-
 const el = (tag: string, cls: string, text = '') => Object.assign(document.createElement(tag), { className: cls, textContent: text })
-const fd = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`
 // Je Tag: [geplant, erfasst] in Minuten; der Tageskopf zeigt beides (Plan/Ist).
 const stats = new Map<string, [number, number]>()
 const bump = (day: string, i: 0 | 1, min: number) => {
@@ -46,15 +41,15 @@ function isoWeek(d: Date) {
 }
 const inMin = (d: Date) => {
   const m = Math.max(0, Math.round((d.getTime() - Date.now()) / 60_000))
-  return m < 60 ? `${m} min` : `${fd(m)} h`
+  return m < 60 ? `${m} min` : `${hm(m)} h`
 }
 function paintDay(th: HTMLElement) {
   const q = (sel: string) => th.querySelector<HTMLElement>(sel)
   const plan = q('.kt-plan')
   if (!plan) return // Monatskopf hat keine Statistik
   const [p, t] = stats.get(th.dataset.date ?? '') ?? [0, 0]
-  plan.textContent = p ? `Plan ${fd(p)}` : 'frei'
-  q('.kt-ist')!.textContent = t ? `Ist ${fd(t)}` : ''
+  plan.textContent = p ? `Plan ${hm(p)}` : 'frei'
+  q('.kt-ist')!.textContent = t ? `Ist ${hm(t)}` : ''
   q('.kt-bar .p')!.style.width = `${Math.min(100, p / 4.8)}%` // 8 h = volle Breite
   q('.kt-bar .t')!.style.width = `${Math.min(100, t / 4.8)}%`
 }
@@ -77,20 +72,21 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
   const [occ, tasks, ps, times] = await Promise.all([getOccurrences(from, to), listTasks(), listProjects(), listTimeEntries(from, to)])
   projects.value = ps
   const names = new Map(ps.map((p) => [p.id, p.name]))
+  const proj = (id: string | null) => names.get(id ?? '') ?? ''
   stats.clear()
   // Tagesansicht: Zeitspannen für „frei“ und der nächste Eintrag nach jetzt („Als Nächstes“).
   const spans: [number, number][] = []
   const nowMs = Date.now()
   let next: NextUp | null = null
   const consider = (n: NextUp) => { if (n.start.getTime() > nowMs && (!next || n.start < next.start)) next = n }
-  unplanned.value = tasks.filter((t) => !t.planned_date && t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
+  unplanned.value = tasks.filter((t) => !t.planned_date && isOpen(t))
   const entries: EventInput[] = occ.map((e) => {
     const [s, en] = [new Date(e.occurrence_start), new Date(e.occurrence_end)]
     const allDay = isAllDay(s, en)
     if (!allDay) {
       bump(ymd(s), 0, (en.getTime() - s.getTime()) / 60_000)
       spans.push([s.getTime(), en.getTime()])
-      consider({ id: `e:${e.id}:${e.occurrence_start}`, title: e.title, start: s, end: en, proj: names.get(e.project_id ?? '') ?? '', color: projectColor(e.project_id) })
+      consider({ id: `e:${e.id}:${e.occurrence_start}`, title: e.title, start: s, end: en, proj: proj(e.project_id), color: projectColor(e.project_id) })
     }
     return {
       id: `e:${e.id}:${e.occurrence_start}`,
@@ -100,7 +96,7 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
       end: allDay ? ymd(en) : e.occurrence_end,
       classNames: ['kt-event', ...(allDay ? ['kt-allday'] : [])],
       editable: !e.recurrence_rule, // bei Serien gehören start_at/end_at zur ersten Wiederholung
-      extendedProps: { kind: 'event', id: e.id, ev: e, proj: names.get(e.project_id ?? '') ?? '', place: e.location, color: e.project_id ? projectColor(e.project_id) : undefined },
+      extendedProps: { kind: 'event', id: e.id, ev: e, proj: proj(e.project_id), place: e.location, color: e.project_id ? projectColor(e.project_id) : undefined },
     }
   })
   const [fromDay, toDay, today] = [ymd(from), ymd(to), ymd(new Date())]
@@ -113,7 +109,7 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
       const [s, en] = [new Date(start), new Date(Date.parse(start) + (t.estimated_minutes || DEFAULT_TASK_MINUTES) * 60_000)]
       bump(ymd(s), 0, (en.getTime() - s.getTime()) / 60_000)
       spans.push([s.getTime(), en.getTime()])
-      if (!done) consider({ id: `t:${t.id}`, title: t.title, start: s, end: en, proj: names.get(t.project_id ?? '') ?? '', color: projectColor(t.project_id), task: t })
+      if (!done) consider({ id: `t:${t.id}`, title: t.title, start: s, end: en, proj: proj(t.project_id), color: projectColor(t.project_id), task: t })
     }
     entries.push({
       id: `t:${t.id}`,
@@ -123,7 +119,7 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
       allDay: !start,
       classNames: ['kt-task', ...(start ? [] : ['kt-allday']), ...(done ? ['kt-done'] : []), ...(late ? ['kt-over'] : []), ...(t.status === 'IN_PROGRESS' ? ['kt-running'] : [])],
       editable: !done,
-      extendedProps: { kind: 'task', id: t.id, est: t.estimated_minutes, proj: names.get(t.project_id ?? '') ?? '', color: t.project_id ? projectColor(t.project_id) : undefined },
+      extendedProps: { kind: 'task', id: t.id, est: t.estimated_minutes, proj: proj(t.project_id), color: t.project_id ? projectColor(t.project_id) : undefined },
     })
   }
   weekendEntries.value = entries.filter((e) => [0, 6].includes(new Date(String(e.start).length === 10 ? `${e.start}T12:00:00` : String(e.start)).getDay())).length
@@ -136,7 +132,7 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
     const title = tasks.find((t) => t.id === te.task_id)?.title ?? 'Zeit'
     entries.push({
       id: `x:${te.id}`, start: s, end: en, display: 'background', classNames: ['kt-track'],
-      extendedProps: { kind: 'track', title, label: `${hhmm(s)}–${hhmm(en)} · ${fd(min)}`, color: pid ? projectColor(pid) : undefined },
+      extendedProps: { kind: 'track', title, label: `${hhmm(s)}–${hhmm(en)} · ${hm(min)}`, color: pid ? projectColor(pid) : undefined },
     })
   }
   if (to.getTime() - from.getTime() <= 25 * 3_600_000) { // Tagesansicht
@@ -182,7 +178,7 @@ function moved(info: EventDropArg | EventResizeDoneArg, resized: boolean) {
     }, info.revert)
   } else {
     // Ganztägige Termine liefern evtl. kein Ende: dann genau ein Tag.
-    const end = event.end ?? (event.allDay ? nextDay(start) : null)
+    const end = event.end ?? (event.allDay ? addDays(start, 1) : null)
     if (!end) return info.revert()
     const before = { start_at: ev.start_at, end_at: ev.end_at }
     void guarded(async () => {
@@ -193,66 +189,14 @@ function moved(info: EventDropArg | EventResizeDoneArg, resized: boolean) {
 }
 
 // Ein Dialog zum Anlegen (Termin oder Task) und Bearbeiten von Terminen.
-// Wiederholung: wöchentlich an Wochentagen, optional mit Enddatum (RRULE-Teilmenge des Backends).
-const WEEKDAYS = [['MO', 'Mo'], ['TU', 'Di'], ['WE', 'Mi'], ['TH', 'Do'], ['FR', 'Fr'], ['SA', 'Sa'], ['SU', 'So']] as const
-const CODE_OF_DAY = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] // Index = Date.getDay()
 const kindOptions = [{ label: 'Termin', value: 'event' }, { label: 'Task', value: 'task' }]
-
-interface Form {
-  id: string | null // gesetzt beim Bearbeiten eines Termins
-  kind: string
-  title: string
-  location: string
-  date: string
-  from: string
-  to: string
-  allDay: boolean // Task: ohne Uhrzeit; Termin: ganztägig
-  endDate: string // letzter Tag eines ganztägigen Termins
-  keepTimes: boolean // mehrtägiger Termin mit Uhrzeit: Zeiten bleiben unverändert (der Dialog kennt nur einen Tag)
-  projectId: string // '' = kein Projekt
-  repeat: boolean
-  days: string[]
-  until: string
-  customRule: string | null // Regel, die der Dialog nicht abbildet; bleibt unverändert
-  day: string // Tag der angeklickten Instanz, nur bei Serien gesetzt
-  ask: boolean // Löschen wartet auf Bestätigung
-}
 const form = ref<Form | null>(null)
-
-function openForm(start: Date, end: Date, allDay: boolean) {
-  form.value = {
-    id: null, kind: 'event', title: '', location: '', date: ymd(start),
-    from: allDay ? '09:00' : hhmm(start), to: allDay ? '10:00' : hhmm(end), allDay,
-    endDate: allDay ? lastDay(end) : ymd(start), keepTimes: false, projectId: '',
-    repeat: false, days: [CODE_OF_DAY[start.getDay()]!], until: '', customRule: null, day: '', ask: false,
-  }
-}
-
-function openEdit(ev: CalendarEvent, day: string) {
-  const [start, end] = [new Date(ev.start_at), new Date(ev.end_at)]
-  const allDay = isAllDay(start, end)
-  const f: Form = {
-    id: ev.id, kind: 'event', title: ev.title, location: ev.location, date: ymd(start),
-    from: allDay ? '09:00' : hhmm(start), to: allDay ? '10:00' : hhmm(end), allDay,
-    endDate: allDay ? lastDay(end) : ymd(start), keepTimes: !allDay && ymd(end) !== ymd(start), projectId: ev.project_id ?? '',
-    repeat: false, days: [CODE_OF_DAY[start.getDay()]!], until: '', customRule: null, day: ev.recurrence_rule ? day : '', ask: false,
-  }
-  const rule = ev.recurrence_rule
-  const m = rule?.match(/^FREQ=WEEKLY;BYDAY=([A-Z,]+)(?:;UNTIL=(\d{4})(\d{2})(\d{2}))?$/)
-  if (m) Object.assign(f, { repeat: true, days: m[1]!.split(','), until: m[2] ? `${m[2]}-${m[3]}-${m[4]}` : '' })
-  else if (rule) f.customRule = rule
-  form.value = f
-}
+const openForm = (start: Date, end: Date, allDay: boolean) => (form.value = newForm(start, end, allDay))
+const openEdit = (ev: CalendarEvent, day: string) => (form.value = editForm(ev, day))
 
 const toggleDay = (code: string) => {
   const f = form.value!
   f.days = f.days.includes(code) ? f.days.filter((d) => d !== code) : WEEKDAYS.map(([c]) => c).filter((c) => c === code || f.days.includes(c))
-}
-
-function ruleOf(f: Form): string {
-  if (!f.repeat) return ''
-  const days = f.days.length ? f.days : [CODE_OF_DAY[new Date(`${f.date}T00:00:00`).getDay()]!]
-  return `FREQ=WEEKLY;BYDAY=${days.join(',')}${f.until ? `;UNTIL=${f.until.replaceAll('-', '')}` : ''}`
 }
 
 function save() {
@@ -260,7 +204,7 @@ function save() {
   const title = f?.title.trim()
   if (!f || !title) return
   const start = new Date(`${f.date}T${f.allDay ? '00:00' : f.from}`)
-  const end = f.allDay ? nextDay(new Date(`${f.endDate || f.date}T00:00`)) : new Date(`${f.date}T${f.to}`)
+  const end = f.allDay ? addDays(new Date(`${f.endDate || f.date}T00:00`), 1) : new Date(`${f.date}T${f.to}`)
   form.value = null
   void guarded(() => {
     if (f.kind === 'task') {
@@ -310,16 +254,11 @@ const week = ref(0) // Kalenderwoche, nur in der Tagesansicht
 // „Woche“ zeigt Mo–Fr (timeGridWorkWeek); der Schalter „Sa/So“ wechselt zur vollen Woche (timeGridWeek).
 const WORK = 'timeGridWorkWeek'
 const views = [['dayGridMonth', 'Monat', 'm'], [WORK, 'Woche', 'w'], ['timeGridDay', 'Tag', 'd']] as const
-const store = {
-  get: (k: string) => { try { return localStorage.getItem(k) } catch { return null } },
-  set: (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* privater Modus */ } },
-}
 const fullWeek = ref(store.get('kairo-cal-weekend') === '1')
 const weekView = () => (fullWeek.value ? 'timeGridWeek' : WORK)
 const storedView = store.get('kairo-cal-view')
 const view = ref<string>(storedView === 'dayGridMonth' || storedView === 'timeGridDay' ? storedView : weekView())
 const isWeek = computed(() => view.value === WORK || view.value === 'timeGridWeek')
-const isMonth = computed(() => view.value === 'dayGridMonth')
 const isDay = computed(() => view.value === 'timeGridDay')
 const goView = (v: string) => cal.value?.getApi().changeView(v === WORK ? weekView() : v)
 function toggleWeekend() {
@@ -398,8 +337,8 @@ onMounted(() => {
 onBeforeUnmount(() => draggable?.destroy())
 
 // Tastenkürzel: t heute · ←/→ zurück/weiter · m/w/d Ansicht · n neuer Eintrag. Nicht beim Tippen, nicht in Dialogen.
-function onKey(e: KeyboardEvent) {
-  if (e.ctrlKey || e.metaKey || e.altKey || form.value || (e.target as HTMLElement).closest('input, textarea, select, [contenteditable], .overlay')) return
+useShortcuts((e) => {
+  if (form.value) return
   const api = cal.value?.getApi()
   const v = views.find(([, , k]) => k === e.key)
   if (!api) return
@@ -410,9 +349,7 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === 'n') openNew()
   else return
   e.preventDefault()
-}
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+})
 
 const options: CalendarOptions = {
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
@@ -562,7 +499,7 @@ useLiveEvents(() => {
         <button class="btn btn-primary" title="Neuer Eintrag (n)" aria-keyshortcuts="n" @click="openNew"><svg class="ic"><use href="#i-plus" /></svg>Neuer Eintrag</button>
       </div>
       <div v-if="isDay && dayStat" class="cal-stats">
-        <span>geplant <b>{{ fd(dayStat.plan) }}</b></span><span>erfasst <b>{{ fd(dayStat.ist) }}</b></span><span>frei <b>{{ fd(dayStat.free) }}</b></span>
+        <span>geplant <b>{{ hm(dayStat.plan) }}</b></span><span>erfasst <b>{{ hm(dayStat.ist) }}</b></span><span>frei <b>{{ hm(dayStat.free) }}</b></span>
       </div>
       <div class="cal-fc"><FullCalendar ref="cal" :options="options" /></div>
     </div>
@@ -572,7 +509,7 @@ useLiveEvents(() => {
         <h3>{{ nextUp.title }}</h3>
         <div class="next-meta">
           <span><i class="next-dot" :style="{ background: nextUp.color }" />{{ nextUp.proj || 'Ohne Projekt' }}</span>
-          <span>{{ hhmm(nextUp.start) }}–{{ hhmm(nextUp.end) }}</span><span>{{ fd(Math.round((nextUp.end.getTime() - nextUp.start.getTime()) / 60_000)) }}</span>
+          <span>{{ hhmm(nextUp.start) }}–{{ hhmm(nextUp.end) }}</span><span>{{ hm(Math.round((nextUp.end.getTime() - nextUp.start.getTime()) / 60_000)) }}</span>
         </div>
         <div v-if="nextUp.task" class="row nowrap">
           <button v-if="nextUp.task.status === 'IN_PROGRESS'" type="button" class="btn btn-primary" @click="run(() => taskAction(nextUp!.task!.id, 'pause'))">Pause</button>
@@ -590,7 +527,7 @@ useLiveEvents(() => {
         <div v-for="t in unplanned" :key="t.id" class="up-item" :data-id="t.id" :data-min="t.estimated_minutes || ''" :style="{ '--acc': projectColor(t.project_id) }">
           <span class="up-dot" />
           <span class="up-name">{{ t.title }}</span>
-          <small v-if="t.estimated_minutes" class="up-min">{{ fd(t.estimated_minutes) }}</small>
+          <small v-if="t.estimated_minutes" class="up-min">{{ hm(t.estimated_minutes) }}</small>
         </div>
       </div>
     </aside>
@@ -674,14 +611,13 @@ useLiveEvents(() => {
 .up-hint { flex: 1; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); text-align: right; }
 .up-item {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: grab;
-  border: 1px dashed color-mix(in oklab, var(--acc) 45%, transparent); border-radius: 8px;
-  background: color-mix(in oklab, var(--acc) 6%, transparent);
+  border: 1px dashed var(--br-strong); border-radius: 8px;
   font: 400 13px/1.3 var(--font-ui); color: var(--tx-primary);
 }
-.up-item:hover { background: color-mix(in oklab, var(--acc) 14%, transparent); }
+.up-item:hover { background: var(--bg-hover); }
 .up-dot { flex: none; width: 11px; height: 11px; box-sizing: border-box; border: 1.5px solid var(--acc); border-radius: 50%; }
 .up-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.up-min { flex: none; font: 400 12px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--acc); }
+.up-min { flex: none; font: 400 12px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
 .next { display: flex; flex-direction: column; gap: 12px; padding: 16px; margin-bottom: 16px; background: var(--bg-0); border: 1px solid var(--br-subtle); border-radius: 12px; }
 .next-head { display: flex; justify-content: space-between; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
 .next h3 { margin: 0; font: 600 17px/1.3 var(--font-ui); color: var(--tx-primary); text-wrap: pretty; }

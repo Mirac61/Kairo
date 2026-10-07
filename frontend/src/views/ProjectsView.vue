@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  api, createProject, deleteProject, errorMessage, listProjects, listResources, listTasks,
-  updateProject, type Project, type Resource, type Task, type TimeEntry,
+  api, createProject, deleteProject, listProjects, listResources, listTasks,
+  isOpen, updateProject, type Project, type Resource, type Task, type TimeEntry,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { useLoader } from '@/composables/useLoader'
 import { vDialog } from '@/lib/dialog'
 import { PROJECT_COLORS, projectColor } from '@/lib/projectColor'
-import { ymd } from '@/lib/dates'
+import { daysAgo, dur, entryMinutes, hm, weekStart, ymd } from '@/lib/dates'
+import { store } from '@/lib/storage'
 import DeleteButton from '@/components/DeleteButton.vue'
 import ResourceList from '@/components/ResourceList.vue'
 import SearchField from '@/components/SearchField.vue'
@@ -21,10 +23,9 @@ interface Progress { project_id: string | null; done_tasks: number; total_tasks:
 const projects = ref<Project[]>([])
 const resources = ref<Resource[]>([])
 const tasks = ref<Task[]>([])
-const minutes = ref<Record<string, { week: number; total: number }>>({})
+const minutes = ref<Record<string, { week: number; total: number; last: number }>>({})
 const openId = ref<string | null>(null)
 const progress = ref<Record<string, Progress>>({})
-const error = ref('')
 const dialog = ref(false)
 const editId = ref<string | null>(null)
 const form = ref({ name: '', description: '', local_path: '', status: 'ACTIVE', color: '' }) // color '' = automatisch (neues Projekt)
@@ -32,52 +33,34 @@ const form = ref({ name: '', description: '', local_path: '', status: 'ACTIVE', 
 const editing = computed(() => projects.value.find((p) => p.id === editId.value))
 const resOf = (id: string) => resources.value.filter((r) => r.project_id === id)
 const taskRes = (id: string) => resources.value.filter((r) => r.task_id === id)
-const openTasks = (id: string) => tasks.value.filter((t) => t.project_id === id && t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
-const dur = (m = 0) => (m >= 60 ? `${Math.floor(m / 60)} Std${m % 60 ? ` ${m % 60} Min` : ''}` : `${m} Min`)
+const openTasks = (id: string) => tasks.value.filter((t) => t.project_id === id && isOpen(t))
 
 // Erfasste Zeit je Projekt aus allen Zeiteinträgen (ein laufender Eintrag zählt bis jetzt).
 function sumMinutes(es: TimeEntry[]) {
-  const monday = new Date()
-  monday.setHours(0, 0, 0, 0)
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
-  const out: Record<string, { week: number; total: number }> = {}
+  const monday = weekStart().getTime()
+  const out: Record<string, { week: number; total: number; last: number }> = {}
   for (const e of es) {
     if (!e.project_id) continue
-    const m = Math.max(0, Math.floor(((e.ended_at ? Date.parse(e.ended_at) : Date.now()) - Date.parse(e.started_at)) / 6e4))
-    const k = (out[e.project_id] ??= { week: 0, total: 0 })
+    const m = entryMinutes(e)
+    const k = (out[e.project_id] ??= { week: 0, total: 0, last: 0 })
     k.total += m
-    if (Date.parse(e.started_at) >= monday.getTime()) k.week += m
+    k.last = Math.max(k.last, e.ended_at ? Date.parse(e.ended_at) : Date.now())
+    if (Date.parse(e.started_at) >= monday) k.week += m
   }
   return out
 }
 
-async function load() {
-  try {
-    const t = ymd(new Date())
-    const [ps, rs, rv, ts, es] = await Promise.all([
-      listProjects(), listResources(), api<{ projects: Progress[] }>(`/review?from=${t}&to=${t}`), listTasks(), api<TimeEntry[]>('/time-entries'),
-    ])
-    projects.value = ps
-    resources.value = rs
-    tasks.value = ts
-    minutes.value = sumMinutes(es)
-    progress.value = Object.fromEntries(rv.projects.filter((p) => p.project_id).map((p) => [p.project_id!, p]))
-    error.value = ''
-  } catch (e) {
-    error.value = errorMessage(e)
-  }
-}
-
-async function run(fn: () => Promise<unknown>) {
-  try {
-    await fn()
-  } catch (e) {
-    error.value = errorMessage(e)
-    return false
-  }
-  await load()
-  return true
-}
+const { error, load, run } = useLoader(async () => {
+  const t = ymd(new Date())
+  const [ps, rs, rv, ts, es] = await Promise.all([
+    listProjects(), listResources(), api<{ projects: Progress[] }>(`/review?from=${t}&to=${t}`), listTasks(), api<TimeEntry[]>('/time-entries'),
+  ])
+  projects.value = ps
+  resources.value = rs
+  tasks.value = ts
+  minutes.value = sumMinutes(es)
+  progress.value = Object.fromEntries(rv.projects.filter((p) => p.project_id).map((p) => [p.project_id!, p]))
+})
 
 function openDialog(p?: Project) {
   editId.value = p?.id ?? null
@@ -107,9 +90,23 @@ const shown = computed(() => {
   const q = search.value.trim().toLowerCase()
   return q ? projects.value.filter((p) => `${p.name} ${p.description} ${p.local_path ?? ''}`.toLowerCase().includes(q)) : projects.value
 })
-const groups = computed(() =>
-  Object.entries(STATUS).map(([status, label]) => ({ status, label, items: shown.value.filter((p) => p.status === status) })).filter((g) => g.items.length),
-)
+const LAYOUT_KEY = 'kairo-projects-layout' // Kacheln oder eine Spalte merkt sich der Browser
+const tab = ref('ACTIVE')
+const sort = ref<'recent' | 'name'>('recent')
+const layout = ref<'grid' | 'list'>('grid')
+if (store.get(LAYOUT_KEY) === 'list') layout.value = 'list'
+const setLayout = (l: 'grid' | 'list') => {
+  layout.value = l
+  store.set(LAYOUT_KEY, l)
+}
+const tabs = computed(() => Object.entries(STATUS).map(([status, label]) => ({ status, label, n: shown.value.filter((p) => p.status === status).length })))
+const list = computed(() => shown.value
+  .filter((p) => p.status === tab.value)
+  .sort((a, b) => sort.value === 'name' ? a.name.localeCompare(b.name, 'de') : (minutes.value[b.id]?.last ?? 0) - (minutes.value[a.id]?.last ?? 0)))
+const lastActive = (id: string) => {
+  const t = minutes.value[id]?.last
+  return t ? daysAgo(ymd(new Date(t)), ymd(new Date())) : ''
+}
 const frac = (id: string) => { const p = progress.value[id]; return p?.total_tasks ? `${p.done_tasks}/${p.total_tasks}` : '' }
 // Die Extension öffnet den Workspace des Projekts.
 const inCode = (p: Project) => { window.location.href = `vscodium://kairo-local.kairo/open?project=${p.id}` }
@@ -127,34 +124,54 @@ useLiveEvents(load)
         <h1 class="v-title">Projekte</h1>
         <div class="v-sub">Fortschritt und verknüpfte Ressourcen.</div>
       </div>
-      <button class="btn btn-secondary" type="button" @click="openDialog()"><svg class="ic"><use href="#i-plus" /></svg>Neues Projekt</button>
+      <button class="btn btn-primary" type="button" @click="openDialog()"><svg class="ic"><use href="#i-plus" /></svg>Neues Projekt</button>
     </div>
     <div v-if="error && !dialog" class="badge" role="alert">{{ error }}</div>
 
-    <div class="filterbar"><SearchField v-model="search" label="Projekte durchsuchen" /></div>
-    <div class="proj-list">
-      <div v-if="!projects.length" class="v-sub">Keine Projekte.</div>
-      <div v-else-if="!groups.length" class="v-sub">Keine Treffer für „{{ search }}“.</div>
-      <section v-for="g in groups" :key="g.status" class="tgroup">
-      <div class="lbl">{{ g.label }} <span class="count">{{ g.items.length }}</span></div>
-      <article v-for="p in g.items" :key="p.id" class="proj-card" :style="{ '--pc': projectColor(p.id) }">
+    <div class="filterbar">
+      <button v-for="t in tabs" :key="t.status" type="button" class="fchip" :aria-pressed="tab === t.status" :disabled="!t.n && tab !== t.status" @click="tab = t.status">{{ t.label }} <span class="count">{{ t.n }}</span></button>
+      <SearchField v-model="search" label="Projekte durchsuchen" />
+      <span class="spacer"></span>
+      <select v-model="sort" class="input" aria-label="Sortieren nach">
+        <option value="recent">Zuletzt aktiv</option>
+        <option value="name">Name</option>
+      </select>
+      <span class="seg" role="group" aria-label="Ansicht">
+        <button type="button" aria-label="Kacheln" :aria-pressed="layout === 'grid'" @click="setLayout('grid')"><svg class="ic"><use href="#i-grid" /></svg></button>
+        <button type="button" aria-label="Liste" :aria-pressed="layout === 'list'" @click="setLayout('list')"><svg class="ic"><use href="#i-list" /></svg></button>
+      </span>
+    </div>
+    <div v-if="!projects.length" class="v-sub">Keine Projekte.</div>
+    <div v-else-if="!list.length" class="v-sub">Keine Projekte<template v-if="search"> für „{{ search }}“</template> in „{{ STATUS[tab] }}“.</div>
+    <div v-else class="proj-list" :class="layout">
+      <article v-for="p in list" :key="p.id" class="proj-card" :class="{ open: openId === p.id }" :style="{ '--pc': projectColor(p.id) }">
         <div class="proj-head">
           <span class="cdot"></span>
           <button type="button" class="proj-name proj-toggle" :aria-expanded="openId === p.id" @click="openId = openId === p.id ? null : p.id">{{ p.name }}</button>
-          <span v-if="frac(p.id)" class="proj-pct">{{ frac(p.id) }}</span>
-          <div v-if="frac(p.id)" class="pbar" role="progressbar" :aria-valuenow="pct(p.id)" aria-valuemin="0" aria-valuemax="100"><div class="pbar-fill" :style="{ width: pct(p.id) + '%' }"></div></div>
-          <button v-if="p.local_path" class="btn btn-ghost proj-act" type="button" :aria-label="`In VSCodium öffnen: ${p.name}`" @click="inCode(p)">In VSCodium öffnen</button>
-          <button class="btn btn-ghost proj-act" type="button" @click="openDialog(p)">Bearbeiten</button>
+          <span class="proj-end">
+            <span class="proj-last">{{ lastActive(p.id) }}</span>
+            <button class="btn btn-ghost proj-act" type="button" @click="openDialog(p)">Bearbeiten</button>
+          </span>
         </div>
-        <div v-if="p.description" class="proj-desc">{{ p.description }}</div>
-        <div v-if="p.local_path" class="proj-meta">{{ p.local_path }}</div>
+        <div class="proj-desc" :class="{ none: !p.description }">{{ p.description || 'Keine Beschreibung' }}</div>
+        <div class="proj-meta mono">{{ p.local_path ?? '' }}</div>
         <div v-if="resOf(p.id).length" class="proj-res">
           <component :is="href(r) ? 'a' : 'span'" v-for="r in resOf(p.id)" :key="r.id" class="res" :href="href(r)" target="_blank" rel="noopener">
             <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>{{ r.label || r.target }}
           </component>
         </div>
+        <div class="proj-prog">
+          <div class="pbar" role="progressbar" :aria-label="`Fortschritt ${p.name}`" :aria-valuenow="pct(p.id)" aria-valuemin="0" aria-valuemax="100"><div class="pbar-fill" :style="{ width: pct(p.id) + '%' }"></div></div>
+          <span class="proj-pct">{{ pct(p.id) }} %</span>
+        </div>
+        <div class="proj-foot">
+          <span class="proj-stat"><b class="mono">{{ openTasks(p.id).length }}</b> offen</span>
+          <span class="proj-stat"><b class="mono">{{ hm(minutes[p.id]?.week ?? 0) }}</b> diese Woche</span>
+          <span class="spacer"></span>
+          <button v-if="p.local_path" class="btn btn-ghost" type="button" :aria-label="`In VSCodium öffnen: ${p.name}`" @click="inCode(p)">VSCodium ↗</button>
+        </div>
         <div v-if="openId === p.id" class="proj-more">
-          <div class="proj-meta">Erfasst: {{ dur(minutes[p.id]?.week) }} diese Woche · {{ dur(minutes[p.id]?.total) }} gesamt</div>
+          <div class="proj-meta">Erfasst: {{ dur(minutes[p.id]?.week) }} diese Woche · {{ dur(minutes[p.id]?.total) }} gesamt<template v-if="frac(p.id)"> · {{ frac(p.id) }} Aufgaben erledigt</template></div>
           <span class="lbl">Offene Aufgaben<span v-if="openTasks(p.id).length" class="count"> · {{ openTasks(p.id).length }}</span></span>
           <div v-if="openTasks(p.id).length" class="card tasklist">
             <div v-for="t in openTasks(p.id)" :key="t.id" class="task-row">
@@ -168,7 +185,6 @@ useLiveEvents(load)
           <div v-else class="proj-meta">Keine offenen Aufgaben.</div>
         </div>
       </article>
-      </section>
     </div>
 
     <div v-if="dialog" v-dialog="() => (dialog = false)" class="overlay open" @mousedown.self="dialog = false">
