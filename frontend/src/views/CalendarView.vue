@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import '@/calendar.css'
 import { useRouter } from 'vue-router'
 import FullCalendar from '@fullcalendar/vue3'
@@ -10,7 +10,7 @@ import deLocale from '@fullcalendar/core/locales/de'
 import type { CalendarOptions, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
 import Message from 'primevue/message'
 import {
-  createEvent, createTask, deleteEvent, errorMessage, getOccurrences, importIcs, listProjects, listTasks, restoreEvent, skipOccurrence, updateEvent, updateTask,
+  createEvent, createTask, deleteEvent, errorMessage, getOccurrences, importIcs, listProjects, listTasks, listTimeEntries, restoreEvent, skipOccurrence, updateEvent, updateTask,
   type CalendarEvent, type EventBody, type Project, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
@@ -29,6 +29,26 @@ const lastDay = (end: Date) => ymd(new Date(end.getFullYear(), end.getMonth(), e
 const atMidnight = (d: Date) => d.getHours() === 0 && d.getMinutes() === 0
 const isAllDay = (start: Date, end: Date) => atMidnight(start) && atMidnight(end) && end.getTime() - start.getTime() >= 23 * 3_600_000
 
+const el = (tag: string, cls: string, text = '') => Object.assign(document.createElement(tag), { className: cls, textContent: text })
+const fd = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`
+// Je Tag: [geplant, erfasst] in Minuten; der Tageskopf zeigt beides (Plan/Ist).
+const stats = new Map<string, [number, number]>()
+const bump = (day: string, i: 0 | 1, min: number) => {
+  const v = stats.get(day) ?? [0, 0]
+  v[i] += Math.max(0, Math.round(min))
+  stats.set(day, v)
+}
+function paintDay(th: HTMLElement) {
+  const q = (sel: string) => th.querySelector<HTMLElement>(sel)
+  const plan = q('.kt-plan')
+  if (!plan) return // Monatskopf hat keine Statistik
+  const [p, t] = stats.get(th.dataset.date ?? '') ?? [0, 0]
+  plan.textContent = p ? `Plan ${fd(p)}` : 'frei'
+  q('.kt-ist')!.textContent = t ? `Ist ${fd(t)}` : ''
+  q('.kt-bar .p')!.style.width = `${Math.min(100, p / 4.8)}%` // 8 h = volle Breite
+  q('.kt-bar .t')!.style.width = `${Math.min(100, t / 4.8)}%`
+}
+
 const router = useRouter()
 const { offer } = useUndo()
 const cal = ref<InstanceType<typeof FullCalendar>>()
@@ -40,38 +60,51 @@ const unplanned = ref<Task[]>([]) // offene Tasks ohne planned_date: Quelle zum 
 // Termine und Tasks als Kalendereinträge. Zeiten rechnen in der Zeitzone des Browsers.
 async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
   // Projekte mitladen, damit die Projektfarben für die Einträge feststehen.
-  const [occ, tasks, ps] = await Promise.all([getOccurrences(from, to), listTasks(), listProjects()])
+  const [occ, tasks, ps, times] = await Promise.all([getOccurrences(from, to), listTasks(), listProjects(), listTimeEntries(from, to)])
   projects.value = ps
+  const names = new Map(ps.map((p) => [p.id, p.name]))
+  stats.clear()
   unplanned.value = tasks.filter((t) => !t.planned_date && t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
   const entries: EventInput[] = occ.map((e) => {
     const [s, en] = [new Date(e.occurrence_start), new Date(e.occurrence_end)]
     const allDay = isAllDay(s, en)
+    if (!allDay) bump(ymd(s), 0, (en.getTime() - s.getTime()) / 60_000)
     return {
       id: `e:${e.id}:${e.occurrence_start}`,
       title: e.title,
       allDay,
       start: allDay ? ymd(s) : e.occurrence_start,
       end: allDay ? ymd(en) : e.occurrence_end,
-      classNames: ['kt-event'],
+      classNames: ['kt-event', ...(allDay ? ['kt-allday'] : [])],
       editable: !e.recurrence_rule, // bei Serien gehören start_at/end_at zur ersten Wiederholung
-      extendedProps: { kind: 'event', id: e.id, ev: e, color: e.project_id ? projectColor(e.project_id) : undefined },
+      extendedProps: { kind: 'event', id: e.id, ev: e, proj: names.get(e.project_id ?? '') ?? '', place: e.location, color: e.project_id ? projectColor(e.project_id) : undefined },
     }
   })
-  const [fromDay, toDay] = [ymd(from), ymd(to)]
+  const [fromDay, toDay, today] = [ymd(from), ymd(to), ymd(new Date())]
   for (const t of tasks) {
     if (!t.planned_date || t.status === 'CANCELLED' || t.planned_date < fromDay || t.planned_date >= toDay) continue
     const done = t.status === 'COMPLETED'
+    const late = !done && t.planned_date < today // überfällig: Titel in Rot, Plan nicht erledigt
     const start = t.planned_start_at
+    if (start) bump(ymd(new Date(start)), 0, t.estimated_minutes || DEFAULT_TASK_MINUTES)
     entries.push({
       id: `t:${t.id}`,
       title: t.title,
       start: start ?? t.planned_date,
       end: start ? new Date(Date.parse(start) + (t.estimated_minutes || DEFAULT_TASK_MINUTES) * 60_000) : undefined,
       allDay: !start,
-      classNames: ['kt-task', ...(done ? ['kt-done'] : [])],
+      classNames: ['kt-task', ...(start ? [] : ['kt-allday']), ...(done ? ['kt-done'] : []), ...(late ? ['kt-over'] : []), ...(t.status === 'IN_PROGRESS' ? ['kt-running'] : [])],
       editable: !done,
-      extendedProps: { kind: 'task', id: t.id, est: t.estimated_minutes, color: t.project_id ? projectColor(t.project_id) : undefined },
+      extendedProps: { kind: 'task', id: t.id, est: t.estimated_minutes, proj: names.get(t.project_id ?? '') ?? '', color: t.project_id ? projectColor(t.project_id) : undefined },
     })
+  }
+  weekendEntries.value = entries.filter((e) => [0, 6].includes(new Date(String(e.start).length === 10 ? `${e.start}T12:00:00` : String(e.start)).getDay())).length
+  // Erfasste Zeit als schmale Spur links im Tag (Hintergrund-Eintrag); läuft sie noch, reicht sie bis jetzt.
+  for (const te of times) {
+    const [s, en] = [new Date(te.started_at), te.ended_at ? new Date(te.ended_at) : new Date()]
+    bump(ymd(s), 1, (en.getTime() - s.getTime()) / 60_000)
+    const pid = te.project_id ?? tasks.find((t) => t.id === te.task_id)?.project_id
+    entries.push({ id: `x:${te.id}`, start: s, end: en, display: 'background', classNames: ['kt-track'], extendedProps: { kind: 'track', color: pid ? projectColor(pid) : undefined } })
   }
   return entries
 }
@@ -229,8 +262,35 @@ function remove(onlyThis: boolean) {
 
 // Eigene Toolbar steuert FullCalendar über die API.
 const title = ref('')
-const view = ref('timeGridWeek')
-const views = [['dayGridMonth', 'Monat'], ['timeGridWeek', 'Woche'], ['timeGridDay', 'Tag']] as const
+// „Woche“ zeigt Mo–Fr (timeGridWorkWeek); der Schalter „Sa/So“ wechselt zur vollen Woche (timeGridWeek).
+const WORK = 'timeGridWorkWeek'
+const views = [['dayGridMonth', 'Monat', 'm'], [WORK, 'Woche', 'w'], ['timeGridDay', 'Tag', 'd']] as const
+const store = {
+  get: (k: string) => { try { return localStorage.getItem(k) } catch { return null } },
+  set: (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* privater Modus */ } },
+}
+const fullWeek = ref(store.get('kairo-cal-weekend') === '1')
+const weekView = () => (fullWeek.value ? 'timeGridWeek' : WORK)
+const storedView = store.get('kairo-cal-view')
+const view = ref<string>(storedView === 'dayGridMonth' || storedView === 'timeGridDay' ? storedView : weekView())
+const isWeek = computed(() => view.value === WORK || view.value === 'timeGridWeek')
+const isMonth = computed(() => view.value === 'dayGridMonth')
+const goView = (v: string) => cal.value?.getApi().changeView(v === WORK ? weekView() : v)
+function toggleWeekend() {
+  fullWeek.value = !fullWeek.value
+  store.set('kairo-cal-weekend', fullWeek.value ? '1' : '0')
+  goView(WORK)
+}
+// Einträge auf Sa/So, die in der Woche Mo–Fr verborgen sind: der Schalter zeigt ihre Zahl.
+const weekendEntries = ref(0)
+
+// „Ungeplant“ lässt sich einklappen, damit die Woche die volle Breite bekommt.
+const upOpen = ref(store.get('kairo-cal-unplanned') !== '0')
+function toggleUp() {
+  upOpen.value = !upOpen.value
+  store.set('kairo-cal-unplanned', upOpen.value ? '1' : '0')
+  void nextTick(() => cal.value?.getApi().updateSize())
+}
 
 function openNew() {
   const start = new Date()
@@ -257,6 +317,13 @@ async function importFile(e: Event) {
   }
 }
 
+// Erster Fokus der Rückfrage liegt auf der sicheren Wahl.
+const safeBtn = ref<HTMLElement>()
+const askDelete = () => {
+  form.value!.ask = true
+  void nextTick(() => safeBtn.value?.focus())
+}
+
 const projectOptions = computed(() => projects.value.filter((p) => p.status !== 'ARCHIVED' || p.id === form.value?.projectId))
 const loadProjects = () => listProjects().then((ps) => (projects.value = ps), () => {})
 
@@ -273,34 +340,87 @@ onMounted(() => {
 })
 onBeforeUnmount(() => draggable?.destroy())
 
+// Tastenkürzel: t heute · ←/→ zurück/weiter · m/w/d Ansicht · n neuer Eintrag. Nicht beim Tippen, nicht in Dialogen.
+function onKey(e: KeyboardEvent) {
+  if (e.ctrlKey || e.metaKey || e.altKey || form.value || (e.target as HTMLElement).closest('input, textarea, select, [contenteditable], .overlay')) return
+  const api = cal.value?.getApi()
+  const v = views.find(([, , k]) => k === e.key)
+  if (!api) return
+  if (e.key === 't') api.today()
+  else if (e.key === 'ArrowLeft') api.prev()
+  else if (e.key === 'ArrowRight') api.next()
+  else if (v) goView(v[0])
+  else if (e.key === 'n') openNew()
+  else return
+  e.preventDefault()
+}
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+
 const options: CalendarOptions = {
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
   locales: [deLocale],
   locale: 'de',
   firstDay: 1,
   allDayText: 'Ganztag',
-  initialView: 'timeGridWeek',
+  initialView: view.value,
+  views: { [WORK]: { type: 'timeGrid', duration: { weeks: 1 }, hiddenDays: [0, 6] }, dayGridMonth: { eventDisplay: 'block', dayMaxEvents: 3 } },
+  moreLinkContent: (a) => `+ ${a.num} weitere`,
   headerToolbar: false,
   height: '100%',
   nowIndicator: true,
-  slotMinTime: '06:00:00',
-  slotMaxTime: '23:00:00',
-  scrollTime: '08:00:00',
+  slotEventOverlap: false, // gleichzeitige Einträge nebeneinander statt gestapelt
+  slotMinTime: '07:00:00', // Mockup: 07–18 Uhr; bis 22 Uhr, damit Abendtermine nicht verschwinden
+  slotMaxTime: '22:00:00',
+  scrollTime: '07:00:00',
   datesSet: (a) => {
     title.value = a.view.title
     view.value = a.view.type
+    store.set('kairo-cal-view', a.view.type)
   },
   dayHeaderContent: (a) => {
-    const wd = a.date.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')
-    const html = a.view.type === 'dayGridMonth'
-      ? wd
-      : `<span class="kt-dh${a.isToday ? ' today' : ''}"><small>${wd}</small><b>${a.date.getDate()}</b></span>`
-    return { html }
+    const month = a.view.type === 'dayGridMonth'
+    const wd = a.date.toLocaleDateString('de-DE', { weekday: month ? 'short' : 'long' }).replace('.', '')
+    if (month) return wd
+    const row = el('div', 'kt-row')
+    row.append(el('span', 'kt-plan'), el('span', 'kt-ist'))
+    const bar = el('div', 'kt-bar')
+    bar.append(el('i', 'p'), el('i', 't'))
+    const root = el('div', `kt-dh${a.isToday ? ' today' : ''}`)
+    root.append(el('small', '', wd), el('b', '', String(a.date.getDate())), row, bar)
+    return { domNodes: [root] }
+  },
+  dayHeaderDidMount: (a) => paintDay(a.el),
+  eventsSet: () => (cal.value?.$el as HTMLElement | undefined)?.querySelectorAll<HTMLElement>('.fc-col-header-cell').forEach(paintDay),
+  slotLabelContent: (a) => String(a.date.getHours()).padStart(2, '0'),
+  nowIndicatorContent: (a) => (a.isAxis ? hhmm(a.date) : ''),
+  // Termin = Punkt, Aufgabe = Ring (gefüllt, wenn erledigt); in der Woche Titel, Zeit, Projekt · Ort, im Monat Zeit und Titel in einer Zeile.
+  eventContent: (a) => {
+    const { event } = a
+    const p = event.extendedProps as { kind: string; proj?: string; place?: string }
+    if (p.kind === 'track') return { domNodes: [] }
+    const month = a.view.type === 'dayGridMonth'
+    const { start, end } = event
+    const timed = !event.allDay && start
+    const time = el('span', 'kt-time', timed ? hhmm(start) : '')
+    if (timed && end && !month) time.append(el('span', 'kt-end', `–${hhmm(end)}`))
+    const title = el('span', 'kt-title', event.title)
+    const mark = el('i', p.kind === 'task' ? 'kt-ring' : 'kt-dot')
+    const meta = [p.proj, p.place].filter(Boolean).join(' · ')
+    const root = el('div', 'kt-in')
+    if (month) root.append(...(p.kind === 'task' ? [mark] : []), ...(timed ? [time] : []), title)
+    else {
+      const head = el('div', 'kt-head')
+      head.append(mark, title)
+      root.append(head, ...(timed ? [time] : []), ...(meta ? [el('span', 'kt-meta', meta)] : []))
+    }
+    return { domNodes: [root] }
   },
   expandRows: true,
   snapDuration: '00:15:00',
-  slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
   displayEventEnd: false,
+  eventMinHeight: 26, // kurze Einträge (30 min) laufen einzeilig: Titel und Zeit nebeneinander
+  eventShortHeight: 36,
   eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
   selectable: true,
   selectMirror: true,
@@ -318,6 +438,7 @@ const options: CalendarOptions = {
   eventDidMount: (a) => {
     const color = a.event.extendedProps.color as string | undefined
     if (color) a.el.style.setProperty('--acc', color) // Projektfarbe
+    a.el.title = `${a.timeText ? `${a.timeText} ` : ''}${a.event.title}` // voller Titel bei Hover
   },
   droppable: true,
   drop: (a) => {
@@ -351,25 +472,31 @@ useLiveEvents(() => {
     <div class="cal">
       <div class="cal-toolbar">
         <div class="cal-nav">
-          <button class="icon-btn" aria-label="Zurück" @click="cal?.getApi().prev()"><svg class="ic"><use href="#i-left" /></svg></button>
-          <button class="icon-btn" aria-label="Weiter" @click="cal?.getApi().next()"><svg class="ic"><use href="#i-right" /></svg></button>
+          <button class="icon-btn" aria-label="Zurück" title="Zurück (←)" @click="cal?.getApi().prev()"><svg class="ic"><use href="#i-left" /></svg></button>
+          <button class="icon-btn" aria-label="Weiter" title="Weiter (→)" @click="cal?.getApi().next()"><svg class="ic"><use href="#i-right" /></svg></button>
         </div>
-        <button class="btn btn-ghost" @click="cal?.getApi().today()">Heute</button>
+        <button class="btn btn-ghost" title="Heute (t)" aria-keyshortcuts="t" @click="cal?.getApi().today()">Heute</button>
         <h2 class="cal-title">{{ title }}</h2>
         <span class="spacer" />
-        <div class="seg">
-          <button v-for="[v, l] in views" :key="v" :aria-pressed="view === v" @click="cal?.getApi().changeView(v)">{{ l }}</button>
+        <div v-if="!isMonth" class="cal-legend" aria-hidden="true">
+          <span><i class="lg-termin" />Termin</span><span><i class="lg-task" />Aufgabe</span><span><i class="lg-track" />Erfasst</span>
         </div>
+        <div class="seg">
+          <button v-for="[v, l, k] in views" :key="v" :aria-pressed="view === v || (v === WORK && view === 'timeGridWeek')" :title="`${l} (${k})`" :aria-keyshortcuts="k" @click="goView(v)">{{ l }}</button>
+        </div>
+        <button v-if="isWeek" class="btn btn-ghost" :aria-pressed="fullWeek" title="Samstag und Sonntag anzeigen" @click="toggleWeekend">Sa/So<span v-if="!fullWeek && weekendEntries" class="up-count"> {{ weekendEntries }}</span></button>
         <input ref="fileInput" type="file" accept=".ics,text/calendar" hidden @change="importFile" />
         <button class="btn btn-secondary" @click="fileInput?.click()">ICS importieren</button>
-        <button class="btn btn-primary" @click="openNew"><svg class="ic"><use href="#i-plus" /></svg>Neuer Eintrag</button>
+        <button class="btn btn-primary" title="Neuer Eintrag (n)" aria-keyshortcuts="n" @click="openNew"><svg class="ic"><use href="#i-plus" /></svg>Neuer Eintrag</button>
       </div>
       <div class="cal-fc"><FullCalendar ref="cal" :options="options" /></div>
     </div>
-    <aside class="unplanned" aria-labelledby="up-title">
-      <h3 id="up-title">Ungeplant <span class="up-count">{{ unplanned.length }}</span></h3>
-      <p class="up-hint">Task in den Kalender ziehen, um sie zu planen.</p>
-      <div ref="unplannedEl" class="up-list">
+    <aside class="unplanned" :class="{ shut: !upOpen }" aria-labelledby="up-title">
+      <div class="up-head">
+        <h3 id="up-title"><span class="up-lbl">Ungeplant </span><span class="up-count">{{ unplanned.length }}</span></h3>
+        <button type="button" class="icon-btn" :aria-expanded="upOpen" :aria-label="upOpen ? 'Ungeplant einklappen' : 'Ungeplant ausklappen'" @click="toggleUp"><svg class="ic"><use :href="upOpen ? '#i-right' : '#i-left'" /></svg></button>
+      </div>
+      <div v-show="upOpen" ref="unplannedEl" class="up-list">
         <div v-for="t in unplanned" :key="t.id" class="up-item" :data-id="t.id" :data-min="t.estimated_minutes || ''">
           <span class="up-dot" :style="{ background: projectColor(t.project_id) }" />
           <span class="up-name">{{ t.title }}</span>
@@ -421,12 +548,12 @@ useLiveEvents(() => {
         </div>
         <div v-if="form.ask" class="dlg-foot">
           <span class="q">{{ form.day ? 'Nur diesen Termin oder die ganze Serie löschen?' : 'Termin löschen?' }}</span>
-          <button type="button" class="btn btn-ghost" @click="form.ask = false">Abbrechen</button>
-          <button v-if="form.day" type="button" class="btn btn-danger" @click="remove(true)">Nur dieser Termin</button>
-          <button type="button" class="btn btn-danger" @click="remove(false)">{{ form.day ? 'Ganze Serie' : 'Löschen' }}</button>
+          <button ref="safeBtn" type="button" class="btn btn-ghost" @click="form.ask = false">Abbrechen</button>
+          <button v-if="form.day" type="button" class="btn btn-secondary" @click="remove(true)">Nur dieser Termin</button>
+          <button type="button" class="btn btn-primary" @click="remove(false)">{{ form.day ? 'Ganze Serie löschen' : 'Termin löschen' }}</button>
         </div>
         <div v-else class="dlg-foot">
-          <button v-if="form.id" type="button" class="btn btn-secondary" @click="form.ask = true">Löschen</button>
+          <button v-if="form.id" type="button" class="btn btn-secondary" @click="askDelete">Löschen</button>
           <span class="spacer" />
           <button type="button" class="btn btn-ghost" @click="form = null">Abbrechen</button>
           <button type="submit" class="btn btn-primary">{{ form.id ? 'Speichern' : 'Anlegen' }}</button>
@@ -437,21 +564,25 @@ useLiveEvents(() => {
 </template>
 
 <style scoped>
-.page { height: 100%; display: flex; flex-direction: column; gap: 12px; }
+.page { height: 100%; max-width: none; display: flex; flex-direction: column; gap: 12px; }
 .notes { margin: 6px 0 0; padding-left: 18px; max-height: 120px; overflow: auto; font-size: 12px; }
 .cal-wrap { flex: 1; min-height: 0; display: flex; gap: 12px; }
-.cal { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+.cal { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0; container-type: inline-size; }
 .unplanned {
   flex: none; width: 240px; display: flex; flex-direction: column; min-height: 0; padding: 12px;
   background: var(--bg-1); border: 1px solid var(--br-default); border-radius: var(--r-m);
 }
+.up-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.unplanned.shut { width: 44px; padding: 12px 6px; align-items: center; }
+.unplanned.shut .up-head { flex-direction: column; }
+.unplanned.shut .up-lbl { display: none; }
 .unplanned h3 { margin: 0; font: 600 14px/1.3 var(--font-ui); color: var(--tx-primary); }
 .up-count { font: 400 12px/1 var(--font-mono); color: var(--tx-muted); }
-.up-hint { margin: 4px 0 10px; font: 400 12px/1.4 var(--font-ui); color: var(--tx-muted); }
+.up-list { margin-top: 10px; }
 .up-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
 .up-item {
   display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: grab;
-  background: var(--bg-0); border: 1px dashed var(--br-default); border-radius: var(--r-s);
+  background: var(--bg-0); border: 1px solid var(--br-default); border-radius: var(--r-s);
   font: 400 13px/1.3 var(--font-ui); color: var(--tx-primary);
 }
 .up-item:hover { border-color: var(--br-strong); }
@@ -463,6 +594,13 @@ useLiveEvents(() => {
   .unplanned { width: auto; max-height: 180px; order: 2; }
 }
 .cal-fc { flex: 1; min-height: 0; }
+.cal-legend { display: flex; align-items: center; gap: 14px; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
+.cal-legend span { display: flex; align-items: center; gap: 6px; }
+.cal-legend i { display: block; width: 10px; height: 10px; border-radius: 3px; box-sizing: border-box; border: 1px solid var(--tx-muted); }
+.lg-termin { background: color-mix(in oklab, var(--tx-secondary) 30%, transparent); }
+.lg-task { border-style: dashed !important; }
+.lg-track { width: 3px !important; height: 12px !important; border: 0 !important; border-radius: 2px !important; background: var(--tx-secondary); }
+@container (max-width: 1180px) { .cal-legend { display: none; } }
 .dlg-row { display: flex; gap: 12px; }
 .dlg-foot { flex-wrap: wrap; }
 .dlg-foot .spacer { flex: 1; }
