@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { errorMessage, getReview, listHabits, listProjects, listTasks, type Habit, type Review, type Task } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
-import { daysAgo, ymd } from '@/lib/dates'
+import { daysAgo, hm, ymd } from '@/lib/dates'
 import { projectColor } from '@/lib/projectColor'
 
 // Die API liefert completed_at, Task kennt es noch nicht.
@@ -11,7 +11,6 @@ type DoneTask = Task & { completed_at: string | null }
 const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 const weekStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
-const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`
 const short = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' })
 const today = () => ymd(new Date())
 
@@ -98,8 +97,8 @@ useLiveEvents(load)
 
     <template v-if="review">
       <div class="focus-stats rv-stats">
-        <div class="fstat"><span class="n">{{ hm(review.tracked_minutes) }}<span class="u">h</span></span><span class="c">Erfasst</span></div>
-        <div class="fstat"><span class="n">{{ hm(calendarMinutes) }}<span class="u">h</span></span><span class="c">Termine</span></div>
+        <div class="fstat"><span class="n">{{ hm(review.tracked_minutes) }}</span><span class="c">Erfasst</span></div>
+        <div class="fstat"><span class="n">{{ hm(calendarMinutes) }}</span><span class="c">Termine</span></div>
         <div class="fstat"><span class="n">{{ review.completed_tasks }}</span><span class="c">Erledigt</span></div>
         <div class="fstat"><span class="n">{{ overdue.length }}</span><span class="c">Überfällig geworden</span></div>
       </div>
@@ -121,17 +120,17 @@ useLiveEvents(load)
       <div class="start-grid">
         <div class="start-col">
           <div class="col-head"><h2 class="col-title">Zeit pro Projekt</h2></div>
-          <div class="card tasklist">
+          <div class="tasklist">
             <div v-for="p in projects" :key="p.project_id ?? ''" class="rv-proj">
-              <span class="rv-name">{{ p.name }}</span>
-              <span class="rv-n mono">{{ hm(p.tracked_minutes) }} h<template v-if="p.completed_tasks"> · {{ p.completed_tasks }} erledigt</template></span>
-              <div class="dayload" aria-hidden="true"><span class="dl-busy" :style="{ width: `${(p.tracked_minutes / maxProject) * 100}%`, '--acc': projectColor(p.project_id) }"></span></div>
+              <span class="rv-name"><span class="pdot" :style="{ background: projectColor(p.project_id) }"></span>{{ p.name }}</span>
+              <span class="rv-n mono">{{ hm(p.tracked_minutes) }}<template v-if="p.completed_tasks"> · {{ p.completed_tasks }} erledigt</template></span>
+              <div class="dayload" aria-hidden="true"><span class="dl-busy" :style="{ width: `${(p.tracked_minutes / maxProject) * 100}%` }"></span></div>
             </div>
             <div v-if="!projects.length" class="v-sub rv-empty">Keine Zeit erfasst.</div>
           </div>
 
           <div class="col-head rv-gap"><h2 class="col-title">Gewohnheiten</h2></div>
-          <div class="card tasklist">
+          <div class="tasklist">
             <div v-for="h in review.habits" :key="h.habit_id" class="task-row">
               <span class="t">{{ h.name }}</span>
               <span class="rv-n mono">{{ h.done }}<template v-if="target(h.habit_id)">/{{ target(h.habit_id) }}</template></span>
@@ -143,7 +142,7 @@ useLiveEvents(load)
 
         <div class="start-col">
           <div class="col-head"><h2 class="col-title">Erledigt</h2></div>
-          <div class="card tasklist">
+          <div class="tasklist">
             <div v-for="t in completed" :key="t.id" class="task-row">
               <span class="t">{{ t.title }}</span>
               <span class="due">{{ doneMeta(t) }}</span>
@@ -152,7 +151,7 @@ useLiveEvents(load)
           </div>
 
           <div class="col-head rv-gap"><h2 class="col-title">Überfällig geworden</h2></div>
-          <div class="card tasklist">
+          <div class="tasklist">
             <div v-for="t in overdue" :key="t.id" class="task-row">
               <span class="t">{{ t.title }}</span>
               <span class="due od">{{ daysAgo(t.planned_date!, today()) }}</span>
@@ -168,13 +167,14 @@ useLiveEvents(load)
 <style scoped>
 .rv-nav { display: flex; align-items: center; gap: 4px; }
 .rv-nav :disabled { opacity: .4; cursor: default; }
-.rv-stats { margin-bottom: 24px; }
+.rv-stats { margin-bottom: 28px; }
 .rv-chart { padding: 18px 20px; margin-bottom: 32px; }
 .rv-legend { display: flex; gap: 16px; margin-bottom: 14px; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
 .rv-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .rv-legend i { width: 8px; height: 8px; border-radius: 2px; }
-.k-cal { background: var(--a-blue); }
-.k-trk { background: var(--a-green); }
+/* Neutral: gefüllt heißt erfasst, schraffiert heißt Termine */
+.k-cal { background: repeating-linear-gradient(135deg, var(--tx-muted) 0 2px, transparent 2px 5px); box-shadow: inset 0 0 0 1px var(--tx-muted); }
+.k-trk { background: var(--tx-secondary); }
 .rv-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
 .rv-day { display: grid; justify-items: center; gap: 6px; }
 .rv-bars { display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 120px; width: 100%; }
@@ -183,7 +183,7 @@ useLiveEvents(load)
 .rv-proj { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 10px 16px; border-bottom: 1px solid var(--br-subtle); }
 .rv-proj:last-child { border-bottom: 0; }
 .rv-proj .dayload { grid-column: 1 / -1; }
-.rv-name { min-width: 0; font: 500 14px/1.4 var(--font-ui); color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-name { display: flex; align-items: center; gap: 8px; min-width: 0; font: 500 14px/1.4 var(--font-ui); color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rv-gap { margin-top: 28px; }
 .rv-empty { padding: 12px 16px; margin: 0; }
 </style>

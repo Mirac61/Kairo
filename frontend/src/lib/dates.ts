@@ -18,3 +18,17 @@ export const timeOf = (s: string | null) => {
 }
 // Eventwert des DatePickers (Einzelwert) als Date oder null.
 export const single = (v: unknown) => (v instanceof Date ? v : null)
+
+// Minuten als h:mm (spaltenbündig, ohne Einheit).
+export const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`
+
+// "12.10." für einen Tag ("YYYY-MM-DD"), "Fr 9.10." mit Wochentag.
+export const dm = (day: string) => `${Number(day.slice(8))}.${Number(day.slice(5, 7))}.`
+export const shortDay = (day: string) =>
+  `${new Intl.DateTimeFormat('de-DE', { weekday: 'short' }).format(new Date(`${day}T00:00:00`)).replace('.', '')} ${dm(day)}`
+
+// "Heute", "Morgen", sonst "Fr 9.10.".
+export function dayLabel(day: string, today: string) {
+  const diff = Math.round((Date.parse(day) - Date.parse(today)) / 864e5)
+  return diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : shortDay(day)
+}

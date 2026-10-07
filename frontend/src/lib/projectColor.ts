@@ -12,5 +12,5 @@ export const setProjectColors = (ps: { id: string; color: string }[]) => ps.forE
 
 export function projectColor(id: string | null | undefined): string {
   const c = id ? colors.get(id) : undefined
-  return `var(--a-${c ?? 'neutral'})`
+  return `var(--p-${c ?? 'neutral'})`
 }
