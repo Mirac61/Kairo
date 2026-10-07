@@ -1,6 +1,6 @@
 # Kairo – VSCodium-Extension
 
-Phase 4: Ansicht „Kontext“ mit Backend-Status, erkanntem Projekt, aktueller Task
+Ansicht „Kontext“ mit Backend-Status, erkanntem Projekt, aktueller Task
 und den Tasks von heute (Start, Pause, Abschließen per Inline-Button).
 Die Extension speichert keine Produktdaten; das Backend ist die Source of Truth.
 
