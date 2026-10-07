@@ -144,13 +144,68 @@ const groups = computed(() => [
 const doneTasks = computed(() => (today.value?.tasks ?? []).filter((t) => t.status === 'COMPLETED'))
 
 const y = (m: number) => ((m - START_H * 60) / 60) * HOUR
+// Kürzere Blöcke zeichnet das Raster mit Mindesthöhe (22 px = 30 Minuten).
+const MIN_BLOCK = 30
+
+// Überlappende Blöcke stehen nebeneinander: Spalte und Spaltenzahl je Block.
+const layout = computed(() => {
+  const pos = new Map<string, { col: number; cols: number }>()
+  let cluster: { key: string; col: number }[] = []
+  let ends: number[] = [] // Ende des letzten Blocks je Spalte
+  const flush = () => {
+    for (const c of cluster) pos.set(c.key, { col: c.col, cols: ends.length })
+    cluster = []
+    ends = []
+  }
+  for (const b of blocks.value) { // nach Beginn sortiert
+    if (ends.length && b.start >= Math.max(...ends)) flush() // nichts überlappt mehr
+    let col = ends.findIndex((e) => e <= b.start)
+    if (col < 0) col = ends.length
+    ends[col] = Math.max(b.end, b.start + MIN_BLOCK)
+    cluster.push({ key: b.key, col })
+  }
+  flush()
+  return pos
+})
+
 const style = (b: Block) => {
   const top = Math.max(y(b.start), 0)
   const height = Math.max(y(Math.min(b.end, END_H * 60)) - top, 22)
-  return { top: `${top}px`, height: `${height}px`, '--acc': b.color }
+  const { col, cols } = layout.value.get(b.key) ?? { col: 0, cols: 1 }
+  // Nutzbreite: 100 % abzüglich der Ränder (6 px links, 10 px rechts).
+  return {
+    top: `${top}px`, height: `${height}px`, '--acc': b.color,
+    left: `calc(6px + (100% - 16px) * ${col / cols})`, width: `calc((100% - 16px) / ${cols} - 2px)`, right: 'auto',
+  }
 }
 const hours = Array.from({ length: END_H - START_H + 1 }, (_, i) => START_H + i)
 const nowTop = computed(() => (nowMin.value >= START_H * 60 && nowMin.value <= END_H * 60 ? y(nowMin.value) : null))
+
+// Aufgaben aus der Liste lassen sich in den Plan ziehen (HTML-Drag-and-drop; das Raster ist kein FullCalendar).
+const dragTask = (e: DragEvent, t: Task) => {
+  e.dataTransfer!.setData('text/plain', t.id)
+  e.dataTransfer!.effectAllowed = 'move'
+}
+
+// Minuten seit Mitternacht am Tag der Ansicht als Zeitpunkt, in der Zeitzone des Backends.
+function instantAt(min: number) {
+  const guess = Date.parse(`${today.value!.date}T00:00:00Z`) + min * 60_000
+  const off = (((minsOf(guess) - min + 720) % 1440) + 1440) % 1440 - 720 // Zeitzonenversatz in Minuten
+  return new Date(guess - off * 60_000)
+}
+
+function dropTask(e: DragEvent) {
+  const task = tasksById.value.get(e.dataTransfer?.getData('text/plain') ?? '')
+  if (!task || !today.value) return
+  const top = (e.currentTarget as HTMLElement).getBoundingClientRect().top
+  const snapped = START_H * 60 + Math.round(((e.clientY - top) / HOUR) * 4) * 15 // auf 15 Minuten
+  const min = Math.min(Math.max(snapped, START_H * 60), END_H * 60 - 15)
+  const { id, title, planned_date, planned_start_at } = task
+  void run(async () => {
+    await updateTask(id, { planned_date: today.value!.date, planned_start_at: instantAt(min).toISOString() })
+    offer(`„${title}“ eingeplant`, () => run(() => updateTask(id, { planned_date: planned_date ?? '', planned_start_at: planned_start_at ?? '' })))
+  })
+}
 
 function addQuick() {
   const title = quick.value.trim()
@@ -263,7 +318,7 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
           <div v-if="today.overdue.length" class="tgroup">
             <span class="lbl">Überfällig<span class="count">{{ today.overdue.length }}</span></span>
             <div class="card tasklist">
-              <div v-for="t in today.overdue" :key="t.id" class="task-row">
+              <div v-for="t in today.overdue" :key="t.id" class="task-row" draggable="true" @dragstart="dragTask($event, t)">
                 <span class="t">{{ t.title }}</span>
                 <span class="due od">{{ daysAgo(t.planned_date!, today.date) }}</span>
                 <button type="button" class="btn btn-ghost" @click="moveTo(t, 0)">→ Heute</button>
@@ -274,7 +329,7 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
           <div v-for="g in groups" :key="g.title" class="tgroup">
             <span class="lbl">{{ g.title }}<span class="count">{{ g.tasks.length }}</span></span>
             <div class="card tasklist">
-              <div v-for="t in g.tasks" :key="t.id" class="task-row">
+              <div v-for="t in g.tasks" :key="t.id" class="task-row" draggable="true" @dragstart="dragTask($event, t)">
                 <span class="t" :class="taskTitleClass(t)">{{ t.title }}</span>
                 <span v-if="t.planned_start_at" class="due">{{ fmt(t.planned_start_at) }}</span>
                 <TaskActions :task="t" :running="runningTaskId === t.id" @run="run" />
@@ -333,13 +388,14 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 
         <section class="start-col">
           <div class="col-head"><h2 class="col-title">Tagesplan</h2><router-link class="col-link" to="/calendar">Woche ansehen</router-link></div>
+          <div class="v-sub">Aufgaben aus der Liste in den Plan ziehen, um sie einzuplanen.</div>
           <div class="card dayplan">
             <div class="dp-scroll">
               <div class="dp-body">
                 <div class="hourcol" :style="{ '--hour': HOUR + 'px' }">
                   <div v-for="h in hours" :key="h" class="hl"><span class="mono">{{ String(h).padStart(2, '0') }}:00</span></div>
                 </div>
-                <div class="dp-grid" :style="{ height: (END_H - START_H) * HOUR + 'px' }">
+                <div class="dp-grid" :style="{ height: (END_H - START_H) * HOUR + 'px' }" @dragover.prevent @drop.prevent="dropTask">
                   <div v-for="h in hours" :key="h" class="hline" :style="{ top: (h - START_H) * HOUR + 'px' }"></div>
                   <div v-if="nowTop !== null" class="now-line" :style="{ top: nowTop + 'px' }"></div>
                   <div
@@ -368,6 +424,7 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 .focus-next.small .fn-when { font: 500 14px/1.4 var(--font-ui); letter-spacing: 0; color: var(--tx-secondary); }
 .focus-next.small .fn-t { font-size: 14px; }
 .te-time { width: 92px; flex: none; }
+.task-row[draggable='true'] { cursor: grab; }
 .manual { margin-top: 12px; }
 .manual-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 12px; }
 .manual-form .field { width: 140px; }
