@@ -15,6 +15,7 @@ import {
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useUndo } from '@/composables/useUndo'
+import { vDialog } from '@/lib/dialog'
 import { hhmm, ymd } from '@/lib/dates'
 import { projectColor } from '@/lib/projectColor'
 
@@ -376,8 +377,8 @@ useLiveEvents(() => {
     </aside>
     </div>
 
-    <div v-if="form" class="overlay open" @mousedown.self="form = null" @keydown.esc="form = null">
-      <form class="dialog" role="dialog" aria-modal="true" aria-labelledby="cal-dlg-title" @submit.prevent="save">
+    <div v-if="form" v-dialog="() => (form = null)" class="overlay open" @mousedown.self="form = null">
+      <form class="dialog" aria-labelledby="cal-dlg-title" @submit.prevent="save">
         <div class="dlg-head"><h3 id="cal-dlg-title">{{ form.id ? 'Termin bearbeiten' : 'Neuer Eintrag' }}</h3></div>
         <div class="dlg-body">
           <div v-if="!form.id" class="seg">

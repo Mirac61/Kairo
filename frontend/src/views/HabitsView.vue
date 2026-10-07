@@ -6,6 +6,7 @@ import {
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useUndo } from '@/composables/useUndo'
+import { vDialog } from '@/lib/dialog'
 import { ymd } from '@/lib/dates'
 
 const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
@@ -195,8 +196,8 @@ useLiveEvents(load)
       </div>
     </div>
 
-    <div class="overlay" :class="{ open: dialog }" @click.self="dialog = false" @keydown.esc="dialog = false">
-      <form class="dialog" role="dialog" aria-label="Neue Gewohnheit" @submit.prevent="add">
+    <div v-if="dialog" v-dialog="() => (dialog = false)" class="overlay open" @mousedown.self="dialog = false">
+      <form class="dialog" aria-label="Neue Gewohnheit" @submit.prevent="add">
         <div class="dlg-head">
           <h3>Neue Gewohnheit</h3>
           <button class="icon-btn" type="button" aria-label="Schließen" @click="dialog = false"><svg class="ic"><use href="#i-x" /></svg></button>

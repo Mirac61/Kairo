@@ -5,6 +5,7 @@ import {
   updateProject, type Project, type Resource, type Task, type TimeEntry,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { vDialog } from '@/lib/dialog'
 import { projectColor } from '@/lib/projectColor'
 import { ymd } from '@/lib/dates'
 import DeleteButton from '@/components/DeleteButton.vue'
@@ -160,8 +161,8 @@ useLiveEvents(load)
       </article>
     </div>
 
-    <div class="overlay" :class="{ open: dialog }" @click.self="dialog = false" @keydown.esc="dialog = false">
-      <div class="dialog" role="dialog" :aria-label="editing ? 'Projekt bearbeiten' : 'Neues Projekt'">
+    <div v-if="dialog" v-dialog="() => (dialog = false)" class="overlay open" @mousedown.self="dialog = false">
+      <div class="dialog" :aria-label="editing ? 'Projekt bearbeiten' : 'Neues Projekt'">
         <form @submit.prevent="save">
           <div class="dlg-head">
             <h3>{{ editing ? 'Projekt bearbeiten' : 'Neues Projekt' }}</h3>
