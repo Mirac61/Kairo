@@ -90,11 +90,7 @@ func (h taskHandlers) list(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	out := make([]taskDTO, len(ts))
-	for i, t := range ts {
-		out[i] = toTaskDTO(t)
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeList(w, ts, toTaskDTO)
 }
 
 func (h taskHandlers) create(w http.ResponseWriter, r *http.Request) {

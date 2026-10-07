@@ -58,11 +58,7 @@ func (h resourceHandlers) list(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	out := make([]resourceDTO, len(rs))
-	for i, res := range rs {
-		out[i] = toResourceDTO(res)
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeList(w, rs, toResourceDTO)
 }
 
 // create: type ist optional (URL, FOLDER, FILE); ohne ihn leitet der Service ihn aus target ab.

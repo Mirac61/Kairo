@@ -1,12 +1,33 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import ConfirmPopup from 'primevue/confirmpopup'
 import { navItems } from '@/router'
 import UndoToast from '@/components/UndoToast.vue'
 import { useBackendStatus } from '@/composables/useBackendStatus'
+import { useLiveEvents } from '@/composables/useLiveEvents'
+import { counts, loadSidebar, pins } from '@/composables/useSidebar'
+import { hm } from '@/lib/dates'
+import { store } from '@/lib/storage'
+import { projectColor } from '@/lib/projectColor'
 
 const { online, version } = useBackendStatus()
+const router = useRouter()
+
+useLiveEvents(loadSidebar)
+const countOf: Record<string, () => string | number> = {
+  tasks: () => counts.value.tasks, habits: () => counts.value.habits, proj: () => counts.value.projects, trash: () => counts.value.trash,
+}
+
+// „Neu …“ und ⌘K: Schnelleingabe der Aufgabenliste (die Ansicht fokussiert das Feld).
+const newEntry = () => router.push({ path: '/tasks', query: { new: String(Date.now()) } })
+function onKey(e: KeyboardEvent) {
+  if (!(e.metaKey || e.ctrlKey) || e.key !== 'k') return
+  e.preventDefault()
+  void newEntry()
+}
+onMounted(() => { window.addEventListener('keydown', onKey); void loadSidebar() })
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 // Theme: gespeicherte Wahl, sonst Systemeinstellung (siehe main.ts).
 const dark = ref(document.documentElement.dataset.theme !== 'light')
@@ -14,7 +35,7 @@ function toggleTheme() {
   dark.value = !dark.value
   const t = dark.value ? 'dark' : 'light'
   document.documentElement.dataset.theme = t
-  try { localStorage.setItem('kairo-theme', t) } catch { /* privater Modus */ }
+  store.set('kairo-theme', t)
 }
 </script>
 
@@ -26,7 +47,9 @@ function toggleTheme() {
     <symbol id="i-tasks" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12.3 2.4 2.4 4.8-5.4"/></symbol>
     <symbol id="i-habits" viewBox="0 0 24 24"><path d="M21 3v5h-5M3 21v-5h5"/><path d="M4.6 9.5a8 8 0 0 1 13.4-3.3L21 8M3 16l3 1.8a8 8 0 0 0 13.4-3.3"/></symbol>
     <symbol id="i-proj" viewBox="0 0 24 24"><path d="M3.5 7a2 2 0 0 1 2-2H9l2 2.5h7.5a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-bars" viewBox="0 0 24 24"><path d="M4.5 20.5V13M9.75 20.5V5M15 20.5v-7M20.25 20.5V9"/></symbol>
     <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-left" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></symbol>
     <symbol id="i-right" viewBox="0 0 24 24"><path d="M9.5 5.5 16 12l-6.5 6.5"/></symbol>
@@ -42,13 +65,23 @@ function toggleTheme() {
 </svg>
   <div class="app">
     <aside class="sidebar">
-      <div class="logo">Kairo</div>
-      <div class="lbl nav-label">Ansichten</div>
+      <div class="logo"><span class="logo-mark" aria-hidden="true">K</span>Kairo</div>
+      <button type="button" class="sb-new" aria-keyshortcuts="Meta+K Control+K" @click="newEntry">
+        <svg class="ic"><use href="#i-plus" /></svg><span class="sb-new-l">Neu …</span><kbd class="key" aria-hidden="true">⌘K</kbd>
+      </button>
       <nav aria-label="Hauptnavigation">
         <RouterLink v-for="item in navItems" :key="item.path" :to="item.path" class="nav-item">
-          <svg class="ic"><use :href="`#i-${item.icon}`" /></svg><span>{{ item.label }}</span>
+          <svg class="ic"><use :href="`#i-${item.icon}`" /></svg><span class="nav-l">{{ item.label }}</span>
+          <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
         </RouterLink>
       </nav>
+      <div v-if="pins.length" class="pins">
+        <div class="pins-head"><span>Aktiv</span><span>diese Woche</span></div>
+        <RouterLink v-for="p in pins" :key="p.id" to="/projects" class="nav-item pin">
+          <span class="pin-dot"><i :style="{ background: projectColor(p.id) }"></i></span><span class="nav-l">{{ p.name }}</span>
+          <span v-if="p.minutes" class="nav-n">{{ hm(p.minutes) }}</span>
+        </RouterLink>
+      </div>
       <div class="sidebar-footer">
         <div class="status" :class="{ off: !online }">
           <span class="status-dot" />

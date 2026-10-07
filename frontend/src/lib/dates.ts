@@ -3,6 +3,10 @@ const pad = (n: number) => String(n).padStart(2, '0')
 export const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 export const hhmm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
 
+export const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
+// Montag der Woche von d, 00:00 Ortszeit.
+export const weekStart = (d = new Date()) => addDays(d, -((d.getDay() + 6) % 7))
+
 // "gestern", "vor 3 Tagen" für einen Tag vor today (beide "YYYY-MM-DD").
 export const daysAgo = (day: string, today: string) =>
   new Intl.RelativeTimeFormat('de', { numeric: 'auto' }).format(-Math.round((Date.parse(today) - Date.parse(day)) / 864e5), 'day')
@@ -21,6 +25,11 @@ export const single = (v: unknown) => (v instanceof Date ? v : null)
 
 // Minuten als h:mm (spaltenbündig, ohne Einheit).
 export const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`
+// Minuten ausgeschrieben: "45 Min", "1 Std 30 Min".
+export const dur = (m = 0) => (m >= 60 ? `${Math.floor(m / 60)} Std${m % 60 ? ` ${m % 60} Min` : ''}` : `${m} Min`)
+// Dauer eines Zeiteintrags in Minuten; ein laufender zählt bis now.
+export const entryMinutes = (e: { started_at: string; ended_at: string | null }, now = Date.now()) =>
+  Math.max(0, Math.floor(((e.ended_at ? Date.parse(e.ended_at) : now) - Date.parse(e.started_at)) / 60_000))
 
 // "12.10." für einen Tag ("YYYY-MM-DD"), "Fr 9.10." mit Wochentag.
 export const dm = (day: string) => `${Number(day.slice(8))}.${Number(day.slice(5, 7))}.`

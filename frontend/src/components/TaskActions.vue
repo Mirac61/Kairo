@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { taskAction, type Task } from '@/api/client'
+import { isOpen, taskAction, type Task } from '@/api/client'
 import { useUndo } from '@/composables/useUndo'
 
 const props = defineProps<{ task: Task; running: boolean }>()
@@ -11,7 +11,7 @@ const inCode = () => { window.location.href = `vscodium://kairo-local.kairo/star
 </script>
 
 <template>
-  <div v-if="task.status !== 'COMPLETED' && task.status !== 'CANCELLED'" class="row nowrap">
+  <div v-if="isOpen(task)" class="row nowrap">
     <button v-if="running" type="button" class="btn btn-primary" :aria-label="`Pause: ${task.title}`" @click="$emit('run', () => taskAction(task.id, 'pause'))">Pause</button>
     <button v-else type="button" class="btn btn-primary" :aria-label="`Start: ${task.title}`" @click="$emit('run', () => taskAction(task.id, 'start'))">Start</button>
     <button type="button" class="btn btn-secondary" :aria-label="`Fertig: ${task.title}`" @click="setDone(task, 'COMPLETED', (fn) => emit('run', fn))">Fertig</button>

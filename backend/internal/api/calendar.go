@@ -112,11 +112,7 @@ func (h calendarHandlers) list(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	out := make([]calendarEventDTO, len(es))
-	for i, e := range es {
-		out[i] = toCalendarEventDTO(e)
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeList(w, es, toCalendarEventDTO)
 }
 
 func (h calendarHandlers) create(w http.ResponseWriter, r *http.Request) {
@@ -190,11 +186,7 @@ func (h calendarHandlers) occurrences(w http.ResponseWriter, r *http.Request) {
 		} else if err == nil {
 			var es []domain.EventInstance
 			if es, err = h.svc.Occurrences(r.Context(), *from, *to); err == nil {
-				out := make([]todayEventDTO, len(es))
-				for i, e := range es {
-					out[i] = toTodayEventDTO(e)
-				}
-				writeJSON(w, http.StatusOK, out)
+				writeList(w, es, toTodayEventDTO)
 				return
 			}
 		}

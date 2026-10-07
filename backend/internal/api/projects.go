@@ -58,11 +58,7 @@ func (h projectHandlers) list(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	out := make([]projectDTO, len(ps))
-	for i, p := range ps {
-		out[i] = toProjectDTO(p)
-	}
-	writeJSON(w, http.StatusOK, out)
+	writeList(w, ps, toProjectDTO)
 }
 
 func (h projectHandlers) create(w http.ResponseWriter, r *http.Request) {

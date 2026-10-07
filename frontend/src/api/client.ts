@@ -52,6 +52,9 @@ export interface Task {
   parent_task_id: string | null
 }
 
+// Offen = weder erledigt noch abgebrochen.
+export const isOpen = (t: Pick<Task, 'status'>) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
+
 export interface TodayEvent {
   id: string
   title: string

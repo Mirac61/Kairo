@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
-  completeHabit, createTask, createTimeEntry, deleteTimeEntry, errorMessage, getToday, listProjects, listTasks, listTimeEntries, uncompleteHabit, updateTask, updateTimeEntry,
-  type Project, type Task, type TimeEntry, type Today,
+  completeHabit, createTask, taskAction, createTimeEntry, deleteTimeEntry, getToday, listProjects, listTasks, listTimeEntries, uncompleteHabit, updateTask, updateTimeEntry,
+  isOpen, type Project, type Task, type TimeEntry, type Today,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { useLoader } from '@/composables/useLoader'
+import { useShortcuts } from '@/composables/useShortcuts'
 import { useUndo } from '@/composables/useUndo'
-import { daysAgo, hm, ymd } from '@/lib/dates'
+import { daysAgo, dur, entryMinutes, hhmm, hm, ymd } from '@/lib/dates'
 import { parseQuickAdd, taskBody } from '@/lib/quickAdd'
 import QuickHints from '@/components/QuickHints.vue'
-import { projectColor } from '@/lib/projectColor'
+import { habitColor, projectColor } from '@/lib/projectColor'
 import TaskActions from '@/components/TaskActions.vue'
 import DeleteButton from '@/components/DeleteButton.vue'
 
@@ -18,11 +20,12 @@ const START_H = 7
 const END_H = 22
 const HOUR = 44
 
-const { offer } = useUndo()
+const { offer, setDone } = useUndo()
 const today = ref<Today | null>(null)
-const error = ref('')
 const now = ref(Date.now())
 const quick = ref('')
+const quickEl = ref<HTMLInputElement>()
+const manualOpen = ref(false)
 const entries = ref<TimeEntry[]>([])
 const tasksById = ref(new Map<string, Task>())
 const taskTitles = computed(() => new Map([...tasksById.value].map(([id, t]) => [id, t.title])))
@@ -30,30 +33,23 @@ const projectNames = ref(new Map<string, string>())
 const projectList = ref<Project[]>([])
 let tick: ReturnType<typeof setInterval> | undefined
 
-async function load() {
-  try {
-    const t = await getToday()
-    const from = new Date(`${t.date}T00:00:00`)
-    const [es, tasks, projects] = await Promise.all([listTimeEntries(from, new Date(from.getTime() + 864e5)), listTasks(), listProjects()])
-    today.value = t
-    entries.value = es.reverse()
-    tasksById.value = new Map(tasks.map((x) => [x.id, x]))
-    projectNames.value = new Map(projects.map((x) => [x.id, x.name]))
-    projectList.value = projects.filter((p) => p.status !== 'ARCHIVED') // für #name in der Schnelleingabe
-    error.value = ''
-  } catch (e) {
-    error.value = errorMessage(e)
-  }
-}
+const { error, load, run } = useLoader(async () => {
+  const t = await getToday()
+  const from = new Date(`${t.date}T00:00:00`)
+  const [es, tasks, projects] = await Promise.all([listTimeEntries(from, new Date(from.getTime() + 864e5)), listTasks(), listProjects()])
+  today.value = t
+  entries.value = es.reverse()
+  tasksById.value = new Map(tasks.map((x) => [x.id, x]))
+  projectNames.value = new Map(projects.map((x) => [x.id, x.name]))
+  projectList.value = projects.filter((p) => p.status !== 'ARCHIVED') // für #name in der Schnelleingabe
+})
 
-async function run(fn: () => Promise<unknown>) {
-  try {
-    await fn()
-  } catch (e) {
-    error.value = errorMessage(e)
-  }
-  await load() // das /ws-Ereignis lädt ebenfalls, aber so ist die Anzeige auch ohne /ws aktuell
-}
+// n springt in die Schnelleingabe.
+useShortcuts((e) => {
+  if (e.key !== 'n') return
+  e.preventDefault()
+  quickEl.value?.focus()
+})
 
 useLiveEvents(load)
 onMounted(() => {
@@ -71,25 +67,25 @@ function minsOf(ms: number) {
   const n = (t: string) => Number(p.find((x) => x.type === t)?.value ?? 0)
   return n('hour') * 60 + n('minute')
 }
-const dur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} Std${m % 60 ? ` ${m % 60} Min` : ''}` : `${m} Min`)
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(now.value)))
 
 const nowMin = computed(() => minsOf(now.value))
-const runningTaskId = computed(() => today.value?.running_time_entry?.task_id ?? null)
+const runEntry = computed(() => today.value?.running_time_entry ?? null)
+const runningTaskId = computed(() => runEntry.value?.task_id ?? null)
 const elapsed = computed(() => {
-  const e = today.value?.running_time_entry
+  const e = runEntry.value
   if (!e) return ''
   const s = Math.max(0, Math.floor((now.value - Date.parse(e.started_at)) / 1000))
   const p = (n: number) => String(n).padStart(2, '0')
-  return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`
+  return `${Math.floor(s / 3600)}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`
 })
 
 interface Block { key: string; title: string; start: number; end: number; kind: 'event' | 'task'; done: boolean; running?: boolean; color: string; sub: string }
 
 // Termine und Tasks mit Uhrzeit als Blöcke; Tasks ohne Dauer zählen 30 Minuten.
-const blocks = computed<Block[]>(() => {
+const allBlocks = computed<Block[]>(() => {
   const t = today.value
   if (!t) return []
   const out: Block[] = t.events.map((e) => ({
@@ -107,21 +103,46 @@ const blocks = computed<Block[]>(() => {
   return out.sort((a, b) => a.start - b.start)
 })
 
+// Ganztägige Termine stehen im Kopf, nicht im Raster (und zählen nicht für die Spalten bei Überlappung).
+const isAllDay = (b: Block) => b.kind === 'event' && b.start === 0 && b.end >= 24 * 60
+const allDay = computed(() => allBlocks.value.filter(isAllDay))
+const blocks = computed(() => allBlocks.value.filter((b) => !isAllDay(b)))
 const upcoming = computed(() => blocks.value.filter((b) => b.kind === 'event' && !b.done))
-const current = computed(() => upcoming.value.find((b) => b.start <= nowMin.value && b.end > nowMin.value))
-const next = computed(() => upcoming.value.find((b) => b.start > nowMin.value))
+const nextEvent = computed(() => upcoming.value.find((b) => b.start > nowMin.value))
 
-const openTasks = computed(() => (today.value?.tasks ?? []).filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'))
-// Fokus: der laufende Timer, sonst die nächste geplante offene Task (das Backend sortiert nach Uhrzeit, ohne Uhrzeit zuletzt).
+const openTasks = computed(() => (today.value?.tasks ?? []).filter(isOpen))
 const runningTask = computed(() => (runningTaskId.value ? tasksById.value.get(runningTaskId.value) : undefined))
-const nextTask = computed(() => openTasks.value[0])
-const focusTask = computed(() => runningTask.value ?? nextTask.value)
-const groups = computed(() => [
-  { title: 'Mit Uhrzeit', tasks: openTasks.value.filter((t) => t.planned_start_at) },
-  { title: 'Ohne Uhrzeit', tasks: openTasks.value.filter((t) => !t.planned_start_at) },
-  { title: 'Aktiv, nicht für heute geplant', tasks: today.value?.active_tasks ?? [] },
-].filter((g) => g.tasks.length))
-const doneTasks = computed(() => (today.value?.tasks ?? []).filter((t) => t.status === 'COMPLETED'))
+const runProject = computed(() => runningTask.value?.project_id ?? runEntry.value?.project_id ?? null)
+const runGoal = computed(() => runningTask.value?.estimated_minutes || 0)
+const runPct = computed(() => (runGoal.value && runEntry.value ? Math.min(100, ((now.value - Date.parse(runEntry.value.started_at)) / 60_000 / runGoal.value) * 100) : 0))
+
+// „Als Nächstes“: die nächste offene Aufgabe (das Backend sortiert nach Uhrzeit), oder ein Termin, der vorher beginnt.
+const queue = computed(() => openTasks.value.filter((t) => t.id !== runningTaskId.value))
+const lead = (start: number | null) => (start === null ? '' : start > nowMin.value ? `in ${dur(start - nowMin.value)}` : `geplant ${hm(start)}`)
+const nextItem = computed(() => {
+  const t = queue.value[0]
+  const tStart = t?.planned_start_at ? minsOf(Date.parse(t.planned_start_at)) : null
+  const ev = nextEvent.value
+  if (ev && (!t || (tStart !== null && ev.start < tStart))) {
+    return { kind: 'Termin', title: ev.title, project: '', color: ev.color, when: `${hm(ev.start)}–${hm(ev.end)}`, lead: lead(ev.start), task: undefined, then: '' }
+  }
+  if (!t) return null
+  const after = queue.value[1]
+  return {
+    kind: 'Aufgabe', title: t.title, project: projectNames.value.get(t.project_id ?? '') ?? '', color: projectColor(t.project_id), task: t, lead: lead(tStart),
+    when: [t.planned_start_at ? `${hm(tStart!)}–${hm(tStart! + (t.estimated_minutes || 30))}` : '', t.estimated_minutes ? hm(t.estimated_minutes) : ''].filter(Boolean).join(' · '),
+    then: after ? `danach ${after.planned_start_at ? `${fmt(after.planned_start_at)} ` : ''}${after.title}` : '',
+  }
+})
+
+// „Heute fällig“: erst Überfälliges, dann der Tag; Aktives ohne Plan für heute folgt darunter.
+const dueRows = computed(() => [
+  ...(today.value?.overdue ?? []).map((t) => ({ t, od: true })),
+  ...openTasks.value.map((t) => ({ t, od: false })),
+])
+const whenOf = (r: { t: Task; od: boolean }) => (r.od ? daysAgo(r.t.planned_date!, today.value!.date) : r.t.planned_start_at ? fmt(r.t.planned_start_at) : 'Heute')
+const activeOnly = computed(() => today.value?.active_tasks ?? [])
+const doneCount = computed(() => (today.value?.tasks ?? []).filter((t) => t.status === 'COMPLETED').length)
 
 const y = (m: number) => ((m - START_H * 60) / 60) * HOUR
 // Kürzere Blöcke zeichnet das Raster mit Mindesthöhe (22 px = 30 Minuten).
@@ -174,17 +195,22 @@ function instantAt(min: number) {
   return new Date(guess - off * 60_000)
 }
 
+// Plan einer Task ändern; Rückgängig stellt den bisherigen Tag und die Uhrzeit wieder her.
+function reschedule(t: Task, plan: { planned_date: string; planned_start_at: string }, done: string) {
+  const { id, title, planned_date, planned_start_at } = t
+  void run(async () => {
+    await updateTask(id, plan)
+    offer(`„${title}“ ${done}`, () => run(() => updateTask(id, { planned_date: planned_date ?? '', planned_start_at: planned_start_at ?? '' })))
+  })
+}
+
 function dropTask(e: DragEvent) {
   const task = tasksById.value.get(e.dataTransfer?.getData('text/plain') ?? '')
   if (!task || !today.value) return
   const top = (e.currentTarget as HTMLElement).getBoundingClientRect().top
   const snapped = START_H * 60 + Math.round(((e.clientY - top) / HOUR) * 4) * 15 // auf 15 Minuten
   const min = Math.min(Math.max(snapped, START_H * 60), END_H * 60 - 15)
-  const { id, title, planned_date, planned_start_at } = task
-  void run(async () => {
-    await updateTask(id, { planned_date: today.value!.date, planned_start_at: instantAt(min).toISOString() })
-    offer(`„${title}“ eingeplant`, () => run(() => updateTask(id, { planned_date: planned_date ?? '', planned_start_at: planned_start_at ?? '' })))
-  })
+  reschedule(task, { planned_date: today.value.date, planned_start_at: instantAt(min).toISOString() }, 'eingeplant')
 }
 
 const quickParsed = computed(() => parseQuickAdd(quick.value, projectList.value, today.value?.date))
@@ -197,17 +223,12 @@ function addQuick() {
     quick.value = ''
   })
 }
-const taskTitleClass = (t: Task) => ({ done: t.status === 'COMPLETED' })
 
 // Überfällige Task auf heute (0) oder morgen (1) verschieben; die alte Uhrzeit entfällt.
 function moveTo(t: Task, days: number) {
   const d = new Date(`${today.value!.date}T12:00:00Z`)
   d.setUTCDate(d.getUTCDate() + days)
-  const { id, title, planned_date, planned_start_at } = t
-  void run(async () => {
-    await updateTask(id, { planned_date: d.toISOString().slice(0, 10), planned_start_at: '' })
-    offer(`„${title}“ verschoben`, () => run(() => updateTask(id, { planned_date: planned_date ?? '', planned_start_at: planned_start_at ?? '' })))
-  })
+  reschedule(t, { planned_date: d.toISOString().slice(0, 10), planned_start_at: '' }, 'verschoben')
 }
 
 function removeEntry(e: TimeEntry) {
@@ -218,6 +239,9 @@ function removeEntry(e: TimeEntry) {
   })
 }
 
+// Dauer eines Eintrags in Minuten; ein laufender zählt bis jetzt.
+const entryMin = (e: TimeEntry) => entryMinutes(e, now.value)
+const entryProject = (e: TimeEntry) => e.project_id ?? tasksById.value.get(e.task_id ?? '')?.project_id ?? null
 const entryLabel = (e: TimeEntry) =>
   (e.task_id && taskTitles.value.get(e.task_id)) || (e.project_id && projectNames.value.get(e.project_id)) || 'Projektzeit'
 
@@ -233,10 +257,10 @@ function addEntry() {
 }
 
 // Zeiteinträge: HH:MM-Felder in der Zeitzone des Browsers, der Tag bleibt der des Eintrags.
-const hhmm = (iso: string) => new Date(iso).toTimeString().slice(0, 5)
+const clock = (iso: string) => hhmm(new Date(iso))
 function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) {
   const old = e[field]
-  if (!old || !value || value === hhmm(old)) return
+  if (!old || !value || value === clock(old)) return
   const d = new Date(old)
   const [h, m] = value.split(':').map(Number)
   d.setHours(h!, m!, 0, 0)
@@ -245,131 +269,157 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 </script>
 
 <template>
-  <div class="view-inner">
+  <div class="view-inner start">
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
     <template v-if="today">
-      <section class="focus" aria-label="Fokus">
-        <div class="focus-head">
+      <header class="st-head">
+        <div>
           <h1 class="day-title">{{ dateLabel }}</h1>
-          <div class="focus-stats">
-            <div class="fstat"><span class="c">geplant</span><span class="n">{{ hm(today.planned_minutes) }}</span></div>
-            <div class="fstat"><span class="c">erfasst</span><span class="n">{{ hm(today.tracked_minutes) }}</span></div>
-            <div class="fstat" title="Frei ab jetzt"><span class="c">frei</span><span class="n">{{ hm(today.free_minutes) }}</span></div>
+          <div v-if="allDay.length" class="st-allday">
+            <span class="cdot" :style="{ background: allDay[0]!.color }"></span>Ganztags: {{ allDay.map((b) => b.title).join(', ') }}
           </div>
         </div>
-
-        <div v-if="focusTask" class="fm" :class="{ running: !!runningTask }">
-          <div class="fm-main">
-            <span class="fm-lbl"><span v-if="runningTask" class="run-dot"></span>{{ runningTask ? `Läuft seit ${fmt(today.running_time_entry!.started_at)}` : 'Als Nächstes' }}</span>
-            <div class="fm-t">{{ focusTask.title }}</div>
-            <div class="fm-meta">
-              <span v-if="focusTask.project_id" class="chip" :style="{ '--chip-c': projectColor(focusTask.project_id) }"><span class="cdot"></span>{{ projectNames.get(focusTask.project_id) }}</span>
-              <span v-if="!runningTask && focusTask.planned_start_at">{{ fmt(focusTask.planned_start_at) }}</span>
-              <span v-if="focusTask.estimated_minutes">Schätzung {{ hm(focusTask.estimated_minutes) }}</span>
-            </div>
-          </div>
-          <div class="fm-side">
-            <span v-if="runningTask" class="fm-timer">{{ elapsed }}</span>
-            <TaskActions :task="focusTask" :running="!!runningTask" @run="run" />
-          </div>
+        <div class="st-stats">
+          <div><span>geplant</span><b>{{ hm(today.planned_minutes) }}</b></div>
+          <div><span>erfasst</span><b>{{ hm(today.tracked_minutes) }}</b></div>
+          <div title="Frei ab jetzt"><span>frei</span><b>{{ hm(today.free_minutes) }}</b></div>
         </div>
-        <div v-else class="fm"><div class="fm-main"><span class="fm-lbl">Als Nächstes</span><div class="fm-t is-free">Keine offene Aufgabe für heute.</div></div></div>
+      </header>
 
-        <div v-if="current" class="focus-next small">
-          <span class="fn-when">Termin läuft</span>
-          <span class="fn-what"><span class="cdot" :style="{ background: current.color }"></span><span class="fn-t">{{ current.title }}</span><span class="fn-time">noch {{ dur(current.end - nowMin) }}</span></span>
-        </div>
-        <div v-else-if="next" class="focus-next small">
-          <span class="fn-when">In {{ dur(next.start - nowMin) }}</span>
-          <span class="fn-what"><span class="cdot" :style="{ background: next.color }"></span><span class="fn-t">{{ next.title }}</span><span class="fn-time">{{ hm(next.start) }}–{{ hm(next.end) }}</span></span>
-        </div>
-        <div v-else class="focus-next small is-free">
-          <span class="fn-when">{{ today.events.length ? 'Termine erledigt' : 'Keine Termine heute' }}</span>
-        </div>
-
-        <div v-if="today.unestimated_tasks" class="v-sub">{{ today.unestimated_tasks }} {{ today.unestimated_tasks === 1 ? 'Task' : 'Tasks' }} ohne Schätzung, gerechnet mit 30 Min.</div>
-        <div v-if="today.overplanned_minutes" class="badge"><span class="cdot" style="background:var(--a-red)"></span>Überplant um {{ hm(today.overplanned_minutes) }} h</div>
-      </section>
-
-      <div class="start-grid">
-        <section class="start-col">
-          <div class="col-head"><h2 class="col-title">Aufgaben</h2><router-link class="col-link" to="/tasks">Alle ansehen</router-link></div>
-          <div v-if="today.overdue.length" class="tgroup">
-            <span class="lbl od-h"><svg class="ic" aria-hidden="true"><use href="#i-alert" /></svg>Überfällig<span class="count">{{ today.overdue.length }}</span></span>
-            <div class="tasklist">
-              <div v-for="t in today.overdue" :key="t.id" class="task-row" draggable="true" @dragstart="dragTask($event, t)">
-                <span class="t">{{ t.title }}</span>
-                <span class="due od">{{ daysAgo(t.planned_date!, today.date) }}</span>
-                <span class="row-act"><button type="button" class="btn btn-ghost" @click="moveTo(t, 0)">→ Heute</button><button type="button" class="btn btn-ghost" @click="moveTo(t, 1)">→ Morgen</button></span>
+      <div class="st-cards">
+        <section class="st-card" aria-label="Läuft">
+          <template v-if="runEntry">
+            <div class="st-top"><span class="st-lbl"><i class="run-dot"></i>Läuft</span><span v-if="runGoal" class="st-aside">Ziel {{ hm(runGoal) }}</span></div>
+            <div class="st-run">
+              <div class="st-main">
+                <div class="st-t">{{ runningTask?.title ?? entryLabel(runEntry) }}</div>
+                <div class="st-meta"><span class="chip" :style="{ '--chip-c': projectColor(runProject) }"><span class="cdot"></span>{{ projectNames.get(runProject ?? '') ?? 'Ohne Projekt' }} · seit {{ fmt(runEntry.started_at) }}</span></div>
               </div>
+              <span class="st-timer mono">{{ elapsed }}</span>
             </div>
-          </div>
-          <div v-for="g in groups" :key="g.title" class="tgroup">
-            <span class="lbl">{{ g.title }}<span class="count">{{ g.tasks.length }}</span></span>
-            <div class="tasklist">
-              <div v-for="t in g.tasks" :key="t.id" class="task-row" draggable="true" @dragstart="dragTask($event, t)">
-                <span class="t" :class="taskTitleClass(t)">{{ t.title }}</span>
-                <span v-if="t.planned_start_at" class="due">{{ fmt(t.planned_start_at) }}</span>
-                <TaskActions class="row-act" :task="t" :running="runningTaskId === t.id" @run="run" />
-              </div>
+            <div v-if="runGoal" class="st-bar" aria-hidden="true"><i :style="{ width: runPct + '%', background: projectColor(runProject) }"></i></div>
+            <div v-if="runningTask" class="st-btns">
+              <button type="button" class="btn btn-secondary" @click="run(() => taskAction(runningTask!.id, 'pause'))">Pause</button>
+              <button type="button" class="btn btn-secondary" @click="setDone(runningTask!, 'COMPLETED', run)">Fertig</button>
             </div>
-          </div>
-          <div v-if="!groups.length" class="v-sub">Keine offenen Aufgaben für heute.</div>
-          <div v-if="doneTasks.length" class="v-sub">{{ doneTasks.length }} erledigt</div>
-          <form class="addrow" @submit.prevent="addQuick">
-            <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-            <input v-model="quick" type="text" placeholder="Aufgabe hinzufügen, z. B. Sport 30m @morgen #Kairo" aria-label="Aufgabe für heute hinzufügen" />
-          </form>
-          <QuickHints v-if="today" :q="quickParsed" :today="today.date" />
-
-          <div class="col-head" style="margin-top:28px"><h2 class="col-title">Zeiterfassung</h2></div>
-          <div v-if="entries.length" class="tasklist">
-            <div v-for="e in entries" :key="e.id" class="task-row">
-              <span class="t">{{ entryLabel(e) }}</span>
-              <input class="input te-time" type="time" :value="hhmm(e.started_at)" aria-label="Start" @change="setTime(e, 'started_at', ($event.target as HTMLInputElement).value)" />
-              <span class="due">–</span>
-              <input v-if="e.ended_at" class="input te-time" type="time" :value="hhmm(e.ended_at)" aria-label="Ende" @change="setTime(e, 'ended_at', ($event.target as HTMLInputElement).value)" />
-              <span v-else class="due te-time">läuft</span>
-              <span v-if="e.ended_at" class="row-act"><DeleteButton ghost text="Zeiteintrag löschen?" @confirm="removeEntry(e)" /></span>
-            </div>
-          </div>
-          <details class="manual">
-            <summary class="btn btn-ghost">Zeit nachtragen</summary>
-            <form class="manual-form" @submit.prevent="addEntry" @input="saved = false">
-              <label class="field wide"><span>Task</span>
-                <select v-model="manual.task" class="input" required>
-                  <option value="" disabled>Task wählen</option>
-                  <option v-for="[id, title] in taskTitles" :key="id" :value="id">{{ title }}</option>
-                </select>
-              </label>
-              <label class="field"><span>Datum</span><input v-model="manual.date" class="input" type="date" required /></label>
-              <label class="field"><span>Start</span><input v-model="manual.from" class="input" type="time" required /></label>
-              <label class="field"><span>Ende</span><input v-model="manual.to" class="input" type="time" required /></label>
-              <button type="submit" class="btn btn-secondary">Eintragen</button>
-              <span v-if="saved" class="v-sub" role="status">Gespeichert.</span>
-            </form>
-          </details>
-
-          <template v-if="today.habits.length">
-            <div class="col-head" style="margin-top:28px"><h2 class="col-title">Gewohnheiten</h2><router-link class="col-link" to="/habits">Alle ansehen</router-link></div>
-            <div>
-              <div v-for="h in today.habits" :key="h.id" class="hb-row" :class="{ doneToday: h.done }">
-                <button
-                  type="button" class="cb" role="checkbox" :aria-checked="h.done" :aria-label="h.name"
-                  @click="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
-                ></button>
-                <span class="hb-name">{{ h.name }}</span>
-                <span v-if="h.week_progress" class="hb-streak">{{ h.week_progress.done }}/{{ h.week_progress.target }}</span>
-              </div>
-            </div>
+          </template>
+          <template v-else>
+            <div class="st-top"><span class="st-lbl"><i class="run-dot off"></i>Kein Timer</span></div>
+            <div class="st-t is-free">Es läuft gerade nichts.</div>
+            <div class="st-meta">Starte eine Aufgabe, um Zeit zu erfassen.</div>
           </template>
         </section>
 
+        <section class="st-card" aria-label="Als Nächstes">
+          <template v-if="nextItem">
+            <div class="st-top"><span class="st-lbl">Als Nächstes<span v-if="nextItem.lead" class="st-lead">· {{ nextItem.lead }}</span></span><span class="st-aside">{{ nextItem.kind }}</span></div>
+            <div class="st-t">{{ nextItem.title }}</div>
+            <div class="st-meta">
+              <span v-if="nextItem.project" class="chip" :style="{ '--chip-c': nextItem.color }"><span class="cdot"></span>{{ nextItem.project }}</span>
+              <span v-if="nextItem.when">{{ nextItem.when }}</span>
+            </div>
+            <div v-if="nextItem.task" class="st-btns">
+              <button type="button" class="btn btn-primary" @click="run(() => taskAction(nextItem!.task!.id, 'start'))"><svg class="ic" viewBox="0 0 24 24" style="fill:currentColor;stroke:none;width:11px;height:11px"><path d="M7 4.5v15l12-7.5z" /></svg>Jetzt starten</button>
+              <button type="button" class="btn btn-secondary" @click="moveTo(nextItem.task, 1)">Verschieben</button>
+              <span v-if="nextItem.then" class="st-then">{{ nextItem.then }}</span>
+            </div>
+          </template>
+          <template v-else>
+            <div class="st-top"><span class="st-lbl">Als Nächstes</span></div>
+            <div class="st-t is-free">Keine offene Aufgabe für heute.</div>
+          </template>
+        </section>
+      </div>
+
+      <div v-if="today.unestimated_tasks" class="v-sub">{{ today.unestimated_tasks }} {{ today.unestimated_tasks === 1 ? 'Aufgabe' : 'Aufgaben' }} ohne Schätzung, gerechnet mit 30 Min.</div>
+      <div v-if="today.overplanned_minutes" class="badge"><span class="cdot" style="background:var(--a-red)"></span>Überplant um {{ hm(today.overplanned_minutes) }} h</div>
+
+      <div class="start-grid">
         <section class="start-col">
-          <div class="col-head"><h2 class="col-title">Tagesplan</h2><router-link class="col-link" to="/calendar">Woche<svg class="ic" aria-hidden="true"><use href="#i-right" /></svg></router-link></div>
-          <div class="v-sub">Aufgaben aus der Liste in den Plan ziehen, um sie einzuplanen.</div>
-          <div class="card dayplan">
+          <div class="col-head"><h2 class="col-title">Heute fällig <span class="count">{{ dueRows.length }}</span></h2><router-link class="col-link" to="/tasks">Alle Aufgaben</router-link></div>
+          <div v-if="dueRows.length" class="tasklist">
+            <div v-for="r in dueRows" :key="r.t.id" class="task-row" draggable="true" @dragstart="dragTask($event, r.t)">
+              <button type="button" class="cb ring" :style="{ '--rc': projectColor(r.t.project_id) }" role="checkbox" aria-checked="false" :aria-label="`${r.t.title} erledigt`" @click="setDone(r.t, 'COMPLETED', run)"></button>
+              <span class="t">{{ r.t.title }}</span>
+              <span class="chip st-proj" :style="{ '--chip-c': projectColor(r.t.project_id) }"><template v-if="r.t.project_id"><span class="cdot"></span>{{ projectNames.get(r.t.project_id) }}</template></span>
+              <span class="due" :class="{ od: r.od, now: !r.od && !!r.t.planned_start_at }">{{ whenOf(r) }}</span>
+              <span class="dur">{{ r.t.estimated_minutes ? hm(r.t.estimated_minutes) : '' }}</span>
+              <span v-if="r.od" class="row-act"><button type="button" class="btn btn-ghost" @click="moveTo(r.t, 0)">→ Heute</button><button type="button" class="btn btn-ghost" @click="moveTo(r.t, 1)">→ Morgen</button></span>
+              <TaskActions v-else class="row-act" :task="r.t" :running="runningTaskId === r.t.id" @run="run" />
+            </div>
+          </div>
+          <div v-else class="v-sub">Keine offenen Aufgaben für heute.</div>
+          <div v-if="doneCount" class="v-sub">{{ doneCount }} erledigt</div>
+          <form class="addrow" @submit.prevent="addQuick">
+            <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
+            <input ref="quickEl" v-model="quick" type="text" placeholder="Aufgabe hinzufügen, z. B. Sport 30m @morgen #Kairo" aria-label="Aufgabe für heute hinzufügen" aria-keyshortcuts="n" />
+            <kbd class="key" aria-hidden="true">N</kbd>
+          </form>
+          <QuickHints :q="quickParsed" :today="today.date" />
+
+          <template v-if="activeOnly.length">
+            <div class="col-head st-gap"><h2 class="col-title">Aktiv, nicht für heute geplant <span class="count">{{ activeOnly.length }}</span></h2></div>
+            <div class="tasklist">
+              <div v-for="t in activeOnly" :key="t.id" class="task-row" draggable="true" @dragstart="dragTask($event, t)">
+                <button type="button" class="cb ring" :style="{ '--rc': projectColor(t.project_id) }" role="checkbox" aria-checked="false" :aria-label="`${t.title} erledigt`" @click="setDone(t, 'COMPLETED', run)"></button>
+                <span class="t">{{ t.title }}</span>
+                <TaskActions class="row-act" :task="t" :running="runningTaskId === t.id" @run="run" />
+              </div>
+            </div>
+          </template>
+
+          <template v-if="today.habits.length">
+            <div class="col-head st-gap"><h2 class="col-title">Gewohnheiten</h2><router-link class="col-link" to="/habits">Alle ansehen</router-link></div>
+            <div class="st-habits">
+              <button
+                v-for="h in today.habits" :key="h.id" type="button" class="st-hab" :class="{ 'is-done': h.done }" role="checkbox" :aria-checked="h.done"
+                @click="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
+              >
+                <span class="cb sq" :style="{ '--rc': habitColor(h.id) }" :aria-checked="h.done" aria-hidden="true"></span>
+                <span class="st-hab-t"><b>{{ h.name }}</b><small>{{ h.done ? 'erledigt' : 'offen' }}<template v-if="h.week_progress"> · {{ h.week_progress.done }}/{{ h.week_progress.target }}</template></small></span>
+              </button>
+            </div>
+          </template>
+
+          <div class="col-head st-gap">
+            <h2 class="col-title">Zeiterfassung <span class="count">{{ hm(today.tracked_minutes) }} heute</span></h2>
+            <button type="button" class="col-link" :aria-expanded="manualOpen" @click="manualOpen = !manualOpen">Zeit nachtragen</button>
+          </div>
+          <form v-if="manualOpen" class="manual-form" @submit.prevent="addEntry" @input="saved = false">
+            <label class="field wide"><span>Aufgabe</span>
+              <select v-model="manual.task" class="input" required>
+                <option value="" disabled>Aufgabe wählen</option>
+                <option v-for="[id, title] in taskTitles" :key="id" :value="id">{{ title }}</option>
+              </select>
+            </label>
+            <label class="field"><span>Datum</span><input v-model="manual.date" class="input" type="date" required /></label>
+            <label class="field"><span>Start</span><input v-model="manual.from" class="input" type="time" required /></label>
+            <label class="field"><span>Ende</span><input v-model="manual.to" class="input" type="time" required /></label>
+            <button type="submit" class="btn btn-secondary">Eintragen</button>
+            <span v-if="saved" class="v-sub" role="status">Gespeichert.</span>
+          </form>
+          <div v-if="entries.length" class="tasklist">
+            <div v-for="e in entries" :key="e.id" class="task-row te-row" :style="{ '--acc': projectColor(entryProject(e)) }">
+              <span class="te-bar"></span>
+              <span class="t">{{ entryLabel(e) }}</span>
+              <span class="st-proj te-proj">{{ projectNames.get(entryProject(e) ?? '') ?? '' }}</span>
+              <span class="te-range">
+                <input class="input te-time" type="time" :value="clock(e.started_at)" aria-label="Start" @change="setTime(e, 'started_at', ($event.target as HTMLInputElement).value)" />
+                <span>–</span>
+                <input v-if="e.ended_at" class="input te-time" type="time" :value="clock(e.ended_at)" aria-label="Ende" @change="setTime(e, 'ended_at', ($event.target as HTMLInputElement).value)" />
+                <span v-else class="te-run">läuft</span>
+              </span>
+              <span class="dur te-dur">{{ hm(entryMin(e)) }}</span>
+              <span v-if="e.ended_at" class="row-act"><DeleteButton ghost text="Zeiteintrag löschen?" @confirm="removeEntry(e)" /></span>
+            </div>
+          </div>
+          <div v-else class="v-sub">Noch keine Zeit erfasst.</div>
+        </section>
+
+        <section class="start-col">
+          <div class="col-head"><h2 class="col-title">Tagesplan</h2><router-link class="col-link" to="/calendar">Kalender<svg class="ic" aria-hidden="true"><use href="#i-right" /></svg></router-link></div>
+          <div class="dayplan">
             <div class="dp-scroll">
               <div class="dp-body">
                 <div class="hourcol" :style="{ '--hour': HOUR + 'px' }">
@@ -377,17 +427,18 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
                 </div>
                 <div class="dp-grid" :style="{ height: (END_H - START_H) * HOUR + 'px' }" @dragover.prevent @drop.prevent="dropTask">
                   <div v-for="h in hours" :key="h" class="hline" :style="{ top: (h - START_H) * HOUR + 'px' }"></div>
-                  <div v-if="nowTop !== null" class="now-line" :style="{ top: nowTop + 'px' }"></div>
+                  <div v-if="nowTop !== null" class="now-line" :style="{ top: nowTop + 'px' }"><span class="mono">{{ hm(nowMin) }}</span></div>
                   <div
                     v-for="b in blocks" :key="b.key" class="dp-ev" :class="[`kind-${b.kind}`, { done: b.done, now: b.running, short: b.end - b.start <= 30 }]" :style="style(b)"
                   >
-                    <div class="dp-t"><span class="cdot"></span><span class="dp-n">{{ b.title }}</span></div>
-                    <div class="dp-m">{{ hm(b.start) }}–{{ hm(b.end) }}<template v-if="b.sub"> · {{ b.sub }}</template></div>
+                    <div class="dp-t"><span class="cdot"></span><span class="dp-n">{{ b.title }}</span><span v-if="b.end - b.start <= 30" class="dp-m">{{ hm(b.start) }}</span></div>
+                    <div v-if="b.end - b.start > 30" class="dp-m">{{ hm(b.start) }}–{{ hm(b.end) }}<template v-if="b.sub"> · {{ b.sub }}</template></div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+          <div class="v-sub st-hint">Aufgaben aus der Liste in den Plan ziehen, um sie einzuplanen.</div>
         </section>
       </div>
     </template>
@@ -395,28 +446,67 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 </template>
 
 <style scoped>
-.day-title { font: 600 22px/1.2 var(--font-ui); letter-spacing: -0.015em; color: var(--tx-primary); }
-.fm { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 22px 28px 22px 31px; background: var(--bg-1); border: 1px solid var(--br-default); border-radius: var(--r-m); overflow: hidden; }
-.fm.running::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--a-now); }
-.fm-main { display: grid; gap: 10px; justify-items: start; min-width: 0; }
-.fm-lbl { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px; border-radius: var(--r-s); background: var(--bg-2); font: 400 13px/1 var(--font-ui); color: var(--tx-secondary); }
-.run-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-now); }
-.fm-t { font: 600 24px/1.25 var(--font-ui); letter-spacing: -0.015em; color: var(--tx-primary); }
-.fm-t.is-free { color: var(--tx-secondary); font-weight: 500; }
-.fm-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; font: 400 13px/1.3 var(--font-ui); color: var(--tx-secondary); }
-.fm-side { display: flex; flex-direction: column; align-items: flex-end; gap: 14px; }
-.fm-timer { font: 500 20px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-primary); }
-.focus-next.small .fn-when { font: 500 14px/1.4 var(--font-ui); letter-spacing: 0; color: var(--tx-secondary); }
-.focus-next.small .fn-t { font-size: 14px; }
-@media (max-width: 720px) { .fm { grid-template-columns: 1fr; } .fm-side { align-items: flex-start; } }
-.te-time { width: 88px; flex: none; text-align: center; padding: 0 4px; background: transparent; border-color: transparent; }
+.day-title { font: 600 28px/1.2 var(--font-ui); letter-spacing: -0.02em; color: var(--tx-primary); }
+.st-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
+.st-allday { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 400 13px/1.3 var(--font-ui); color: var(--tx-secondary); }
+.st-allday .cdot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.st-stats { display: flex; gap: 28px; }
+.st-stats div { display: grid; gap: 4px; justify-items: end; }
+.st-stats span { font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
+.st-stats b { font: 500 18px/1.1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-primary); }
+
+.st-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 36px; }
+.st-card { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; background: var(--bg-1); border: 1px solid var(--br-subtle); border-radius: 14px; min-width: 0; }
+.st-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; font: 400 12.5px/1 var(--font-ui); color: var(--tx-muted); }
+.st-lbl { display: inline-flex; align-items: center; gap: 7px; }
+.st-lead { color: var(--tx-muted); }
+.run-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-run); }
+.run-dot.off { background: var(--br-strong); }
+.st-run { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.st-main { display: grid; gap: 8px; min-width: 0; }
+.st-t { font: 600 18px/1.3 var(--font-ui); letter-spacing: -0.01em; color: var(--tx-primary); text-wrap: pretty; }
+.st-t.is-free { color: var(--tx-secondary); font-weight: 500; }
+.st-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font: 400 13px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
+.st-timer { font: 500 30px/1 var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: var(--tx-primary); white-space: nowrap; }
+.st-bar { height: 3px; border-radius: 2px; background: var(--bg-3); overflow: hidden; }
+.st-bar i { display: block; height: 100%; border-radius: 2px; }
+.st-btns { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.st-btns .btn { height: 30px; }
+.st-then { margin-left: auto; font: 400 12.5px/1.3 var(--font-ui); color: var(--tx-muted); }
+
+.col-title .count { margin-left: 4px; font: 400 14px/1 var(--font-ui); }
+.st-gap { margin-top: 32px; }
+button.col-link { background: none; }
+.st-proj { flex: none; width: 118px; overflow: hidden; }
+.task-row .due.now { color: var(--tx-primary); }
+.task-row .due { min-width: 64px; }
+.task-row[draggable='true'] { cursor: grab; }
+.addrow .key { margin-left: auto; }
+
+.st-habits { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.st-hab { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 12px; text-align: left; background: var(--bg-1); border: 1px solid var(--br-subtle); border-radius: 10px; transition: border-color var(--dur) ease-out, background var(--dur) ease-out; }
+.st-hab:hover { border-color: var(--br-default); background: var(--bg-2); }
+.st-hab .cb { width: 20px; height: 20px; border-radius: 6px; pointer-events: none; }
+.st-hab-t { display: grid; gap: 2px; min-width: 0; }
+.st-hab-t b { font: 600 13px/1.2 var(--font-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-hab-t small { font: 400 12px/1.2 var(--font-ui); color: var(--tx-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.te-row { position: relative; padding-left: 12px; }
+.te-bar { flex: none; width: 3px; height: 16px; border-radius: 2px; background: var(--acc); }
+.te-row .t { font-weight: 500; }
+.te-proj { font: 400 13px/1 var(--font-ui); color: var(--tx-secondary); }
+.te-range { display: inline-flex; align-items: center; gap: 2px; color: var(--tx-secondary); font: 400 13px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
+.te-time { width: 66px; flex: none; text-align: center; padding: 0 2px; background: transparent; border-color: transparent; font-size: 13px; color: var(--tx-secondary); }
 .te-time:hover, .te-time:focus-visible { background: var(--bg-2); }
 .te-time::-webkit-calendar-picker-indicator { display: none; }
-.task-row[draggable='true'] { cursor: grab; }
-.manual { margin-top: 12px; }
-.manual-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 12px; }
+.te-run { width: 66px; text-align: center; color: var(--tx-muted); }
+.te-dur { min-width: 40px; color: var(--tx-primary); }
+.manual-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
 .manual-form .field { width: 140px; }
 .manual-form .field.wide { width: 100%; }
+
+.st-hint { margin-top: 10px; font-size: 12.5px; color: var(--tx-muted); }
 .now-line { position: absolute; left: 0; right: 0; height: 1.5px; background: var(--tx-primary); z-index: 3; pointer-events: none; }
-.now-line::before { content: ''; position: absolute; left: -4px; top: -2.75px; width: 7px; height: 7px; border-radius: 50%; background: var(--tx-primary); }
+.now-line span { position: absolute; left: -52px; top: -8px; padding: 2px 5px; border-radius: 4px; background: var(--tx-primary); color: var(--bg-0); font: 600 11px/1.2 var(--font-mono); }
+@media (max-width: 900px) { .st-cards { grid-template-columns: 1fr; } .st-run { flex-wrap: wrap; } }
 </style>

@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
-  createTask, deleteTask, errorMessage, listProjects, listResources, listTasks, restoreTask, taskAction, updateTask,
+  createTask, deleteTask, isOpen, listProjects, listResources, listTasks, restoreTask, taskAction, updateTask,
   type Project, type Resource, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { useLoader } from '@/composables/useLoader'
+import { useShortcuts } from '@/composables/useShortcuts'
 import { useUndo } from '@/composables/useUndo'
-import { dayLabel, daysAgo, dm, hhmm, hm, shortDay, ymd } from '@/lib/dates'
+import { addDays, dayLabel, daysAgo, dm, hhmm, hm, shortDay, weekStart, ymd } from '@/lib/dates'
+import { store } from '@/lib/storage'
 import { projectColor } from '@/lib/projectColor'
 import { parseQuickAdd, taskBody } from '@/lib/quickAdd'
 import QuickHints from '@/components/QuickHints.vue'
@@ -19,10 +22,7 @@ const STATUS_LABEL: Record<Task['status'], string> = {
   BACKLOG: 'Backlog', PLANNED: 'Geplant', IN_PROGRESS: 'Läuft',
   PAUSED: 'Pausiert', COMPLETED: 'Erledigt', CANCELLED: 'Abgebrochen',
 }
-const PRIO: Record<string, { label: string; arrow: string; urgent?: boolean }> = {
-  URGENT: { label: 'Dringend', arrow: '↑', urgent: true }, HIGH: { label: 'Hoch', arrow: '↑' },
-  MEDIUM: { label: 'Mittel', arrow: '' }, LOW: { label: 'Niedrig', arrow: '↓' },
-}
+const PRIO_LABEL: Record<string, string> = { URGENT: 'Dringend', HIGH: 'Hoch', MEDIUM: 'Mittel', LOW: 'Niedrig' }
 const FILTERS = [
   { id: 'alle', label: 'Offen' }, { id: 'heute', label: 'Heute' }, { id: 'woche', label: 'Diese Woche' },
   { id: 'ueber', label: 'Überfällig' }, { id: 'prio', label: 'Prio hoch' }, { id: 'erledigt', label: 'Erledigt' },
@@ -32,14 +32,15 @@ const FILTERS = [
 const SETTABLE: Task['status'][] = ['BACKLOG', 'PLANNED', 'CANCELLED']
 
 const SORTS = [['created', 'Angelegt'], ['day', 'Tag'], ['prio', 'Priorität'], ['title', 'Titel']] as const
-const GROUPS = [['none', 'Keine'], ['project', 'Projekt'], ['day', 'Tag']] as const
+const GROUPS = [['due', 'Fällig'], ['none', 'Keine'], ['project', 'Projekt'], ['day', 'Tag']] as const
+const BY: Record<string, string> = { due: 'Fälligkeit', project: 'Projekt', day: 'Tag' }
+const DUE_TITLE: Record<string, string> = { 0: 'Überfällig', 1: 'Früher', 3: 'Diese Woche', 4: 'Später', 5: 'Ohne Datum' }
 const PRIO_RANK: Record<string, number> = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
 const VIEW_KEY = 'kairo-tasks-view' // Sortierung und Gruppierung merkt sich der Browser
 
 const tasks = ref<Task[]>([])
 const projects = ref<Project[]>([])
 const resources = ref<Resource[]>([])
-const error = ref('')
 const filter = ref('alle')
 const projectId = ref('alle')
 const openId = ref<string | null>(null)
@@ -48,26 +49,28 @@ const subTitle = ref('')
 const search = ref('')
 const sel = ref<string | null>(null) // Auswahl für die Tastenkürzel
 const quickEl = ref<HTMLInputElement>()
-const view = ref({ sort: 'created', group: 'none' })
-try { Object.assign(view.value, JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}')) } catch { /* privater Modus oder kaputter Wert */ }
-watch(view, (v) => { try { localStorage.setItem(VIEW_KEY, JSON.stringify(v)) } catch { /* privater Modus */ } }, { deep: true })
+const view = ref({ sort: 'created', group: 'due' })
+try { Object.assign(view.value, JSON.parse(store.get(VIEW_KEY) ?? '{}')) } catch { /* kaputter Wert */ }
+watch(view, (v) => store.set(VIEW_KEY, JSON.stringify(v)), { deep: true })
 const route = useRoute()
+const router = useRouter()
 
 const { offer, setDone } = useUndo()
 
 const projectName = computed(() => new Map(projects.value.map((p) => [p.id, p.name])))
-const isOpen = (t: Task) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
 const todayStr = () => ymd(new Date())
-const weekEnd = () => { const d = new Date(); d.setDate(d.getDate() + 7 - ((d.getDay() + 6) % 7)); return ymd(d) } // Montag der nächsten Woche
+const weekEnd = () => ymd(addDays(weekStart(), 7)) // Montag der nächsten Woche
 // Der für die Liste maßgebliche Tag: geplanter Tag, sonst Fälligkeit.
 const dayOf = (t: Task) => t.planned_date ?? (t.due_at ? ymd(new Date(t.due_at)) : null)
 
-const visible = computed(() => tasks.value.filter((t) => {
+const inScope = (t: Task) => {
   if (projectId.value !== 'alle' && t.project_id !== projectId.value) return false
   const q = search.value.trim().toLowerCase()
-  if (q && !`${t.title} ${t.description}`.toLowerCase().includes(q)) return false
+  return !q || `${t.title} ${t.description}`.toLowerCase().includes(q)
+}
+const matches = (t: Task, f: string) => {
   const d = dayOf(t)
-  switch (filter.value) {
+  switch (f) {
     case 'erledigt': return t.status === 'COMPLETED'
     case 'abgebrochen': return t.status === 'CANCELLED'
     case 'heute': return isOpen(t) && d === todayStr()
@@ -76,7 +79,13 @@ const visible = computed(() => tasks.value.filter((t) => {
     case 'prio': return isOpen(t) && (t.priority === 'HIGH' || t.priority === 'URGENT')
     default: return isOpen(t)
   }
-}))
+}
+const visible = computed(() => tasks.value.filter((t) => inScope(t) && matches(t, filter.value)))
+const counts = computed(() => Object.fromEntries(FILTERS.map((f) => [f.id, tasks.value.filter((t) => inScope(t) && matches(t, f.id)).length])))
+const stats = computed(() => {
+  const open = tasks.value.filter(isOpen)
+  return { open: open.length, today: open.filter((t) => dayOf(t) === todayStr()).length, overdue: open.filter(overdue).length, planned: open.filter((t) => t.planned_date).length }
+})
 
 // Teilaufgaben stehen im Detail ihrer Elterntask; eigene Zeile nur, wenn die Eltern nicht (als oberste Ebene) in der Liste stehen.
 const rows = computed(() => {
@@ -93,19 +102,27 @@ const SORT: Record<string, (a: Task, b: Task) => number> = {
   title: (a, b) => a.title.localeCompare(b.title, 'de'),
 }
 
-// Gruppen in Anzeigereihenfolge: Tag aufsteigend, Projekt nach Name; „ohne“ steht zuletzt.
+// Gruppen in Anzeigereihenfolge: Fälligkeit nach Dringlichkeit, Tag aufsteigend, Projekt nach Name; „ohne“ steht zuletzt.
+const todayLong = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date()).replace('.,', '')
+function dueBucket(t: Task) {
+  const d = dayOf(t)
+  if (!d) return '5'
+  if (d < todayStr()) return isOpen(t) ? '0' : '1'
+  return d === todayStr() ? '2' : d < weekEnd() ? '3' : '4'
+}
 const groups = computed(() => {
   const sorted = [...rows.value].sort(SORT[view.value.sort] ?? SORT.created!)
   const by = view.value.group
   if (!sorted.length) return []
-  if (by !== 'project' && by !== 'day') return [{ key: '', title: '', rows: sorted }]
-  const keyOf = (t: Task) => (by === 'project' ? t.project_id : dayOf(t)) ?? ''
-  const titleOf = (k: string) => (by === 'project' ? (k ? projectName.value.get(k) ?? 'Projekt' : 'Ohne Projekt') : k ? dayLabel(k, todayStr()) : 'Ohne Tag')
+  if (by !== 'project' && by !== 'day' && by !== 'due') return [{ key: '', title: '', rows: sorted, minutes: 0 }]
+  const keyOf = (t: Task) => (by === 'project' ? t.project_id : by === 'due' ? dueBucket(t) : dayOf(t)) ?? ''
+  const titleOf = (k: string) => by === 'due' ? (k === '2' ? `Heute · ${todayLong}` : DUE_TITLE[k]!)
+    : by === 'project' ? (k ? projectName.value.get(k) ?? 'Projekt' : 'Ohne Projekt') : k ? dayLabel(k, todayStr()) : 'Ohne Tag'
   const m = new Map<string, Task[]>()
   for (const t of sorted) m.set(keyOf(t), [...(m.get(keyOf(t)) ?? []), t])
   return [...m]
-    .sort(([a], [b]) => Number(a === '') - Number(b === '') || (by === 'day' ? a.localeCompare(b) : titleOf(a).localeCompare(titleOf(b), 'de')))
-    .map(([key, rs]) => ({ key, title: titleOf(key), rows: rs }))
+    .sort(([a], [b]) => Number(a === '') - Number(b === '') || (by === 'project' ? titleOf(a).localeCompare(titleOf(b), 'de') : a.localeCompare(b)))
+    .map(([key, rs]) => ({ key, title: titleOf(key), rows: rs, minutes: rs.reduce((n, t) => n + t.estimated_minutes, 0) }))
 })
 const flat = computed(() => groups.value.flatMap((g) => g.rows))
 // Verschwindet die ausgewählte Task (erledigt, gefiltert), rückt die Auswahl auf die Nachbarin.
@@ -114,6 +131,9 @@ watch(flat, (now, before) => {
   sel.value = now[Math.min(before.findIndex((t) => t.id === sel.value), now.length - 1)]?.id ?? null
 })
 
+const open = computed(() => tasks.value.find((t) => t.id === openId.value))
+watch(openId, () => (subTitle.value = ''))
+const prioLevel = (t: Task) => ({ LOW: 1, MEDIUM: 2, HIGH: 3, URGENT: 3 })[t.priority as 'LOW'] ?? 2
 const kidsOf = (id: string) => tasks.value.filter((t) => t.parent_task_id === id)
 const progress = (id: string) => {
   const k = kidsOf(id).filter((c) => c.status !== 'CANCELLED')
@@ -121,24 +141,9 @@ const progress = (id: string) => {
 }
 const resOf = (id: string) => resources.value.filter((r) => r.task_id === id)
 
-async function load() {
-  try {
-    ;[tasks.value, projects.value, resources.value] = await Promise.all([listTasks(), listProjects(), listResources()])
-    error.value = ''
-  } catch (e) {
-    error.value = errorMessage(e)
-  }
-}
-
-async function run(fn: () => Promise<unknown>) {
-  try {
-    await fn()
-  } catch (e) {
-    error.value = errorMessage(e)
-    return
-  }
-  await load()
-}
+const { error, load, run } = useLoader(async () => {
+  ;[tasks.value, projects.value, resources.value] = await Promise.all([listTasks(), listProjects(), listResources()])
+})
 
 // Archivierte Projekte sind für #name nicht wählbar.
 const quickParsed = computed(() => parseQuickAdd(quick.value, projects.value.filter((p) => p.status !== 'ARCHIVED'), todayStr()))
@@ -169,8 +174,6 @@ const trash = ({ id, title }: Task) =>
     offer(`„${title}“ gelöscht`, () => run(() => restoreTask(id)))
   })
 
-// Mittel ist der Standard und bleibt in der Zeile unbeschriftet.
-const prio = (t: Task) => (t.priority === 'MEDIUM' ? undefined : PRIO[t.priority])
 const startTime = (t: Task) => (t.planned_start_at ? hhmm(new Date(t.planned_start_at)) : '')
 // Eine Spalte, ein Format: Datum (+ Uhrzeit), „fällig 12.10.“ ohne Plan, überfällig als „vor 2 Tagen“ (Datum im Tooltip).
 const when = (t: Task) => {
@@ -208,11 +211,11 @@ function move(d: number) {
   if (!l.length) return
   const i = l.findIndex((t) => t.id === sel.value)
   sel.value = l[i < 0 ? (d > 0 ? 0 : l.length - 1) : Math.min(Math.max(i + d, 0), l.length - 1)]!.id
+  if (openId.value) openId.value = sel.value // das Detail folgt der Auswahl
   void nextTick(() => document.querySelector(`[data-task="${sel.value}"]`)?.scrollIntoView({ block: 'nearest' }))
 }
-function onKey(e: KeyboardEvent) {
+useShortcuts((e) => {
   const el = e.target as HTMLElement
-  if (e.ctrlKey || e.metaKey || e.altKey || el.closest('input, textarea, select, [contenteditable], .overlay')) return
   const t = flat.value.find((x) => x.id === sel.value)
   if (e.key === 'n') { e.preventDefault(); quickEl.value?.focus() }
   else if (e.key === 'j') move(1)
@@ -221,7 +224,7 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === 'x' && t) void toggle(t)
   else if (e.key === 's' && t && isOpen(t)) void run(() => taskAction(t.id, t.status === 'IN_PROGRESS' ? 'pause' : 'start'))
   else if (e.key === 't' && t && isOpen(t)) setDate(t, todayStr())
-}
+})
 
 // Aus dem Kalender: /tasks?task=ID öffnet die Task, auch wenn sie erledigt oder abgebrochen ist.
 function focusFromRoute() {
@@ -234,29 +237,55 @@ function focusFromRoute() {
   void nextTick(() => document.querySelector(`[data-task="${t.id}"]`)?.scrollIntoView({ block: 'center' }))
 }
 
+// „Neu …“ / ⌘K aus der Sidebar: /tasks?new=… fokussiert die Schnelleingabe.
+function focusNew() {
+  if (!route.query.new) return
+  void nextTick(() => quickEl.value?.focus())
+  void router.replace({ query: {} })
+}
+watch(() => route.query.new, focusNew)
+
 onMounted(() => {
-  window.addEventListener('keydown', onKey)
+  focusNew()
   void load().then(focusFromRoute)
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 useLiveEvents(load)
 </script>
 
 <template>
   <div class="view-inner">
-    <div class="v-head">
-      <h1 class="v-title">Aufgaben</h1>
-      <div class="v-sub">{{ rows.length }} {{ rows.length === 1 ? 'Aufgabe' : 'Aufgaben' }}</div>
+    <div class="v-head v-head-row">
+      <div>
+        <h1 class="v-title">Aufgaben</h1>
+        <div class="v-sub tk-stats">
+          <span><b>{{ stats.open }}</b> offen</span><span><b>{{ stats.today }}</b> heute</span>
+          <span :class="{ od: stats.overdue }"><b>{{ stats.overdue }}</b> überfällig</span><span><b>{{ stats.planned }}</b> eingeplant</span>
+        </div>
+      </div>
+      <button class="btn btn-primary" type="button" aria-keyshortcuts="n" @click="quickEl?.focus()"><svg class="ic"><use href="#i-plus" /></svg>Neue Aufgabe<kbd class="key" aria-hidden="true">N</kbd></button>
     </div>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
-
-    <div class="filterbar">
-      <button v-for="f in FILTERS" :key="f.id" type="button" class="fchip" :aria-pressed="filter === f.id" @click="filter = f.id">{{ f.label }}</button>
-      <select v-model="projectId" class="input" aria-label="Nach Projekt filtern">
-        <option value="alle">Alle Projekte</option>
-        <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
-      </select>
+    <div class="filterbar tk-bar">
+      <div class="seg tk-tabs" role="group" aria-label="Filter">
+        <button v-for="f in FILTERS" :key="f.id" type="button" :aria-pressed="filter === f.id" @click="filter = f.id">{{ f.label }} <span class="count">{{ counts[f.id] }}</span></button>
+      </div>
+      <span class="spacer"></span>
       <SearchField v-model="search" label="Aufgaben durchsuchen" />
+    </div>
+
+    <form class="addrow" @submit.prevent="add">
+      <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
+      <input ref="quickEl" v-model="quick" type="text" placeholder="Neue Aufgabe, z. B. Sport 30m @morgen #Kairo !hoch" aria-label="Neue Aufgabe hinzufügen" aria-keyshortcuts="n" />
+      <span class="qa-syntax" aria-hidden="true"><kbd class="key">30m</kbd><kbd class="key">@datum</kbd><kbd class="key">#projekt</kbd><kbd class="key">!prio</kbd></span>
+    </form>
+    <QuickHints :q="quickParsed" :today="todayStr()" />
+    <div class="tk-opts">
+      <span class="tk-by">{{ view.group === 'none' ? 'Nicht gruppiert' : `Gruppiert nach ${BY[view.group] ?? ''}` }}</span>
+      <span class="spacer"></span>
+      <select v-model="projectId" class="input" aria-label="Nach Projekt filtern">
+        <option value="alle">Projekt: Alle</option>
+        <option v-for="p in projects" :key="p.id" :value="p.id">Projekt: {{ p.name }}</option>
+      </select>
       <select v-model="view.group" class="input" aria-label="Gruppieren nach">
         <option v-for="[v, l] in GROUPS" :key="v" :value="v">Gruppe: {{ l }}</option>
       </select>
@@ -264,34 +293,36 @@ useLiveEvents(load)
         <option v-for="[v, l] in SORTS" :key="v" :value="v">Sortierung: {{ l }}</option>
       </select>
     </div>
-
-    <form class="addrow" @submit.prevent="add">
-      <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-      <input ref="quickEl" v-model="quick" type="text" placeholder="Neue Aufgabe, z. B. Sport 30m @morgen #Kairo !hoch" aria-label="Neue Aufgabe hinzufügen" aria-keyshortcuts="n" />
-      <kbd class="key" aria-hidden="true">n</kbd>
-    </form>
-    <QuickHints :q="quickParsed" :today="todayStr()" />
+    <div class="tasks-layout" :class="{ 'with-aside': open }">
+    <div class="tasks-main">
     <div v-if="!rows.length" class="v-sub">Keine Aufgaben.</div>
     <div v-for="g in groups" :key="g.key" class="tgroup">
-      <span v-if="g.title" class="lbl">{{ g.title }}<span class="count">{{ g.rows.length }}</span></span>
+      <span v-if="g.title" class="lbl" :class="{ od: view.group === 'due' && g.key === '0' }">{{ g.title }}<span class="count">{{ g.rows.length }}</span><span v-if="g.minutes" class="g-sum">{{ hm(g.minutes) }} geschätzt</span></span>
       <div class="tasklist">
       <template v-for="t in g.rows" :key="t.id">
         <div class="task-row" :class="{ done: !isOpen(t), selected: sel === t.id, running: t.status === 'IN_PROGRESS' }" :data-task="t.id">
-          <button type="button" class="cb" role="checkbox" :aria-checked="t.status === 'COMPLETED'" :aria-label="`${t.title} erledigt`" :disabled="t.status === 'CANCELLED'" @click="toggle(t)"></button>
+          <button type="button" class="cb ring" :style="{ '--rc': projectColor(t.project_id) }" role="checkbox" :aria-checked="t.status === 'COMPLETED'" :aria-label="`${t.title} erledigt`" :disabled="t.status === 'CANCELLED'" @click="toggle(t)"></button>
           <button type="button" class="t row-title" :aria-expanded="openId === t.id" @click="openId = openId === t.id ? null : t.id; sel = t.id; subTitle = ''">{{ t.title }}</button>
           <span v-if="progress(t.id)" class="badge mono" role="img" :aria-label="`Teilaufgaben erledigt: ${progress(t.id)}`">{{ progress(t.id) }}</span>
-          <span class="status-l" :class="{ run: t.status === 'IN_PROGRESS' }"><template v-if="t.status === 'IN_PROGRESS' || t.status === 'PAUSED'"><span class="cdot"></span>{{ STATUS_LABEL[t.status] }}</template></span>
+          <span v-if="t.status === 'IN_PROGRESS' || t.status === 'PAUSED'" class="status-l" :class="{ run: t.status === 'IN_PROGRESS' }"><span class="cdot"></span>{{ STATUS_LABEL[t.status] }}</span>
           <span class="chip" :style="{ '--chip-c': projectColor(t.project_id) }"><template v-if="t.project_id"><span class="cdot"></span>{{ projectName.get(t.project_id) }}</template></span>
           <span class="dur">{{ t.estimated_minutes ? hm(t.estimated_minutes) : '' }}</span>
           <span class="due" :class="{ od: overdue(t) }" :data-tip="when(t).tip || undefined">{{ when(t).text }}</span>
-          <span class="prio-l" :class="{ urgent: prio(t)?.urgent }">{{ prio(t) ? `${prio(t)!.arrow} ${prio(t)!.label}`.trim() : '' }}</span>
+          <span class="prio-i" :class="{ high: prioLevel(t) === 3 }" role="img" :aria-label="`Priorität: ${PRIO_LABEL[t.priority] ?? t.priority}`"><i v-for="n in 3" :key="n" :class="{ on: n <= prioLevel(t) }"></i></span>
         </div>
-        <div v-if="openId === t.id" class="task-detail">
+      </template>
+      </div>
+    </div>
+    </div>
+    <aside v-if="open" class="task-aside" aria-label="Aufgabendetails">
+      <div class="aside-head"><span class="lbl">Aufgabe</span><button class="icon-btn" type="button" aria-label="Details schließen" @click="openId = null"><svg class="ic"><use href="#i-x" /></svg></button></div>
+      <template v-for="t in [open]" :key="t.id"><!-- t: die geöffnete Task, wie in der Zeile -->
+        <div class="task-detail">
           <label class="field wide"><span>Titel</span><input class="input" :value="t.title" @change="(e) => setField(t, 'title', valueOf(e))" /></label>
           <label class="field wide"><span>Beschreibung</span><textarea class="input" rows="3" :value="t.description" @change="(e) => setField(t, 'description', valueOf(e))"></textarea></label>
           <label class="field"><span>Priorität</span>
             <select class="input" :value="t.priority" @change="(e) => setField(t, 'priority', valueOf(e))">
-              <option v-for="(p, key) in PRIO" :key="key" :value="key">{{ p.label }}</option>
+              <option v-for="(label, key) in PRIO_LABEL" :key="key" :value="key">{{ label }}</option>
             </select>
           </label>
           <label class="field"><span>Status</span>
@@ -329,7 +360,7 @@ useLiveEvents(load)
           <ResourceList class="full" :resources="resOf(t.id)" :task-id="t.id" @changed="load" />
         </div>
       </template>
-      </div>
+    </aside>
     </div>
 
     <div class="keys" aria-label="Tastenkürzel">
@@ -347,15 +378,37 @@ useLiveEvents(load)
 .keys { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 16px; font: 400 12px/1 var(--font-ui); color: var(--tx-secondary); }
 .keys span { display: inline-flex; align-items: center; gap: 6px; }
 .keys .key { min-width: 20px; text-align: center; color: var(--tx-secondary); }
-.task-row.selected { background: var(--bg-selected); box-shadow: inset 3px 0 0 var(--a-focus); }
-.task-row.running::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--a-now); }
+.task-row.selected { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--br-default); }
+.task-row.running::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--a-run); }
 .task-row:hover:not(.selected) { background: var(--bg-hover); }
 .row-title { text-align: left; background: none; border: 0; color: inherit; cursor: pointer; }
-.task-detail {
-  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 12px 16px 14px 44px;
-  background: var(--bg-2); border-bottom: 1px solid var(--br-subtle);
+/* Detail rechts neben der Liste; auf schmalen Fenstern als Sheet am unteren Rand. */
+.tasks-layout { margin-top: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 32px; align-items: start; }
+.tasks-layout.with-aside { grid-template-columns: minmax(0, 1fr) 340px; }
+.task-aside {
+  position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto;
+  background: var(--bg-1); border: 1px solid var(--br-default); border-radius: var(--r-m);
 }
-.task-detail .field { width: 140px; }
+.aside-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 0 16px; }
+.task-detail { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 8px 16px 16px; }
+.task-detail .field { width: calc(50% - 6px); }
+@media (max-width: 1000px) {
+  .tasks-layout.with-aside { grid-template-columns: minmax(0, 1fr); }
+  .task-aside { position: fixed; inset: auto 0 0 0; z-index: 20; max-height: 65vh; border-radius: var(--r-m) var(--r-m) 0 0; box-shadow: var(--shadow-pop); }
+}
+.tk-tabs { flex-wrap: wrap; border-radius: 10px; }
+.tk-tabs button { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; }
+.tk-opts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+.tk-opts select { height: 28px; width: auto; padding: 0 26px 0 10px; font-size: 12px; border-radius: 999px; }
+.tk-by { font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
+.spacer { flex: 1; }
+.tk-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.tk-stats b { font-weight: 500; color: var(--tx-primary); font-variant-numeric: tabular-nums; }
+.tk-stats .od, .tk-stats .od b { color: var(--a-red); }
+.qa-syntax { display: inline-flex; gap: 6px; }
+.btn-primary .key { margin-left: 6px; background: transparent; color: inherit; border-color: currentColor; opacity: .6; }
+.tgroup > .lbl.od { color: var(--a-red); }
+.g-sum { margin-left: auto; font: 400 13px/1 var(--font-ui); color: var(--tx-muted); }
 .task-detail .field.wide, .task-detail .full { width: 100%; }
 .sub-sec { display: grid; gap: 8px; }
 .sub-sec .addrow { margin-top: 0; }

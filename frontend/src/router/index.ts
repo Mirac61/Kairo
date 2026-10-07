@@ -6,7 +6,7 @@ export const navItems = [
   { path: '/tasks', name: 'tasks', label: 'Aufgaben', icon: 'tasks', component: () => import('@/views/TasksView.vue') },
   { path: '/habits', name: 'habits', label: 'Gewohnheiten', icon: 'habits', component: () => import('@/views/HabitsView.vue') },
   { path: '/projects', name: 'projects', label: 'Projekte', icon: 'proj', component: () => import('@/views/ProjectsView.vue') },
-  { path: '/review', name: 'review', label: 'Woche', icon: 'grid', component: () => import('@/views/ReviewView.vue') },
+  { path: '/review', name: 'review', label: 'Woche', icon: 'bars', component: () => import('@/views/ReviewView.vue') },
   { path: '/trash', name: 'trash', label: 'Papierkorb', icon: 'trash', component: () => import('@/views/TrashView.vue') },
 ]
 
