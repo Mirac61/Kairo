@@ -43,14 +43,17 @@ for (let w = -1; w <= 4; w++) { // Stundenplan: je Woche Mo, Di, Mi, Do
 events.push(ev(0, '12:15', '13:00', 'Mensa mit Jonas', 'privat'), ev(3, '11:00', '11:45', 'Sprechstunde Weber', 'uni'), // überschneidet sich mit Software Engineering
   ev(3, '18:00', '19:30', 'Sport', 'privat'), ev(4, '14:00', '16:00', 'Lerngruppe', 'uni', 'Bibliothek'), ev(5, '10:00', '11:30', 'Brunch', 'privat'),
   ev(10, '14:00', '16:00', 'Lerngruppe', 'uni'), ev(2, '00:00', '00:00', 'Abgabe Übungsblatt 3', 'uni', '', 3), ev(15, '00:00', '00:00', 'Kairo 0.4 Release', 'kairo', '', 16))
+const soon = (() => { const d = new Date(now.getTime() + 53 * 60_000); return `${String(d.getHours()).padStart(2, '0')}:${String(Math.round(d.getMinutes() / 5) * 5 % 60).padStart(2, '0')}` })()
 const task = (id, title, p, d, a, min, status = 'PLANNED') => ({
   id, title, description: '', status, priority: 'P3', estimated_minutes: min, due_at: null, planned_date: day(d), planned_start_at: a ? at(d, a) : null, project_id: P[p], parent_task_id: null,
 })
 const tasks = [
   task('t1', 'Übungsblatt 3', 'uni', 0, '14:00', 90, 'COMPLETED'), task('t2', 'MQTT-Broker einrichten', 'smart', 1, '16:00', 120, 'COMPLETED'),
-  task('t3', 'Kalender-Redesign', 'kairo', 2, '13:00', 90, 'COMPLETED'), task('t4', 'Heizungs-Automation testen', 'smart', 2, '15:45', 30),
+  task('t3', 'Kalender-Redesign', 'kairo', 2, '13:00', 90, 'COMPLETED'), task('t4', 'Heizungs-Automation testen', 'smart', (now.getDay() + 6) % 7, soon, 30), // heute, in rund 53 Minuten: füllt „Als Nächstes“
   task('t5', 'Kairo: Sync-Bug', 'kairo', 4, '09:00', 120), task('t6', 'Wochenrückblick', 'kairo', 4, '16:30', 30), task('t7', 'Einkaufen', 'privat', 5, '12:00', 60),
   task('t8', 'Fahrrad abholen', 'privat', 1, null, 0, 'COMPLETED'), task('t9', 'MQTT-Broker testen', 'smart', 7, '16:00', 60),
+  ...[['t12', 'Vorlesung nacharbeiten', 'uni', 60], ['t13', 'README überarbeiten', 'kairo', 45], ['t14', 'Sensor-Batterien tauschen', 'smart', 15]]
+    .map(([id, title, p, min]) => ({ ...task(id, title, p, 0, null, min), planned_date: null })), // ungeplant
   task('t10', 'Zusatz A', 'kairo', 3, null, 0), task('t11', 'Zusatz B', 'kairo', 3, null, 0),
 ]
 const times = [ // der letzte Eintrag läuft seit 23 Minuten

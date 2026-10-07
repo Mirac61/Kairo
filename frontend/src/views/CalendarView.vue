@@ -10,7 +10,7 @@ import deLocale from '@fullcalendar/core/locales/de'
 import type { CalendarOptions, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
 import Message from 'primevue/message'
 import {
-  createEvent, createTask, deleteEvent, errorMessage, getOccurrences, importIcs, listProjects, listTasks, listTimeEntries, restoreEvent, skipOccurrence, updateEvent, updateTask,
+  createEvent, createTask, deleteEvent, errorMessage, getOccurrences, importIcs, listProjects, listTasks, listTimeEntries, restoreEvent, skipOccurrence, taskAction, updateEvent, updateTask,
   type CalendarEvent, type EventBody, type Project, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
@@ -38,6 +38,16 @@ const bump = (day: string, i: 0 | 1, min: number) => {
   v[i] += Math.max(0, Math.round(min))
   stats.set(day, v)
 }
+// ISO-Kalenderwoche (Donnerstag der Woche entscheidet über das Jahr).
+function isoWeek(d: Date) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7))
+  return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86_400_000 + 1) / 7)
+}
+const inMin = (d: Date) => {
+  const m = Math.max(0, Math.round((d.getTime() - Date.now()) / 60_000))
+  return m < 60 ? `${m} min` : `${fd(m)} h`
+}
 function paintDay(th: HTMLElement) {
   const q = (sel: string) => th.querySelector<HTMLElement>(sel)
   const plan = q('.kt-plan')
@@ -50,12 +60,16 @@ function paintDay(th: HTMLElement) {
 }
 
 const router = useRouter()
-const { offer } = useUndo()
+const { offer, setDone } = useUndo()
 const cal = ref<InstanceType<typeof FullCalendar>>()
 const error = ref('')
 const notice = ref<{ text: string; notes: string[] } | null>(null)
 const projects = ref<Project[]>([])
 const unplanned = ref<Task[]>([]) // offene Tasks ohne planned_date: Quelle zum Ziehen
+interface NextUp { id: string; title: string; start: Date; end: Date; proj: string; color: string; task?: Task }
+const dayStat = ref<{ plan: number; ist: number; free: number } | null>(null)
+const nextUp = ref<NextUp | null>(null)
+let nextId = '' // Eintrag mit „Als Nächstes“-Ring im Raster
 
 // Termine und Tasks als Kalendereinträge. Zeiten rechnen in der Zeitzone des Browsers.
 async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
@@ -64,11 +78,20 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
   projects.value = ps
   const names = new Map(ps.map((p) => [p.id, p.name]))
   stats.clear()
+  // Tagesansicht: Zeitspannen für „frei“ und der nächste Eintrag nach jetzt („Als Nächstes“).
+  const spans: [number, number][] = []
+  const nowMs = Date.now()
+  let next: NextUp | null = null
+  const consider = (n: NextUp) => { if (n.start.getTime() > nowMs && (!next || n.start < next.start)) next = n }
   unplanned.value = tasks.filter((t) => !t.planned_date && t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
   const entries: EventInput[] = occ.map((e) => {
     const [s, en] = [new Date(e.occurrence_start), new Date(e.occurrence_end)]
     const allDay = isAllDay(s, en)
-    if (!allDay) bump(ymd(s), 0, (en.getTime() - s.getTime()) / 60_000)
+    if (!allDay) {
+      bump(ymd(s), 0, (en.getTime() - s.getTime()) / 60_000)
+      spans.push([s.getTime(), en.getTime()])
+      consider({ id: `e:${e.id}:${e.occurrence_start}`, title: e.title, start: s, end: en, proj: names.get(e.project_id ?? '') ?? '', color: projectColor(e.project_id) })
+    }
     return {
       id: `e:${e.id}:${e.occurrence_start}`,
       title: e.title,
@@ -86,7 +109,12 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
     const done = t.status === 'COMPLETED'
     const late = !done && t.planned_date < today // überfällig: Titel in Rot, Plan nicht erledigt
     const start = t.planned_start_at
-    if (start) bump(ymd(new Date(start)), 0, t.estimated_minutes || DEFAULT_TASK_MINUTES)
+    if (start) {
+      const [s, en] = [new Date(start), new Date(Date.parse(start) + (t.estimated_minutes || DEFAULT_TASK_MINUTES) * 60_000)]
+      bump(ymd(s), 0, (en.getTime() - s.getTime()) / 60_000)
+      spans.push([s.getTime(), en.getTime()])
+      if (!done) consider({ id: `t:${t.id}`, title: t.title, start: s, end: en, proj: names.get(t.project_id ?? '') ?? '', color: projectColor(t.project_id), task: t })
+    }
     entries.push({
       id: `t:${t.id}`,
       title: t.title,
@@ -104,8 +132,24 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
     const [s, en] = [new Date(te.started_at), te.ended_at ? new Date(te.ended_at) : new Date()]
     bump(ymd(s), 1, (en.getTime() - s.getTime()) / 60_000)
     const pid = te.project_id ?? tasks.find((t) => t.id === te.task_id)?.project_id
-    entries.push({ id: `x:${te.id}`, start: s, end: en, display: 'background', classNames: ['kt-track'], extendedProps: { kind: 'track', color: pid ? projectColor(pid) : undefined } })
+    const min = Math.round((en.getTime() - s.getTime()) / 60_000)
+    const title = tasks.find((t) => t.id === te.task_id)?.title ?? 'Zeit'
+    entries.push({
+      id: `x:${te.id}`, start: s, end: en, display: 'background', classNames: ['kt-track'],
+      extendedProps: { kind: 'track', title, label: `${hhmm(s)}–${hhmm(en)} · ${fd(min)}`, color: pid ? projectColor(pid) : undefined },
+    })
   }
+  if (to.getTime() - from.getTime() <= 25 * 3_600_000) { // Tagesansicht
+    const [plan, ist] = stats.get(ymd(from)) ?? [0, 0]
+    const [open, close] = [new Date(from).setHours(7), new Date(from).setHours(22)]
+    const left = Math.max(open, Math.min(close, nowMs)) // frei = ab jetzt (vor 7 Uhr ab 7 Uhr) bis 22 Uhr, ohne Geplantes
+    const busy = spans.reduce((a, [s, e]) => a + Math.max(0, Math.min(e, close) - Math.max(s, left)), 0) // ponytail: überlappende Termine zählen doppelt
+    dayStat.value = { plan, ist, free: Math.max(0, Math.round((close - left - busy) / 60_000)) }
+    nextUp.value = ymd(from) === ymd(new Date()) ? next : null
+  } else {
+    dayStat.value = nextUp.value = null
+  }
+  nextId = (nextUp.value as NextUp | null)?.id ?? ''
   return entries
 }
 
@@ -262,6 +306,7 @@ function remove(onlyThis: boolean) {
 
 // Eigene Toolbar steuert FullCalendar über die API.
 const title = ref('')
+const week = ref(0) // Kalenderwoche, nur in der Tagesansicht
 // „Woche“ zeigt Mo–Fr (timeGridWorkWeek); der Schalter „Sa/So“ wechselt zur vollen Woche (timeGridWeek).
 const WORK = 'timeGridWorkWeek'
 const views = [['dayGridMonth', 'Monat', 'm'], [WORK, 'Woche', 'w'], ['timeGridDay', 'Tag', 'd']] as const
@@ -275,6 +320,7 @@ const storedView = store.get('kairo-cal-view')
 const view = ref<string>(storedView === 'dayGridMonth' || storedView === 'timeGridDay' ? storedView : weekView())
 const isWeek = computed(() => view.value === WORK || view.value === 'timeGridWeek')
 const isMonth = computed(() => view.value === 'dayGridMonth')
+const isDay = computed(() => view.value === 'timeGridDay')
 const goView = (v: string) => cal.value?.getApi().changeView(v === WORK ? weekView() : v)
 function toggleWeekend() {
   fullWeek.value = !fullWeek.value
@@ -290,6 +336,17 @@ function toggleUp() {
   upOpen.value = !upOpen.value
   store.set('kairo-cal-unplanned', upOpen.value ? '1' : '0')
   void nextTick(() => cal.value?.getApi().updateSize())
+}
+
+const run = (fn: () => Promise<unknown>) => guarded(fn)
+// „Verschieben“ setzt den Eintrag auf morgen, gleiche Uhrzeit.
+function postpone(t: Task) {
+  const before = { planned_date: t.planned_date ?? '', planned_start_at: t.planned_start_at ?? '' }
+  const shift = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, d.getHours(), d.getMinutes())
+  void guarded(async () => {
+    await updateTask(t.id, { planned_date: ymd(shift(new Date(`${t.planned_date}T00:00:00`))), planned_start_at: t.planned_start_at ? shift(new Date(t.planned_start_at)).toISOString() : '' })
+    offer(`„${t.title}“ auf morgen verschoben`, () => guarded(() => updateTask(t.id, before)))
+  })
 }
 
 function openNew() {
@@ -373,8 +430,11 @@ const options: CalendarOptions = {
   slotMinTime: '07:00:00', // Mockup: 07–18 Uhr; bis 22 Uhr, damit Abendtermine nicht verschwinden
   slotMaxTime: '22:00:00',
   scrollTime: '07:00:00',
+  eventClassNames: (a) => (a.event.id === nextId ? ['kt-next'] : []),
   datesSet: (a) => {
-    title.value = a.view.title
+    const day = a.view.type === 'timeGridDay'
+    title.value = day ? a.view.currentStart.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : a.view.title
+    week.value = day ? isoWeek(a.view.currentStart) : 0
     view.value = a.view.type
     store.set('kairo-cal-view', a.view.type)
   },
@@ -382,6 +442,11 @@ const options: CalendarOptions = {
     const month = a.view.type === 'dayGridMonth'
     const wd = a.date.toLocaleDateString('de-DE', { weekday: month ? 'short' : 'long' }).replace('.', '')
     if (month) return wd
+    if (a.view.type === 'timeGridDay') { // Spaltenköpfe Plan | Erfasst
+      const head = el('div', 'kt-dayhead')
+      head.append(el('span', '', 'Plan'), el('span', 'kt-trk-h', 'Erfasst'))
+      return { domNodes: [head] }
+    }
     const row = el('div', 'kt-row')
     row.append(el('span', 'kt-plan'), el('span', 'kt-ist'))
     const bar = el('div', 'kt-bar')
@@ -398,7 +463,13 @@ const options: CalendarOptions = {
   eventContent: (a) => {
     const { event } = a
     const p = event.extendedProps as { kind: string; proj?: string; place?: string }
-    if (p.kind === 'track') return { domNodes: [] }
+    if (p.kind === 'track') { // Woche: nur die Spur; Tag: Karte mit Aufgabe, Zeitraum und Dauer
+      if (a.view.type !== 'timeGridDay') return { domNodes: [] }
+      const x = event.extendedProps as { title: string; label: string }
+      const card = el('div', 'kt-trk')
+      card.append(el('b', '', x.title), el('span', '', x.label))
+      return { domNodes: [card] }
+    }
     const month = a.view.type === 'dayGridMonth'
     const { start, end } = event
     const timed = !event.allDay && start
@@ -477,8 +548,9 @@ useLiveEvents(() => {
         </div>
         <button class="btn btn-ghost" title="Heute (t)" aria-keyshortcuts="t" @click="cal?.getApi().today()">Heute</button>
         <h2 class="cal-title">{{ title }}</h2>
+        <span v-if="week" class="cal-kw">KW {{ week }}</span>
         <span class="spacer" />
-        <div v-if="!isMonth" class="cal-legend" aria-hidden="true">
+        <div v-if="isWeek" class="cal-legend" aria-hidden="true">
           <span><i class="lg-termin" />Termin</span><span><i class="lg-task" />Aufgabe</span><span><i class="lg-track" />Erfasst</span>
         </div>
         <div class="seg">
@@ -489,18 +561,36 @@ useLiveEvents(() => {
         <button class="btn btn-secondary" @click="fileInput?.click()">ICS importieren</button>
         <button class="btn btn-primary" title="Neuer Eintrag (n)" aria-keyshortcuts="n" @click="openNew"><svg class="ic"><use href="#i-plus" /></svg>Neuer Eintrag</button>
       </div>
+      <div v-if="isDay && dayStat" class="cal-stats">
+        <span>geplant <b>{{ fd(dayStat.plan) }}</b></span><span>erfasst <b>{{ fd(dayStat.ist) }}</b></span><span>frei <b>{{ fd(dayStat.free) }}</b></span>
+      </div>
       <div class="cal-fc"><FullCalendar ref="cal" :options="options" /></div>
     </div>
-    <aside class="unplanned" :class="{ shut: !upOpen }" aria-labelledby="up-title">
+    <aside class="unplanned" :class="{ shut: !upOpen, wide: isDay }" aria-labelledby="up-title">
+      <section v-if="isDay && nextUp && upOpen" class="next" aria-label="Als Nächstes">
+        <div class="next-head"><span>Als Nächstes · in {{ inMin(nextUp.start) }}</span><span>{{ nextUp.task ? 'Aufgabe' : 'Termin' }}</span></div>
+        <h3>{{ nextUp.title }}</h3>
+        <div class="next-meta">
+          <span><i class="next-dot" :style="{ background: nextUp.color }" />{{ nextUp.proj || 'Ohne Projekt' }}</span>
+          <span>{{ hhmm(nextUp.start) }}–{{ hhmm(nextUp.end) }}</span><span>{{ fd(Math.round((nextUp.end.getTime() - nextUp.start.getTime()) / 60_000)) }}</span>
+        </div>
+        <div v-if="nextUp.task" class="row nowrap">
+          <button v-if="nextUp.task.status === 'IN_PROGRESS'" type="button" class="btn btn-primary" @click="run(() => taskAction(nextUp!.task!.id, 'pause'))">Pause</button>
+          <button v-else type="button" class="btn btn-primary" @click="run(() => taskAction(nextUp!.task!.id, 'start'))">Start</button>
+          <button type="button" class="btn btn-secondary" @click="setDone(nextUp.task, 'COMPLETED', run)">Fertig</button>
+          <button type="button" class="btn btn-ghost" @click="postpone(nextUp.task)">Verschieben</button>
+        </div>
+      </section>
       <div class="up-head">
         <h3 id="up-title"><span class="up-lbl">Ungeplant </span><span class="up-count">{{ unplanned.length }}</span></h3>
+        <span v-if="isDay && upOpen" class="up-hint">in den Plan ziehen</span>
         <button type="button" class="icon-btn" :aria-expanded="upOpen" :aria-label="upOpen ? 'Ungeplant einklappen' : 'Ungeplant ausklappen'" @click="toggleUp"><svg class="ic"><use :href="upOpen ? '#i-right' : '#i-left'" /></svg></button>
       </div>
       <div v-show="upOpen" ref="unplannedEl" class="up-list">
-        <div v-for="t in unplanned" :key="t.id" class="up-item" :data-id="t.id" :data-min="t.estimated_minutes || ''">
-          <span class="up-dot" :style="{ background: projectColor(t.project_id) }" />
+        <div v-for="t in unplanned" :key="t.id" class="up-item" :data-id="t.id" :data-min="t.estimated_minutes || ''" :style="{ '--acc': projectColor(t.project_id) }">
+          <span class="up-dot" />
           <span class="up-name">{{ t.title }}</span>
-          <small v-if="t.estimated_minutes" class="up-min">{{ t.estimated_minutes }} min</small>
+          <small v-if="t.estimated_minutes" class="up-min">{{ fd(t.estimated_minutes) }}</small>
         </div>
       </div>
     </aside>
@@ -573,6 +663,7 @@ useLiveEvents(() => {
   background: var(--bg-1); border: 1px solid var(--br-default); border-radius: var(--r-m);
 }
 .up-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.unplanned.wide:not(.shut) { width: 300px; }
 .unplanned.shut { width: 44px; padding: 12px 6px; align-items: center; }
 .unplanned.shut .up-head { flex-direction: column; }
 .unplanned.shut .up-lbl { display: none; }
@@ -580,20 +671,31 @@ useLiveEvents(() => {
 .up-count { font: 400 12px/1 var(--font-mono); color: var(--tx-muted); }
 .up-list { margin-top: 10px; }
 .up-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.up-hint { flex: 1; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); text-align: right; }
 .up-item {
-  display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: grab;
-  background: var(--bg-0); border: 1px solid var(--br-default); border-radius: var(--r-s);
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: grab;
+  border: 1px dashed color-mix(in oklab, var(--acc) 45%, transparent); border-radius: 8px;
+  background: color-mix(in oklab, var(--acc) 6%, transparent);
   font: 400 13px/1.3 var(--font-ui); color: var(--tx-primary);
 }
-.up-item:hover { border-color: var(--br-strong); }
-.up-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.up-item:hover { background: color-mix(in oklab, var(--acc) 14%, transparent); }
+.up-dot { flex: none; width: 11px; height: 11px; box-sizing: border-box; border: 1.5px solid var(--acc); border-radius: 50%; }
 .up-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.up-min { flex: none; font: 400 11px/1 var(--font-mono); color: var(--tx-muted); }
+.up-min { flex: none; font: 400 12px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--acc); }
+.next { display: flex; flex-direction: column; gap: 12px; padding: 16px; margin-bottom: 16px; background: var(--bg-0); border: 1px solid var(--br-subtle); border-radius: 12px; }
+.next-head { display: flex; justify-content: space-between; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
+.next h3 { margin: 0; font: 600 17px/1.3 var(--font-ui); color: var(--tx-primary); text-wrap: pretty; }
+.next-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: -6px; font: 400 13px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
+.next-meta span { display: flex; align-items: center; gap: 6px; }
+.next-dot { width: 7px; height: 7px; border-radius: 50%; }
 @media (max-width: 900px) {
   .cal-wrap { flex-direction: column; }
   .unplanned { width: auto; max-height: 180px; order: 2; }
 }
 .cal-fc { flex: 1; min-height: 0; }
+.cal-kw { font: 400 13px/1 var(--font-ui); color: var(--tx-muted); }
+.cal-stats { display: flex; gap: 16px; padding: 0 10px 12px 56px; font: 400 13px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-muted); }
+.cal-stats b { margin-left: 4px; font-weight: 600; color: var(--tx-primary); }
 .cal-legend { display: flex; align-items: center; gap: 14px; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
 .cal-legend span { display: flex; align-items: center; gap: 6px; }
 .cal-legend i { display: block; width: 10px; height: 10px; border-radius: 3px; box-sizing: border-box; border: 1px solid var(--tx-muted); }
