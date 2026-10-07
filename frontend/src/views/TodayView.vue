@@ -2,12 +2,13 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   completeHabit, createTask, createTimeEntry, deleteTimeEntry, errorMessage, getToday, listProjects, listTasks, listTimeEntries, uncompleteHabit, updateTask, updateTimeEntry,
-  type Task, type TimeEntry, type Today,
+  type Project, type Task, type TimeEntry, type Today,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useUndo } from '@/composables/useUndo'
-import { daysAgo, ymd } from '@/lib/dates'
-import { parseQuickAdd } from '@/lib/quickAdd'
+import { daysAgo, hm, ymd } from '@/lib/dates'
+import { parseQuickAdd, taskBody } from '@/lib/quickAdd'
+import QuickHints from '@/components/QuickHints.vue'
 import { projectColor } from '@/lib/projectColor'
 import TaskActions from '@/components/TaskActions.vue'
 import DeleteButton from '@/components/DeleteButton.vue'
@@ -16,7 +17,6 @@ import DeleteButton from '@/components/DeleteButton.vue'
 const START_H = 7
 const END_H = 22
 const HOUR = 44
-const SPAN = (END_H - START_H) * 60
 
 const { offer } = useUndo()
 const today = ref<Today | null>(null)
@@ -27,6 +27,7 @@ const entries = ref<TimeEntry[]>([])
 const tasksById = ref(new Map<string, Task>())
 const taskTitles = computed(() => new Map([...tasksById.value].map(([id, t]) => [id, t.title])))
 const projectNames = ref(new Map<string, string>())
+const projectList = ref<Project[]>([])
 let tick: ReturnType<typeof setInterval> | undefined
 
 async function load() {
@@ -38,6 +39,7 @@ async function load() {
     entries.value = es.reverse()
     tasksById.value = new Map(tasks.map((x) => [x.id, x]))
     projectNames.value = new Map(projects.map((x) => [x.id, x.name]))
+    projectList.value = projects.filter((p) => p.status !== 'ARCHIVED') // für #name in der Schnelleingabe
     error.value = ''
   } catch (e) {
     error.value = errorMessage(e)
@@ -70,14 +72,9 @@ function minsOf(ms: number) {
   return n('hour') * 60 + n('minute')
 }
 const dur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} Std${m % 60 ? ` ${m % 60} Min` : ''}` : `${m} Min`)
-const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`
 
-const greeting = computed(() => {
-  const h = new Date(now.value).getHours()
-  return h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend'
-})
 const dateLabel = computed(() =>
-  new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(now.value)))
+  new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(now.value)))
 
 const nowMin = computed(() => minsOf(now.value))
 const runningTaskId = computed(() => today.value?.running_time_entry?.task_id ?? null)
@@ -89,22 +86,22 @@ const elapsed = computed(() => {
   return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`
 })
 
-interface Block { key: string; title: string; start: number; end: number; kind: 'event' | 'task'; done: boolean; color: string; sub: string }
+interface Block { key: string; title: string; start: number; end: number; kind: 'event' | 'task'; done: boolean; running?: boolean; color: string; sub: string }
 
 // Termine und Tasks mit Uhrzeit als Blöcke; Tasks ohne Dauer zählen 30 Minuten.
 const blocks = computed<Block[]>(() => {
   const t = today.value
   if (!t) return []
   const out: Block[] = t.events.map((e) => ({
-    key: `e${e.id}${e.occurrence_start}`, title: e.title, kind: 'event', done: false, color: 'var(--a-blue)', sub: e.location,
+    key: `e${e.id}${e.occurrence_start}`, title: e.title, kind: 'event', done: false, color: 'var(--p-neutral)', sub: e.location,
     start: minsOf(Date.parse(e.occurrence_start)), end: minsOf(Date.parse(e.occurrence_end)) || 24 * 60,
   }))
   for (const task of t.tasks) {
     if (!task.planned_start_at) continue
     const start = minsOf(Date.parse(task.planned_start_at))
     out.push({
-      key: `t${task.id}`, title: task.title, kind: 'task', done: task.status === 'COMPLETED', sub: '',
-      color: task.project_id ? projectColor(task.project_id) : 'var(--a-green)', start, end: start + (task.estimated_minutes || 30),
+      key: `t${task.id}`, title: task.title, kind: 'task', done: task.status === 'COMPLETED', running: task.id === runningTaskId.value, sub: '',
+      color: task.project_id ? projectColor(task.project_id) : 'var(--p-neutral)', start, end: start + (task.estimated_minutes || 30),
     })
   }
   return out.sort((a, b) => a.start - b.start)
@@ -113,24 +110,6 @@ const blocks = computed<Block[]>(() => {
 const upcoming = computed(() => blocks.value.filter((b) => b.kind === 'event' && !b.done))
 const current = computed(() => upcoming.value.find((b) => b.start <= nowMin.value && b.end > nowMin.value))
 const next = computed(() => upcoming.value.find((b) => b.start > nowMin.value))
-
-// Tagesleiste: belegte Zeit der Termine im Planungsfenster.
-const loadBar = computed(() => {
-  const von = START_H * 60
-  const bis = END_H * 60
-  const parts: { w: number; busy?: boolean; now?: boolean }[] = []
-  let cursor = von
-  for (const b of upcoming.value) {
-    const s = Math.max(b.start, von, cursor)
-    const e = Math.min(b.end, bis)
-    if (e <= s) continue
-    if (s > cursor) parts.push({ w: ((s - cursor) / SPAN) * 100 })
-    parts.push({ w: ((e - s) / SPAN) * 100, busy: true })
-    cursor = e
-  }
-  if (cursor < bis) parts.push({ w: ((bis - cursor) / SPAN) * 100 })
-  return parts
-})
 
 const openTasks = computed(() => (today.value?.tasks ?? []).filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'))
 // Fokus: der laufende Timer, sonst die nächste geplante offene Task (das Backend sortiert nach Uhrzeit, ohne Uhrzeit zuletzt).
@@ -208,11 +187,13 @@ function dropTask(e: DragEvent) {
   })
 }
 
+const quickParsed = computed(() => parseQuickAdd(quick.value, projectList.value, today.value?.date))
+// Ohne Tag in der Eingabe landet die Task heute.
 function addQuick() {
-  const { title, minutes } = parseQuickAdd(quick.value)
-  if (!title || !today.value) return
+  const q = quickParsed.value
+  if (!q.title || !today.value) return
   void run(async () => {
-    await createTask({ title, estimated_minutes: minutes, planned_date: today.value!.date })
+    await createTask({ ...taskBody(q, today.value!.date), title: q.title })
     quick.value = ''
   })
 }
@@ -270,45 +251,43 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
     <template v-if="today">
       <section class="focus" aria-label="Fokus">
         <div class="focus-head">
-          <h1 class="greet">{{ greeting }}</h1>
-          <div class="v-sub mono">{{ dateLabel }}</div>
+          <h1 class="day-title">{{ dateLabel }}</h1>
+          <div class="focus-stats">
+            <div class="fstat"><span class="c">geplant</span><span class="n">{{ hm(today.planned_minutes) }}</span></div>
+            <div class="fstat"><span class="c">erfasst</span><span class="n">{{ hm(today.tracked_minutes) }}</span></div>
+            <div class="fstat" title="Frei ab jetzt"><span class="c">frei</span><span class="n">{{ hm(today.free_minutes) }}</span></div>
+          </div>
         </div>
 
-        <div v-if="focusTask" class="fm">
-          <span class="lbl">{{ runningTask ? 'Läuft gerade' : 'Als Nächstes' }}</span>
-          <div class="fm-t">{{ focusTask.title }}</div>
-          <div class="fm-meta">
-            <span v-if="runningTask" class="fm-timer">{{ elapsed }}</span>
-            <span v-else-if="focusTask.planned_start_at" class="fm-timer">{{ fmt(focusTask.planned_start_at) }}</span>
-            <span v-if="focusTask.project_id" class="chip" :style="{ '--chip-c': projectColor(focusTask.project_id) }"><span class="cdot"></span>{{ projectNames.get(focusTask.project_id) }}</span>
+        <div v-if="focusTask" class="fm" :class="{ running: !!runningTask }">
+          <div class="fm-main">
+            <span class="fm-lbl"><span v-if="runningTask" class="run-dot"></span>{{ runningTask ? `Läuft seit ${fmt(today.running_time_entry!.started_at)}` : 'Als Nächstes' }}</span>
+            <div class="fm-t">{{ focusTask.title }}</div>
+            <div class="fm-meta">
+              <span v-if="focusTask.project_id" class="chip" :style="{ '--chip-c': projectColor(focusTask.project_id) }"><span class="cdot"></span>{{ projectNames.get(focusTask.project_id) }}</span>
+              <span v-if="!runningTask && focusTask.planned_start_at">{{ fmt(focusTask.planned_start_at) }}</span>
+              <span v-if="focusTask.estimated_minutes">Schätzung {{ hm(focusTask.estimated_minutes) }}</span>
+            </div>
           </div>
-          <TaskActions :task="focusTask" :running="!!runningTask" @run="run" />
+          <div class="fm-side">
+            <span v-if="runningTask" class="fm-timer">{{ elapsed }}</span>
+            <TaskActions :task="focusTask" :running="!!runningTask" @run="run" />
+          </div>
         </div>
-        <div v-else class="fm"><span class="lbl">Als Nächstes</span><div class="fm-t is-free">Keine offene Aufgabe für heute.</div></div>
+        <div v-else class="fm"><div class="fm-main"><span class="fm-lbl">Als Nächstes</span><div class="fm-t is-free">Keine offene Aufgabe für heute.</div></div></div>
 
         <div v-if="current" class="focus-next small">
-          <span class="fn-when">Läuft gerade</span>
-          <span class="fn-what"><span class="cdot" style="background:var(--a-blue)"></span><span class="fn-t">{{ current.title }}</span><span class="fn-time">noch {{ dur(current.end - nowMin) }}</span></span>
+          <span class="fn-when">Termin läuft</span>
+          <span class="fn-what"><span class="cdot" :style="{ background: current.color }"></span><span class="fn-t">{{ current.title }}</span><span class="fn-time">noch {{ dur(current.end - nowMin) }}</span></span>
         </div>
         <div v-else-if="next" class="focus-next small">
           <span class="fn-when">In {{ dur(next.start - nowMin) }}</span>
-          <span class="fn-what"><span class="cdot" style="background:var(--a-blue)"></span><span class="fn-t">{{ next.title }}</span><span class="fn-time">{{ hm(next.start) }}–{{ hm(next.end) }}</span></span>
+          <span class="fn-what"><span class="cdot" :style="{ background: next.color }"></span><span class="fn-t">{{ next.title }}</span><span class="fn-time">{{ hm(next.start) }}–{{ hm(next.end) }}</span></span>
         </div>
         <div v-else class="focus-next small is-free">
           <span class="fn-when">{{ today.events.length ? 'Termine erledigt' : 'Keine Termine heute' }}</span>
-          <span class="fn-what"><span class="fn-time">Der Rest des Tages gehört dir.</span></span>
         </div>
 
-        <div class="dayload" role="img" :aria-label="`Tagesauslastung: ${dur(today.calendar_minutes)} Termine`">
-          <span v-for="(p, i) in loadBar" :key="i" :class="{ 'dl-busy': p.busy }" :style="{ width: p.w + '%', '--acc': 'var(--a-blue)' }"></span>
-        </div>
-
-        <div class="focus-stats">
-          <div class="fstat"><span class="n">{{ hm(today.free_minutes) }}<span class="u">h</span></span><span class="c">Frei ab jetzt</span></div>
-          <div class="fstat"><span class="n">{{ hm(today.planned_minutes) }}<span class="u">h</span></span><span class="c">Geplant</span></div>
-          <div class="fstat"><span class="n">{{ hm(today.tracked_minutes) }}<span class="u">h</span></span><span class="c">Erfasst</span></div>
-          <div class="fstat"><span class="n">{{ openTasks.length }}</span><span class="c">Offen heute</span></div>
-        </div>
         <div v-if="today.unestimated_tasks" class="v-sub">{{ today.unestimated_tasks }} {{ today.unestimated_tasks === 1 ? 'Task' : 'Tasks' }} ohne Schätzung, gerechnet mit 30 Min.</div>
         <div v-if="today.overplanned_minutes" class="badge"><span class="cdot" style="background:var(--a-red)"></span>Überplant um {{ hm(today.overplanned_minutes) }} h</div>
       </section>
@@ -317,23 +296,22 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
         <section class="start-col">
           <div class="col-head"><h2 class="col-title">Aufgaben</h2><router-link class="col-link" to="/tasks">Alle ansehen</router-link></div>
           <div v-if="today.overdue.length" class="tgroup">
-            <span class="lbl">Überfällig<span class="count">{{ today.overdue.length }}</span></span>
-            <div class="card tasklist">
+            <span class="lbl od-h"><svg class="ic" aria-hidden="true"><use href="#i-alert" /></svg>Überfällig<span class="count">{{ today.overdue.length }}</span></span>
+            <div class="tasklist">
               <div v-for="t in today.overdue" :key="t.id" class="task-row" draggable="true" @dragstart="dragTask($event, t)">
                 <span class="t">{{ t.title }}</span>
                 <span class="due od">{{ daysAgo(t.planned_date!, today.date) }}</span>
-                <button type="button" class="btn btn-ghost" @click="moveTo(t, 0)">→ Heute</button>
-                <button type="button" class="btn btn-ghost" @click="moveTo(t, 1)">→ Morgen</button>
+                <span class="row-act"><button type="button" class="btn btn-ghost" @click="moveTo(t, 0)">→ Heute</button><button type="button" class="btn btn-ghost" @click="moveTo(t, 1)">→ Morgen</button></span>
               </div>
             </div>
           </div>
           <div v-for="g in groups" :key="g.title" class="tgroup">
             <span class="lbl">{{ g.title }}<span class="count">{{ g.tasks.length }}</span></span>
-            <div class="card tasklist">
+            <div class="tasklist">
               <div v-for="t in g.tasks" :key="t.id" class="task-row" draggable="true" @dragstart="dragTask($event, t)">
                 <span class="t" :class="taskTitleClass(t)">{{ t.title }}</span>
                 <span v-if="t.planned_start_at" class="due">{{ fmt(t.planned_start_at) }}</span>
-                <TaskActions :task="t" :running="runningTaskId === t.id" @run="run" />
+                <TaskActions class="row-act" :task="t" :running="runningTaskId === t.id" @run="run" />
               </div>
             </div>
           </div>
@@ -341,18 +319,19 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
           <div v-if="doneTasks.length" class="v-sub">{{ doneTasks.length }} erledigt</div>
           <form class="addrow" @submit.prevent="addQuick">
             <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-            <input v-model="quick" type="text" placeholder="Aufgabe für heute hinzufügen, z. B. 30 min Sport" aria-label="Aufgabe für heute hinzufügen" />
+            <input v-model="quick" type="text" placeholder="Aufgabe hinzufügen, z. B. Sport 30m @morgen #Kairo" aria-label="Aufgabe für heute hinzufügen" />
           </form>
+          <QuickHints v-if="today" :q="quickParsed" :today="today.date" />
 
           <div class="col-head" style="margin-top:28px"><h2 class="col-title">Zeiterfassung</h2></div>
-          <div v-if="entries.length" class="card tasklist">
+          <div v-if="entries.length" class="tasklist">
             <div v-for="e in entries" :key="e.id" class="task-row">
               <span class="t">{{ entryLabel(e) }}</span>
               <input class="input te-time" type="time" :value="hhmm(e.started_at)" aria-label="Start" @change="setTime(e, 'started_at', ($event.target as HTMLInputElement).value)" />
               <span class="due">–</span>
               <input v-if="e.ended_at" class="input te-time" type="time" :value="hhmm(e.ended_at)" aria-label="Ende" @change="setTime(e, 'ended_at', ($event.target as HTMLInputElement).value)" />
               <span v-else class="due te-time">läuft</span>
-              <DeleteButton v-if="e.ended_at" text="Zeiteintrag löschen?" @confirm="removeEntry(e)" />
+              <span v-if="e.ended_at" class="row-act"><DeleteButton ghost text="Zeiteintrag löschen?" @confirm="removeEntry(e)" /></span>
             </div>
           </div>
           <details class="manual">
@@ -374,10 +353,10 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 
           <template v-if="today.habits.length">
             <div class="col-head" style="margin-top:28px"><h2 class="col-title">Gewohnheiten</h2><router-link class="col-link" to="/habits">Alle ansehen</router-link></div>
-            <div class="card" style="padding:4px 16px">
+            <div>
               <div v-for="h in today.habits" :key="h.id" class="hb-row" :class="{ doneToday: h.done }">
                 <button
-                  type="button" class="cb cb-orange" role="checkbox" :aria-checked="h.done" :aria-label="h.name"
+                  type="button" class="cb" role="checkbox" :aria-checked="h.done" :aria-label="h.name"
                   @click="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
                 ></button>
                 <span class="hb-name">{{ h.name }}</span>
@@ -388,19 +367,19 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
         </section>
 
         <section class="start-col">
-          <div class="col-head"><h2 class="col-title">Tagesplan</h2><router-link class="col-link" to="/calendar">Woche ansehen</router-link></div>
+          <div class="col-head"><h2 class="col-title">Tagesplan</h2><router-link class="col-link" to="/calendar">Woche<svg class="ic" aria-hidden="true"><use href="#i-right" /></svg></router-link></div>
           <div class="v-sub">Aufgaben aus der Liste in den Plan ziehen, um sie einzuplanen.</div>
           <div class="card dayplan">
             <div class="dp-scroll">
               <div class="dp-body">
                 <div class="hourcol" :style="{ '--hour': HOUR + 'px' }">
-                  <div v-for="h in hours" :key="h" class="hl"><span class="mono">{{ String(h).padStart(2, '0') }}:00</span></div>
+                  <div v-for="h in hours" :key="h" class="hl"><span class="mono">{{ String(h).padStart(2, '0') }}</span></div>
                 </div>
                 <div class="dp-grid" :style="{ height: (END_H - START_H) * HOUR + 'px' }" @dragover.prevent @drop.prevent="dropTask">
                   <div v-for="h in hours" :key="h" class="hline" :style="{ top: (h - START_H) * HOUR + 'px' }"></div>
                   <div v-if="nowTop !== null" class="now-line" :style="{ top: nowTop + 'px' }"></div>
                   <div
-                    v-for="b in blocks" :key="b.key" class="dp-ev" :class="[`kind-${b.kind}`, { done: b.done, short: b.end - b.start <= 30 }]" :style="style(b)"
+                    v-for="b in blocks" :key="b.key" class="dp-ev" :class="[`kind-${b.kind}`, { done: b.done, now: b.running, short: b.end - b.start <= 30 }]" :style="style(b)"
                   >
                     <div class="dp-t"><span class="cdot"></span><span class="dp-n">{{ b.title }}</span></div>
                     <div class="dp-m">{{ hm(b.start) }}–{{ hm(b.end) }}<template v-if="b.sub"> · {{ b.sub }}</template></div>
@@ -416,20 +395,28 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 </template>
 
 <style scoped>
-.greet { font: 500 13px/1.2 var(--font-ui); color: var(--tx-muted); }
-.fm { display: grid; gap: 10px; justify-items: start; }
-.fm-t { font: 600 clamp(24px, 3.5vw, 34px)/1.2 var(--font-ui); letter-spacing: -0.02em; color: var(--tx-primary); }
+.day-title { font: 600 22px/1.2 var(--font-ui); letter-spacing: -0.015em; color: var(--tx-primary); }
+.fm { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 22px 28px 22px 31px; background: var(--bg-1); border: 1px solid var(--br-default); border-radius: var(--r-m); overflow: hidden; }
+.fm.running::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--a-now); }
+.fm-main { display: grid; gap: 10px; justify-items: start; min-width: 0; }
+.fm-lbl { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px; border-radius: var(--r-s); background: var(--bg-2); font: 400 13px/1 var(--font-ui); color: var(--tx-secondary); }
+.run-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-now); }
+.fm-t { font: 600 24px/1.25 var(--font-ui); letter-spacing: -0.015em; color: var(--tx-primary); }
 .fm-t.is-free { color: var(--tx-secondary); font-weight: 500; }
-.fm-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-.fm-timer { font: 500 20px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
+.fm-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; font: 400 13px/1.3 var(--font-ui); color: var(--tx-secondary); }
+.fm-side { display: flex; flex-direction: column; align-items: flex-end; gap: 14px; }
+.fm-timer { font: 500 20px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-primary); }
 .focus-next.small .fn-when { font: 500 14px/1.4 var(--font-ui); letter-spacing: 0; color: var(--tx-secondary); }
 .focus-next.small .fn-t { font-size: 14px; }
-.te-time { width: 92px; flex: none; }
+@media (max-width: 720px) { .fm { grid-template-columns: 1fr; } .fm-side { align-items: flex-start; } }
+.te-time { width: 88px; flex: none; text-align: center; padding: 0 4px; background: transparent; border-color: transparent; }
+.te-time:hover, .te-time:focus-visible { background: var(--bg-2); }
+.te-time::-webkit-calendar-picker-indicator { display: none; }
 .task-row[draggable='true'] { cursor: grab; }
 .manual { margin-top: 12px; }
 .manual-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 12px; }
 .manual-form .field { width: 140px; }
 .manual-form .field.wide { width: 100%; }
-.now-line { position: absolute; left: 0; right: 0; height: 1px; background: var(--a-red); z-index: 3; pointer-events: none; }
-.now-line::before { content: ''; position: absolute; left: -4px; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--a-red); }
+.now-line { position: absolute; left: 0; right: 0; height: 1.5px; background: var(--tx-primary); z-index: 3; pointer-events: none; }
+.now-line::before { content: ''; position: absolute; left: -4px; top: -2.75px; width: 7px; height: 7px; border-radius: 50%; background: var(--tx-primary); }
 </style>

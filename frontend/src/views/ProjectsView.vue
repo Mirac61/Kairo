@@ -10,6 +10,7 @@ import { PROJECT_COLORS, projectColor } from '@/lib/projectColor'
 import { ymd } from '@/lib/dates'
 import DeleteButton from '@/components/DeleteButton.vue'
 import ResourceList from '@/components/ResourceList.vue'
+import SearchField from '@/components/SearchField.vue'
 import TaskActions from '@/components/TaskActions.vue'
 
 const STATUS: Record<string, string> = { ACTIVE: 'Aktiv', PAUSED: 'Pausiert', COMPLETED: 'Abgeschlossen', ARCHIVED: 'Archiviert' }
@@ -101,12 +102,15 @@ const pct = (id: string) => {
   const p = progress.value[id]
   return p && p.total_tasks ? Math.round((p.done_tasks / p.total_tasks) * 100) : 0
 }
-const meta = (p: Project) => {
-  const pr = progress.value[p.id]
-  const parts = [STATUS[p.status] ?? p.status, pr ? `${pr.done_tasks} von ${pr.total_tasks} Aufgaben erledigt` : '']
-  if (p.local_path) parts.push(p.local_path)
-  return parts.filter(Boolean).join(' · ')
-}
+const search = ref('')
+const shown = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  return q ? projects.value.filter((p) => `${p.name} ${p.description} ${p.local_path ?? ''}`.toLowerCase().includes(q)) : projects.value
+})
+const groups = computed(() =>
+  Object.entries(STATUS).map(([status, label]) => ({ status, label, items: shown.value.filter((p) => p.status === status) })).filter((g) => g.items.length),
+)
+const frac = (id: string) => { const p = progress.value[id]; return p?.total_tasks ? `${p.done_tasks}/${p.total_tasks}` : '' }
 // Die Extension öffnet den Workspace des Projekts.
 const inCode = (p: Project) => { window.location.href = `vscodium://kairo-local.kairo/open?project=${p.id}` }
 // Datei und Ordner öffnet der Browser nicht; nur URLs sind echte Links.
@@ -127,19 +131,23 @@ useLiveEvents(load)
     </div>
     <div v-if="error && !dialog" class="badge" role="alert">{{ error }}</div>
 
+    <div class="filterbar"><SearchField v-model="search" label="Projekte durchsuchen" /></div>
     <div class="proj-list">
       <div v-if="!projects.length" class="v-sub">Keine Projekte.</div>
-      <article v-for="p in projects" :key="p.id" class="card proj-card" :style="{ '--pc': projectColor(p.id) }">
+      <div v-else-if="!groups.length" class="v-sub">Keine Treffer für „{{ search }}“.</div>
+      <section v-for="g in groups" :key="g.status" class="tgroup">
+      <div class="lbl">{{ g.label }} <span class="count">{{ g.items.length }}</span></div>
+      <article v-for="p in g.items" :key="p.id" class="proj-card" :style="{ '--pc': projectColor(p.id) }">
         <div class="proj-head">
           <span class="cdot"></span>
           <button type="button" class="proj-name proj-toggle" :aria-expanded="openId === p.id" @click="openId = openId === p.id ? null : p.id">{{ p.name }}</button>
-          <span class="proj-pct">{{ pct(p.id) }}%</span>
-          <button v-if="p.local_path" class="btn btn-ghost" type="button" :aria-label="`In VSCodium öffnen: ${p.name}`" @click="inCode(p)">In VSCodium öffnen</button>
-          <button class="btn btn-ghost" type="button" @click="openDialog(p)">Bearbeiten</button>
+          <span v-if="frac(p.id)" class="proj-pct">{{ frac(p.id) }}</span>
+          <div v-if="frac(p.id)" class="pbar" role="progressbar" :aria-valuenow="pct(p.id)" aria-valuemin="0" aria-valuemax="100"><div class="pbar-fill" :style="{ width: pct(p.id) + '%' }"></div></div>
+          <button v-if="p.local_path" class="btn btn-ghost proj-act" type="button" :aria-label="`In VSCodium öffnen: ${p.name}`" @click="inCode(p)">In VSCodium öffnen</button>
+          <button class="btn btn-ghost proj-act" type="button" @click="openDialog(p)">Bearbeiten</button>
         </div>
-        <div class="pbar" role="progressbar" :aria-valuenow="pct(p.id)" aria-valuemin="0" aria-valuemax="100"><div class="pbar-fill" :style="{ width: pct(p.id) + '%' }"></div></div>
         <div v-if="p.description" class="proj-desc">{{ p.description }}</div>
-        <div class="proj-meta">{{ meta(p) }}</div>
+        <div v-if="p.local_path" class="proj-meta">{{ p.local_path }}</div>
         <div v-if="resOf(p.id).length" class="proj-res">
           <component :is="href(r) ? 'a' : 'span'" v-for="r in resOf(p.id)" :key="r.id" class="res" :href="href(r)" target="_blank" rel="noopener">
             <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>{{ r.label || r.target }}
@@ -154,12 +162,13 @@ useLiveEvents(load)
               <component :is="href(r) ? 'a' : 'span'" v-for="r in taskRes(t.id)" :key="r.id" class="res" :href="href(r)" target="_blank" rel="noopener">
                 <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>{{ r.label || r.target }}
               </component>
-              <TaskActions :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
+              <TaskActions class="row-act" :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
             </div>
           </div>
           <div v-else class="proj-meta">Keine offenen Aufgaben.</div>
         </div>
       </article>
+      </section>
     </div>
 
     <div v-if="dialog" v-dialog="() => (dialog = false)" class="overlay open" @mousedown.self="dialog = false">
@@ -178,7 +187,7 @@ useLiveEvents(load)
               <label id="p-color-l">Farbe</label>
               <div class="swatches" role="radiogroup" aria-labelledby="p-color-l">
                 <label v-for="[c, label] in PROJECT_COLORS" :key="c" class="swatch" :title="label">
-                  <input v-model="form.color" type="radio" name="p-color" :value="c" :aria-label="label" /><span :style="{ background: `var(--a-${c})` }"></span>
+                  <input v-model="form.color" type="radio" name="p-color" :value="c" :aria-label="label" /><span :style="{ background: `var(--p-${c})` }"></span>
                 </label>
               </div>
             </div>

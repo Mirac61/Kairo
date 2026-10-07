@@ -8,6 +8,7 @@ import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useUndo } from '@/composables/useUndo'
 import { vDialog } from '@/lib/dialog'
 import { ymd } from '@/lib/dates'
+import SearchField from '@/components/SearchField.vue'
 
 const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 const TYPE_LABEL: Record<Habit['frequency_type'], string> = {
@@ -138,7 +139,11 @@ const todayState = (h: Habit) => {
   const t = todayHabits.value.find((x) => x.id === h.id)
   return t ? (t.done ? 'Heute erledigt' : 'Heute offen') : 'Heute nicht fällig'
 }
-const sorted = computed(() => [...habits.value].sort((a, b) => Number(b.active) - Number(a.active)))
+const search = ref('')
+const sorted = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  return habits.value.filter((h) => !q || h.name.toLowerCase().includes(q)).sort((a, b) => Number(b.active) - Number(a.active))
+})
 
 onMounted(load)
 useLiveEvents(load)
@@ -149,7 +154,7 @@ useLiveEvents(load)
     <div class="v-head v-head-row">
       <div>
         <h1 class="v-title">Gewohnheiten</h1>
-        <div class="v-sub">Die letzten 28 Tage. Gefüllt heisst erledigt, gestrichelt heisst nicht geplant. Ein Klick auf ein Feld trägt den Tag nach oder nimmt ihn zurück.</div>
+        <div class="v-sub">Die letzten 28 Tage. Gefüllt heißt erledigt, Rahmen offen, gestrichelt nicht geplant. Ein Klick auf ein Feld trägt den Tag nach oder nimmt ihn zurück.</div>
       </div>
       <button class="btn btn-secondary" type="button" @click="dialog = true"><svg class="ic"><use href="#i-plus" /></svg>Neue Gewohnheit</button>
     </div>
@@ -159,7 +164,7 @@ useLiveEvents(load)
       <span class="lbl">Heute abhaken</span>
       <div class="hab-chips">
         <button v-for="h in todayHabits" :key="h.id" type="button" class="hab-chip" role="checkbox" :aria-checked="h.done" @click="toggle(h)">
-          <span class="cb cb-orange" aria-hidden="true"></span>
+          <span class="cb" aria-hidden="true"></span>
           <span>{{ h.name }}</span>
           <span v-if="h.done" class="hc-done">erledigt</span>
         </button>
@@ -167,8 +172,10 @@ useLiveEvents(load)
       </div>
     </div>
 
+    <div class="filterbar"><SearchField v-model="search" label="Gewohnheiten durchsuchen" /></div>
     <div class="hab-list">
       <div v-if="!habits.length" class="v-sub">Keine Gewohnheiten.</div>
+      <div v-else-if="!sorted.length" class="v-sub">Keine Treffer für „{{ search }}“.</div>
       <div v-for="h in sorted" :key="h.id" class="hab-item" :class="{ inactive: !h.active }">
         <div class="hab-id">
           <span class="hab-name">{{ h.name }}</span>
@@ -233,8 +240,9 @@ useLiveEvents(load)
 
 <style scoped>
 .inactive .hab-name, .inactive .hab-num { opacity: .5; }
-.acts { display: inline-flex; gap: 4px; }
+.acts { display: inline-flex; gap: 4px; opacity: 0; transition: opacity var(--dur) ease-out; }
+.hab-item:hover .acts, .hab-item:focus-within .acts { opacity: 1; }
 .hab-track i.pre { visibility: hidden; }
 .hab-track i[role="checkbox"] { cursor: pointer; }
-.hab-track i[role="checkbox"]:hover { border-color: var(--a-orange); }
+.hab-track i[role="checkbox"]:hover { border-color: var(--tx-primary); }
 </style>

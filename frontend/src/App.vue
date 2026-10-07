@@ -36,6 +36,7 @@ function toggleTheme() {
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M13.5 2.5H7A1.5 1.5 0 0 0 5.5 4v16A1.5 1.5 0 0 0 7 21.5h10a1.5 1.5 0 0 0 1.5-1.5V7.5z"/><path d="M13.5 2.5V7.5h5"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6.5V4.5h5v2M6.5 6.5l.8 13a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-13"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 2.4 17.5a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17h.01"/></symbol>
     <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3.5 13.5 6 5a1.5 1.5 0 0 1 1.4-1h9.2A1.5 1.5 0 0 1 18 5l2.5 8.5V18a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18z"/><path d="M3.5 13.5H9a3 3 0 0 0 6 0h5.5"/></symbol>
   </defs>
 </svg>
@@ -49,9 +50,9 @@ function toggleTheme() {
         </RouterLink>
       </nav>
       <div class="sidebar-footer">
-        <div class="status">
-          <span class="status-dot" :style="{ background: online ? 'var(--a-green)' : 'var(--a-red)' }" />
-          <span>{{ online ? `Verbunden${version ? ` (${version})` : ''}` : 'Backend offline' }}</span>
+        <div class="status" :class="{ off: !online }">
+          <span class="status-dot" />
+          <span>{{ online ? `Verbunden${version ? ` (${version})` : ''}` : 'Getrennt' }}</span>
         </div>
         <button class="icon-btn" aria-label="Theme wechseln" data-tip="Theme wechseln" @click="toggleTheme">
           <svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg>
