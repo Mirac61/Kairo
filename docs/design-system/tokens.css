@@ -1,0 +1,125 @@
+/* ============================================================
+   KAIRO DESIGNSYSTEM — Tokens
+   Basis: Vercel x Kanagawa Dragon (dark primär, light = „Lotus-Papier“).
+   Alle Werte unter „unverändert“ stammen 1:1 aus frontend/src/design.css.
+   Neu sind nur: Abstände, Typo-Skala, Zeilenhöhen, Semantikfarben, Bewegung, Z-Ebenen.
+   ============================================================ */
+
+:root {
+  /* ---- unverändert: Flächen (Ebene 0 Seite · 1 Liste/Sidebar · 2 Eingabe/Hover · 3 Auswahl/Popover) ---- */
+  --bg-0: #0b0a0a;
+  --bg-1: #121110;
+  --bg-2: #181716;
+  --bg-3: #201f1d;
+  /* unverändert: Rahmen */
+  --br-subtle: #232220;
+  --br-default: #2e2d2a;
+  --br-strong: #403f3b;
+  /* unverändert: Text */
+  --tx-primary: #c5c9c5;
+  --tx-secondary: #a6a69c;
+  --tx-muted: #818a81;
+  /* geändert: war #82827b (fast gleich wie muted). Deaktiviert = dunkler UND opacity .5, nie nur Farbe. */
+  --tx-disabled: #6a6a64;
+  /* unverändert: Akzente (Kanagawa Dragon, entsättigt) */
+  --a-blue: #8098a6;
+  --a-green: #869b86;
+  --a-orange: #ad8e7a;
+  --a-yellow: #bdac88;
+  --a-red: #c4746e;
+  --a-violet: #848da3;
+  --a-pink: #9b8d9c;
+  --a-aqua: #869c9b;
+  --a-neutral: #8a8a82;
+  /* unverändert: System */
+  --ring: rgba(139, 164, 176, .5);
+  --scrim: rgba(0, 0, 0, .62);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, .5);
+  --font-ui: "Geist Variable", Geist, Inter, system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r-s: 6px;   /* Controls, Zeilen, Chips */
+  --r-m: 10px;  /* Karten, Dialoge, Toast */
+  --dur: 130ms;
+  color-scheme: dark;
+
+  /* ---- NEU: Semantik. Bedeutung bekommt einen Namen, Komponenten benutzen nur diese. ---- */
+  --st-running: var(--a-green);   /* Timer läuft */
+  --st-paused: var(--a-yellow);   /* pausiert */
+  --st-overdue: var(--a-red);     /* überfällig, Fehler */
+  --st-select: var(--a-blue);     /* Auswahl, aktuelle Seite, Fokus */
+  --st-done: var(--tx-muted);     /* erledigt: blasser, durchgestrichen */
+  --prio-urgent: var(--a-red);
+  --prio-high: var(--a-orange);
+
+  /* Projektfarben: genau diese 8 (domain.ProjectColors). Gelb/Grün/Rot sind zugleich Statusfarben;
+     deshalb steht Projektfarbe nur als Punkt (8 px) oder 3-px-Balken, Status nur mit Wort. */
+  --p-violet: var(--a-violet);
+  --p-blue: var(--a-blue);
+  --p-orange: var(--a-orange);
+  --p-aqua: var(--a-aqua);
+  --p-pink: var(--a-pink);
+  --p-yellow: var(--a-yellow);
+  --p-green: var(--a-green);
+  --p-red: var(--a-red);
+
+  /* ---- NEU: Abstände (4-px-Raster) ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* ---- NEU: Typo-Skala (Geist). Rolle statt Größe benutzen. ---- */
+  --fs-label: 11px;     /* ABSCHNITT: 500, Großbuchstaben, .06em */
+  --fs-meta: 12px;      /* Datum, Dauer, Zähler (Mono bei Zahlen/Zeit) */
+  --fs-control: 13px;   /* Buttons, Eingaben, Navigation: 500 */
+  --fs-body: 14px;      /* Zeilentitel, Fließtext */
+  --fs-heading: 16px;   /* Dialog- und Kartentitel: 600 */
+  --fs-title: 20px;     /* Seitentitel: 600, -0.02em */
+  --fs-display: 28px;   /* nur Fokusblock auf Start: laufende/nächste Aufgabe */
+
+  /* ---- NEU: Maße ---- */
+  --row-h: 36px;        /* Listenzeile, Web */
+  --row-h-sm: 28px;     /* Listenzeile, Extension */
+  --ctl-h: 32px;        /* Button, Eingabe, Select */
+  --ctl-h-sm: 28px;
+  --page-max: 960px;
+  --sidebar-w: 220px;
+
+  /* ---- NEU: Bewegung und Ebenen ---- */
+  --ease: cubic-bezier(.2, 0, 0, 1);
+  --z-toast: 200;
+  --z-dialog: 100;
+  --z-sticky: 10;
+}
+
+:root[data-theme="light"] {
+  /* unverändert */
+  --bg-0: #f4f2ee;
+  --bg-1: #ffffff;
+  --bg-2: #efede7;
+  --bg-3: #e6e3da;
+  --br-subtle: #e7e3db;
+  --br-default: #d9d4c8;
+  --br-strong: #b7b1a2;
+  --tx-primary: #26241e;
+  --tx-secondary: #565349;
+  /* geändert: war #6d6a5f (4,22:1 auf bg-3). Jetzt ≥ 4,5:1 auf bg-0..bg-3. */
+  --tx-muted: #66635a;
+  --tx-disabled: #9a968b;
+  --a-blue: #405a68;
+  --a-green: #4b664c;
+  --a-orange: #80604a;
+  --a-yellow: #7f6f4b;
+  --a-red: #a84e46;
+  --a-violet: #57607a;
+  --a-pink: #756a76;
+  --a-aqua: #4d6b69;
+  --a-neutral: #6b6860;
+  --ring: rgba(67, 96, 111, .5);
+  --scrim: rgba(38, 34, 26, .4);
+  --shadow-pop: 0 8px 24px rgba(46, 42, 32, .14);
+  color-scheme: light;
+}

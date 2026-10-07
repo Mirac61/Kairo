@@ -1,0 +1,185 @@
+/* ============================================================
+   KAIRO DESIGNSYSTEM — Komponenten (Sollzustand)
+   Setzt tokens.css voraus. Ersetzt später die Komponenten in frontend/src/design.css;
+   Klassennamen bleiben, wo es sie schon gibt.
+   Zustände zum Vorführen: .is-hover, .is-focus (spiegeln :hover und :focus-visible).
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font: 400 var(--fs-body)/1.5 var(--font-ui); color: var(--tx-primary); background: var(--bg-0); letter-spacing: -.006em; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+input, select, textarea { font: inherit; color: inherit; }
+:focus { outline: none; }
+:focus-visible, .is-focus { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+::selection { background: color-mix(in srgb, var(--a-blue) 30%, transparent); }
+svg.ic { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ---------- Typo-Rollen ---------- */
+.lbl { font: 500 var(--fs-label)/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); }
+.meta { font: 400 var(--fs-meta)/1.3 var(--font-ui); color: var(--tx-muted); }
+.num, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; } /* Zahl oder Zeit, sonst nie */
+.title { font: 600 var(--fs-title)/1.2 var(--font-ui); letter-spacing: -.02em; }
+.heading { font: 600 var(--fs-heading)/1.3 var(--font-ui); letter-spacing: -.01em; }
+
+/* ---------- Button: ein Primary pro Bereich, Rest leise ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  height: var(--ctl-h); padding: 0 var(--sp-3); border-radius: var(--r-s);
+  font: 500 var(--fs-control)/1 var(--font-ui); white-space: nowrap; border: 1px solid transparent;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.btn-sm { height: var(--ctl-h-sm); padding: 0 10px; }
+.btn-primary { background: var(--tx-primary); color: var(--bg-0); }
+.btn-primary:hover, .btn-primary.is-hover { background: color-mix(in srgb, var(--tx-primary) 88%, var(--bg-0)); }
+.btn-secondary { background: var(--bg-2); border-color: var(--br-default); }
+.btn-secondary:hover, .btn-secondary.is-hover { background: var(--bg-3); border-color: var(--br-strong); }
+.btn-ghost { color: var(--tx-secondary); }
+.btn-ghost:hover, .btn-ghost.is-hover { background: var(--bg-2); color: var(--tx-primary); }
+.btn-danger { color: var(--st-overdue); }                      /* leise: Löschen ist per Toast umkehrbar */
+.btn-danger:hover, .btn-danger.is-hover { background: color-mix(in srgb, var(--st-overdue) 12%, transparent); }
+.btn-danger-fill { background: var(--st-overdue); color: var(--bg-0); } /* nur im Bestätigungsschritt (endgültig löschen) */
+.btn:active { background: var(--bg-3); }
+.btn-primary:active { background: var(--tx-secondary); }
+.btn:disabled, .btn.is-disabled { opacity: .5; cursor: not-allowed; }
+.icon-btn { display: inline-grid; place-items: center; width: var(--ctl-h-sm); height: var(--ctl-h-sm); border-radius: var(--r-s); color: var(--tx-secondary); }
+.icon-btn:hover, .icon-btn.is-hover { background: var(--bg-2); color: var(--tx-primary); }
+
+/* ---------- Eingabe ---------- */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > label { font: 500 var(--fs-control)/1 var(--font-ui); }
+.input {
+  width: 100%; height: var(--ctl-h); padding: 0 10px; background: var(--bg-2); color: var(--tx-primary);
+  border: 1px solid var(--br-default); border-radius: var(--r-s);
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.input::placeholder { color: var(--tx-muted); }
+.input:hover, .input.is-hover { border-color: var(--br-strong); }
+.input:focus-visible, .input.is-focus { outline: none; border-color: var(--st-select); box-shadow: 0 0 0 2px var(--ring); }
+.input:disabled { opacity: .5; cursor: not-allowed; }
+.input.err { border-color: var(--st-overdue); }
+.f-msg { font: 400 var(--fs-meta)/1.4 var(--font-ui); color: var(--tx-muted); }
+.f-msg.err { color: var(--st-overdue); }
+
+/* ---------- Umschalter (Filter, Ansicht) und Tabs ---------- */
+.seg { display: inline-flex; gap: 2px; padding: 2px; background: var(--bg-2); border: 1px solid var(--br-default); border-radius: var(--r-s); }
+.seg button { height: 26px; padding: 0 10px; border-radius: 4px; font: 500 var(--fs-control)/1 var(--font-ui); color: var(--tx-secondary); }
+.seg button:hover, .seg button.is-hover { color: var(--tx-primary); }
+.seg button[aria-pressed="true"] { background: var(--bg-3); color: var(--tx-primary); box-shadow: inset 0 0 0 1px var(--br-strong); }
+.tabs { display: flex; gap: var(--sp-4); border-bottom: 1px solid var(--br-subtle); }
+.tabs button { height: 32px; margin-bottom: -1px; border-bottom: 2px solid transparent; font: 500 var(--fs-control)/1 var(--font-ui); color: var(--tx-muted); }
+.tabs button:hover, .tabs button.is-hover { color: var(--tx-primary); }
+.tabs button[aria-selected="true"] { color: var(--tx-primary); border-bottom-color: var(--st-select); } /* nur Unterstreichung, kein Kasten */
+
+/* ---------- Bausteine für Zeilen: genau drei Arten von „Chip“ ---------- */
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--a-neutral)); flex: none; }
+/* 1 · Tag (Projekt): Punkt plus Name, kein Hintergrund. Die Farbe steht nie im Text. */
+.tag { display: inline-flex; align-items: center; gap: 6px; font: 400 var(--fs-meta)/1.3 var(--font-ui); color: var(--tx-secondary); white-space: nowrap; }
+/* 2 · Status: getönte Fläche, Text neutral, Farbe nur im Punkt (hält AA in beiden Themes). */
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--r-s);
+  font: 500 var(--fs-meta)/1.4 var(--font-ui); color: var(--tx-primary); white-space: nowrap;
+  background: color-mix(in srgb, var(--c, var(--a-neutral)) 14%, var(--bg-1));
+}
+.badge .dot { width: 6px; height: 6px; }
+.badge.running { --c: var(--st-running); }
+.badge.paused { --c: var(--st-paused); }
+.badge.overdue { --c: var(--st-overdue); }
+/* 3 · Zähler: Mono, neutral, ohne Fläche. Alles andere (Datum, Dauer, Priorität „Niedrig“) ist schlichter Text. */
+.count { font: 400 var(--fs-meta)/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-muted); }
+.due { font: 400 var(--fs-meta)/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-muted); white-space: nowrap; }
+.due.od { color: var(--st-overdue); }                          /* nur auf bg-0..bg-2, immer mit Wort („vor 3 Tagen“) */
+.prio { font: 500 var(--fs-meta)/1 var(--font-ui); white-space: nowrap; }
+.prio.urgent { color: var(--prio-urgent); }
+.prio.high { color: var(--prio-high); }                        /* Mittel wird nicht gezeigt */
+.kbd { font: 500 11px/1 var(--font-mono); padding: 3px 5px; border: 1px solid var(--br-strong); border-bottom-width: 2px; border-radius: 4px; color: var(--tx-secondary); }
+
+/* ---------- Liste: durchgehende Fläche, Trennlinien, keine Karten ---------- */
+.group-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-4) var(--sp-3) var(--sp-2); }
+.list { display: flex; flex-direction: column; }
+.row {
+  position: relative; display: flex; align-items: center; gap: var(--sp-3);
+  min-height: var(--row-h); padding: 0 var(--sp-3); border-top: 1px solid var(--br-subtle); border-radius: 0;
+  transition: background var(--dur) var(--ease);
+}
+.row:first-child { border-top: 0; }
+.row:hover, .row.is-hover { background: var(--bg-2); }
+.row[aria-selected="true"] { background: var(--bg-2); box-shadow: inset 2px 0 0 var(--st-select); }  /* Tastaturauswahl (j/k) */
+.row[aria-selected="true"]:hover { background: var(--bg-3); }
+.row .t { flex: 1; min-width: 0; font: 400 var(--fs-body)/1.4 var(--font-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .acts { display: flex; gap: 2px; opacity: 0; transition: opacity var(--dur) var(--ease); }
+.row:hover .acts, .row.is-hover .acts, .row:focus-within .acts, .row[aria-selected="true"] .acts { opacity: 1; } /* per Tab immer erreichbar */
+.row.done .t { color: var(--st-done); text-decoration: line-through; }
+.row.running { box-shadow: inset 2px 0 0 var(--st-running); }
+.cb { width: 16px; height: 16px; flex: none; border: 1px solid var(--br-strong); border-radius: 4px; background: var(--bg-0); display: inline-grid; place-items: center; }
+.cb[aria-checked="true"] { background: var(--a-green); border-color: var(--a-green); }
+.cb[aria-checked="true"]::after { content: ""; width: 8px; height: 4px; border-left: 1.5px solid var(--bg-0); border-bottom: 1.5px solid var(--bg-0); transform: rotate(-45deg) translate(.5px, -1px); }
+
+/* ---------- Karte: nur für eigenständige Objekte (Fokus, Projekt, Dialog), nie in einer Karte ---------- */
+.card { background: var(--bg-1); border: 1px solid var(--br-default); border-radius: var(--r-m); padding: var(--sp-4); }
+
+/* Fokusblock auf Start: der eine laute Punkt */
+.focus { display: grid; gap: var(--sp-3); }
+.focus .f-title { font: 600 var(--fs-display)/1.2 var(--font-ui); letter-spacing: -.02em; }
+.focus .f-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
+.focus .f-time { font: 500 20px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
+.focus .f-acts { display: flex; gap: var(--sp-2); }
+.pulse { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+
+/* Kalender: Termin = durchgezogen, Task = gestrichelt; Projektfarbe als 3-px-Balken */
+.ev { padding: 4px 8px 4px 10px; border-radius: var(--r-s); font: 500 var(--fs-meta)/1.3 var(--font-ui); background: color-mix(in srgb, var(--c, var(--a-neutral)) 10%, var(--bg-1)); box-shadow: inset 3px 0 0 var(--c, var(--a-neutral)); }
+.ev.task { background: transparent; border: 1px dashed var(--br-strong); box-shadow: inset 3px 0 0 var(--c, var(--a-neutral)); }
+.ev.done { opacity: .5; }
+
+/* ---------- Leer · Laden · Fehler: leise, ohne Rahmen ---------- */
+.empty { padding: var(--sp-3) 0; font: 400 var(--fs-control)/1.5 var(--font-ui); color: var(--tx-muted); }
+.skel { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--row-h); padding: 0 var(--sp-3); }
+.skel i { display: block; height: 10px; border-radius: 3px; background: var(--bg-2); width: var(--w, 40%); }
+.skel i:first-child { width: 16px; height: 16px; border-radius: 4px; }
+.err-row { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); font: 400 var(--fs-control)/1.4 var(--font-ui); }
+
+/* ---------- Dialog und Toast ---------- */
+.overlay { position: fixed; inset: 0; z-index: var(--z-dialog); display: flex; justify-content: center; align-items: flex-start; padding: 12vh var(--sp-4) var(--sp-4); background: var(--scrim); }
+.dialog { width: 440px; max-width: 100%; background: var(--bg-1); border: 1px solid var(--br-default); border-radius: var(--r-m); box-shadow: var(--shadow-pop); }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; padding: var(--sp-4) var(--sp-4) 0; }
+.dlg-body { display: grid; gap: var(--sp-3); padding: var(--sp-4); }
+.dlg-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); padding: 0 var(--sp-4) var(--sp-4); }
+.dlg-foot .spacer { margin-right: auto; }                        /* Löschen links, Abbrechen und Speichern rechts */
+.toast {
+  position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: var(--sp-3);
+  padding: 10px 6px 10px var(--sp-4); background: var(--bg-3); border: 1px solid var(--br-strong); border-radius: var(--r-m);
+  box-shadow: var(--shadow-pop); font: 500 var(--fs-control)/1.4 var(--font-ui);
+}
+.toast::after { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--st-select); transform-origin: left; animation: drain 8s linear forwards; }
+@keyframes drain { to { transform: scaleX(0); } }                /* zeigt die 8 s, in denen Rückgängig gilt */
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } .toast::after { animation: none; } }
+
+/* ---------- Extension (300 px): Farben aus dem VSCodium-Theme, nur Layout und Hierarchie sind unsere ---------- */
+.ext {
+  --x-bg: var(--vscode-sideBar-background, var(--bg-1));
+  --x-fg: var(--vscode-foreground, var(--tx-primary));
+  --x-muted: var(--vscode-descriptionForeground, var(--tx-muted));
+  --x-border: var(--vscode-widget-border, var(--vscode-panel-border, var(--br-default)));
+  --x-hover: var(--vscode-list-hoverBackground, var(--bg-2));
+  --x-accent: var(--vscode-focusBorder, var(--st-select));
+  --x-ok: var(--vscode-testing-iconPassed, var(--st-running));
+  --x-warn: var(--vscode-editorWarning-foreground, var(--st-paused));
+  width: 300px; background: var(--x-bg); color: var(--x-fg); border: 1px solid var(--x-border); font-size: 13px;
+}
+.ext .x-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) 0; }
+.ext .x-head h1 { flex: 1; min-width: 0; font: 600 15px/1.3 var(--font-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ext .tabs { margin: var(--sp-2) var(--sp-4) 0; border-color: var(--x-border); }
+.ext .tabs button { color: var(--x-muted); } .ext .tabs button[aria-selected="true"] { color: var(--x-fg); border-bottom-color: var(--x-accent); }
+.ext .x-body { display: grid; gap: var(--sp-4); padding: var(--sp-3) var(--sp-4) var(--sp-5); }
+.ext .x-timer .x-task { font: 600 16px/1.3 var(--font-ui); margin-top: 6px; }
+.ext .x-timer .x-sub { display: flex; align-items: center; gap: var(--sp-2); margin-top: 4px; color: var(--x-muted); }
+.ext .x-timer .x-time { margin-left: auto; font: 500 14px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--x-fg); }
+.ext .x-notice { padding: var(--sp-2) var(--sp-3); border: 1px solid color-mix(in srgb, var(--x-warn) 50%, transparent); border-radius: 5px; font-size: 12px; }
+.ext .row { min-height: var(--row-h-sm); padding: 0 var(--sp-2); border-color: var(--x-border); gap: var(--sp-2); }
+.ext .row:hover { background: var(--x-hover); }
+.ext .row .t { font-size: 13px; }
+.ext .row .acts { opacity: 1; }                                   /* Start/Pause bleibt sichtbar (keine Hover-Tastenkürzel im Panel) */
+.ext .row[aria-selected="true"] { box-shadow: inset 2px 0 0 var(--x-accent); }
+.ext .x-stats { display: flex; justify-content: space-between; gap: var(--sp-2); color: var(--x-muted); font-size: 12px; }
+.ext .x-stats b { font: 500 12px/1 var(--font-mono); color: var(--x-fg); font-variant-numeric: tabular-nums; }  /* eine Zeile statt drei Kästen: nichts wird abgeschnitten */
+.ext .meta, .ext .tag, .ext .count, .ext .due { color: var(--x-muted); }

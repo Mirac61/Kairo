@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kairo Designsystem</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  /* Nur für die Vorführseite, gehört nicht zum System. */
+  .page { max-width: 1040px; margin: 0 auto; padding: var(--sp-6) var(--sp-5) 96px; display: grid; gap: var(--sp-7); }
+  .top { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4); }
+  .sec > .lbl { display: block; margin-bottom: var(--sp-3); }
+  .sec > p { color: var(--tx-secondary); max-width: 68ch; margin-bottom: var(--sp-4); }
+  .grid { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  .sw { display: flex; gap: var(--sp-3); align-items: center; padding: var(--sp-2); border: 1px solid var(--br-subtle); border-radius: var(--r-s); background: var(--bg-1); }
+  .sw i { width: 36px; height: 36px; border-radius: var(--r-s); border: 1px solid var(--br-default); background: var(--c); flex: none; }
+  .sw b { display: block; font: 500 12px/1.3 var(--font-mono); }
+  .sw small { display: block; font: 400 11px/1.4 var(--font-mono); color: var(--tx-muted); }
+  .sw small .bad { color: var(--st-overdue); }
+  .demo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+  .stack { display: grid; gap: var(--sp-4); }
+  .case { display: grid; grid-template-columns: 120px 1fr; gap: var(--sp-3); align-items: center; }
+  .case > .meta { font-family: var(--font-mono); }
+  .panel { padding: var(--sp-4); background: var(--bg-1); border: 1px solid var(--br-subtle); border-radius: var(--r-m); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-5); align-items: start; }
+  .ruler { display: flex; align-items: flex-end; gap: var(--sp-3); }
+  .ruler i { display: block; background: var(--st-select); opacity: .55; width: var(--w); height: 12px; border-radius: 2px; }
+  .typ { display: grid; grid-template-columns: 150px 1fr; gap: var(--sp-3) var(--sp-4); align-items: baseline; }
+  .do { color: var(--st-running); } .dont { color: var(--st-overdue); }
+  .rules { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+  .rules ul { list-style: none; display: grid; gap: 6px; font-size: 13px; color: var(--tx-secondary); }
+  .rules li::before { content: "✓ "; color: var(--st-running); } .rules .no li::before { content: "✕ "; color: var(--st-overdue); }
+  .static .overlay { position: static; padding: var(--sp-5); border-radius: var(--r-m); }
+  @media (max-width: 760px) { .two, .rules { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-window" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8M18 14v5H5V6h5"/></symbol>
+</svg>
+
+<main class="page">
+  <header class="top">
+    <div>
+      <h1 class="title">Kairo Designsystem</h1>
+      <p class="meta" style="margin-top:6px">Dragon · dichte, tastaturgetriebene Arbeitsoberfläche. Tokens aus <code>tokens.css</code>, Komponenten aus <code>components.css</code>.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Theme">
+      <button type="button" aria-pressed="true" data-theme-btn="dark">Dark</button>
+      <button type="button" aria-pressed="false" data-theme-btn="light">Light</button>
+    </div>
+  </header>
+
+  <section class="sec" aria-labelledby="s-farbe">
+    <span class="lbl" id="s-farbe">Farbe</span>
+    <p>Eine Fläche wird über ihre Helligkeit gehoben, nicht über Schatten oder Rahmen: <b>0</b> Seite, <b>1</b> Liste und Sidebar, <b>2</b> Eingabe und Hover, <b>3</b> Auswahl und Popover. Die Zahlen unter den Mustern sind das Kontrastverhältnis zu bg-1 und zu bg-3 (WCAG AA = 4,5), live gerechnet.</p>
+    <div class="stack">
+      <div class="grid" id="surfaces">
+        <div class="sw" data-var="--bg-0"><i style="--c:var(--bg-0)"></i><span><b>bg-0</b><small>Seite</small></span></div>
+        <div class="sw" data-var="--bg-1"><i style="--c:var(--bg-1)"></i><span><b>bg-1</b><small>Liste, Karte</small></span></div>
+        <div class="sw" data-var="--bg-2"><i style="--c:var(--bg-2)"></i><span><b>bg-2</b><small>Eingabe, Hover</small></span></div>
+        <div class="sw" data-var="--bg-3"><i style="--c:var(--bg-3)"></i><span><b>bg-3</b><small>Auswahl, Popover</small></span></div>
+        <div class="sw" data-var="--br-subtle"><i style="--c:var(--br-subtle)"></i><span><b>br-subtle</b><small>Zeilentrenner</small></span></div>
+        <div class="sw" data-var="--br-default"><i style="--c:var(--br-default)"></i><span><b>br-default</b><small>Karte, Eingabe</small></span></div>
+        <div class="sw" data-var="--br-strong"><i style="--c:var(--br-strong)"></i><span><b>br-strong</b><small>Hover, Toast</small></span></div>
+      </div>
+      <div class="grid" data-contrast>
+        <div class="sw" data-var="--tx-primary"><i style="--c:var(--tx-primary)"></i><span><b>tx-primary</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--tx-secondary"><i style="--c:var(--tx-secondary)"></i><span><b>tx-secondary</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--tx-muted"><i style="--c:var(--tx-muted)"></i><span><b>tx-muted</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--tx-disabled"><i style="--c:var(--tx-disabled)"></i><span><b>tx-disabled</b><small class="c"></small></span></div>
+      </div>
+      <div class="grid" data-contrast>
+        <div class="sw" data-var="--a-blue"><i style="--c:var(--a-blue)"></i><span><b>a-blue</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--a-green"><i style="--c:var(--a-green)"></i><span><b>a-green</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--a-orange"><i style="--c:var(--a-orange)"></i><span><b>a-orange</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--a-yellow"><i style="--c:var(--a-yellow)"></i><span><b>a-yellow</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--a-red"><i style="--c:var(--a-red)"></i><span><b>a-red</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--a-violet"><i style="--c:var(--a-violet)"></i><span><b>a-violet</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--a-pink"><i style="--c:var(--a-pink)"></i><span><b>a-pink</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--a-aqua"><i style="--c:var(--a-aqua)"></i><span><b>a-aqua</b><small class="c"></small></span></div>
+        <div class="sw" data-var="--a-neutral"><i style="--c:var(--a-neutral)"></i><span><b>a-neutral</b><small class="c"></small></span></div>
+      </div>
+      <div class="rules">
+        <div><span class="lbl">Semantik (nur diese Namen in Komponenten)</span>
+          <ul style="margin-top:8px">
+            <li><span class="dot" style="--c:var(--st-running);display:inline-block"></span> st-running · Timer läuft</li>
+            <li><span class="dot" style="--c:var(--st-paused);display:inline-block"></span> st-paused · pausiert</li>
+            <li><span class="dot" style="--c:var(--st-overdue);display:inline-block"></span> st-overdue · überfällig, Fehler</li>
+            <li><span class="dot" style="--c:var(--st-select);display:inline-block"></span> st-select · Auswahl, aktuelle Seite, Fokus</li>
+          </ul></div>
+        <div><span class="lbl">Projektfarben (8, feste Reihenfolge)</span>
+          <div class="demo" style="margin-top:12px;gap:var(--sp-4)">
+            <span class="tag" style="--c:var(--p-violet)"><span class="dot"></span>violet</span><span class="tag" style="--c:var(--p-blue)"><span class="dot"></span>blue</span>
+            <span class="tag" style="--c:var(--p-orange)"><span class="dot"></span>orange</span><span class="tag" style="--c:var(--p-aqua)"><span class="dot"></span>aqua</span>
+            <span class="tag" style="--c:var(--p-pink)"><span class="dot"></span>pink</span><span class="tag" style="--c:var(--p-yellow)"><span class="dot"></span>yellow</span>
+            <span class="tag" style="--c:var(--p-green)"><span class="dot"></span>green</span><span class="tag" style="--c:var(--p-red)"><span class="dot"></span>red</span>
+          </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-typo">
+    <span class="lbl" id="s-typo">Typografie</span>
+    <p>Nach Rolle, nicht nach Größe. Mono bedeutet Zahl oder Zeit, Großbuchstaben bedeuten Abschnitt; beides wird für nichts anderes benutzt.</p>
+    <div class="typ">
+      <span class="meta">display 28/600</span><span class="focus"><span class="f-title">Login reparieren</span></span>
+      <span class="meta">title 20/600</span><span class="title">Aufgaben</span>
+      <span class="meta">heading 16/600</span><span class="heading">Neuer Eintrag</span>
+      <span class="meta">body 14/400</span><span>Musterprüfung A lösen</span>
+      <span class="meta">control 13/500</span><span style="font:500 13px var(--font-ui)">Hinzufügen · Speichern</span>
+      <span class="meta">meta 12/400</span><span class="meta" style="color:var(--tx-secondary)">Heute · 90 Min · vor 3 Tagen</span>
+      <span class="meta">label 11/500 caps</span><span class="lbl">Überfällig</span>
+      <span class="meta">mono 12–20</span><span class="num">0:32:14 · 14:30 · 1/3 · 3 Std 20 Min</span>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-raum">
+    <span class="lbl" id="s-raum">Abstand, Radius, Maße</span>
+    <p>4-px-Raster. Radien: 6 px für alles Kleine (Buttons, Zeilen, Chips), 10 px für Karten, Dialoge, Toast; Pills gibt es nicht. Zeile 36 px (Extension 28 px), Control 32 px.</p>
+    <div class="ruler" aria-label="Abstandsskala">
+      <span class="meta">sp-1 4</span><i style="--w:4px"></i><span class="meta">sp-2 8</span><i style="--w:8px"></i><span class="meta">sp-3 12</span><i style="--w:12px"></i>
+      <span class="meta">sp-4 16</span><i style="--w:16px"></i><span class="meta">sp-5 24</span><i style="--w:24px"></i><span class="meta">sp-6 32</span><i style="--w:32px"></i><span class="meta">sp-7 48</span><i style="--w:48px"></i>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-btn">
+    <span class="lbl" id="s-btn">Button</span>
+    <p>Pro Bereich ein Primary. Aktionen in Zeilen sind Ghost und erscheinen bei Hover, Fokus oder Auswahl. „Löschen“ ist leise rot, weil der Toast es umkehrt; nur „Endgültig löschen“ ist gefüllt.</p>
+    <div class="stack">
+      <div class="case"><span class="meta">primary</span><div class="demo"><button class="btn btn-primary">Anlegen</button><button class="btn btn-primary is-hover">Hover</button><button class="btn btn-primary is-focus">Fokus</button><button class="btn btn-primary" disabled>Deaktiviert</button></div></div>
+      <div class="case"><span class="meta">secondary</span><div class="demo"><button class="btn btn-secondary"><svg class="ic"><use href="#i-play"/></svg>Start</button><button class="btn btn-secondary is-hover">Hover</button><button class="btn btn-secondary is-focus">Fokus</button><button class="btn btn-secondary" disabled>Deaktiviert</button></div></div>
+      <div class="case"><span class="meta">ghost</span><div class="demo"><button class="btn btn-ghost">Abbrechen</button><button class="btn btn-ghost is-hover">Hover</button><button class="btn btn-ghost is-focus">Fokus</button><button class="btn btn-ghost" disabled>Deaktiviert</button></div></div>
+      <div class="case"><span class="meta">danger</span><div class="demo"><button class="btn btn-danger">Löschen</button><button class="btn btn-danger is-hover">Hover</button><button class="btn btn-danger-fill">Endgültig löschen</button></div></div>
+      <div class="case"><span class="meta">klein · icon</span><div class="demo"><button class="btn btn-secondary btn-sm">Pause</button><button class="icon-btn" aria-label="Start"><svg class="ic"><use href="#i-play"/></svg></button><button class="icon-btn is-hover" aria-label="Schließen"><svg class="ic"><use href="#i-x"/></svg></button></div></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-form">
+    <span class="lbl" id="s-form">Eingabe, Umschalter, Tabs</span>
+    <p>Filter sind ein Umschalter (<code>seg</code>), keine Pills. Tabs haben nur eine Unterstreichung, nie zusätzlich einen Kasten.</p>
+    <div class="two">
+      <div class="stack">
+        <div class="field"><label for="e1">Titel</label><input id="e1" class="input" placeholder="z. B. 30 min Sport"></div>
+        <div class="field"><label for="e2">Hover</label><input id="e2" class="input is-hover" value="Wert"></div>
+        <div class="field"><label for="e3">Fokus</label><input id="e3" class="input is-focus" value="Wert"></div>
+        <div class="field"><label for="e4">Ordner</label><input id="e4" class="input err" value="~/code/gibt-es-nicht"><span class="f-msg err">Den Ordner gibt es nicht. Prüfe den Pfad.</span></div>
+        <div class="field"><label for="e5">Deaktiviert</label><input id="e5" class="input" value="Nur lesen" disabled></div>
+      </div>
+      <div class="stack">
+        <div class="seg" role="group" aria-label="Filter"><button aria-pressed="true">Offen</button><button aria-pressed="false">Heute</button><button aria-pressed="false">Diese Woche</button><button aria-pressed="false">Überfällig</button></div>
+        <div class="tabs" role="tablist"><button role="tab" aria-selected="true">Heute</button><button role="tab" aria-selected="false">Projekte</button><button role="tab" class="is-hover" aria-selected="false">Hover</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-chip">
+    <span class="lbl" id="s-chip">Tag, Status, Zähler</span>
+    <p>Mehr als diese drei Arten gibt es nicht. Alles andere (Datum, Dauer, „Niedrig“) ist schlichter Text. Die Farbe steht im Punkt, der Text bleibt neutral; so besteht jede Kombination AA in Dark und Light.</p>
+    <div class="stack">
+      <div class="case"><span class="meta">tag · Projekt</span><div class="demo"><span class="tag" style="--c:var(--p-blue)"><span class="dot"></span>Kairo</span><span class="tag" style="--c:var(--p-violet)"><span class="dot"></span>AlgoDat</span><span class="tag" style="--c:var(--p-yellow)"><span class="dot"></span>Bewerbungen</span></div></div>
+      <div class="case"><span class="meta">status</span><div class="demo"><span class="badge running"><span class="dot"></span>Läuft</span><span class="badge paused"><span class="dot"></span>Pausiert</span><span class="badge overdue"><span class="dot"></span>3 überfällig</span></div></div>
+      <div class="case"><span class="meta">zähler · text</span><div class="demo"><span class="count">2/3</span><span class="count">1:35</span><span class="due">Heute 14:30</span><span class="due od">vor 3 Tagen</span><span class="prio high">Hoch</span><span class="prio urgent">Dringend</span><span class="kbd">j</span><span class="kbd">k</span><span class="kbd">x</span></div></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-row">
+    <span class="lbl" id="s-row">Listenzeile</span>
+    <p>Eine durchgehende Fläche mit Trennlinien. Die Aktionen sind unsichtbar, bis die Zeile Hover, Fokus oder die Tastaturauswahl hat; per Tab sind sie immer erreichbar. Gruppenkopf und Zähler gliedern, keine Karten.</p>
+    <div class="list" role="listbox" aria-label="Beispiel">
+      <div class="group-head"><span class="lbl">Überfällig</span><span class="count">2</span></div>
+      <div class="row" role="option"><button class="cb" role="checkbox" aria-checked="false" aria-label="erledigt"></button><span class="t">Steuererklärung vorbereiten</span><span class="tag" style="--c:var(--p-yellow)"><span class="dot"></span>Finanzen</span><span class="due od">vor 3 Tagen</span><span class="acts"><button class="btn btn-ghost btn-sm">→ Heute</button><button class="btn btn-ghost btn-sm">→ Morgen</button></span></div>
+      <div class="group-head"><span class="lbl">Heute</span><span class="count">5</span></div>
+      <div class="row running" role="option"><button class="cb" role="checkbox" aria-checked="false" aria-label="erledigt"></button><span class="t">Login reparieren</span><span class="badge running"><span class="dot pulse"></span>Läuft</span><span class="tag" style="--c:var(--p-blue)"><span class="dot"></span>Kairo</span><span class="num meta">0:32</span><span class="acts"><button class="icon-btn" aria-label="Pause"><svg class="ic"><use href="#i-pause"/></svg></button></span></div>
+      <div class="row" role="option"><button class="cb" role="checkbox" aria-checked="false" aria-label="erledigt"></button><span class="t">Normal · nichts hervorgehoben</span><span class="tag" style="--c:var(--p-violet)"><span class="dot"></span>AlgoDat</span><span class="due">14:30</span><span class="count">90 Min</span><span class="acts"><button class="icon-btn" aria-label="Start"><svg class="ic"><use href="#i-play"/></svg></button></span></div>
+      <div class="row is-hover" role="option"><button class="cb" role="checkbox" aria-checked="false" aria-label="erledigt"></button><span class="t">Hover · Aktionen werden sichtbar</span><span class="prio high">Hoch</span><span class="due">Heute</span><span class="acts"><button class="icon-btn" aria-label="Start"><svg class="ic"><use href="#i-play"/></svg></button><button class="icon-btn" aria-label="In VSCodium"><svg class="ic"><use href="#i-window"/></svg></button><button class="btn btn-danger btn-sm">Löschen</button></span></div>
+      <div class="row" role="option" aria-selected="true"><button class="cb" role="checkbox" aria-checked="false" aria-label="erledigt"></button><span class="t">Ausgewählt (j/k) · blauer Balken</span><span class="count">1/3</span><span class="due">Morgen</span><span class="acts"><button class="icon-btn" aria-label="Start"><svg class="ic"><use href="#i-play"/></svg></button><span class="kbd">x</span></span></div>
+      <div class="row" role="option"><button class="cb is-focus" role="checkbox" aria-checked="false" aria-label="erledigt"></button><span class="t">Tastaturfokus auf dem Element, nicht auf der Zeile</span><span class="due">Mi</span></div>
+      <div class="row done" role="option"><button class="cb" role="checkbox" aria-checked="true" aria-label="erledigt"></button><span class="t">Erledigt · blasser, durchgestrichen</span><span class="due">Mo</span></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-focus">
+    <span class="lbl" id="s-focus">Fokusblock (Start)</span>
+    <p>Der eine laute Punkt der Seite. Läuft ein Timer, steht er hier mit Aufgabe, Projekt und Zeit; sonst die nächste Aufgabe. Die Kennzahlen darunter sind leise Mono-Zeilen und haben keine Überschriftengröße.</p>
+    <div class="two">
+      <div class="card focus">
+        <div class="f-meta"><span class="badge running"><span class="dot pulse"></span>Läuft</span><span class="tag" style="--c:var(--p-blue)"><span class="dot"></span>Kairo</span></div>
+        <div class="f-title">Login reparieren</div>
+        <div class="f-meta"><span class="f-time">0:32:14</span><span class="meta">90 Min geplant</span></div>
+        <div class="f-acts"><button class="btn btn-primary"><svg class="ic"><use href="#i-pause"/></svg>Pause</button><button class="btn btn-secondary"><svg class="ic"><use href="#i-check"/></svg>Fertig</button><button class="btn btn-ghost"><svg class="ic"><use href="#i-window"/></svg>In VSCodium</button></div>
+      </div>
+      <div class="card focus">
+        <div class="f-meta"><span class="lbl">Als Nächstes · 14:30</span><span class="tag" style="--c:var(--p-violet)"><span class="dot"></span>AlgoDat</span></div>
+        <div class="f-title">Musterprüfung A lösen</div>
+        <div class="f-acts"><button class="btn btn-primary"><svg class="ic"><use href="#i-play"/></svg>Start</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-cal">
+    <span class="lbl" id="s-cal">Kalendereinträge</span>
+    <p>Termin durchgezogen, Task gestrichelt; Projektfarbe als 3-px-Balken, erledigt blasser.</p>
+    <div class="demo" style="align-items:flex-start;gap:var(--sp-4)">
+      <div class="ev" style="--c:var(--p-violet);width:200px">AlgoDat Vorlesung<br><span class="meta">08:30–10:00 · HS 1</span></div>
+      <div class="ev task" style="--c:var(--p-blue);width:200px">Login reparieren<br><span class="meta">10:15 · 60 Min</span></div>
+      <div class="ev task done" style="--c:var(--p-green);width:200px">Sport<br><span class="meta">Ganztag · erledigt</span></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-state">
+    <span class="lbl" id="s-state">Leer, Laden, Fehler</span>
+    <p>Leer ist eine Zeile Text ohne Rahmen. Laden zeigt die spätere Form statt eines Spinners. Ein Fehler nennt, was zu tun ist.</p>
+    <div class="three" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-4)">
+      <div class="panel"><span class="lbl">Leer</span><p class="empty">Keine Zeit erfasst.</p></div>
+      <div class="panel"><span class="lbl">Laden</span><div class="skel"><i></i><i style="--w:55%"></i></div><div class="skel"><i></i><i style="--w:38%"></i></div><div class="skel"><i></i><i style="--w:62%"></i></div></div>
+      <div class="panel"><span class="lbl">Fehler</span><div class="err-row"><span class="dot" style="--c:var(--st-overdue)"></span><span style="flex:1">Backend nicht erreichbar. Starte <code class="mono">kairo</code>.</span><button class="btn btn-secondary btn-sm">Erneut versuchen</button></div></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-dlg">
+    <span class="lbl" id="s-dlg">Dialog und Toast</span>
+    <p>Dialog: Fokusfalle, Esc, Fokus zurück zum Auslöser. Löschen links, Abbrechen und Speichern rechts, Primary ganz rechts. Löschen von Task und Habit hat keinen Dialog, sondern den Toast mit Ablauflinie (8 s).</p>
+    <div class="two static">
+      <div class="overlay"><div class="dialog" role="dialog" aria-labelledby="d1">
+        <div class="dlg-head"><h3 class="heading" id="d1">Projekt bearbeiten</h3><button class="icon-btn" aria-label="Schließen"><svg class="ic"><use href="#i-x"/></svg></button></div>
+        <div class="dlg-body">
+          <div class="field"><label for="d-n">Name</label><input id="d-n" class="input is-focus" value="Kairo"></div>
+          <div class="field"><label for="d-p">Ordner</label><input id="d-p" class="input" value="~/code/personal/Kairo"><span class="f-msg">Muss existieren.</span></div>
+        </div>
+        <div class="dlg-foot"><button class="btn btn-danger spacer">Löschen</button><button class="btn btn-ghost">Abbrechen</button><button class="btn btn-primary">Speichern</button></div>
+      </div></div>
+      <div class="stack" style="align-content:center;justify-items:start">
+        <div class="toast" role="status"><span>„Login reparieren“ gelöscht</span><button class="btn btn-ghost btn-sm">Rückgängig</button></div>
+        <div class="toast" role="status"><span>„Sport“ erledigt</span><button class="btn btn-ghost btn-sm">Rückgängig</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="s-ext">
+    <span class="lbl" id="s-ext">Extension, 300 px</span>
+    <p>Farben kommen aus dem VSCodium-Theme (<code>--vscode-*</code>, hier mit unseren Werten als Ersatz). Verbessert werden nur Layout und Hierarchie: Timer oben, Aufgabe vor Zeit, Kennzahlen als eine Zeile, Hauptaktion immer sichtbar.</p>
+    <div class="demo" style="align-items:flex-start;gap:var(--sp-5)">
+      <div class="ext" role="region" aria-label="Kairo Seitenpanel">
+        <div class="x-head"><h1>Kairo</h1><span class="meta"><span class="dot" style="--c:var(--x-ok);display:inline-block"></span> v0.1</span></div>
+        <div class="tabs" role="tablist"><button role="tab" aria-selected="true">Heute</button><button role="tab" aria-selected="false">Projekte</button></div>
+        <div class="x-body">
+          <div class="x-notice" role="status">Timer läuft für „AlgoDat“, du bist in „Kairo“.
+            <div style="margin-top:8px"><button class="btn btn-secondary btn-sm"><svg class="ic"><use href="#i-window"/></svg>Zu „AlgoDat“ wechseln</button></div></div>
+          <div class="x-timer"><span class="badge running"><span class="dot pulse"></span>Läuft</span>
+            <div class="x-task">Musterprüfung A lösen</div>
+            <div class="x-sub"><span class="tag" style="--c:var(--p-violet)"><span class="dot"></span>AlgoDat</span><span class="x-time">0:32:14</span></div>
+            <div class="demo" style="margin-top:10px;gap:var(--sp-2)"><button class="btn btn-primary btn-sm" style="flex:1"><svg class="ic"><use href="#i-pause"/></svg>Pause</button><button class="btn btn-secondary btn-sm" style="flex:1"><svg class="ic"><use href="#i-check"/></svg>Fertig</button></div></div>
+          <div><div class="group-head" style="padding:0 var(--sp-2) var(--sp-1)"><span class="lbl">Heute</span><span class="count">3 offen</span></div>
+            <div class="list" role="listbox" aria-label="Agenda">
+              <div class="row" role="option" aria-selected="true"><button class="cb" role="checkbox" aria-checked="false" aria-label="erledigt"></button><span class="t">Login reparieren</span><span class="due">14:30</span><span class="acts"><button class="icon-btn" aria-label="Start"><svg class="ic"><use href="#i-play"/></svg></button></span></div>
+              <div class="row" role="option"><button class="cb" role="checkbox" aria-checked="false" aria-label="erledigt"></button><span class="t">Aufgabe aus anderem Projekt</span><span class="tag" style="--c:var(--p-violet)"><span class="dot"></span>Algo</span><span class="acts"><button class="icon-btn" aria-label="Start"><svg class="ic"><use href="#i-play"/></svg></button></span></div>
+              <div class="row done" role="option"><button class="cb" role="checkbox" aria-checked="true" aria-label="erledigt"></button><span class="t">Erledigt</span></div>
+            </div></div>
+          <div class="field"><label for="x-q" class="meta">Neue Aufgabe für heute · Kairo</label><input id="x-q" class="input" placeholder="z. B. 30 min Sport"></div>
+          <div class="x-stats"><span>Erfasst <b>1:35</b></span><span>Geplant <b>2:30</b></span><span>Offen <b>3</b></span></div>
+        </div>
+      </div>
+      <div class="ext" role="region" aria-label="Kairo Seitenpanel, ohne Projekt">
+        <div class="x-head"><h1>Kairo</h1><span class="meta"><span class="dot" style="--c:var(--x-ok);display:inline-block"></span> v0.1</span></div>
+        <div class="tabs" role="tablist"><button role="tab" aria-selected="true">Heute</button><button role="tab" aria-selected="false">Projekte</button></div>
+        <div class="x-body">
+          <div class="x-timer"><span class="lbl">Kein Timer</span><p class="empty" style="padding-bottom:0">Starte eine Aufgabe aus der Liste.</p></div>
+          <div class="x-notice">„algo“ gehört zu keinem Projekt.<div style="margin-top:8px"><button class="btn btn-secondary btn-sm">Ordner mit Projekt verknüpfen</button></div></div>
+          <div class="err-row" style="padding:0"><span class="dot" style="--c:var(--st-overdue)"></span><span class="meta" style="flex:1">Backend offline</span><button class="btn btn-ghost btn-sm">Erneut versuchen</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  // Vorführseite: Theme umschalten und Kontraste live rechnen.
+  const probe = Object.assign(document.createElement('i'), { hidden: true });
+  document.body.append(probe);
+  const rgb = (v) => { probe.style.color = `var(${v})`; return getComputedStyle(probe).color.match(/[\d.]+/g).slice(0, 3).map(Number); };
+  const lum = (c) => { const [r, g, b] = c.map((x) => { x /= 255; return x <= .03928 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return .2126 * r + .7152 * g + .0722 * b; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + .05) / (y + .05); };
+  function paint() {
+    document.querySelectorAll('[data-contrast] .sw').forEach((sw) => {
+      const fg = rgb(sw.dataset.var);
+      const cell = (bg) => { const r = ratio(fg, rgb(bg)); return `${bg.slice(2)} ${r.toFixed(2)}${r >= 4.5 ? '' : ' <span class="bad">&lt;AA</span>'}`; };
+      sw.querySelector('.c').innerHTML = `${cell('--bg-1')}<br>${cell('--bg-3')}`;
+    });
+  }
+  document.querySelectorAll('[data-theme-btn]').forEach((b) => b.addEventListener('click', () => {
+    document.documentElement.dataset.theme = b.dataset.themeBtn;
+    document.querySelectorAll('[data-theme-btn]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    paint();
+  }));
+  paint();
+  if (location.hash === '#light') document.querySelector('[data-theme-btn=light]').click();
+</script>
+</body>
+</html>
