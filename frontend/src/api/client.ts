@@ -71,6 +71,7 @@ export interface TodayHabit {
 export interface TimeEntry {
   id: string
   task_id: string | null
+  project_id: string | null
   started_at: string
   ended_at: string | null
 }
@@ -90,6 +91,7 @@ export interface Today {
   work_minutes: number
   free_minutes: number
   overplanned_minutes: number
+  unestimated_tasks: number
 }
 
 export const getToday = (date?: string) => api<Today>(`/today${date ? `?date=${date}` : ''}`)
@@ -100,6 +102,9 @@ export const taskAction = (id: string, action: 'start' | 'pause' | 'complete') =
 // Zeiteinträge mit Start im Fenster [from, to).
 export const listTimeEntries = (from: Date, to: Date) =>
   api<TimeEntry[]>(`/time-entries?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`)
+
+export const createTimeEntry = (body: { task_id: string; started_at: string; ended_at: string }) =>
+  api<TimeEntry>('/time-entries', { method: 'POST', body: JSON.stringify(body) })
 
 export const updateTimeEntry = (id: string, body: { started_at?: string; ended_at?: string }) =>
   api<TimeEntry>(`/time-entries/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
@@ -174,6 +179,8 @@ export interface EventBody {
   end_at?: string
   location?: string
   recurrence_rule?: string // "" entfernt die Wiederholung
+  recurrence_exdates?: string[] // ersetzt die ganze Liste ("YYYY-MM-DD")
+  project_id?: string // "" entfernt die Verknüpfung
 }
 
 export const createEvent = (body: EventBody) =>
@@ -187,6 +194,7 @@ export const updateTask = (id: string, body: Record<string, unknown>) =>
 
 export interface Resource {
   id: string
+  task_id: string | null
   project_id: string | null
   type: 'FILE' | 'FOLDER' | 'URL'
   target: string
@@ -204,6 +212,7 @@ export interface CalendarEvent extends TodayEvent {
   start_at: string
   end_at: string
   recurrence_rule: string | null
+  project_id: string | null
 }
 
 // Konkrete Termine im Fenster [from, to), Serien aufgelöst.
@@ -212,3 +221,36 @@ export const getOccurrences = (from: Date, to: Date) =>
 
 export const updateEvent = (id: string, body: EventBody) =>
   api<unknown>(`/calendar/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+// Lässt eine Instanz der Serie aus; PATCH ersetzt die Liste, daher erst die bisherigen Ausnahmen lesen.
+export async function skipOccurrence(id: string, day: string) {
+  const e = await api<{ recurrence_exdates: string[] }>(`/calendar/events/${id}`)
+  return updateEvent(id, { recurrence_exdates: [...e.recurrence_exdates, day] })
+}
+
+export interface Review {
+  from: string
+  to: string
+  timezone: string
+  tracked_minutes: number
+  completed_tasks: number
+  days: { date: string; tracked_minutes: number; calendar_minutes: number; completed_tasks: number }[]
+  projects: { project_id: string | null; name: string; tracked_minutes: number; completed_tasks: number; done_tasks: number; total_tasks: number }[]
+  habits: { habit_id: string; name: string; done: number; streak: number }[]
+}
+
+// Auswertung für [from, to] ("YYYY-MM-DD", beide inklusive).
+export const getReview = (from: string, to: string) => api<Review>(`/review?from=${from}&to=${to}`)
+
+// ICS-Import.
+export interface IcsImportResult {
+  created: number
+  updated: number
+  skipped: number
+  unsupported_rules: number
+  notes: string[]
+}
+
+// Schickt den rohen Text einer .ics-Datei; Termine mit bekannter UID werden aktualisiert.
+export const importIcs = (text: string) =>
+  api<IcsImportResult>('/calendar/import', { method: 'POST', headers: { 'Content-Type': 'text/calendar' }, body: text })

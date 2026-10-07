@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  api, createProject, createResource, deleteProject, deleteResource, errorMessage, listProjects, listResources,
-  updateProject, type Project, type Resource,
+  api, createProject, deleteProject, errorMessage, listProjects, listResources, listTasks,
+  updateProject, type Project, type Resource, type Task, type TimeEntry,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { projectColor } from '@/lib/projectColor'
 import { ymd } from '@/lib/dates'
 import DeleteButton from '@/components/DeleteButton.vue'
+import ResourceList from '@/components/ResourceList.vue'
+import TaskActions from '@/components/TaskActions.vue'
 
 const STATUS: Record<string, string> = { ACTIVE: 'Aktiv', PAUSED: 'Pausiert', COMPLETED: 'Abgeschlossen', ARCHIVED: 'Archiviert' }
 const RES_ICON = { URL: 'i-link', FILE: 'i-file', FOLDER: 'i-file' } as const
@@ -16,24 +18,47 @@ interface Progress { project_id: string | null; done_tasks: number; total_tasks:
 
 const projects = ref<Project[]>([])
 const resources = ref<Resource[]>([])
+const tasks = ref<Task[]>([])
+const minutes = ref<Record<string, { week: number; total: number }>>({})
+const openId = ref<string | null>(null)
 const progress = ref<Record<string, Progress>>({})
 const error = ref('')
 const dialog = ref(false)
 const editId = ref<string | null>(null)
 const form = ref({ name: '', description: '', local_path: '', status: 'ACTIVE' })
-const resForm = ref({ type: 'URL' as Resource['type'], target: '', label: '' })
 
 const editing = computed(() => projects.value.find((p) => p.id === editId.value))
 const resOf = (id: string) => resources.value.filter((r) => r.project_id === id)
+const taskRes = (id: string) => resources.value.filter((r) => r.task_id === id)
+const openTasks = (id: string) => tasks.value.filter((t) => t.project_id === id && t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
+const dur = (m = 0) => (m >= 60 ? `${Math.floor(m / 60)} Std${m % 60 ? ` ${m % 60} Min` : ''}` : `${m} Min`)
+
+// Erfasste Zeit je Projekt aus allen Zeiteinträgen (ein laufender Eintrag zählt bis jetzt).
+function sumMinutes(es: TimeEntry[]) {
+  const monday = new Date()
+  monday.setHours(0, 0, 0, 0)
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+  const out: Record<string, { week: number; total: number }> = {}
+  for (const e of es) {
+    if (!e.project_id) continue
+    const m = Math.max(0, Math.floor(((e.ended_at ? Date.parse(e.ended_at) : Date.now()) - Date.parse(e.started_at)) / 6e4))
+    const k = (out[e.project_id] ??= { week: 0, total: 0 })
+    k.total += m
+    if (Date.parse(e.started_at) >= monday.getTime()) k.week += m
+  }
+  return out
+}
 
 async function load() {
   try {
     const t = ymd(new Date())
-    const [ps, rs, rv] = await Promise.all([
-      listProjects(), listResources(), api<{ projects: Progress[] }>(`/review?from=${t}&to=${t}`),
+    const [ps, rs, rv, ts, es] = await Promise.all([
+      listProjects(), listResources(), api<{ projects: Progress[] }>(`/review?from=${t}&to=${t}`), listTasks(), api<TimeEntry[]>('/time-entries'),
     ])
     projects.value = ps
     resources.value = rs
+    tasks.value = ts
+    minutes.value = sumMinutes(es)
     progress.value = Object.fromEntries(rv.projects.filter((p) => p.project_id).map((p) => [p.project_id!, p]))
     error.value = ''
   } catch (e) {
@@ -55,7 +80,6 @@ async function run(fn: () => Promise<unknown>) {
 function openDialog(p?: Project) {
   editId.value = p?.id ?? null
   form.value = { name: p?.name ?? '', description: p?.description ?? '', local_path: p?.local_path ?? '', status: p?.status ?? 'ACTIVE' }
-  resForm.value = { type: 'URL', target: '', label: '' }
   dialog.value = true
 }
 
@@ -71,13 +95,6 @@ async function save() {
   if (ok) dialog.value = false
 }
 
-async function addResource() {
-  const target = resForm.value.target.trim()
-  if (!target || !editId.value) return
-  const ok = await run(() => createResource({ project_id: editId.value, type: resForm.value.type, target, label: resForm.value.label.trim() }))
-  if (ok) resForm.value = { type: resForm.value.type, target: '', label: '' }
-}
-
 const pct = (id: string) => {
   const p = progress.value[id]
   return p && p.total_tasks ? Math.round((p.done_tasks / p.total_tasks) * 100) : 0
@@ -88,6 +105,8 @@ const meta = (p: Project) => {
   if (p.local_path) parts.push(p.local_path)
   return parts.filter(Boolean).join(' · ')
 }
+// Die Extension öffnet den Workspace des Projekts.
+const inCode = (p: Project) => { window.location.href = `vscodium://kairo-local.kairo/open?project=${p.id}` }
 // Datei und Ordner öffnet der Browser nicht; nur URLs sind echte Links.
 const href = (r: Resource) => (r.type === 'URL' ? r.target : undefined)
 
@@ -111,8 +130,9 @@ useLiveEvents(load)
       <article v-for="p in projects" :key="p.id" class="card proj-card" :style="{ '--pc': projectColor(p.id) }">
         <div class="proj-head">
           <span class="cdot"></span>
-          <span class="proj-name">{{ p.name }}</span>
+          <button type="button" class="proj-name proj-toggle" :aria-expanded="openId === p.id" @click="openId = openId === p.id ? null : p.id">{{ p.name }}</button>
           <span class="proj-pct">{{ pct(p.id) }}%</span>
+          <button v-if="p.local_path" class="btn btn-ghost" type="button" :aria-label="`In VSCodium öffnen: ${p.name}`" @click="inCode(p)">In VSCodium öffnen</button>
           <button class="btn btn-ghost" type="button" @click="openDialog(p)">Bearbeiten</button>
         </div>
         <div class="pbar" role="progressbar" :aria-valuenow="pct(p.id)" aria-valuemin="0" aria-valuemax="100"><div class="pbar-fill" :style="{ width: pct(p.id) + '%' }"></div></div>
@@ -122,6 +142,20 @@ useLiveEvents(load)
           <component :is="href(r) ? 'a' : 'span'" v-for="r in resOf(p.id)" :key="r.id" class="res" :href="href(r)" target="_blank" rel="noopener">
             <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>{{ r.label || r.target }}
           </component>
+        </div>
+        <div v-if="openId === p.id" class="proj-more">
+          <div class="proj-meta">Erfasst: {{ dur(minutes[p.id]?.week) }} diese Woche · {{ dur(minutes[p.id]?.total) }} gesamt</div>
+          <span class="lbl">Offene Aufgaben<span v-if="openTasks(p.id).length" class="count"> · {{ openTasks(p.id).length }}</span></span>
+          <div v-if="openTasks(p.id).length" class="card tasklist">
+            <div v-for="t in openTasks(p.id)" :key="t.id" class="task-row">
+              <span class="t">{{ t.title }}</span>
+              <component :is="href(r) ? 'a' : 'span'" v-for="r in taskRes(t.id)" :key="r.id" class="res" :href="href(r)" target="_blank" rel="noopener">
+                <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>{{ r.label || r.target }}
+              </component>
+              <TaskActions :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
+            </div>
+          </div>
+          <div v-else class="proj-meta">Keine offenen Aufgaben.</div>
         </div>
       </article>
     </div>
@@ -143,26 +177,14 @@ useLiveEvents(load)
             </div>
           </div>
           <div class="dlg-foot">
-            <DeleteButton v-if="editing" :text="`„${editing.name}“ löschen?`" @confirm="run(() => deleteProject(editing!.id)).then((ok) => ok && (dialog = false))" />
+            <DeleteButton v-if="editing" :text="`„${editing.name}“ löschen? Die Tasks bleiben ohne Projekt, ihre Zeiteinträge landen in „Sonstiges“.`" @confirm="run(() => deleteProject(editing!.id)).then((ok) => ok && (dialog = false))" />
             <span class="spacer"></span>
             <button class="btn btn-ghost" type="button" @click="dialog = false">Abbrechen</button>
             <button class="btn btn-primary" type="submit">{{ editing ? 'Speichern' : 'Anlegen' }}</button>
           </div>
         </form>
 
-        <div v-if="editing" class="dlg-body res-edit">
-          <span class="lbl">Ressourcen</span>
-          <div v-for="r in resOf(editing.id)" :key="r.id" class="res-line">
-            <span class="res-t">{{ r.label || r.target }} <span class="muted">· {{ r.type }}</span></span>
-            <button class="icon-btn" type="button" aria-label="Ressource entfernen" @click="run(() => deleteResource(r.id))"><svg class="ic"><use href="#i-trash" /></svg></button>
-          </div>
-          <form class="res-add" @submit.prevent="addResource">
-            <select v-model="resForm.type" class="input" aria-label="Typ"><option>URL</option><option>FILE</option><option>FOLDER</option></select>
-            <input v-model="resForm.target" class="input" placeholder="URL oder Pfad (~ erlaubt)" aria-label="Ziel" />
-            <input v-model="resForm.label" class="input" placeholder="Name (optional)" aria-label="Name" />
-            <button class="btn btn-secondary" type="submit">Hinzufügen</button>
-          </form>
-        </div>
+        <ResourceList v-if="editing" class="dlg-body dlg-res" :resources="resOf(editing.id)" :project-id="editing.id" @changed="load" />
       </div>
     </div>
   </div>
@@ -170,9 +192,7 @@ useLiveEvents(load)
 
 <style scoped>
 .spacer { flex: 1; }
-.res-edit { border-top: 1px solid var(--br-subtle); display: grid; gap: 8px; }
-.res-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
-.res-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.res-add { display: grid; grid-template-columns: 90px 1fr; gap: 8px; }
-.res-add .btn { grid-column: 1 / -1; justify-self: start; }
+.dlg-res { border-top: 1px solid var(--br-subtle); }
+.proj-toggle { text-align: left; background: none; border: 0; color: inherit; cursor: pointer; }
+.proj-more { display: grid; gap: 8px; border-top: 1px solid var(--br-subtle); padding-top: 10px; }
 </style>

@@ -39,7 +39,7 @@
   content: ''; position: absolute; left: -4px; top: -4.5px; width: 8px; height: 8px; border-radius: 50%; background: var(--a-red);
 }
 
-/* Einträge: Akzent per --acc (Termin blau, Task grün, Projekt je Hash) */
+/* Einträge: Akzent per --acc (Termin blau, Task grün; Projektfarbe setzt CalendarView inline) */
 .fc .fc-event {
   --acc: var(--a-blue);
   border: 1px solid color-mix(in srgb, var(--acc) 30%, transparent);
@@ -50,11 +50,6 @@
 }
 .fc .fc-event:hover { background: color-mix(in srgb, var(--acc) 15%, var(--bg-1)); border-color: color-mix(in srgb, var(--acc) 55%, transparent); }
 .fc .fc-event.kt-task { --acc: var(--a-green); border-style: dashed; background: var(--bg-1); }
-.fc .fc-event.kt-p0 { --acc: var(--a-violet); }
-.fc .fc-event.kt-p1 { --acc: var(--a-blue); }
-.fc .fc-event.kt-p2 { --acc: var(--a-orange); }
-.fc .fc-event.kt-p3 { --acc: var(--a-aqua); }
-.fc .fc-event.kt-p4 { --acc: var(--a-pink); }
 .fc .fc-event .fc-event-title { font: 500 13px/1.35 var(--font-ui); color: var(--tx-primary); }
 .fc .fc-event .fc-event-time { font: 400 11px/1.3 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
 .fc .fc-event.kt-done { opacity: .5; }

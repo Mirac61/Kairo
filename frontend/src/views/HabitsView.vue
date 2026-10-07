@@ -100,15 +100,30 @@ function planned(h: Habit, d: Date) {
   return true
 }
 
+// start_date liefert die API, steht aber nicht in Habit.
+const startOf = (h: Habit) => (h as Habit & { start_date?: string }).start_date ?? ''
+const dayLabel = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })
+// pre: vor start_date (leer, nicht klickbar). Bei X-mal pro Woche ist ein offener Tag neutral statt "verpasst".
 const cells = (h: Habit) => days().map((d, i) => {
-  const isDone = done.value[h.id]?.has(ymd(d))
+  const s = ymd(d)
+  const pre = s < startOf(h)
+  const isDone = !!done.value[h.id]?.has(s)
   const last = i === DAYS - 1
-  const cls = [!planned(h, d) && !isDone ? 'off' : isDone ? 'done' : last ? '' : 'miss']
+  const cls = [pre ? 'pre' : isDone ? 'done' : !planned(h, d) ? 'off' : last || h.frequency_type === 'TIMES_PER_WEEK' ? '' : 'miss']
   if (last) cls.push('today')
-  return cls.join(' ')
+  return { s, pre, isDone, can: h.active && !pre, cls: cls.join(' '), label: `${dayLabel.format(d)}: ${isDone ? 'erledigt' : 'offen'}` }
 })
+// Klick auf ein Feld holt den Tag nach bzw. nimmt ihn zurück.
+const toggleCell = (h: Habit, c: { s: string; isDone: boolean }) =>
+  run(() => (c.isDone ? uncompleteHabit(h.id, c.s) : completeHabit(h.id, c.s)))
 const doneCount = (h: Habit) => done.value[h.id]?.size ?? 0
 const week = (h: Habit) => days().slice(-7).filter((d) => done.value[h.id]?.has(ymd(d))).length
+// Wochenfortschritt: das Backend liefert ihn nur, solange der Habit heute fällig ist; sonst aus den Tagen seit Montag.
+const weekProgress = (h: Habit) => {
+  const p = todayHabits.value.find((x) => x.id === h.id)?.week_progress
+  const sinceMonday = days().slice(-(((new Date().getDay() + 6) % 7) + 1)).filter((d) => done.value[h.id]?.has(ymd(d))).length
+  return `${p?.done ?? sinceMonday}/${p?.target ?? h.frequency_config.times ?? 1}`
+}
 const todayState = (h: Habit) => {
   const t = todayHabits.value.find((x) => x.id === h.id)
   return t ? (t.done ? 'Heute erledigt' : 'Heute offen') : 'Heute nicht fällig'
@@ -124,7 +139,7 @@ useLiveEvents(load)
     <div class="v-head v-head-row">
       <div>
         <h1 class="v-title">Gewohnheiten</h1>
-        <div class="v-sub">Die letzten 28 Tage. Gefüllt heisst erledigt, gestrichelt heisst nicht geplant.</div>
+        <div class="v-sub">Die letzten 28 Tage. Gefüllt heisst erledigt, gestrichelt heisst nicht geplant. Ein Klick auf ein Feld trägt den Tag nach oder nimmt ihn zurück.</div>
       </div>
       <button class="btn btn-secondary" type="button" @click="dialog = true"><svg class="ic"><use href="#i-plus" /></svg>Neue Gewohnheit</button>
     </div>
@@ -153,11 +168,16 @@ useLiveEvents(load)
           <span class="n" :class="{ cold: !streaks[h.id] }">{{ streaks[h.id] ?? 0 }}</span>
           <span class="u">Tage Serie</span>
         </div>
-        <div class="hab-track" role="img" :aria-label="`Letzte 28 Tage: ${doneCount(h)} Tage erledigt`">
-          <i v-for="(c, i) in cells(h)" :key="i" :class="c"></i>
+        <div class="hab-track" role="group" :aria-label="`Letzte 28 Tage: ${doneCount(h)} Tage erledigt`">
+          <i
+            v-for="c in cells(h)" :key="c.s" :class="c.cls" :title="c.pre ? undefined : c.label" :aria-hidden="c.pre || undefined"
+            :role="c.can ? 'checkbox' : undefined" :aria-checked="c.can ? c.isDone : undefined" :aria-label="c.can ? c.label : undefined" :tabindex="c.can ? 0 : undefined"
+            @click="c.can && toggleCell(h, c)" @keydown.enter.prevent="c.can && toggleCell(h, c)" @keydown.space.prevent="c.can && toggleCell(h, c)"
+          ></i>
         </div>
         <div class="hab-meta">
-          <span>Letzte 7 Tage <span class="mono">{{ week(h) }}/7</span> · {{ todayState(h) }}</span>
+          <span v-if="h.frequency_type === 'TIMES_PER_WEEK'"><span class="mono">{{ weekProgress(h) }}</span> diese Woche · {{ todayState(h) }}</span>
+          <span v-else>Letzte 7 Tage <span class="mono">{{ week(h) }}/7</span> · {{ todayState(h) }}</span>
           <span class="acts">
             <button class="btn btn-ghost" type="button" @click="run(() => updateHabit(h.id, { active: !h.active }))">{{ h.active ? 'Deaktivieren' : 'Aktivieren' }}</button>
             <DeleteButton :text="`„${h.name}“ löschen?`" @confirm="run(() => deleteHabit(h.id))" />
@@ -204,4 +224,7 @@ useLiveEvents(load)
 <style scoped>
 .inactive .hab-name, .inactive .hab-num { opacity: .5; }
 .acts { display: inline-flex; gap: 4px; }
+.hab-track i.pre { visibility: hidden; }
+.hab-track i[role="checkbox"] { cursor: pointer; }
+.hab-track i[role="checkbox"]:hover { border-color: var(--a-orange); }
 </style>

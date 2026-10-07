@@ -19,7 +19,7 @@
   --tx-primary:#c5c9c5;
   --tx-secondary:#a6a69c;
   --tx-muted:#818a81;
-  --tx-disabled:#4a4a46;
+  --tx-disabled:#82827b;
   /* Accents — Kanagawa Dragon, entsättigt */
   --a-blue:#8098a6;
   --a-green:#869b86;
@@ -52,7 +52,7 @@
   --tx-primary:#26241e;
   --tx-secondary:#565349;
   --tx-muted:#6d6a5f;
-  --tx-disabled:#a9a599;
+  --tx-disabled:#6e695c;
   --a-blue:#405a68;
   --a-green:#4b664c;
   --a-orange:#80604a;
@@ -115,6 +115,7 @@ svg.ic{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;str
   border-radius:var(--r-s);
   font:500 13px/1.2 var(--font-ui);
   color:var(--tx-secondary);
+  text-decoration:none;
   text-align:left;
   transition:background var(--dur) ease-out,color var(--dur) ease-out;
 }
