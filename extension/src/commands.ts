@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { createProject, getResources, updateProject } from "./backendClient";
 import { openProject, openResource, type ContextProvider, type State } from "./contextView";
-import { formatElapsed, resourceProject, resourcesFirst, startable, type Project, type Task } from "./core";
+import { formatElapsed, resourceProject, resourcesFirst, startable, todayList, type Project, type Task } from "./core";
 
 /** Der Stand, sobald das Backend online ist; sonst ein Hinweis. */
 function ready(p: ContextProvider): State | undefined {
@@ -40,7 +40,7 @@ async function startTask(p: ContextProvider): Promise<void> {
   if (!s) {
     return;
   }
-  const todayIds = new Set([...(s.today?.tasks ?? []), ...(s.today?.active_tasks ?? [])].map((t) => t.id));
+  const todayIds = new Set([...todayList(s.today), ...(s.today?.active_tasks ?? [])].map((t) => t.id));
   const names = new Map(s.projects.map((x) => [x.id, x.name] as const));
   const items = startable(s.tasks, todayIds, s.project?.id)
     .filter((t) => t.id !== p.runningTask()?.id)

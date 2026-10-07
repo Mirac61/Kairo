@@ -83,10 +83,16 @@ export interface Resource {
 export interface Today {
   date: string;
   tasks: Task[];
+  overdue: Task[];
   active_tasks: Task[];
   running_time_entry: { task_id: string | null; started_at: string } | null;
   planned_minutes: number;
   tracked_minutes: number;
+}
+
+/** Liste „Heute“: überfällige offene Tasks zuerst (markiert), dann die für heute geplanten, auch die erledigten. */
+export function todayList(t: Today | undefined): (Task & { overdue?: boolean })[] {
+  return t ? [...t.overdue.map((x) => ({ ...x, overdue: true })), ...t.tasks] : [];
 }
 
 const trimSlashes = (p: string): string => (p.length > 1 ? p.replace(/\/+$/, "") : p);

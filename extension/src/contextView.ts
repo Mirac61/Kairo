@@ -14,7 +14,7 @@ import {
   taskAction,
   updateTask,
 } from "./backendClient";
-import { expandHome, joinUrl, matchProject, parseQuickAdd, Project, Resource, Task, Today, weekRange } from "./core";
+import { expandHome, joinUrl, matchProject, parseQuickAdd, Project, Resource, Task, Today, todayList, weekRange } from "./core";
 import { LiveEvents } from "./liveEvents";
 
 export interface State {
@@ -108,7 +108,7 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
         color: projectOf(running.project_id)?.color,
         projectHasFolder: !!projectOf(running.project_id)?.local_path,
       },
-      tasks: (s.today?.tasks ?? []).map((t) => ({ ...t, project: projectOf(t.project_id)?.name, color: projectOf(t.project_id)?.color })),
+      tasks: todayList(s.today).map((t) => ({ ...t, project: projectOf(t.project_id)?.name, color: projectOf(t.project_id)?.color })),
       projects: s.projects.map((p) => {
         const own = s.tasks.filter((t) => t.project_id === p.id && t.status !== "CANCELLED");
         return {
