@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useConfirm } from 'primevue/useconfirm'
 
-const props = defineProps<{ text: string }>()
+const props = defineProps<{ text: string; label?: string }>()
 const emit = defineEmits<{ confirm: [] }>()
 const confirm = useConfirm()
 
@@ -19,5 +19,5 @@ function ask(e: Event) {
 </script>
 
 <template>
-  <button type="button" class="btn btn-danger" @click="ask">Löschen</button>
+  <button type="button" class="btn btn-danger" @click="ask">{{ label ?? 'Löschen' }}</button>
 </template>

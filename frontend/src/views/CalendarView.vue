@@ -10,7 +10,7 @@ import deLocale from '@fullcalendar/core/locales/de'
 import type { CalendarOptions, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
 import Message from 'primevue/message'
 import {
-  createEvent, createTask, deleteEvent, errorMessage, getOccurrences, importIcs, listProjects, listTasks, skipOccurrence, updateEvent, updateTask,
+  createEvent, createTask, deleteEvent, errorMessage, getOccurrences, importIcs, listProjects, listTasks, restoreEvent, skipOccurrence, updateEvent, updateTask,
   type CalendarEvent, type EventBody, type Project, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
@@ -214,9 +214,13 @@ function remove(onlyThis: boolean) {
   if (!f?.id) return
   const { id, day, title } = f
   void guarded(async () => {
-    if (!onlyThis) return deleteEvent(id)
-    const before = await skipOccurrence(id, day)
-    offer(`„${title}“ gelöscht`, () => guarded(() => updateEvent(id, { recurrence_exdates: before })))
+    if (onlyThis) {
+      const before = await skipOccurrence(id, day)
+      offer(`„${title}“ gelöscht`, () => guarded(() => updateEvent(id, { recurrence_exdates: before })))
+    } else {
+      await deleteEvent(id)
+      offer(`„${title}“ gelöscht`, () => guarded(() => restoreEvent(id)))
+    }
   })
 }
 

@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  createTask, deleteTask, errorMessage, listProjects, listResources, listTasks, updateTask,
+  createTask, deleteTask, errorMessage, listProjects, listResources, listTasks, restoreTask, updateTask,
   type Project, type Resource, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useUndo } from '@/composables/useUndo'
 import { hhmm, ymd } from '@/lib/dates'
 import { projectColor } from '@/lib/projectColor'
-import DeleteButton from '@/components/DeleteButton.vue'
 import ResourceList from '@/components/ResourceList.vue'
 import TaskActions from '@/components/TaskActions.vue'
 
@@ -38,7 +37,7 @@ const openId = ref<string | null>(null)
 const quick = ref('')
 const subTitle = ref('')
 
-const { setDone } = useUndo()
+const { offer, setDone } = useUndo()
 
 const projectName = computed(() => new Map(projects.value.map((p) => [p.id, p.name])))
 const isOpen = (t: Task) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
@@ -114,6 +113,13 @@ function addSub(t: Task) {
 
 const toggle = (t: Task) =>
   t.status === 'COMPLETED' ? run(() => updateTask(t.id, { status: t.planned_date ? 'PLANNED' : 'BACKLOG' })) : setDone(t, 'COMPLETED', run)
+
+// Löschen legt in den Papierkorb; Rückgängig holt die Task samt Teilaufgaben zurück.
+const trash = ({ id, title }: Task) =>
+  void run(async () => {
+    await deleteTask(id)
+    offer(`„${title}“ gelöscht`, () => run(() => restoreTask(id)))
+  })
 
 // Mittel ist der Standard und bleibt in der Zeile unbeschriftet.
 const prio = (t: Task) => (t.priority === 'MEDIUM' ? undefined : PRIO[t.priority])
@@ -206,7 +212,7 @@ useLiveEvents(load)
             <button v-if="t.planned_date !== todayStr()" type="button" class="btn btn-secondary" @click="setDate(t, todayStr())">Heute</button>
             <TaskActions :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
           </template>
-          <DeleteButton :text="`„${t.title}“ löschen?`" @confirm="run(() => deleteTask(t.id))" />
+          <button type="button" class="btn btn-danger" @click="trash(t)">Löschen</button>
           <div class="full sub-sec">
             <span class="lbl">Teilaufgaben<template v-if="progress(t.id)"> · {{ progress(t.id) }}</template></span>
             <div v-for="c in kidsOf(t.id)" :key="c.id" class="sub-row" :class="{ done: !isOpen(c) }">

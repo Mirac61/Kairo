@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  api, completeHabit, createHabit, deleteHabit, errorMessage, getToday, listHabits, uncompleteHabit, updateHabit,
+  api, completeHabit, createHabit, deleteHabit, errorMessage, getToday, listHabits, restoreHabit, uncompleteHabit, updateHabit,
   type FrequencyConfig, type Habit, type TodayHabit,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
-import DeleteButton from '@/components/DeleteButton.vue'
+import { useUndo } from '@/composables/useUndo'
 import { ymd } from '@/lib/dates'
 
 const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
@@ -58,6 +58,15 @@ async function run(fn: () => Promise<unknown>) {
   }
   await load()
 }
+
+const { offer } = useUndo()
+
+// Löschen legt in den Papierkorb; Rückgängig holt das Habit samt Abhak-Verlauf zurück.
+const trash = ({ id, name }: Habit) =>
+  void run(async () => {
+    await deleteHabit(id)
+    offer(`„${name}“ gelöscht`, () => run(() => restoreHabit(id)))
+  })
 
 const toggle = (h: TodayHabit) => run(() => (h.done ? uncompleteHabit(h.id, today()) : completeHabit(h.id, today())))
 
@@ -180,7 +189,7 @@ useLiveEvents(load)
           <span v-else>Letzte 7 Tage <span class="mono">{{ week(h) }}/7</span> · {{ todayState(h) }}</span>
           <span class="acts">
             <button class="btn btn-ghost" type="button" @click="run(() => updateHabit(h.id, { active: !h.active }))">{{ h.active ? 'Deaktivieren' : 'Aktivieren' }}</button>
-            <DeleteButton :text="`„${h.name}“ löschen?`" @confirm="run(() => deleteHabit(h.id))" />
+            <button type="button" class="btn btn-danger" @click="trash(h)">Löschen</button>
           </span>
         </div>
       </div>

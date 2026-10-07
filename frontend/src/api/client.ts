@@ -132,7 +132,10 @@ export const listTasks = (query = '') => api<Task[]>(`/tasks${query}`)
 export const createTask = (body: Partial<Task>) =>
   api<Task>('/tasks', { method: 'POST', body: JSON.stringify(body) })
 
-export const deleteTask = (id: string) => api<void>(`/tasks/${id}`, { method: 'DELETE' })
+// DELETE legt in den Papierkorb, permanent löscht endgültig (Task mit Zeiteinträgen: 409).
+export const deleteTask = (id: string, permanent = false) =>
+  api<void>(`/tasks/${id}${permanent ? '?permanent=true' : ''}`, { method: 'DELETE' })
+export const restoreTask = (id: string) => api<unknown>(`/tasks/${id}/restore`, { method: 'POST' })
 
 // Fehlertext aus {"error": "..."} des Backends, sonst Standardtext.
 export function errorMessage(e: unknown): string {
@@ -171,7 +174,9 @@ export const createHabit = (body: Partial<Habit>) =>
 export const updateHabit = (id: string, body: Partial<Habit>) =>
   api<Habit>(`/habits/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
-export const deleteHabit = (id: string) => api<void>(`/habits/${id}`, { method: 'DELETE' })
+export const deleteHabit = (id: string, permanent = false) =>
+  api<void>(`/habits/${id}${permanent ? '?permanent=true' : ''}`, { method: 'DELETE' })
+export const restoreHabit = (id: string) => api<unknown>(`/habits/${id}/restore`, { method: 'POST' })
 
 export interface EventBody {
   title?: string
@@ -186,7 +191,9 @@ export interface EventBody {
 export const createEvent = (body: EventBody) =>
   api<unknown>('/calendar/events', { method: 'POST', body: JSON.stringify(body) })
 
-export const deleteEvent = (id: string) => api<void>(`/calendar/events/${id}`, { method: 'DELETE' })
+export const deleteEvent = (id: string, permanent = false) =>
+  api<void>(`/calendar/events/${id}${permanent ? '?permanent=true' : ''}`, { method: 'DELETE' })
+export const restoreEvent = (id: string) => api<unknown>(`/calendar/events/${id}/restore`, { method: 'POST' })
 
 // Beim Ändern entfernt "" einen optionalen Wert (due_at, planned_date, …); null lässt ihn unverändert.
 export const updateTask = (id: string, body: Record<string, unknown>) =>
@@ -243,6 +250,15 @@ export interface Review {
 
 // Auswertung für [from, to] ("YYYY-MM-DD", beide inklusive).
 export const getReview = (from: string, to: string) => api<Review>(`/review?from=${from}&to=${to}`)
+
+// Papierkorb: jeweils zuletzt gelöschte zuerst.
+export interface Trash {
+  tasks: (Task & { deleted_at: string })[]
+  events: { id: string; title: string; start_at: string; recurrence_rule: string | null; deleted_at: string }[]
+  habits: (Habit & { deleted_at: string })[]
+}
+
+export const getTrash = () => api<Trash>('/trash')
 
 // ICS-Import.
 export interface IcsImportResult {
