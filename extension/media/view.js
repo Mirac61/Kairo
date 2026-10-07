@@ -6,26 +6,19 @@ const saved = vscode.getState() ?? {};
 let state;
 /** @type {ReturnType<typeof setInterval> | undefined} */
 let tick;
-const ui = { tab: saved.tab ?? "now", open: new Set(saved.open ?? ["ACTIVE"]), dirs: new Set(saved.dirs ?? []) };
-const persist = () => vscode.setState({ tab: ui.tab, open: [...ui.open], dirs: [...ui.dirs] });
-/** Geladene Ordnerinhalte, Schlüssel = Pfad relativ zum Dokumente-Ordner ("" = Wurzel). */
-const dirs = new Map();
-let docsRoot = "~/Documents";
-const listDir = (/** @type {string} */ path) => vscode.postMessage({ cmd: "listDir", path });
-
 const TABS = [
   ["now", "Jetzt"],
   ["today", "Heute"],
   ["projects", "Projekte"],
-  ["stats", "Stats"],
-  ["docs", "Dokumente"],
 ];
+const ui = { tab: TABS.some(([k]) => k === saved.tab) ? saved.tab : "now", open: new Set(saved.open ?? ["ACTIVE"]) };
+const persist = () => vscode.setState({ tab: ui.tab, open: [...ui.open] });
+
 const GROUPS = [
   ["ACTIVE", "Aktiv"],
   ["PAUSED", "Pausiert"],
   ["DONE", "Archiv"],
 ];
-const PALETTE = ["var(--accent)", "var(--success)", "var(--warning)", "#b180d7", "var(--muted)"];
 const PRIO = { URGENT: "dringend", HIGH: "hoch" };
 const icon = {
   play: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5l9 5.5-9 5.5z"/></svg>',
@@ -34,8 +27,6 @@ const icon = {
   chev: '<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 4l4 4-4 4"/></svg>',
   folder: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 4h4.5l1.5 1.5h7v7.5h-13z"/></svg>',
   file: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 1.5H3.5v13h9V5zM9 1.5V5h3.5"/></svg>',
-  finder: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 4h4.5l1.5 1.5h7v7.5h-13z"/><path d="M8 7.5v3.5M6.3 9.3L8 7.5l1.7 1.8"/></svg>',
-  refresh: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v2.6h-2.6"/></svg>',
   link: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M6.5 9.5l3-3M7 4.5l1.5-1.5a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5L7.5 13A2.5 2.5 0 0 1 4 9.5L5.5 8"/></svg>',
   window: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M9 3h4v4M13 3L7.5 8.5M11 9.5V13H3V5h3.5"/></svg>',
 };
@@ -51,10 +42,6 @@ function clock(ms) {
   return `${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
 }
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
-/** @param {Date} d */
-const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-/** @param {Date} d */
-const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
 // Gerüst einmal bauen; danach werden nur die Inhalte ersetzt, damit Eingaben im Formular erhalten bleiben.
 document.getElementById("app").innerHTML = `
@@ -70,9 +57,7 @@ document.getElementById("app").innerHTML = `
       <button class="btn primary" type="submit">Hinzufügen</button>
     </form>
   </section>
-  <section class="view" data-view="projects" id="v-projects"></section>
-  <section class="view" data-view="stats" id="v-stats"></section>
-  <section class="view" data-view="docs" id="v-docs"></section>`;
+  <section class="view" data-view="projects" id="v-projects"></section>`;
 
 function showTab() {
   document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(/** @type {HTMLElement} */ (t).dataset.tab === ui.tab)));
@@ -104,7 +89,10 @@ function taskRow(t, runningId) {
 /** Ressourcen und offene Tasks des erkannten Projekts. */
 function projectCard() {
   if (!state.project) {
-    return "";
+    return state.folder
+      ? `<div class="card"><p class="muted">„${esc(state.folder)}“ gehört zu keinem Projekt.</p>
+          <div class="btnrow"><button class="btn" data-cmd="linkWorkspace">${icon.link}Diesen Ordner mit Projekt verknüpfen</button></div></div>`
+      : "";
   }
   const res = state.resources
     .map(
@@ -144,7 +132,8 @@ function renderNow() {
       <div class="stat"><span class="stat-label">Geplant</span><span class="stat-value">${hm(state.planned)}</span></div>
       <div class="stat"><span class="stat-label">Offen</span><span class="stat-value">${open}</span></div>
     </div>
-    ${state.planned ? `<div><div class="row small muted"><span class="fill">Tagesziel</span><span>${Math.round(pct)} %</span></div><div class="bar-track"><i style="width:${pct}%"></i></div></div>` : ""}`;
+    ${state.planned ? `<div><div class="row small muted"><span class="fill">Tagesziel</span><span>${Math.round(pct)} %</span></div><div class="bar-track"><i style="width:${pct}%"></i></div></div>` : ""}
+    <div class="row small"><span class="fill"><span class="muted">Diese Woche</span> ${hm(state.week)}</span><a href="#" data-cmd="openReview">Rückblick</a></div>`;
   if (r) {
     const start = Date.parse(r.startedAt);
     tick = setInterval(() => ($("timer").textContent = clock(Date.now() - start)), 1000);
@@ -189,99 +178,6 @@ function renderProjects() {
     : '<p class="empty">Noch keine Projekte. Lege sie in der WebUI an.</p>';
 }
 
-function renderStats() {
-  const now = new Date();
-  const today = startOfDay(now);
-  /** Minuten pro Tag und pro Projekt, jeweils dem Starttag zugeordnet. */
-  const perDay = new Map();
-  const perProjectWeek = new Map();
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-  for (const e of state.entries) {
-    const start = new Date(e.start);
-    const min = ((e.end ? Date.parse(e.end) : now.getTime()) - start.getTime()) / 60000;
-    const k = dayKey(start);
-    perDay.set(k, (perDay.get(k) ?? 0) + min);
-    if (start >= monday) {
-      perProjectWeek.set(e.project ?? "", (perProjectWeek.get(e.project ?? "") ?? 0) + min);
-    }
-  }
-
-  const days = [...Array(7)].map((_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return { d, min: perDay.get(dayKey(d)) ?? 0 };
-  });
-  const maxDay = Math.max(60, ...days.map((x) => x.min));
-  const weekTotal = days.reduce((s, x) => s + x.min, 0);
-  const week = days
-    .map(
-      ({ d, min }) => `<div class="col ${dayKey(d) === dayKey(today) ? "today" : ""}" title="${hm(min)} h">
-        <div>${min ? `<i style="height:${(min / maxDay) * 100}%"></i>` : ""}</div>
-        <span class="d">${d.toLocaleDateString("de-DE", { weekday: "short" }).slice(0, 2)}</span></div>`,
-    )
-    .join("");
-
-  const names = new Map(state.projects.map((/** @type {any} */ p) => [p.id, p.name]));
-  const dist = [...perProjectWeek.entries()].sort((a, b) => b[1] - a[1]);
-  const top = dist.slice(0, 4);
-  const rest = dist.slice(4).reduce((s, x) => s + x[1], 0);
-  if (rest) top.push(["", rest]);
-  const distRows = top
-    .map(
-      ([id, min], i) => `<div class="dist-row"><span class="trunc">${esc(names.get(id) ?? "Sonstiges")}</span>
-        <span class="bar-track"><i style="width:${(min / weekTotal) * 100}%;background:${PALETTE[i]}"></i></span>
-        <span class="val">${hm(min)}</span></div>`,
-    )
-    .join("");
-
-  const first = new Date(monday);
-  first.setDate(monday.getDate() - 7 * 11);
-  const heat = [];
-  for (const d = new Date(first); d <= today; d.setDate(d.getDate() + 1)) {
-    const min = perDay.get(dayKey(d)) ?? 0;
-    const lvl = min >= 300 ? 4 : min >= 180 ? 3 : min >= 60 ? 2 : min > 0 ? 1 : 0;
-    heat.push(`<i class="${lvl ? `l${lvl}` : ""}" title="${d.toLocaleDateString("de-DE")}: ${hm(min)} h"></i>`);
-  }
-
-  $("v-stats").innerHTML = `
-    <div class="card"><div class="row"><h2 class="fill">Diese Woche</h2><span class="chip">${hm(weekTotal)} h</span></div>
-      <div class="week">${week}</div></div>
-    <div class="card"><h2>Projekt-Verteilung</h2>
-      ${distRows ? `<div class="dist">${distRows}</div>` : '<p class="empty">Diese Woche noch nichts erfasst.</p>'}</div>
-    <div class="card"><div class="row"><h2 class="fill">Aktivität</h2><span class="chip">12 Wochen</span></div>
-      <div class="heat">${heat.join("")}</div></div>`;
-}
-
-function renderDocs() {
-  /** @param {string} rel @param {number} depth @returns {string} */
-  const tree = (rel, depth) => {
-    const entries = dirs.get(rel);
-    if (!entries) {
-      return `<div class="doc muted" style="--depth:${depth}">Lade …</div>`;
-    }
-    if (!entries.length) {
-      return `<div class="doc muted" style="--depth:${depth}">leer</div>`;
-    }
-    return entries
-      .map((/** @type {any} */ e) => {
-        const path = rel ? `${rel}/${e.name}` : e.name;
-        const open = e.dir && ui.dirs.has(path);
-        return `<div class="doc row" style="--depth:${depth}" data-${e.dir ? "dir" : "file"}="${esc(path)}" title="${esc(path)}">
-            ${e.dir ? icon.chev.replace('class="chev"', `class="chev ${open ? "open" : ""}"`) : '<span class="chev"></span>'}
-            <span class="doc-icon ${e.dir ? "is-dir" : ""}">${e.dir ? icon.folder : icon.file}</span>
-            <span class="fill trunc">${esc(e.name)}</span>
-            <button class="iconbtn" title="Im Finder zeigen" data-reveal="${esc(path)}">${icon.finder}</button>
-          </div>${open ? tree(path, depth + 1) : ""}`;
-      })
-      .join("");
-  };
-  $("v-docs").innerHTML = `<div class="row"><h2 class="fill trunc">${esc(docsRoot)}</h2>
-      <button class="iconbtn always" title="Im Finder zeigen" data-reveal="">${icon.finder}</button>
-      <button class="iconbtn always" title="Neu laden" data-docs-refresh>${icon.refresh}</button></div>
-    <div class="card list docs">${tree("", 0)}</div>`;
-}
-
 function render() {
   clearInterval(tick);
   const off = $("offline");
@@ -295,14 +191,13 @@ function render() {
   $("ws").textContent = state.online ? `v${state.version}` : "offline";
   off.hidden = state.online;
   if (!state.online) {
-    off.innerHTML = `<p>${esc(state.reason)}</p><button class="btn" data-cmd="refresh">Erneut versuchen</button>`;
+    off.innerHTML = `<p>Backend nicht erreichbar. Starte <code>kairo</code> im Terminal oder richte Autostart mit <code>kairo install</code> ein.</p>
+      <p class="small">${esc(state.reason)}</p><button class="btn" data-cmd="refresh">Erneut versuchen</button>`;
   } else {
     $("title").textContent = state.project ?? "Kairo";
     renderNow();
     renderToday();
     renderProjects();
-    renderStats();
-    renderDocs();
   }
   showTab();
 }
@@ -317,37 +212,6 @@ document.addEventListener("click", (e) => {
     showTab();
     return;
   }
-  const reveal = /** @type {HTMLElement | null} */ (el.closest("[data-reveal]"));
-  if (reveal) {
-    vscode.postMessage({ cmd: "reveal", path: reveal.dataset.reveal });
-    return;
-  }
-  if (el.closest("[data-docs-refresh]")) {
-    dirs.clear();
-    ["", ...ui.dirs].forEach(listDir);
-    renderDocs();
-    return;
-  }
-  const dir = /** @type {HTMLElement | null} */ (el.closest("[data-dir]"));
-  if (dir) {
-    const path = dir.dataset.dir ?? "";
-    if (ui.dirs.has(path)) {
-      ui.dirs.delete(path);
-    } else {
-      ui.dirs.add(path);
-      if (!dirs.has(path)) {
-        listDir(path);
-      }
-    }
-    persist();
-    renderDocs();
-    return;
-  }
-  const file = /** @type {HTMLElement | null} */ (el.closest("[data-file]"));
-  if (file) {
-    vscode.postMessage({ cmd: "openFile", path: file.dataset.file });
-    return;
-  }
   const group = /** @type {HTMLElement | null} */ (el.closest("[data-group]"));
   if (group) {
     const key = group.dataset.group ?? "";
@@ -358,6 +222,9 @@ document.addEventListener("click", (e) => {
   }
   const b = /** @type {HTMLElement | null} */ (el.closest("[data-cmd]"));
   if (b) {
+    if (b.tagName === "A") {
+      e.preventDefault(); // href="#" nicht folgen; Checkboxen dürfen normal schalten
+    }
     vscode.postMessage({ cmd: b.dataset.cmd, id: b.dataset.id });
   }
 });
@@ -368,24 +235,11 @@ $("quickadd").addEventListener("submit", (e) => {
   if (!raw) {
     return;
   }
-  // „30 min Sport“ oder „Sport 30m“ setzt die Schätzung
-  const m = raw.match(/^(\d{1,3})\s*m(?:in)?\s+(.+)$/i) ?? raw.match(/^(.+?)\s+(\d{1,3})\s*m(?:in)?$/i);
-  const [title, minutes] = !m ? [raw, 0] : /^\d/.test(m[1]) ? [m[2], Number(m[1])] : [m[1], Number(m[2])];
-  vscode.postMessage({ cmd: "addTask", title, minutes });
+  vscode.postMessage({ cmd: "addTask", raw });
   input.value = "";
 });
 window.addEventListener("message", (e) => {
-  if ("dir" in e.data) {
-    dirs.set(e.data.dir, e.data.entries);
-    docsRoot = e.data.root;
-    if (state?.online) {
-      renderDocs();
-    }
-    return;
-  }
   state = e.data;
   render();
 });
 render();
-// Wurzel und zuletzt aufgeklappte Ordner laden; verschwundene Ordner liefern einfach „leer“.
-["", ...ui.dirs].forEach(listDir);

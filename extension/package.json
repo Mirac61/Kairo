@@ -12,7 +12,7 @@
     "Other"
   ],
   "main": "./out/extension.js",
-  "activationEvents": [],
+  "activationEvents": ["onStartupFinished", "onUri"],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -42,6 +42,34 @@
         "command": "kairo.openWeb",
         "title": "Kairo: WebUI öffnen",
         "icon": "$(link-external)"
+      },
+      {
+        "command": "kairo.linkWorkspace",
+        "title": "Kairo: Diesen Ordner mit Projekt verknüpfen"
+      },
+      {
+        "command": "kairo.startTask",
+        "title": "Kairo: Task starten …"
+      },
+      {
+        "command": "kairo.pauseTask",
+        "title": "Kairo: Timer pausieren"
+      },
+      {
+        "command": "kairo.completeTask",
+        "title": "Kairo: Task abschließen"
+      },
+      {
+        "command": "kairo.newTask",
+        "title": "Kairo: Neue Task …"
+      },
+      {
+        "command": "kairo.openProject",
+        "title": "Kairo: Projekt öffnen …"
+      },
+      {
+        "command": "kairo.openResource",
+        "title": "Kairo: Ressource öffnen …"
       }
     ],
     "menus": {
@@ -71,11 +99,6 @@
           "default": 10,
           "minimum": 0,
           "description": "Nach so vielen Minuten ohne Aktivität in VSCodium fragt Kairo bei laufendem Timer, ob er pausiert werden soll (0 = aus). Kairo pausiert nie von selbst."
-        },
-        "kairo.documentsFolder": {
-          "type": "string",
-          "default": "~/Documents",
-          "description": "Ordner, den der Tab „Dokumente“ zeigt."
         }
       }
     }

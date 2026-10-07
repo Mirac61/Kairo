@@ -75,13 +75,8 @@ export interface Resource {
   type: "FILE" | "FOLDER" | "URL";
   target: string;
   label: string;
-}
-
-export interface TimeEntry {
   task_id: string | null;
   project_id: string | null;
-  started_at: string;
-  ended_at: string | null;
 }
 
 export interface Today {
@@ -117,6 +112,71 @@ export function matchProject(projects: Project[], folder: string, home: string =
   return best;
 }
 
+/** Meldung aus dem Backend-Body `{"error": …}`, sonst "HTTP <status>". */
+export function errorMessage(status: number, body: string): string {
+  try {
+    const e = (JSON.parse(body) as { error?: unknown }).error;
+    if (typeof e === "string" && e !== "") {
+      return e;
+    }
+  } catch {
+    // kein JSON
+  }
+  return `HTTP ${status}`;
+}
+
+/** „30 min Sport“ oder „Sport 30m“ setzt die Schätzung (0 = keine). */
+export function parseQuickAdd(raw: string): { title: string; minutes: number } {
+  const t = raw.trim();
+  const m = t.match(/^(\d{1,3})\s*m(?:in)?\s+(.+)$/i) ?? t.match(/^(.+?)\s+(\d{1,3})\s*m(?:in)?$/i);
+  return !m ? { title: t, minutes: 0 } : /^\d/.test(m[1]) ? { title: m[2], minutes: Number(m[1]) } : { title: m[1], minutes: Number(m[2]) };
+}
+
+/** Laufzeit als m:ss, ab einer Stunde h:mm:ss. */
+export function formatElapsed(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const h = Math.floor(s / 3600);
+  return h ? `${h}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}` : `${Math.floor(s / 60)}:${pad(s % 60)}`;
+}
+
+/** Offene Tasks: heutige zuerst, dann die des Projekts, dann der Rest; sonst bleibt die Reihenfolge. */
+export function startable(tasks: Task[], todayIds: Set<string>, projectId?: string): Task[] {
+  const rank = (t: Task) => (todayIds.has(t.id) ? 0 : projectId && t.project_id === projectId ? 1 : 2);
+  return tasks.filter((t) => t.status !== "COMPLETED" && t.status !== "CANCELLED").sort((a, b) => rank(a) - rank(b));
+}
+
+/** Projekt einer Ressource: direkt oder über ihre Task. */
+export const resourceProject = (r: Resource, tasks: Task[]): string | null => r.project_id ?? tasks.find((t) => t.id === r.task_id)?.project_id ?? null;
+
+/** Ressourcen des Projekts zuerst, sonst bleibt die Reihenfolge. */
+export function resourcesFirst(resources: Resource[], tasks: Task[], projectId?: string): Resource[] {
+  const own = (r: Resource) => !!projectId && resourceProject(r, tasks) === projectId;
+  return [...resources.filter(own), ...resources.filter((r) => !own(r))];
+}
+
+/** Montag bis Sonntag der Woche von now (lokale Daten) als YYYY-MM-DD. */
+export function weekRange(now: Date): { from: string; to: string } {
+  const day = (offset: number) => {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const sinceMonday = (now.getDay() + 6) % 7;
+  return { from: day(-sinceMonday), to: day(6 - sinceMonday) };
+}
+
+/** Ziel eines kairo-URI: /start?task=<id> oder /open?project=<id>. */
+export function parseUriTarget(path: string, query: string): { action: "start" | "open"; id: string } | undefined {
+  const action = { "/start": "start", "/open": "open" }[path.replace(/\/+$/, "")] as "start" | "open" | undefined;
+  const id = new URLSearchParams(query).get(action === "start" ? "task" : "project");
+  return action && id ? { action, id } : undefined;
+}
+
+export const PENDING_MAX_MS = 60_000;
+
+/** Ob ein vorgemerktes Öffnen (ts) noch jünger als PENDING_MAX_MS ist. */
+export const pendingFresh = (ts: number, now: number): boolean => now - ts < PENDING_MAX_MS;
+
 /** Ruft die API auf und wirft bei einem Fehlerstatus. */
 export async function apiRequest<T>(
   baseUrl: string,
@@ -134,7 +194,7 @@ export async function apiRequest<T>(
     signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
   });
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
+    throw new Error(errorMessage(res.status, await res.text()));
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }

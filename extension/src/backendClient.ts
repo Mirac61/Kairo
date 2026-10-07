@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { apiRequest, checkHealth, HealthResult, Project, readToken, Resource, Task, Today, TimeEntry } from "./core";
+import { apiRequest, checkHealth, HealthResult, Project, readToken, Resource, Task, Today } from "./core";
 
 export { HealthResult, readToken };
 
@@ -27,13 +27,26 @@ export const taskAction = (id: string, action: "start" | "pause" | "complete"): 
 export const pauseTaskAt = (id: string, endedAt: Date): Promise<unknown> =>
   apiRequest(backendUrl(), readToken(), `/tasks/${id}/pause`, { method: "POST", body: { ended_at: endedAt.toISOString() } });
 
-export const getResources = (projectId: string): Promise<Resource[]> =>
-  apiRequest(backendUrl(), readToken(), `/resources?project_id=${encodeURIComponent(projectId)}`);
+export const createProject = (body: Record<string, unknown>): Promise<Project> =>
+  apiRequest(backendUrl(), readToken(), "/projects", { method: "POST", body });
+
+export const updateProject = (id: string, body: Record<string, unknown>): Promise<Project> =>
+  apiRequest(backendUrl(), readToken(), `/projects/${id}`, { method: "PATCH", body });
+
+export const getResources = (filter: Record<string, string> = {}): Promise<Resource[]> => {
+  const q = new URLSearchParams(filter).toString();
+  return apiRequest(backendUrl(), readToken(), q ? `/resources?${q}` : "/resources");
+};
+
+export const getProject = (id: string): Promise<Project> => apiRequest(backendUrl(), readToken(), `/projects/${id}`);
+
+export const getTask = (id: string): Promise<Task> => apiRequest(backendUrl(), readToken(), `/tasks/${id}`);
 
 export const getTasks = (): Promise<Task[]> => apiRequest(backendUrl(), readToken(), "/tasks");
 
-export const getTimeEntries = (from: Date): Promise<TimeEntry[]> =>
-  apiRequest(backendUrl(), readToken(), `/time-entries?from=${encodeURIComponent(from.toISOString())}`);
+/** Erfasste Minuten im Zeitraum (YYYY-MM-DD, beide inklusive). */
+export const getReview = (from: string, to: string): Promise<{ tracked_minutes: number }> =>
+  apiRequest(backendUrl(), readToken(), `/review?from=${from}&to=${to}`);
 
 export const createTask = (body: Record<string, unknown>): Promise<Task> =>
   apiRequest(backendUrl(), readToken(), "/tasks", { method: "POST", body });

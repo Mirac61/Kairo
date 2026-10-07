@@ -24,7 +24,7 @@ export function watchIdle(provider: ContextProvider): vscode.Disposable {
     }
     busy = true;
     try {
-      await provider.refresh(); // der Stand ist veraltet, solange die Ansicht verborgen ist
+      await provider.refresh(); // sicherheitshalber den aktuellen Stand holen
       const task = provider.runningTask();
       if (!task) {
         return;
