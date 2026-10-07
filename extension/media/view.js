@@ -7,11 +7,10 @@ let state;
 /** @type {ReturnType<typeof setInterval> | undefined} */
 let tick;
 const TABS = [
-  ["now", "Jetzt"],
   ["today", "Heute"],
   ["projects", "Projekte"],
 ];
-const ui = { tab: TABS.some(([k]) => k === saved.tab) ? saved.tab : "now", open: new Set(saved.open ?? ["ACTIVE"]) };
+const ui = { tab: TABS.some(([k]) => k === saved.tab) ? saved.tab : "today", open: new Set(saved.open ?? ["ACTIVE"]) };
 const persist = () => vscode.setState({ tab: ui.tab, open: [...ui.open] });
 
 const GROUPS = [
@@ -46,21 +45,27 @@ const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.get
 // Gerüst einmal bauen; danach werden nur die Inhalte ersetzt, damit Eingaben im Formular erhalten bleiben.
 document.getElementById("app").innerHTML = `
   <header class="head"><h1 class="fill trunc" id="title">Kairo</h1><span class="wsdot" id="ws"></span></header>
-  <nav class="tabs" role="tablist">${TABS.map(([k, l]) => `<button class="tab" role="tab" data-tab="${k}">${l}</button>`).join("")}</nav>
+  <nav class="tabs" role="tablist" aria-label="Ansicht">${TABS.map(([k, l]) => `<button class="tab" role="tab" id="tab-${k}" aria-controls="v-${k}" data-tab="${k}">${l}</button>`).join("")}</nav>
   <div id="offline" class="offline" hidden></div>
-  <section class="view" data-view="now" id="v-now"></section>
-  <section class="view" data-view="today">
+  <section class="view" data-view="today" id="v-today" role="tabpanel" aria-labelledby="tab-today">
+    <div id="t-timer"></div>
     <div><div class="row" style="margin-bottom:6px"><h2 class="fill">Heute</h2><span class="chip warn" id="today-count"></span></div>
       <div class="card list" id="today-list"></div></div>
+    <div id="t-project"></div>
     <form class="quickadd" id="quickadd" autocomplete="off">
-      <div class="fill"><label for="qa">Neue Aufgabe für heute</label><input id="qa" placeholder="z. B. 30 min Sport" required></div>
+      <div class="fill"><label for="qa" id="qa-label">Neue Aufgabe für heute</label><input id="qa" placeholder="z. B. 30 min Sport" required></div>
       <button class="btn primary" type="submit">Hinzufügen</button>
     </form>
+    <div id="t-foot"></div>
   </section>
-  <section class="view" data-view="projects" id="v-projects"></section>`;
+  <section class="view" data-view="projects" id="v-projects" role="tabpanel" aria-labelledby="tab-projects"></section>`;
 
 function showTab() {
-  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(/** @type {HTMLElement} */ (t).dataset.tab === ui.tab)));
+  document.querySelectorAll(".tab").forEach((t) => {
+    const on = /** @type {HTMLElement} */ (t).dataset.tab === ui.tab;
+    t.setAttribute("aria-selected", String(on));
+    /** @type {HTMLElement} */ (t).tabIndex = on ? 0 : -1; // Pfeiltasten wechseln, Tab springt aus der Leiste
+  });
   document.querySelectorAll(".view").forEach((v) => {
     /** @type {HTMLElement} */ (v).hidden = !state?.online || /** @type {HTMLElement} */ (v).dataset.view !== ui.tab;
   });
@@ -70,11 +75,13 @@ function showTab() {
 function taskRow(t, runningId) {
   const done = t.status === "COMPLETED";
   const time = t.planned_start_at ? new Date(t.planned_start_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "";
-  return `<div class="task ${done ? "done" : ""} ${t.id === runningId ? "running" : ""}">
+  const mine = !!state.projectId && t.project_id === state.projectId;
+  return `<div class="task ${done ? "done" : ""} ${t.id === runningId ? "running" : ""} ${mine ? "mine" : ""}">
     <input type="checkbox" class="task-check" ${done ? "checked" : ""} data-cmd="${done ? "reopen" : "complete"}" data-id="${esc(t.id)}" aria-label="Abhaken: ${esc(t.title)}">
     <div class="task-body">
       <div class="task-name trunc" title="${esc(t.title)}">${esc(t.title)}</div>
       <div class="task-meta">
+        ${t.project && !mine ? `<span class="chip">${esc(t.project)}</span>` : ""}
         ${time ? `<span>${time}</span>` : ""}
         ${t.estimated_minutes ? `<span>${t.estimated_minutes} Min</span>` : ""}
         ${PRIO[t.priority] ? `<span class="chip warn">Priorität ${PRIO[t.priority]}</span>` : ""}
@@ -86,7 +93,7 @@ function taskRow(t, runningId) {
   </div>`;
 }
 
-/** Ressourcen und offene Tasks des erkannten Projekts. */
+/** Ressourcen und weitere offene Tasks des erkannten Projekts (die für heute geplanten stehen in der Agenda). */
 function projectCard() {
   if (!state.project) {
     return state.folder
@@ -101,53 +108,63 @@ function projectCard() {
         <span class="fill trunc">${esc(r.label)}</span></button>`,
     )
     .join("");
-  const tasks = state.projectTasks.map((/** @type {any} */ t) => taskRow(t, state.running?.task.id)).join("");
+  const planned = new Set(state.tasks.map((/** @type {any} */ t) => t.id));
+  const more = state.projectTasks.filter((/** @type {any} */ t) => !planned.has(t.id));
   return `<div class="card">
     <div class="row"><h2 class="fill trunc">${esc(state.project)}</h2><span class="chip">${state.projectTasks.length} offen</span></div>
     ${res ? `<div class="list docs">${res}</div>` : ""}
-    ${tasks ? `<div class="list">${tasks}</div>` : '<p class="muted small">Keine offenen Tasks in diesem Projekt.</p>'}
+    ${more.length ? `<p class="small muted more">Weitere offene Tasks</p><div class="list">${more.map((/** @type {any} */ t) => taskRow(t, state.running?.task.id)).join("")}</div>` : ""}
+    ${state.projectTasks.length ? "" : '<p class="muted small">Keine offenen Tasks in diesem Projekt.</p>'}
   </div>`;
 }
 
-function renderNow() {
+/** Timer mit Task und Projekt vorn; läuft er für ein anderes Projekt als den Workspace, steht oben ein Hinweis. */
+function timerBlock() {
   const r = state.running;
-  const pct = state.planned ? Math.min(100, (state.tracked / state.planned) * 100) : 0;
-  const open = state.tasks.filter((/** @type {any} */ t) => t.status !== "COMPLETED").length;
-  $("v-now").innerHTML = `${projectCard()}
-    <div class="card">
-      <div class="row"><h2 class="fill">Jetzt</h2>${r ? '<span class="live">läuft</span>' : ""}</div>
-      ${
-        r
-          ? `<p class="timer-time" id="timer">${clock(Date.now() - Date.parse(r.startedAt))}</p>
-             <p class="timer-task trunc" title="${esc(r.task.title)}">${esc(r.task.title)}</p>
-             <div class="btnrow">
-               <button class="btn" data-cmd="pause" data-id="${esc(r.task.id)}">${icon.pause}Pause</button>
-               <button class="btn" data-cmd="complete" data-id="${esc(r.task.id)}">${icon.check}Fertig</button>
-             </div>`
-          : `<p class="muted" style="margin-top:8px">Kein Timer läuft. Starte eine Task unter <a href="#" data-tab="today">Heute</a>.</p>`
-      }
-    </div>
-    <div class="statstrip">
+  const away = r && state.projectId && r.task.project_id !== state.projectId;
+  const notice = away
+    ? `<div class="notice" role="status"><p>Timer läuft für „${esc(r.project ?? r.task.title)}“, du bist in „${esc(state.project)}“.</p>
+        ${r.projectHasFolder ? `<div class="btnrow"><button class="btn" data-cmd="openProject" data-id="${esc(r.task.project_id)}">${icon.window}Zu „${esc(r.project)}“ wechseln</button></div>` : ""}</div>`
+    : "";
+  return `${notice}<div class="card">
+    <div class="row"><h2 class="fill">Jetzt</h2>${r ? '<span class="live">läuft</span>' : ""}</div>
+    ${
+      r
+        ? `<p class="timer-task trunc" title="${esc(r.task.title)}">${esc(r.task.title)}</p>
+           <p class="timer-project trunc">${esc(r.project ?? "Ohne Projekt")}</p>
+           <p class="timer-time" id="timer">${clock(Date.now() - Date.parse(r.startedAt))}</p>
+           <div class="btnrow">
+             <button class="btn" data-cmd="pause" data-id="${esc(r.task.id)}">${icon.pause}Pause</button>
+             <button class="btn" data-cmd="complete" data-id="${esc(r.task.id)}">${icon.check}Fertig</button>
+           </div>`
+        : '<p class="muted" style="margin-top:8px">Kein Timer läuft. Starte eine Task aus der Liste.</p>'
+    }
+  </div>`;
+}
+
+function renderToday() {
+  const r = state.running;
+  // Offene zuerst, darin die Tasks des Projekts im Workspace vor den anderen (stabil: sonst bleibt die Uhrzeit-Reihenfolge).
+  const rank = (/** @type {any} */ t) => Number(t.status === "COMPLETED") * 2 + Number(!state.projectId || t.project_id !== state.projectId);
+  const tasks = [...state.tasks].sort((a, b) => rank(a) - rank(b));
+  const open = tasks.filter((t) => t.status !== "COMPLETED").length;
+  $("t-timer").innerHTML = timerBlock();
+  $("today-count").textContent = `${open} offen`;
+  $("today-list").innerHTML = tasks.length
+    ? tasks.map((t) => taskRow(t, r?.task.id)).join("")
+    : '<p class="empty">Nichts geplant. Lege unten eine Aufgabe an.</p>';
+  $("t-project").innerHTML = projectCard();
+  $("qa-label").textContent = state.project ? `Neue Aufgabe für heute · ${state.project}` : "Neue Aufgabe für heute";
+  $("t-foot").innerHTML = `<div class="statstrip">
       <div class="stat"><span class="stat-label">Erfasst</span><span class="stat-value">${hm(state.tracked)}</span></div>
       <div class="stat"><span class="stat-label">Geplant</span><span class="stat-value">${hm(state.planned)}</span></div>
       <div class="stat"><span class="stat-label">Offen</span><span class="stat-value">${open}</span></div>
     </div>
-    ${state.planned ? `<div><div class="row small muted"><span class="fill">Tagesziel</span><span>${Math.round(pct)} %</span></div><div class="bar-track"><i style="width:${pct}%"></i></div></div>` : ""}
     <div class="row small"><span class="fill"><span class="muted">Diese Woche</span> ${hm(state.week)}</span><a href="#" data-cmd="openReview">Rückblick</a></div>`;
   if (r) {
     const start = Date.parse(r.startedAt);
     tick = setInterval(() => ($("timer").textContent = clock(Date.now() - start)), 1000);
   }
-}
-
-function renderToday() {
-  const runningId = state.running?.task.id;
-  const tasks = [...state.tasks].sort((/** @type {any} */ a, /** @type {any} */ b) => Number(a.status === "COMPLETED") - Number(b.status === "COMPLETED"));
-  const open = tasks.filter((t) => t.status !== "COMPLETED").length;
-  $("today-count").textContent = `${open} offen`;
-  $("today-list").innerHTML = tasks.length
-    ? tasks.map((t) => taskRow(t, runningId)).join("")
-    : '<p class="empty">Nichts geplant. Lege unten eine Aufgabe an.</p>';
 }
 
 function renderProjects() {
@@ -195,7 +212,6 @@ function render() {
       <p class="small">${esc(state.reason)}</p><button class="btn" data-cmd="refresh">Erneut versuchen</button>`;
   } else {
     $("title").textContent = state.project ?? "Kairo";
-    renderNow();
     renderToday();
     renderProjects();
   }
@@ -207,7 +223,7 @@ document.addEventListener("click", (e) => {
   const tab = /** @type {HTMLElement | null} */ (el.closest("[data-tab]"));
   if (tab) {
     e.preventDefault();
-    ui.tab = tab.dataset.tab ?? "now";
+    ui.tab = tab.dataset.tab ?? "today";
     persist();
     showTab();
     return;
@@ -227,6 +243,18 @@ document.addEventListener("click", (e) => {
     }
     vscode.postMessage({ cmd: b.dataset.cmd, id: b.dataset.id });
   }
+});
+document.querySelector(".tabs")?.addEventListener("keydown", (e) => {
+  const step = { ArrowRight: 1, ArrowLeft: -1 }[/** @type {KeyboardEvent} */ (e).key];
+  if (!step) {
+    return;
+  }
+  e.preventDefault();
+  const i = TABS.findIndex(([k]) => k === ui.tab);
+  ui.tab = TABS[(i + step + TABS.length) % TABS.length][0];
+  persist();
+  showTab();
+  $(`tab-${ui.tab}`).focus();
 });
 $("quickadd").addEventListener("submit", (e) => {
   e.preventDefault();

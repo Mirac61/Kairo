@@ -36,6 +36,7 @@ p { margin: 0; }
 .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
 .view { padding: 12px 14px 24px; display: flex; flex-direction: column; gap: 12px; }
 .view[hidden] { display: none; }
+.view > div:empty { display: none; }
 
 h2 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
@@ -47,9 +48,13 @@ h2 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: 
 .small { font-size: 12px; }
 .empty { color: var(--muted); padding: 8px 2px; }
 
-/* Jetzt */
-.timer-time { font-size: 32px; font-weight: 300; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; margin-top: 4px; }
-.timer-task { color: var(--muted); font-size: 12px; }
+/* Timer: Task und Projekt vor der Zeit */
+.timer-task { font-size: 16px; font-weight: 600; line-height: 1.3; margin-top: 6px; }
+.timer-project { color: var(--muted); font-size: 13px; }
+.timer-time { font-size: 14px; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.notice { border: 1px solid color-mix(in srgb, var(--warning) 50%, transparent); border-radius: var(--radius); padding: 8px 10px; font-size: 12px; margin-bottom: 12px; }
+.notice .btnrow { margin-top: 8px; }
+.more { margin: 8px 0 0; }
 .live { display: inline-flex; align-items: center; gap: 6px; color: var(--success); font-size: 11px; }
 .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.3; } }
@@ -74,6 +79,7 @@ h2 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: 
 .task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; font-size: 11px; color: var(--muted); }
 .task.done .task-name { color: var(--muted); text-decoration: line-through; }
 .task.running .task-name { color: var(--success); }
+.task.mine { box-shadow: inset 2px 0 0 var(--accent); padding-left: 10px; }
 .startbtn { flex: none; align-self: center; border: none; background: transparent; color: var(--muted); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; padding: 0; }
 .startbtn:hover { background: var(--surface-2); color: var(--success); }
 .startbtn svg { width: 13px; height: 13px; }

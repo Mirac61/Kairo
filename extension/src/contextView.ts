@@ -91,16 +91,23 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
       return;
     }
     const running = this.runningTask();
+    const projectOf = (id: string | null) => s.projects.find((p) => p.id === id);
     void this.view?.webview.postMessage({
       online: s.health.online,
       reason: s.health.online ? undefined : s.health.reason,
       version: s.health.online ? s.health.version : undefined,
       project: s.project?.name,
+      projectId: s.project?.id,
       folder: vscode.workspace.workspaceFolders?.[0]?.name,
       projectTasks: s.tasks.filter((t) => t.project_id === s.project?.id && t.status !== "COMPLETED" && t.status !== "CANCELLED"),
       resources: s.resources.map((r) => ({ id: r.id, type: r.type, label: r.label || r.target })),
-      running: running && { task: running, startedAt: s.today?.running_time_entry?.started_at },
-      tasks: s.today?.tasks ?? [],
+      running: running && {
+        task: running,
+        startedAt: s.today?.running_time_entry?.started_at,
+        project: projectOf(running.project_id)?.name,
+        projectHasFolder: !!projectOf(running.project_id)?.local_path,
+      },
+      tasks: (s.today?.tasks ?? []).map((t) => ({ ...t, project: projectOf(t.project_id)?.name })),
       projects: s.projects.map((p) => {
         const own = s.tasks.filter((t) => t.project_id === p.id && t.status !== "CANCELLED");
         return {
