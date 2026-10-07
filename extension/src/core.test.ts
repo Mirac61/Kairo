@@ -1,5 +1,5 @@
 import * as assert from "node:assert/strict";
-import { errorMessage, expandHome, formatElapsed, isIdle, matchProject, parseQuickAdd, parseUriTarget, pendingFresh, Project, Resource, resourcesFirst, startable, Task, weekRange } from "./core";
+import { errorMessage, expandHome, formatElapsed, isIdle, matchProject, parseQuickAdd, parseUriTarget, pendingFresh, Project, Resource, resourcesFirst, startable, Task, todayList, weekRange } from "./core";
 
 const p = (id: string, local_path: string | null): Project => ({ id, name: id, description: "", status: "ACTIVE", local_path });
 const projects = [p("root", "/code"), p("kairo", "/code/kairo/"), p("ohne", null), p("kairo2", "/code/kairo2")];
@@ -30,6 +30,9 @@ assert.equal(formatElapsed(-5), "0:00"); // Uhr-Versatz nie negativ
 const t = (id: string, status: string, project_id: string | null): Task => ({ id, title: id, status, priority: "NORMAL", estimated_minutes: 0, planned_start_at: null, project_id });
 const order = startable([t("a", "PLANNED", null), t("b", "PLANNED", "p"), t("c", "PLANNED", null), t("d", "COMPLETED", "p"), t("e", "CANCELLED", null)], new Set(["c"]), "p");
 assert.deepEqual(order.map((x) => x.id), ["c", "b", "a"]); // heute, Projekt, Rest; erledigt/abgebrochen fehlen
+const today = { date: "2026-10-07", tasks: [t("h", "COMPLETED", null), t("i", "PLANNED", null)], overdue: [t("g", "PLANNED", null)], active_tasks: [], running_time_entry: null, planned_minutes: 0, tracked_minutes: 0 };
+assert.deepEqual(todayList(today).map((x) => [x.id, !!x.overdue]), [["g", true], ["h", false], ["i", false]]); // überfällig zuerst, erledigte bleiben in der Liste
+assert.deepEqual(todayList(undefined), []);
 const res = (id: string, task_id: string | null, project_id: string | null): Resource => ({ id, type: "FILE", target: id, label: id, task_id, project_id });
 const rs = [res("a", null, "x"), res("b", "t1", null), res("c", null, "p"), res("d", "t2", null)];
 assert.deepEqual(resourcesFirst(rs, [t("t1", "PLANNED", "p"), t("t2", "PLANNED", "x")], "p").map((x) => x.id), ["b", "c", "a", "d"]); // direkt oder über die Task

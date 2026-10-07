@@ -18,6 +18,7 @@ const GROUPS = [
   ["PAUSED", "Pausiert"],
   ["DONE", "Archiv"],
 ];
+const DONE_KEY = "TODAY_DONE"; // Schlüssel in ui.open: die Liste der erledigten Tasks ist aufgeklappt
 const PRIO = { URGENT: "dringend", HIGH: "hoch" };
 const icon = {
   play: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5l9 5.5-9 5.5z"/></svg>',
@@ -27,6 +28,7 @@ const icon = {
   folder: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 4h4.5l1.5 1.5h7v7.5h-13z"/></svg>',
   file: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 1.5H3.5v13h9V5zM9 1.5V5h3.5"/></svg>',
   link: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M6.5 9.5l3-3M7 4.5l1.5-1.5a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5L7.5 13A2.5 2.5 0 0 1 4 9.5L5.5 8"/></svg>',
+  plus: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10"/></svg>',
   window: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M9 3h4v4M13 3L7.5 8.5M11 9.5V13H3V5h3.5"/></svg>',
 };
 
@@ -53,8 +55,9 @@ document.getElementById("app").innerHTML = `
       <div class="card list" id="today-list"></div></div>
     <div id="t-project"></div>
     <form class="quickadd" id="quickadd" autocomplete="off">
-      <div class="fill"><label for="qa" id="qa-label">Neue Aufgabe für heute</label><input id="qa" placeholder="z. B. 30 min Sport" required></div>
-      <button class="btn primary" type="submit">Hinzufügen</button>
+      <label for="qa" id="qa-label" class="trunc">Neue Aufgabe für heute</label>
+      <div class="row"><input id="qa" class="fill" placeholder="z. B. 30 min Sport" required>
+        <button class="btn primary square" type="submit" aria-label="Hinzufügen" title="Hinzufügen (Enter)">${icon.plus}</button></div>
     </form>
     <div id="t-foot"></div>
   </section>
@@ -79,12 +82,13 @@ function taskRow(t, runningId) {
   return `<div class="task ${done ? "done" : ""} ${t.id === runningId ? "running" : ""} ${mine ? "mine" : ""}">
     <input type="checkbox" class="task-check" ${done ? "checked" : ""} data-cmd="${done ? "reopen" : "complete"}" data-id="${esc(t.id)}" aria-label="Abhaken: ${esc(t.title)}">
     <div class="task-body">
-      <div class="task-name trunc" title="${esc(t.title)}">${esc(t.title)}</div>
+      <div class="task-name clamp" title="${esc(t.title)}">${esc(t.title)}</div>
       <div class="task-meta">
         ${t.project && !mine ? `<span class="pname-cell p-${esc(t.color)}"><span class="pdot"></span><span class="trunc">${esc(t.project)}</span></span>` : ""}
         ${time ? `<span>${time}</span>` : ""}
         ${t.estimated_minutes ? `<span>${t.estimated_minutes} Min</span>` : ""}
         ${PRIO[t.priority] ? `<span class="chip">Priorität ${PRIO[t.priority]}</span>` : ""}
+        ${t.overdue ? '<span class="chip">überfällig</span>' : ""}
         ${t.status === "PAUSED" ? '<span class="chip">pausiert</span>' : ""}
         ${t.id === runningId ? '<span class="chip">läuft</span>' : ""}
       </div>
@@ -110,11 +114,13 @@ function projectCard() {
     .join("");
   const planned = new Set(state.tasks.map((/** @type {any} */ t) => t.id));
   const more = state.projectTasks.filter((/** @type {any} */ t) => !planned.has(t.id));
+  if (!res && !more.length) {
+    return ""; // der Projektname steht schon im Kopf
+  }
   return `<div class="card">
     <div class="row"><h2 class="fill trunc">${esc(state.project)}</h2><span class="chip">${state.projectTasks.length} offen</span></div>
     ${res ? `<div class="list docs">${res}</div>` : ""}
     ${more.length ? `<p class="small muted more">Weitere offene Tasks</p><div class="list">${more.map((/** @type {any} */ t) => taskRow(t, state.running?.task.id)).join("")}</div>` : ""}
-    ${state.projectTasks.length ? "" : '<p class="muted small">Keine offenen Tasks in diesem Projekt.</p>'}
   </div>`;
 }
 
@@ -141,17 +147,30 @@ function timerBlock() {
   </div>`;
 }
 
+/** Erledigte Tasks von heute: eingeklappt, damit ein versehentliches „Fertig“ noch zurückgenommen werden kann. */
+function doneBlock(/** @type {any[]} */ done) {
+  if (!done.length) {
+    return "";
+  }
+  const open = ui.open.has(DONE_KEY);
+  return `<button class="tree-toggle" data-group="${DONE_KEY}" aria-expanded="${open}">${icon.chev}<span class="fill">Erledigt</span><span class="count">${done.length}</span></button>
+    <div ${open ? "" : "hidden"}>${done.map((t) => taskRow(t, undefined)).join("")}</div>`;
+}
+
 function renderToday() {
+  clearInterval(tick);
   const r = state.running;
-  // Offene zuerst, darin die Tasks des Projekts im Workspace vor den anderen (stabil: sonst bleibt die Uhrzeit-Reihenfolge).
-  const rank = (/** @type {any} */ t) => Number(t.status === "COMPLETED") * 2 + Number(!state.projectId || t.project_id !== state.projectId);
-  const tasks = [...state.tasks].sort((a, b) => rank(a) - rank(b));
-  const open = tasks.filter((t) => t.status !== "COMPLETED").length;
+  const done = state.tasks.filter((/** @type {any} */ t) => t.status === "COMPLETED");
+  // Die Tasks des Projekts im Workspace vor den anderen (stabil: sonst bleibt die Reihenfolge überfällig, dann Uhrzeit).
+  const rank = (/** @type {any} */ t) => Number(!state.projectId || t.project_id !== state.projectId);
+  const tasks = state.tasks.filter((/** @type {any} */ t) => t.status !== "COMPLETED").sort((a, b) => rank(a) - rank(b));
+  const open = tasks.length;
   $("t-timer").innerHTML = timerBlock();
   $("today-count").textContent = `${open} offen`;
-  $("today-list").innerHTML = tasks.length
-    ? tasks.map((t) => taskRow(t, r?.task.id)).join("")
-    : '<p class="empty">Nichts geplant. Lege unten eine Aufgabe an.</p>';
+  $("today-list").innerHTML =
+    (tasks.length
+      ? tasks.map((t) => taskRow(t, r?.task.id)).join("")
+      : `<p class="empty">${done.length ? "Alles erledigt." : "Nichts geplant. Lege unten eine Aufgabe an."}</p>`) + doneBlock(done);
   $("t-project").innerHTML = projectCard();
   $("qa-label").textContent = state.project ? `Neue Aufgabe für heute · ${state.project}` : "Neue Aufgabe für heute";
   $("t-foot").innerHTML = `<div class="statstrip">
@@ -232,7 +251,7 @@ document.addEventListener("click", (e) => {
     const key = group.dataset.group ?? "";
     ui.open.has(key) ? ui.open.delete(key) : ui.open.add(key);
     persist();
-    renderProjects();
+    key === DONE_KEY ? renderToday() : renderProjects();
     return;
   }
   const b = /** @type {HTMLElement | null} */ (el.closest("[data-cmd]"));

@@ -20,9 +20,11 @@ Die Extension speichert keine Produktdaten; das Backend ist die Source of Truth.
 - **Tabs:** „Heute“ und „Projekte“ (Pfeiltasten wechseln). „Heute“ zeigt oben den
   Timer mit Task und Projekt vor der Zeit; läuft er für ein anderes Projekt als
   den erkannten Workspace, steht darüber „Timer läuft für X, du bist in Y“ mit
-  Sprung zum Ordner von X. Darunter die Agenda der heutigen Tasks (die des
-  Workspace-Projekts hervorgehoben und zuerst), die Ressourcen und weiteren
-  offenen Tasks des Projekts, die Schnelleingabe („30 min Sport“, das Label nennt
+  Sprung zum Ordner von X. Darunter die offenen Tasks von heute und die
+  überfälligen (die des Workspace-Projekts hervorgehoben und zuerst; erledigte
+  stehen eingeklappt unter „Erledigt“ und lassen sich dort wieder öffnen), die
+  Ressourcen und weiteren offenen Tasks des Projekts (ohne beides entfällt die
+  Karte), die Schnelleingabe („30 min Sport“, das Label nennt
   das Zielprojekt), die Kennzahlen Erfasst/Geplant/Offen und die Zeile „Diese
   Woche“ mit Link „Rückblick“, der `<kairo.backendUrl>/review` im Browser öffnet.
   Die Tabs „Jetzt“, „Stats“ und „Dokumente“ gibt es nicht mehr; Rückblick und
