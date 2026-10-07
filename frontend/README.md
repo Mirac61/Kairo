@@ -19,4 +19,4 @@ npm run build
 ```
 
 Die Ausgabe landet in `../backend/internal/web/dist` und wird vom Go-Binary
-per `embed` ausgeliefert. `npm run type-check` prüft nur die Typen.
+per `embed` ausgeliefert. `npm run type-check` prüft nur die Typen, `npm test` führt die Tests in `test/` aus (Node ab 22.18, ohne Testframework).

@@ -16,4 +16,5 @@ Anweisungen für Coding-Agenten in diesem Repository.
 - Zeittracking nur mit echten Zeitstempeln.
 - Kein automatischer Timer, nur weil ein Workspace geöffnet wurde.
 - Arbeite in kleinen vertikalen Schritten.
-- UI-Änderungen im Frontend ansehen, nicht nur bauen: `npm run dev`, dann `npm run shot -- --view week|work|day|month [--theme light] [--size 1280x800]` in `frontend/` und das PNG in `frontend/.shots/` lesen (Mock-Daten, siehe `scripts/shot.mjs`).
+- Vor dem Abschluss `make check` ausführen (gofmt, vet, Tests, Typprüfung, Extension-Build).
+- UI-Änderungen im Frontend ansehen, nicht nur bauen: `npm run dev`, dann `npm run shot -- --view week|work|day|month` (Kalender) bzw. `--route tasks|habits|projects|review|trash` [--theme light] [--size 1280x800] [--click '<Selektor>'] in `frontend/` und das PNG in `frontend/.shots/` lesen (Mock-Daten, siehe `scripts/shot.mjs`).
