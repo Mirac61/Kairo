@@ -17,16 +17,31 @@ Die Extension speichert keine Produktdaten; das Backend ist die Source of Truth.
 - **Statusleiste:** `$(clock) 0:32 · Task` bei laufendem Timer (Laufzeit aus dem
   Startzeitstempel des Backends), sonst `$(play) Kairo`. Ein Klick öffnet ein
   Menü (Pause, Fertig, Task wechseln, Kairo öffnen).
-- **Tabs:** „Heute“ und „Projekte“ (Pfeiltasten wechseln). „Heute“ zeigt oben den
-  Timer mit Task und Projekt vor der Zeit; läuft er für ein anderes Projekt als
-  den erkannten Workspace, steht darüber „Timer läuft für X, du bist in Y“ mit
-  Sprung zum Ordner von X. Darunter die offenen Tasks von heute und die
-  überfälligen (die des Workspace-Projekts hervorgehoben und zuerst; erledigte
-  stehen eingeklappt unter „Erledigt“ und lassen sich dort wieder öffnen), die
-  Ressourcen und weiteren offenen Tasks des Projekts (ohne beides entfällt die
-  Karte), die Schnelleingabe („30 min Sport“, das Label nennt
-  das Zielprojekt), die Kennzahlen Erfasst/Geplant/Offen und die Zeile „Diese
-  Woche“ mit Link „Rückblick“, der `<kairo.backendUrl>/review` im Browser öffnet.
+- **Ansicht** (nach Runde 5 des Designs, Farben aus dem Theme): Die Titelleiste
+  trägt „Web öffnen“ und „Aktualisieren“, im Menü „…“ liegen Neue Task, Projekt
+  öffnen, Ressource öffnen und Ordner verknüpfen. Zwei Tabs, „Heute“ und
+  „Projekte“ (Pfeiltasten wechseln).
+  - **Heute:** Läuft kein Timer, zeigt eine gestrichelte Karte die nächste
+    Aufgabe mit ▶. Sonst steht dort der Timer mit Task, Projekt, Laufzeit,
+    Fortschritt gegen die Schätzung sowie Pause und Fertig. Läuft er für ein
+    anderes Projekt, das einen Ordner hat, steht darüber „Zu X wechseln“.
+    Darunter der Tagesbalken (erfasst gegen geplant) und die offenen Tasks von
+    heute, überfällige zuerst, dann die des Workspace-Projekts. Unteraufgaben
+    hängen unter ihrer Aufgabe, jede Zeile hat ein ▶. Erledigte stehen
+    eingeklappt unter „Erledigt“ und lassen sich dort wieder öffnen. Es folgen
+    das Workspace-Projekt mit Ressourcen und weiteren offenen Tasks und unten
+    fest die Schnelleingabe mit der Zeile „Woche“ und dem Link „Rückblick“, der
+    `<kairo.backendUrl>/review` im Browser öffnet.
+  - **Schnelleingabe:** wie in der WebUI, etwa `Sport 30m !hoch @morgen #Uni`
+    (Dauer, Priorität, Tag oder Uhrzeit, Projekt). Ohne Angaben landet die Task
+    für heute im Workspace-Projekt. `src/quickAdd.ts` ist eine Kopie von
+    `frontend/src/lib/quickAdd.ts`; `make check` schlägt fehl, wenn beide
+    auseinanderlaufen.
+  - **Projekte:** Filterfeld, oben das Workspace-Projekt mit Fortschritt, darunter
+    die Gruppen Aktiv, Pausiert und Archiv (der Zustand eingeklappt/aufgeklappt
+    bleibt erhalten). Projekte mit offenen Tasks stehen vorn, rechts die Zahl
+    der offenen. Das Symbol beim Überfahren öffnet den Ordner in einem neuen
+    Fenster.
   Die Tabs „Jetzt“, „Stats“ und „Dokumente“ gibt es nicht mehr; Rückblick und
   Statistik stehen in der WebUI, die Einstellung `kairo.documentsFolder` entfällt.
 - **Befehle:** Kairo: Task starten …, Timer pausieren, Task abschließen, Neue
