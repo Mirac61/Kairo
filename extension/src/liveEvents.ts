@@ -3,6 +3,7 @@ import { authHeaders, joinUrl } from "./core";
 
 const DEBOUNCE_MS = 100;
 const RECONNECT_MS = 2000;
+const MAX_RECONNECT_MS = 15000; // bei ausgeschaltetem Backend nicht alle 2 s anklopfen
 
 /**
  * Hält /ws offen und ruft onChange bei jedem Ereignis sowie beim (Wieder-)Verbinden
@@ -13,6 +14,7 @@ export class LiveEvents {
   private debounce: NodeJS.Timeout | undefined;
   private retry: NodeJS.Timeout | undefined;
   private running = false;
+  private delay = RECONNECT_MS;
 
   constructor(
     private readonly url: () => string,
@@ -46,13 +48,17 @@ export class LiveEvents {
       headers: authHeaders(this.token()),
     });
     this.ws = ws;
-    ws.on("open", () => this.notify());
+    ws.on("open", () => {
+      this.delay = RECONNECT_MS;
+      this.notify();
+    });
     ws.on("message", () => this.notify());
     ws.on("error", () => undefined); // "close" folgt und kümmert sich um den Rest
     ws.on("close", () => {
       this.notify();
       if (this.running) {
-        this.retry = setTimeout(() => this.connect(), RECONNECT_MS);
+        this.retry = setTimeout(() => this.connect(), this.delay);
+        this.delay = Math.min(this.delay * 2, MAX_RECONNECT_MS);
       }
     });
   }

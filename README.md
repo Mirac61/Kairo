@@ -2,7 +2,7 @@
 
 Kairo ist ein lokales Personal OS für Planung und Arbeit: WebUI = Planen, VSCodium = Arbeiten.
 
-**Status:** Der MVP (Phasen 0–5 der [Roadmap](docs/05_ROADMAP.md)) ist fertig: Kalender mit Serien, Tasks, Habits, Projekte, Ressourcen, Zeiterfassung mit Korrektur, Today-Ansicht mit überfälligen Tasks, Echtzeit-Updates und die VSCodium-Extension mit Workspace-Erkennung. Dazu kommen die Rückfrage bei Inaktivität (Phase 6), `GET /api/review` (Phase 7) und Backups (`kairo backup`, automatisch beim Serverstart).
+**Status:** Der MVP (Phasen 0–5 der [Roadmap](docs/05_ROADMAP.md)) ist fertig: Kalender mit Serien, Tasks, Habits, Projekte, Ressourcen, Zeiterfassung mit Korrektur, Today-Ansicht mit überfälligen Tasks, Echtzeit-Updates und die VSCodium-Extension mit Workspace-Erkennung. Dazu kommen die Rückfrage bei Inaktivität (Phase 6), der Wochenrückblick in der WebUI (`/review`, Phase 7), ICS-Import für Termine, ein Papierkorb für Tasks, Termine und Habits mit Rückgängig-Toast, Projektfarben, in der Extension Statusleiste, Befehle und URI-Handler (`vscodium://kairo-local.kairo/…`), ein SwiftBar-Plugin für die Menüleiste und Backups (`kairo backup`, automatisch beim Serverstart).
 
 ## Dokumentation
 

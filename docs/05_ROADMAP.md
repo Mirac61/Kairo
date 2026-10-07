@@ -3,6 +3,12 @@
 Der MVP umfasst die Phasen 0–5. Ab Phase 6 kommen Erweiterungen nach dem
 MVP.
 
+**Stand:** Die Phasen 0–7 sind gebaut. Dazu kamen nach dem MVP: der
+Wochenrückblick in der WebUI, ICS-Import, Papierkorb mit Rückgängig-Toast,
+Projektfarben, Statusleiste, Befehle und URI-Handler in der Extension, das
+SwiftBar-Plugin (`tools/menubar/`) und Backups. In Phase 8 steht nur noch,
+was fehlt.
+
 Innerhalb jeder Phase wird jede Funktion als vertikale Scheibe gebaut
 (siehe `03_AGENT_GUIDELINES.md`, Entwicklungsstil).
 
@@ -177,8 +183,7 @@ Mögliche spätere Funktionen:
 
 -   Google Calendar Adapter
 -   Apple Calendar Adapter
--   Import/Export
--   Backup
+-   Export (der ICS-Import ist gebaut)
 -   KI-gestützte Tagesplanung
 -   intelligente Projekterkennung
 -   automatische Kontextvorschläge

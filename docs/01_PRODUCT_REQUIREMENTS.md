@@ -46,7 +46,20 @@ Die WebUI legt Termine mit Ort an und bearbeitet sie. Als Wiederholung
 bietet sie „wöchentlich an ausgewählten Wochentagen“, optional mit
 Enddatum (`FREQ=WEEKLY;BYDAY=…;UNTIL=…`). Andere Regeln (per API
 angelegt) bleiben beim Bearbeiten in der WebUI unverändert. Änderungen
-und Löschen gelten für die ganze Serie.
+gelten für die ganze Serie. Beim Löschen einer Serie bietet die WebUI
+„Nur dieser Termin“ (trägt den Tag in `recurrence_exdates` ein) oder
+„Ganze Serie“ an; beides lässt sich per Rückgängig-Toast zurücknehmen.
+
+**ICS-Import:** `POST /api/calendar/import` (Body: Text einer `.ics`-Datei,
+in der WebUI „ICS importieren“). Die UID eines Termins (`external_uid`)
+macht den Import wiederholbar: ein bekannter Termin wird aktualisiert, nicht
+doppelt angelegt; Projekt, Task und URL bleiben dabei stehen. Unterstützt
+sind `DAILY`- und `WEEKLY`-Regeln samt `EXDATE`; andere Regeln (z. B.
+`MONTHLY`) kommen als Einzeltermin zum ersten Datum, `RECURRENCE-ID`-
+Ausnahmen werden übersprungen, in der ICS fehlende Termine nicht gelöscht.
+Ein Termin im Papierkorb wird nicht wiederbelebt (`skipped`, Notiz „im
+Papierkorb“). Die Antwort nennt `created`, `updated`, `skipped`,
+`unsupported_rules` und `notes`.
 
 ------------------------------------------------------------------------
 
@@ -102,9 +115,16 @@ Tasks können Ressourcen besitzen.
 In der WebUI sind Titel, Beschreibung, Priorität, Projekt, Fälligkeit,
 geplanter Tag, Uhrzeit und Schätzung bearbeitbar.
 
-Eine Task, an der (oder an deren Subtasks) Zeiteinträge hängen, lässt
-sich nicht löschen (409), weil die Einträge sonst mitgelöscht würden.
-Stattdessen wird sie abgebrochen (`CANCELLED`).
+**Papierkorb:** Löschen einer Task (samt Teilaufgaben), eines Termins oder
+eines Habits legt es in den Papierkorb (`DELETE` → 204, `POST …/restore`,
+`GET /api/trash`); die WebUI löscht ohne Rückfrage und zeigt dafür ein
+Rückgängig-Toast, die Ansicht „Papierkorb“ stellt wieder her oder löscht
+endgültig (`?permanent=true`, mit Rückfrage). Läuft ein Timer auf der Task,
+lässt sie sich nicht löschen (409, erst pausieren). Eine Task, an der (oder
+an deren Subtasks) Zeiteinträge hängen, lässt sich nicht endgültig löschen
+(409), weil die Einträge sonst mitgelöscht würden; stattdessen wird sie
+abgebrochen (`CANCELLED`). Die erfasste Zeit einer Task im Papierkorb zählt
+in den Summen weiter. Projekte werden weiterhin hart gelöscht.
 
 ------------------------------------------------------------------------
 
@@ -219,6 +239,12 @@ Ein Projekt kann besitzen:
 -   URLs
 -   Dokumentreferenzen
 
+`local_path` muss ein absoluter Pfad (oder `~/…`) sein und existieren; das
+Backend prüft das beim Anlegen und beim Ändern des Pfads. Jedes Projekt hat
+eine Farbe aus einer festen Palette (`color`); die WebUI zeigt sie überall
+und bietet sie im Projektdialog zur Auswahl an, ein neues Projekt bekommt die
+am wenigsten benutzte.
+
 Ein Projekt mit direkten Zeiteinträgen lässt sich nicht löschen (409);
 stattdessen wird es archiviert. Beim Löschen eines Projekts bleiben
 seine Tasks erhalten (ohne Projekt).
@@ -309,7 +335,10 @@ TODAY
 
 # 7. Tagesplanung
 
-Der Nutzer kann Tasks in den Tag ziehen.
+Der Nutzer kann Tasks in den Tag ziehen: in der Today-Ansicht aus der
+Aufgabenliste in den Tagesplan (überlappende Blöcke stehen nebeneinander),
+im Kalender aus der Leiste „Ungeplant“. Beides lässt sich per
+Rückgängig-Toast zurücknehmen.
 
 Die Anwendung zeigt:
 
@@ -417,6 +446,17 @@ NEXT
 Activitytracker — Login reparieren
 ```
 
+Stand der Extension: Die Ansicht hat die Tabs „Heute“ und „Projekte“. „Heute“
+zeigt oben den Timer (Task und Projekt vor der Zeit; läuft er für ein anderes
+Projekt als den Workspace, mit Hinweis und Sprung dorthin), darunter die
+Agenda (Tasks des Workspace-Projekts hervorgehoben), die Ressourcen und
+weiteren offenen Tasks des Projekts und eine Schnelleingabe („30 min Sport“),
+die das Zielprojekt nennt. Dazu kommen eine Statusleiste mit Timer, Befehle
+(Task starten, Pause, Abschließen, Neue Task, Projekt und Ressource öffnen,
+Ordner mit Projekt verknüpfen) und ein URI-Handler, über den die WebUI
+„In VSCodium starten“ auslöst (`/start?task=…`, `/open?project=…`).
+Statistik und Rückblick stehen nur in der WebUI.
+
 ------------------------------------------------------------------------
 
 # 10. Workspace-Erkennung
@@ -472,10 +512,12 @@ Der MVP benötigt:
 ### WebUI
 
 -   Today
--   Calendar
--   Tasks
+-   Calendar (mit ICS-Import)
+-   Tasks (Suche, Gruppierung, Tastenkürzel)
 -   Habits
 -   Projects
+-   Wochenrückblick (`/review`)
+-   Papierkorb (`/trash`) und Rückgängig-Toast
 
 ### Extension
 
@@ -486,6 +528,7 @@ Der MVP benötigt:
 -   Timer
 -   Workspace-Erkennung
 -   Ressourcen öffnen
+-   Statusleiste, Befehle, URI-Handler
 
 Der MVP entspricht den Phasen 0–5 in `05_ROADMAP.md`.
 
@@ -504,5 +547,5 @@ Zunächst nicht bauen:
 -   KI-Agent
 -   Social Features
 -   Habit-Gamification
--   Review-Dashboard (kommt in Phase 7)
--   automatische Aktivitätserkennung (kommt in Phase 6)
+-   Review-Dashboard über den Wochenrückblick hinaus (der Rückblick selbst ist gebaut, Phase 7)
+-   automatische Aktivitätserkennung (nur als Rückfrage bei Inaktivität gebaut, Phase 6)

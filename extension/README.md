@@ -11,16 +11,22 @@ Die Extension speichert keine Produktdaten; das Backend ist die Source of Truth.
 - **Live:** `/ws` ist ab dem Start offen, auch bei verborgener Ansicht (die
   Statusleiste braucht den Stand). Jedes Ereignis, Verbinden und Trennen lädt
   Projekte und `/api/today` neu. Ohne Verbindung zeigt die Ansicht „Backend:
-  offline“; die Extension verbindet alle 2 s neu. Ein Ordnerwechsel im
+  offline“; die Extension verbindet nach 2 s neu und wartet bei weiterem
+  Misserfolg länger (bis 15 s). Ein Ordnerwechsel im
   Workspace erkennt das Projekt neu.
 - **Statusleiste:** `$(clock) 0:32 · Task` bei laufendem Timer (Laufzeit aus dem
   Startzeitstempel des Backends), sonst `$(play) Kairo`. Ein Klick öffnet ein
   Menü (Pause, Fertig, Task wechseln, Kairo öffnen).
-- **Tabs:** „Jetzt“ (Projekt mit Ressourcen und offenen Tasks, Timer, Kennzahlen,
-  Zeile „Diese Woche“ mit Link „Rückblick“, der `<kairo.backendUrl>/review` im
-  Browser öffnet), „Heute“ und „Projekte“. Die Tabs „Stats“ und „Dokumente“ gibt
-  es nicht mehr; Rückblick und Statistik stehen in der WebUI, die Einstellung
-  `kairo.documentsFolder` entfällt.
+- **Tabs:** „Heute“ und „Projekte“ (Pfeiltasten wechseln). „Heute“ zeigt oben den
+  Timer mit Task und Projekt vor der Zeit; läuft er für ein anderes Projekt als
+  den erkannten Workspace, steht darüber „Timer läuft für X, du bist in Y“ mit
+  Sprung zum Ordner von X. Darunter die Agenda der heutigen Tasks (die des
+  Workspace-Projekts hervorgehoben und zuerst), die Ressourcen und weiteren
+  offenen Tasks des Projekts, die Schnelleingabe („30 min Sport“, das Label nennt
+  das Zielprojekt), die Kennzahlen Erfasst/Geplant/Offen und die Zeile „Diese
+  Woche“ mit Link „Rückblick“, der `<kairo.backendUrl>/review` im Browser öffnet.
+  Die Tabs „Jetzt“, „Stats“ und „Dokumente“ gibt es nicht mehr; Rückblick und
+  Statistik stehen in der WebUI, die Einstellung `kairo.documentsFolder` entfällt.
 - **Befehle:** Kairo: Task starten …, Timer pausieren, Task abschließen, Neue
   Task …, Projekt öffnen …, Ressource öffnen …, Diesen Ordner mit Projekt
   verknüpfen. „Ressource öffnen …“ durchsucht die Ressourcen aller Projekte und
