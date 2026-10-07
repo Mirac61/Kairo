@@ -5,6 +5,7 @@ import {
   type Task, type TimeEntry, type Today,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { useUndo } from '@/composables/useUndo'
 import { daysAgo, ymd } from '@/lib/dates'
 import { projectColor } from '@/lib/projectColor'
 import TaskActions from '@/components/TaskActions.vue'
@@ -16,6 +17,7 @@ const END_H = 22
 const HOUR = 44
 const SPAN = (END_H - START_H) * 60
 
+const { offer } = useUndo()
 const today = ref<Today | null>(null)
 const error = ref('')
 const now = ref(Date.now())
@@ -164,7 +166,19 @@ const taskTitleClass = (t: Task) => ({ done: t.status === 'COMPLETED' })
 function moveTo(t: Task, days: number) {
   const d = new Date(`${today.value!.date}T12:00:00Z`)
   d.setUTCDate(d.getUTCDate() + days)
-  void run(() => updateTask(t.id, { planned_date: d.toISOString().slice(0, 10), planned_start_at: '' }))
+  const { id, title, planned_date, planned_start_at } = t
+  void run(async () => {
+    await updateTask(id, { planned_date: d.toISOString().slice(0, 10), planned_start_at: '' })
+    offer(`„${title}“ verschoben`, () => run(() => updateTask(id, { planned_date: planned_date ?? '', planned_start_at: planned_start_at ?? '' })))
+  })
+}
+
+function removeEntry(e: TimeEntry) {
+  const { task_id, started_at, ended_at } = e
+  void run(async () => {
+    await deleteTimeEntry(e.id)
+    if (task_id && ended_at) offer('Zeiteintrag gelöscht', () => run(() => createTimeEntry({ task_id, started_at, ended_at })))
+  })
 }
 
 const entryLabel = (e: TimeEntry) =>
@@ -282,7 +296,7 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
               <span class="due">–</span>
               <input v-if="e.ended_at" class="input te-time" type="time" :value="hhmm(e.ended_at)" aria-label="Ende" @change="setTime(e, 'ended_at', ($event.target as HTMLInputElement).value)" />
               <span v-else class="due te-time">läuft</span>
-              <DeleteButton v-if="e.ended_at" text="Zeiteintrag löschen?" @confirm="run(() => deleteTimeEntry(e.id))" />
+              <DeleteButton v-if="e.ended_at" text="Zeiteintrag löschen?" @confirm="removeEntry(e)" />
             </div>
           </div>
           <details class="manual">

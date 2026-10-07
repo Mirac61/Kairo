@@ -223,9 +223,11 @@ export const updateEvent = (id: string, body: EventBody) =>
   api<unknown>(`/calendar/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
 // Lässt eine Instanz der Serie aus; PATCH ersetzt die Liste, daher erst die bisherigen Ausnahmen lesen.
+// Liefert die bisherige Liste (für Rückgängig).
 export async function skipOccurrence(id: string, day: string) {
   const e = await api<{ recurrence_exdates: string[] }>(`/calendar/events/${id}`)
-  return updateEvent(id, { recurrence_exdates: [...e.recurrence_exdates, day] })
+  await updateEvent(id, { recurrence_exdates: [...e.recurrence_exdates, day] })
+  return e.recurrence_exdates
 }
 
 export interface Review {

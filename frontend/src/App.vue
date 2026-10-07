@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import ConfirmPopup from 'primevue/confirmpopup'
 import { navItems } from '@/router'
+import UndoToast from '@/components/UndoToast.vue'
 import { useBackendStatus } from '@/composables/useBackendStatus'
 
 const { online, version } = useBackendStatus()
@@ -59,5 +60,6 @@ function toggleTheme() {
     </aside>
     <main class="content"><RouterView /></main>
     <ConfirmPopup />
+    <UndoToast />
   </div>
 </template>

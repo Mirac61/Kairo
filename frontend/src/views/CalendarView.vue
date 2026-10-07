@@ -14,6 +14,7 @@ import {
   type CalendarEvent, type EventBody, type Project, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { useUndo } from '@/composables/useUndo'
 import { hhmm, ymd } from '@/lib/dates'
 import { projectColor } from '@/lib/projectColor'
 
@@ -28,6 +29,7 @@ const atMidnight = (d: Date) => d.getHours() === 0 && d.getMinutes() === 0
 const isAllDay = (start: Date, end: Date) => atMidnight(start) && atMidnight(end) && end.getTime() - start.getTime() >= 23 * 3_600_000
 
 const router = useRouter()
+const { offer } = useUndo()
 const cal = ref<InstanceType<typeof FullCalendar>>()
 const error = ref('')
 const notice = ref<{ text: string; notes: string[] } | null>(null)
@@ -65,7 +67,7 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
       allDay: !start,
       classNames: ['kt-task', ...(done ? ['kt-done'] : [])],
       editable: !done,
-      extendedProps: { kind: 'task', id: t.id, color: t.project_id ? projectColor(t.project_id) : undefined },
+      extendedProps: { kind: 'task', id: t.id, est: t.estimated_minutes, color: t.project_id ? projectColor(t.project_id) : undefined },
     })
   }
   return entries
@@ -84,20 +86,29 @@ async function guarded(fn: () => Promise<unknown>, revert?: () => void) {
 
 function moved(info: EventDropArg | EventResizeDoneArg, resized: boolean) {
   const { event } = info
-  const { kind, id } = event.extendedProps as { kind: string; id: string }
+  const { kind, id, ev, est } = event.extendedProps as { kind: string; id: string; ev: CalendarEvent; est: number }
   const start = event.start
-  if (!start) return info.revert()
+  const old = info.oldEvent
+  if (!start || !old.start) return info.revert()
+  const label = `„${event.title}“ ${resized ? 'angepasst' : 'verschoben'}`
   if (kind === 'task') {
-    void guarded(() => {
+    const before: Record<string, unknown> = { planned_date: ymd(old.start), planned_start_at: old.allDay ? '' : old.start.toISOString() }
+    if (resized) before.estimated_minutes = est
+    void guarded(async () => {
       const body: Record<string, unknown> = { planned_date: ymd(start), planned_start_at: event.allDay ? '' : start.toISOString() }
       if (resized && event.end) body.estimated_minutes = Math.round((event.end.getTime() - start.getTime()) / 60_000)
-      return updateTask(id, body)
+      await updateTask(id, body)
+      offer(label, () => guarded(() => updateTask(id, before)))
     }, info.revert)
   } else {
     // Ganztägige Termine liefern evtl. kein Ende: dann genau ein Tag.
     const end = event.end ?? (event.allDay ? nextDay(start) : null)
     if (!end) return info.revert()
-    void guarded(() => updateEvent(id, { start_at: start.toISOString(), end_at: end.toISOString() }), info.revert)
+    const before = { start_at: ev.start_at, end_at: ev.end_at }
+    void guarded(async () => {
+      await updateEvent(id, { start_at: start.toISOString(), end_at: end.toISOString() })
+      offer(label, () => guarded(() => updateEvent(id, before)))
+    }, info.revert)
   }
 }
 
@@ -201,8 +212,12 @@ function remove(onlyThis: boolean) {
   const f = form.value
   form.value = null
   if (!f?.id) return
-  const { id, day } = f
-  void guarded(() => (onlyThis ? skipOccurrence(id, day) : deleteEvent(id)))
+  const { id, day, title } = f
+  void guarded(async () => {
+    if (!onlyThis) return deleteEvent(id)
+    const before = await skipOccurrence(id, day)
+    offer(`„${title}“ gelöscht`, () => guarded(() => updateEvent(id, { recurrence_exdates: before })))
+  })
 }
 
 // Eigene Toolbar steuert FullCalendar über die API.
@@ -304,7 +319,11 @@ const options: CalendarOptions = {
     // Uhrzeit nur bei einem Drop ins Zeitraster; in Monat und Ganztag zählt der Tag.
     const body: Record<string, unknown> = { planned_date: ymd(a.date) }
     if (!a.allDay) body.planned_start_at = a.date.toISOString()
-    void guarded(() => updateTask(id, body))
+    const title = unplanned.value.find((t) => t.id === id)?.title
+    void guarded(async () => {
+      await updateTask(id, body)
+      offer(`„${title}“ geplant`, () => guarded(() => updateTask(id, { planned_date: '', planned_start_at: '' })))
+    })
   },
 }
 

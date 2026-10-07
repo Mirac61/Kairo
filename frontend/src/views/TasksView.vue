@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  createTask, deleteTask, errorMessage, listProjects, listResources, listTasks, taskAction, updateTask,
+  createTask, deleteTask, errorMessage, listProjects, listResources, listTasks, updateTask,
   type Project, type Resource, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
+import { useUndo } from '@/composables/useUndo'
 import { hhmm, ymd } from '@/lib/dates'
 import { projectColor } from '@/lib/projectColor'
 import DeleteButton from '@/components/DeleteButton.vue'
@@ -36,6 +37,8 @@ const projectId = ref('alle')
 const openId = ref<string | null>(null)
 const quick = ref('')
 const subTitle = ref('')
+
+const { setDone } = useUndo()
 
 const projectName = computed(() => new Map(projects.value.map((p) => [p.id, p.name])))
 const isOpen = (t: Task) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
@@ -110,7 +113,7 @@ function addSub(t: Task) {
 }
 
 const toggle = (t: Task) =>
-  run(() => (t.status === 'COMPLETED' ? updateTask(t.id, { status: t.planned_date ? 'PLANNED' : 'BACKLOG' }) : taskAction(t.id, 'complete')))
+  t.status === 'COMPLETED' ? run(() => updateTask(t.id, { status: t.planned_date ? 'PLANNED' : 'BACKLOG' })) : setDone(t, 'COMPLETED', run)
 
 // Mittel ist der Standard und bleibt in der Zeile unbeschriftet.
 const prio = (t: Task) => (t.priority === 'MEDIUM' ? undefined : PRIO[t.priority])
@@ -134,6 +137,7 @@ function setTime(t: Task, time: string) {
 const setEstimate = (t: Task, value: string) => void run(() => updateTask(t.id, { estimated_minutes: Number(value) || 0 }))
 const setField = (t: Task, field: 'title' | 'description' | 'priority' | 'project_id' | 'status', value: string) => {
   if (field === 'title' && !value.trim()) return
+  if (field === 'status' && value === 'CANCELLED') return setDone(t, 'CANCELLED', run)
   void run(() => updateTask(t.id, { [field]: value }))
 }
 // Fälligkeit als Tag; gespeichert wird das Ende dieses Tages in Ortszeit.
