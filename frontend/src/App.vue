@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import ConfirmPopup from 'primevue/confirmpopup'
 import { navItems } from '@/router'
@@ -28,6 +28,15 @@ function onKey(e: KeyboardEvent) {
 }
 onMounted(() => { window.addEventListener('keydown', onKey); void loadSidebar() })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+
+// Seitenleiste einklappen: nur Symbole, damit die Ansicht mehr Platz bekommt.
+const mini = ref(store.get('kairo-sidebar') === 'mini')
+function toggleSidebar() {
+  mini.value = !mini.value
+  store.set('kairo-sidebar', mini.value ? 'mini' : 'full')
+  // Der Kalender misst sich nur bei Fenster-Resize neu.
+  void nextTick(() => window.dispatchEvent(new Event('resize')))
+}
 
 // Theme: gespeicherte Wahl, sonst Systemeinstellung (siehe main.ts).
 const dark = ref(document.documentElement.dataset.theme !== 'light')
@@ -67,13 +76,13 @@ function toggleTheme() {
   </defs>
 </svg>
   <div class="app">
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ mini }">
       <div class="logo"><span class="logo-mark" aria-hidden="true">K</span>Kairo</div>
       <button type="button" class="sb-new" aria-keyshortcuts="Meta+K Control+K" @click="newEntry">
         <svg class="ic"><use href="#i-plus" /></svg><span class="sb-new-l">Neu …</span><kbd class="key" aria-hidden="true">⌘K</kbd>
       </button>
       <nav aria-label="Hauptnavigation">
-        <RouterLink v-for="item in navItems" :key="item.path" :to="item.path" class="nav-item">
+        <RouterLink v-for="item in navItems" :key="item.path" :to="item.path" class="nav-item" :aria-label="mini ? item.label : undefined" :data-tip="mini ? item.label : undefined">
           <svg class="ic"><use :href="`#i-${item.icon}`" /></svg><span class="nav-l">{{ item.label }}</span>
           <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
         </RouterLink>
@@ -90,9 +99,15 @@ function toggleTheme() {
           <span class="status-dot" />
           <span>{{ online ? `Verbunden${version ? ` (${version})` : ''}` : 'Getrennt' }}</span>
         </div>
-        <button class="icon-btn" aria-label="Theme wechseln" data-tip="Theme wechseln" @click="toggleTheme">
-          <svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg>
-        </button>
+        <div class="sb-btns">
+          <button class="icon-btn" aria-label="Theme wechseln" data-tip="Theme wechseln" @click="toggleTheme">
+            <svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg>
+          </button>
+          <button
+            class="icon-btn sb-toggle" :aria-expanded="!mini" :aria-label="mini ? 'Seitenleiste ausklappen' : 'Seitenleiste einklappen'"
+            :data-tip="mini ? 'Ausklappen' : 'Einklappen'" @click="toggleSidebar"
+          ><svg class="ic"><use :href="mini ? '#i-right' : '#i-left'" /></svg></button>
+        </div>
       </div>
     </aside>
     <main class="content"><RouterView /></main>
