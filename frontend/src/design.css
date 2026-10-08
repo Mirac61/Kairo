@@ -165,6 +165,15 @@ svg.ic{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;str
 .status.off{color:var(--a-red)}
 .status-dot{width:6px;height:6px;border-radius:50%;background:var(--a-run);flex:none}
 .status.off .status-dot{background:var(--a-red)}
+.sb-btns{display:flex;align-items:center;gap:2px}
+/* Eingeklappt (Knopf in der Fußzeile) wie bei schmalem Fenster: nur Symbole. */
+.sidebar.mini{width:64px;padding:16px 8px 12px}
+.sidebar.mini .logo{font-size:0;justify-content:center;padding:0;margin-bottom:12px}
+.sidebar.mini :is(.nav-l,.nav-n,.sb-new-l,.sb-new .key,.pins,.status span:not(.status-dot)){display:none}
+.sidebar.mini .sb-new{justify-content:center;padding:0}
+.sidebar.mini .nav-item{justify-content:center;padding:10px 0}
+.sidebar.mini :is(.sidebar-footer,.sb-btns){flex-direction:column;gap:10px;align-items:center}
+.sidebar.mini .sidebar-footer{height:auto;padding:10px 0 0}
 
 .content{flex:1;min-width:0;overflow-y:auto;overflow-x:hidden}
 .view-inner{max-width:1100px;margin:0 auto;padding:32px 32px 64px}
@@ -563,10 +572,11 @@ select.input{
 @media (max-width:960px){
   .sidebar{width:64px;padding:16px 8px 12px}
   .logo{font-size:0;justify-content:center;padding:0;margin-bottom:12px}
-  .nav-l,.nav-n,.sb-new-l,.sb-new .key,.pins,.status span{display:none}
+  .nav-l,.nav-n,.sb-new-l,.sb-new .key,.pins,.status span:not(.status-dot){display:none}
   .sb-new{justify-content:center;padding:0}
   .nav-item{justify-content:center;padding:10px 0}
   .sidebar-footer{flex-direction:column;gap:10px;align-items:center}
+  .sb-toggle{display:none}
   .start-grid{grid-template-columns:1fr;gap:32px}
 }
 @media (max-width:640px){
