@@ -29,8 +29,8 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => { window.addEventListener('keydown', onKey); void loadSidebar() })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
-// Seitenleiste einklappen: nur Symbole, damit die Ansicht mehr Platz bekommt.
-const mini = ref(store.get('kairo-sidebar') === 'mini')
+// Seitenleiste einklappen: nur Symbole, damit die Ansicht mehr Platz bekommt. Ohne gespeicherte Wahl startet sie im schmalen Fenster eingeklappt.
+const mini = ref((store.get('kairo-sidebar') ?? (matchMedia('(max-width:960px)').matches ? 'mini' : 'full')) === 'mini')
 function toggleSidebar() {
   mini.value = !mini.value
   store.set('kairo-sidebar', mini.value ? 'mini' : 'full')
@@ -77,7 +77,7 @@ function toggleTheme() {
 </svg>
   <div class="app">
     <aside class="sidebar" :class="{ mini }">
-      <div class="logo"><span class="logo-mark" aria-hidden="true">K</span>Kairo</div>
+      <div class="logo" role="img" aria-label="Kairo"><span class="logo-word" aria-hidden="true">K<i class="lw-a"></i>IR<i class="lw-o"></i></span><span class="logo-mark" aria-hidden="true"><i></i></span></div>
       <button type="button" class="sb-new" aria-keyshortcuts="Meta+K Control+K" @click="newEntry">
         <svg class="ic"><use href="#i-plus" /></svg><span class="sb-new-l">Neu …</span><kbd class="key" aria-hidden="true">⌘K</kbd>
       </button>
