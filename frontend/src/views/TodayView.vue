@@ -74,10 +74,22 @@ const dateLabel = computed(() =>
 const nowMin = computed(() => minsOf(now.value))
 const runEntry = computed(() => today.value?.running_time_entry ?? null)
 const runningTaskId = computed(() => runEntry.value?.task_id ?? null)
-const elapsed = computed(() => {
+// Zuletzt pausierte Task von heute: bleibt in der Karte, damit man sie fortsetzen kann.
+const pausedTask = computed(() => {
+  if (runEntry.value) return undefined
+  const e = [...entries.value].reverse().find((x) => x.task_id && tasksById.value.get(x.task_id)?.status === 'PAUSED')
+  return e ? tasksById.value.get(e.task_id!) : undefined
+})
+// Heute schon abgeschlossene Zeit der Task, damit der Timer nach Pause und Fortsetzen weiterzählt.
+const doneSecs = (id: string) =>
+  entries.value.reduce((s, e) => (e.task_id === id && e.ended_at ? s + (Date.parse(e.ended_at) - Date.parse(e.started_at)) / 1000 : s), 0)
+const runSecs = computed(() => {
   const e = runEntry.value
-  if (!e) return ''
-  const s = Math.max(0, Math.floor((now.value - Date.parse(e.started_at)) / 1000))
+  if (e) return (e.task_id ? doneSecs(e.task_id) : 0) + Math.max(0, (now.value - Date.parse(e.started_at)) / 1000)
+  return pausedTask.value ? doneSecs(pausedTask.value.id) : 0
+})
+const elapsed = computed(() => {
+  const s = Math.floor(runSecs.value)
   const p = (n: number) => String(n).padStart(2, '0')
   return `${Math.floor(s / 3600)}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`
 })
@@ -112,12 +124,13 @@ const nextEvent = computed(() => upcoming.value.find((b) => b.start > nowMin.val
 
 const openTasks = computed(() => (today.value?.tasks ?? []).filter(isOpen))
 const runningTask = computed(() => (runningTaskId.value ? tasksById.value.get(runningTaskId.value) : undefined))
-const runProject = computed(() => runningTask.value?.project_id ?? runEntry.value?.project_id ?? null)
-const runGoal = computed(() => runningTask.value?.estimated_minutes || 0)
-const runPct = computed(() => (runGoal.value && runEntry.value ? Math.min(100, ((now.value - Date.parse(runEntry.value.started_at)) / 60_000 / runGoal.value) * 100) : 0))
+const cardTask = computed(() => runningTask.value ?? pausedTask.value)
+const runProject = computed(() => cardTask.value?.project_id ?? runEntry.value?.project_id ?? null)
+const runGoal = computed(() => cardTask.value?.estimated_minutes || 0)
+const runPct = computed(() => (runGoal.value ? Math.min(100, (runSecs.value / 60 / runGoal.value) * 100) : 0))
 
 // „Als Nächstes“: die nächste offene Aufgabe (das Backend sortiert nach Uhrzeit), oder ein Termin, der vorher beginnt.
-const queue = computed(() => openTasks.value.filter((t) => t.id !== runningTaskId.value))
+const queue = computed(() => openTasks.value.filter((t) => t.id !== cardTask.value?.id))
 const lead = (start: number | null) => (start === null ? '' : start > nowMin.value ? `in ${dur(start - nowMin.value)}` : `geplant ${hm(start)}`)
 const nextItem = computed(() => {
   const t = queue.value[0]
@@ -289,19 +302,20 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 
       <div class="st-cards">
         <section class="st-card" aria-label="Läuft">
-          <template v-if="runEntry">
-            <div class="st-top"><span class="st-lbl"><i class="run-dot"></i>Läuft</span><span v-if="runGoal" class="st-aside">Ziel {{ hm(runGoal) }}</span></div>
+          <template v-if="runEntry || pausedTask">
+            <div class="st-top"><span class="st-lbl"><i class="run-dot" :class="{ off: !runEntry }"></i>{{ runEntry ? 'Läuft' : 'Pausiert' }}</span><span v-if="runGoal" class="st-aside">Ziel {{ hm(runGoal) }}</span></div>
             <div class="st-run">
               <div class="st-main">
-                <div class="st-t">{{ runningTask?.title ?? entryLabel(runEntry) }}</div>
-                <div class="st-meta"><span class="chip" :style="{ '--chip-c': projectColor(runProject) }"><span class="cdot"></span>{{ projectNames.get(runProject ?? '') ?? 'Ohne Projekt' }} · seit {{ fmt(runEntry.started_at) }}</span></div>
+                <div class="st-t">{{ cardTask?.title ?? entryLabel(runEntry!) }}</div>
+                <div class="st-meta"><span class="chip" :style="{ '--chip-c': projectColor(runProject) }"><span class="cdot"></span>{{ projectNames.get(runProject ?? '') ?? 'Ohne Projekt' }}<template v-if="runEntry"> · seit {{ fmt(runEntry.started_at) }}</template></span></div>
               </div>
               <span class="st-timer mono">{{ elapsed }}</span>
             </div>
             <div v-if="runGoal" class="st-bar" aria-hidden="true"><i :style="{ width: runPct + '%', background: projectColor(runProject) }"></i></div>
-            <div v-if="runningTask" class="st-btns">
-              <button type="button" class="btn btn-secondary" @click="run(() => taskAction(runningTask!.id, 'pause'))">Pause</button>
-              <button type="button" class="btn btn-secondary" @click="setDone(runningTask!, 'COMPLETED', run)">Fertig</button>
+            <div v-if="cardTask" class="st-btns">
+              <button v-if="runningTask" type="button" class="btn btn-secondary" @click="run(() => taskAction(runningTask!.id, 'pause'))">Pause</button>
+              <button v-else type="button" class="btn btn-primary" @click="run(() => taskAction(cardTask!.id, 'start'))">Fortsetzen</button>
+              <button type="button" class="btn btn-secondary" @click="setDone(cardTask!, 'COMPLETED', run)">Fertig</button>
             </div>
           </template>
           <template v-else>
