@@ -66,16 +66,17 @@ Die Extension speichert keine Produktdaten; das Backend ist die Source of Truth.
   `/ws` senden das Token aus `~/.config/kairo/token`; ohne Token lehnt das
   Backend sie ab.
 - Laufzeit-Abhängigkeit `ws`: VSCodium bringt kein globales `WebSocket` mit.
-  Für ein `.vsix` muss `node_modules` mit verpackt werden.
+  Für ein `.vsix` muss `node_modules` mit verpackt werden; deshalb installiert
+  pnpm hier flach (`nodeLinker: hoisted` in `pnpm-workspace.yaml`).
 
 ## Test
 
-    npm test
+    pnpm test
 
 ## Bauen
 
-    npm install
-    npm run compile
+    pnpm install
+    pnpm compile
 
 ## Starten
 
@@ -85,6 +86,6 @@ Den Ordner `extension/` in VSCodium öffnen und F5 drücken
 
 ## Verpacken (später)
 
-    npx @vscode/vsce package
+    pnpm package
 
 Die entstehende `.vsix` lässt sich dann manuell in VSCodium installieren.

@@ -457,7 +457,7 @@ README, die Einstellung `kairo.documentsFolder` ist das einzige Indiz.
 | **Fokusmodus/Pomodoro** im Editor. | niedrig | Scope Creep: es gibt gute Tools, und es verwässert „echte Zeitstempel“ nicht, bringt aber nichts zur Brücke. |
 | **KI-Tagesplanung** aus Freitext („Heute AlgoDat, Testing, Activitytracker“). | potenziell hoch | Langfristziel laut Handoff. Jetzt **Scope Creep**, solange die manuelle Planung keine Drag-Geste hat. |
 | **Mobile Ansicht** (nur lesend: heute, Habits abhaken). | mittel | Nicht-MVP laut Doku. Über eine responsive WebUI im lokalen Netz wäre es fast gratis, verletzt aber das Sicherheitsmodell (nur localhost). Bewusst entscheiden. |
-| Notizen pro Task/Projekt (Markdown). | mittel | **Scope Creep.** Lieber eine Markdown-Datei im Projektordner als Ressource anheften. |
+| Notizen pro Task/Projekt (Markdown). | mittel | **Scope Creep.** Lieber eine Markdown-Datei im Projektordner als Ressource anheften. Später bewusst anders entschieden: Bereich „Notizen“ als Dateiordner (`KAIRO_NOTES_DIR`), nicht in SQLite und nicht pro Task. |
 
 ---
 

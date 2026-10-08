@@ -17,6 +17,7 @@ import (
 	"kairo/internal/api"
 	"kairo/internal/config"
 	"kairo/internal/launchd"
+	"kairo/internal/notes"
 	"kairo/internal/realtime"
 	"kairo/internal/repository"
 	"kairo/internal/service"
@@ -114,6 +115,12 @@ func run() error {
 	}
 	defer db.Close()
 
+	notesStore, err := notes.Open(cfg.NotesDir)
+	if err != nil {
+		return err
+	}
+	defer notesStore.Close()
+
 	hub := realtime.NewHub()
 	tasks := service.NewTaskService(repository.NewTaskRepository(db), nil)
 	calendar := service.NewCalendarService(repository.NewCalendarRepository(db), cfg.Location, nil)
@@ -132,6 +139,7 @@ func run() error {
 		Time:      timeTracking,
 		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil).WithWorkWindow(cfg.WorkStart, cfg.WorkEnd),
 		Review:    service.NewReviewService(tasks, projects, habits, calendar, timeTracking, cfg.Location, nil),
+		Notes:     notesStore,
 		Hub:       hub,
 	}
 
@@ -147,7 +155,7 @@ func run() error {
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
 	log.Info("Kairo gestartet", "url", "http://"+config.BindHost+":"+strconv.Itoa(cfg.Port),
-		"version", version, "db", cfg.DBPath, "timezone", cfg.Location.String())
+		"version", version, "db", cfg.DBPath, "notes", cfg.NotesDir, "timezone", cfg.Location.String())
 
 	select {
 	case err := <-errCh:

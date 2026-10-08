@@ -5,6 +5,7 @@
   "publisher": "kairo-local",
   "version": "0.0.1",
   "private": true,
+  "packageManager": "pnpm@12.9.1",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -126,7 +127,8 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "tsc -p ./ && node out/core.test.js"
+    "test": "tsc -p ./ && node out/core.test.js",
+    "package": "tsc -p ./ && pnpm dlx @vscode/vsce package"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

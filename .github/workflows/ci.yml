@@ -27,15 +27,18 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npm run type-check
-      - run: npm test
-      - run: npm run build
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm type-check
+      - run: pnpm test
+      - run: pnpm build
 
   extension:
     runs-on: ubuntu-latest
@@ -44,12 +47,15 @@ jobs:
         working-directory: extension
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: extension/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: extension/package-lock.json
+          cache: pnpm
+          cache-dependency-path: extension/pnpm-lock.yaml
       - run: cmp ../frontend/src/lib/quickAdd.ts src/quickAdd.ts
-      - run: npm ci
-      - run: npm run compile
-      - run: npm test
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm compile
+      - run: pnpm test

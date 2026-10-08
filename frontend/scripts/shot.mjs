@@ -1,8 +1,8 @@
 // Screenshot einer Ansicht mit Mock-Daten, um UI-Änderungen anzusehen statt nur zu bauen.
-//   npm run dev            (in einem zweiten Terminal)
-//   npm run shot -- --view day --theme light --size 1280x800
-//   npm run shot -- --route tasks|habits|projects|review|trash
-//   npm run shot -- --view work --time 10:30       (Uhrzeit festsetzen: Jetzt-Linie und Scrollposition des Kalenders)
+//   pnpm dev               (in einem zweiten Terminal)
+//   pnpm shot --view day --theme light --size 1280x800
+//   pnpm shot --route tasks|habits|projects|review|trash|notes
+//   pnpm shot --view work --time 10:30       (Uhrzeit festsetzen: Jetzt-Linie und Scrollposition des Kalenders)
 // Kalender-Ansichten: week (Mo–So), work (Mo–Fr), day, month. Ergebnis: frontend/.shots/<view|route>-<theme>.png
 // Das Backend wird nur für nicht gemockte Pfade gebraucht (z. B. /api/health); die Kalenderdaten stammen aus diesem Skript.
 import { mkdirSync } from 'node:fs'
@@ -12,7 +12,7 @@ import { chromium } from 'playwright'
 const { values: o } = parseArgs({
   options: {
     view: { type: 'string', default: 'week' },
-    route: { type: 'string', default: 'calendar' }, // calendar | tasks | habits | projects | review | trash
+    route: { type: 'string', default: 'calendar' }, // calendar | tasks | habits | projects | review | trash | notes
     theme: { type: 'string', default: 'dark' },
     size: { type: 'string', default: '1555x900' },
     aside: { type: 'string', default: 'open' }, // „Ungeplant“-Spalte: open | closed
@@ -89,6 +89,35 @@ const trash = () => ({
   events: [{ id: 'x3', title: 'Mensa mit Jonas', start_at: at(0, '12:15'), recurrence_rule: null, deleted_at: iso(-5, '11:10') }],
   habits: [{ ...habits[3], id: 'x4', name: 'alte Gewohnheit', deleted_at: iso(-20, '20:02') }],
 })
+// --- Mock-Daten für Notizen (uni/ ist aufgeklappt, uni/Software Engineering.md geöffnet)
+const noteTree = [
+  { name: 'projekte', path: 'projekte', dir: true, children: [{ name: 'kairo.md', path: 'projekte/kairo.md', dir: false }] },
+  { name: 'uni', path: 'uni', dir: true, children: [
+    { name: 'Datenbanken.md', path: 'uni/Datenbanken.md', dir: false },
+    { name: 'Software Engineering.md', path: 'uni/Software Engineering.md', dir: false },
+  ] },
+  { name: 'inbox.md', path: 'inbox.md', dir: false },
+]
+const noteText = `# Software Engineering
+
+Vorlesung **Mo + Do 10:00**, H 1.02. Abgabe Übungsblatt 3 am Mittwoch.
+
+## Offene Punkte
+
+- [x] Kapitel 4 nacharbeiten
+- [ ] UML-Klassendiagramm für die Übung
+- [ ] Fragen für die Sprechstunde sammeln
+
+> Anforderungen zuerst klären, dann modellieren.
+
+| Woche | Thema |
+| --- | --- |
+| 5 | Entwurfsmuster |
+| 6 | Testen |
+
+Siehe auch [Skript](https://example.org) und \`git log --oneline\`.
+`
+const noteOf = /^\/api\/notes\/(.+)$/
 const inWindow = (key, list, from, to) => list.filter((e) => e[key[0]] >= from && e[key[1] ?? key[0]] < to)
 const mock = {
   '/api/projects': () => projects,
@@ -99,6 +128,7 @@ const mock = {
   '/api/habits': () => habits,
   '/api/review': review,
   '/api/trash': trash,
+  '/api/notes': () => noteTree,
   '/api/today': (q) => {
     const date = q.get('date') ?? day(todayIdx)
     const open = (t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
@@ -119,7 +149,7 @@ let browser
 try {
   browser = await chromium.launch()
 } catch (e) {
-  throw new Error(`Chromium fehlt: npx playwright install chromium (${e.message.split('\n')[0]})`)
+  throw new Error(`Chromium fehlt: pnpm exec playwright install chromium (${e.message.split('\n')[0]})`)
 }
 const page = await (await browser.newContext({ viewport: { width, height }, colorScheme: o.theme })).newPage()
 if (o.time) await page.clock.setFixedTime(new Date(`${day(todayIdx)}T${o.time}:00`))
@@ -128,20 +158,23 @@ await page.addInitScript(([view, theme, aside]) => {
   localStorage.setItem('kairo-cal-weekend', '1')
   localStorage.setItem('kairo-cal-unplanned', aside === 'open' ? '1' : '0')
   localStorage.setItem('kairo-theme', theme)
+  localStorage.setItem('kairo-notes-open', '["uni"]')
+  localStorage.setItem('kairo-notes-file', 'uni/Software Engineering.md')
 }, [VIEWS[o.view], o.theme, o.aside])
 await page.route('**/api/**', (route) => {
   const u = new URL(route.request().url())
   const c = completionsOf.exec(u.pathname)
-  const f = c ? () => completions(c[1]) : mock[u.pathname]
+  const n = noteOf.exec(u.pathname)
+  const f = c ? () => completions(c[1]) : n ? () => ({ path: decodeURIComponent(n[1]), content: noteText, mtime: '1' }) : mock[u.pathname]
   return f && route.request().method() === 'GET' ? route.fulfill({ json: f(u.searchParams) }) : route.continue()
 })
 try {
   await page.goto(`${base}/${o.route}`)
 } catch {
   await browser.close()
-  throw new Error(`${base} nicht erreichbar: erst „npm run dev“ starten (oder KAIRO_URL setzen)`)
+  throw new Error(`${base} nicht erreichbar: erst „pnpm dev“ starten (oder KAIRO_URL setzen)`)
 }
-await page.waitForSelector(o.route === 'calendar' ? '.fc-view' : '.view-inner')
+await page.waitForSelector({ calendar: '.fc-view', notes: '.notes' }[o.route] ?? '.view-inner')
 await page.waitForLoadState('networkidle')
 if (o.click) await page.locator(o.click).first().click()
 await page.waitForTimeout(400)

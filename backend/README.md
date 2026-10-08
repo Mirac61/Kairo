@@ -13,6 +13,7 @@ Go-Backend (stdlib `net/http`, SQLite via `modernc.org/sqlite`, ohne cgo).
 | `KAIRO_DB_PATH` | `~/.local/share/kairo/kairo.db` | SQLite-Datei |
 | `KAIRO_TIMEZONE` | Systemzone | IANA-Zeitzone, z. B. `Europe/Berlin` |
 | `KAIRO_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
+| `KAIRO_NOTES_DIR` | `~/life-os` | Wurzelordner der Notizen (Markdown-Dateien), wird beim Start angelegt |
 | `KAIRO_TOKEN_PATH` | `~/.config/kairo/token` | Token-Datei (v. a. für Tests) |
 
 Sicherheitsmodell:

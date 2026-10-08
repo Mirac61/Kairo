@@ -27,6 +27,9 @@ func TestLoadDefaults(t *testing.T) {
 	if !strings.HasSuffix(cfg.TokenPath, filepath.Join(".config", "kairo", "token")) {
 		t.Errorf("TokenPath = %s", cfg.TokenPath)
 	}
+	if filepath.Base(cfg.NotesDir) != "life-os" {
+		t.Errorf("NotesDir = %s", cfg.NotesDir)
+	}
 	if cfg.Addr() != "127.0.0.1:8742" {
 		t.Errorf("Addr = %s", cfg.Addr())
 	}
@@ -34,13 +37,13 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadValues(t *testing.T) {
 	cfg, err := Load(env(map[string]string{
-		"KAIRO_PORT": "9000", "KAIRO_DB_PATH": "/tmp/x.db", "KAIRO_TOKEN_PATH": "/tmp/t",
+		"KAIRO_PORT": "9000", "KAIRO_DB_PATH": "/tmp/x.db", "KAIRO_TOKEN_PATH": "/tmp/t", "KAIRO_NOTES_DIR": "/tmp/n",
 		"KAIRO_TIMEZONE": "Europe/Berlin", "KAIRO_LOG_LEVEL": "DEBUG",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Port != 9000 || cfg.DBPath != "/tmp/x.db" || cfg.TokenPath != "/tmp/t" ||
+	if cfg.Port != 9000 || cfg.DBPath != "/tmp/x.db" || cfg.TokenPath != "/tmp/t" || cfg.NotesDir != "/tmp/n" ||
 		cfg.Location.String() != "Europe/Berlin" || cfg.LogLevel != slog.LevelDebug {
 		t.Errorf("unerwartet: %+v", cfg)
 	}

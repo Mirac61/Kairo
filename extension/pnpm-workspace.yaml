@@ -1,0 +1,2 @@
+# Flaches node_modules wie bei npm: vsce findet die Laufzeit-Abhängigkeit ws sonst nicht für die .vsix.
+nodeLinker: hoisted
