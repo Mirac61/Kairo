@@ -20,8 +20,10 @@ type Config struct {
 	Port      int
 	DBPath    string
 	TokenPath string
-	Location  *time.Location
-	LogLevel  slog.Level
+	// NotesDir ist der Wurzelordner der Notizen (Markdown-Dateien).
+	NotesDir string
+	Location *time.Location
+	LogLevel slog.Level
 	// WorkStart und WorkEnd begrenzen die Arbeitszeit eines Tages in Minuten
 	// seit Mitternacht (Ortszeit); immer WorkStart < WorkEnd.
 	WorkStart, WorkEnd int
@@ -65,6 +67,10 @@ func Load(getenv func(string) string) (Config, error) {
 	cfg.TokenPath = getenv("KAIRO_TOKEN_PATH")
 	if cfg.TokenPath == "" {
 		cfg.TokenPath = filepath.Join(home, ".config", "kairo", "token")
+	}
+	cfg.NotesDir = getenv("KAIRO_NOTES_DIR")
+	if cfg.NotesDir == "" {
+		cfg.NotesDir = filepath.Join(home, "life-os")
 	}
 
 	cfg.Location = time.Local

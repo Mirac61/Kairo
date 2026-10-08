@@ -278,3 +278,37 @@ export interface IcsImportResult {
 // Schickt den rohen Text einer .ics-Datei; Termine mit bekannter UID werden aktualisiert.
 export const importIcs = (text: string) =>
   api<IcsImportResult>('/calendar/import', { method: 'POST', headers: { 'Content-Type': 'text/calendar' }, body: text })
+
+// Notizen: Markdown-Dateien im Notizordner (Standard ~/life-os). path ist relativ, mit „/“.
+export interface NoteNode {
+  name: string
+  path: string
+  dir: boolean
+  children?: NoteNode[]
+}
+
+// mtime ist die Version beim Laden; das Backend lehnt Speichern mit 409 ab, wenn die Datei inzwischen anders aussieht.
+export interface Note {
+  path: string
+  content: string
+  mtime: string
+}
+
+const notePath = (path: string) => `/notes/${path.split('/').map(encodeURIComponent).join('/')}`
+
+export const listNotes = () => api<NoteNode[]>('/notes')
+
+export const readNote = (path: string) => api<Note>(notePath(path))
+
+export const saveNote = (path: string, content: string, mtime: string, force = false) =>
+  api<{ mtime: string }>(notePath(path), { method: 'PUT', body: JSON.stringify({ content, mtime, force }) })
+
+export const createNote = (path: string, dir = false) =>
+  api<{ path: string; mtime?: string }>(notePath(path), { method: 'POST', body: JSON.stringify({ dir }) })
+
+// Umbenennen oder Verschieben; 409, wenn das Ziel schon existiert.
+export const moveNote = (path: string, to: string) =>
+  api<{ path: string }>(notePath(path), { method: 'PATCH', body: JSON.stringify({ to }) })
+
+// Löschen verschiebt nach .trash/ im Notizordner (dort von Hand wiederherstellbar).
+export const deleteNote = (path: string) => api<{ trash: string }>(notePath(path), { method: 'DELETE' })

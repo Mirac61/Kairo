@@ -14,7 +14,7 @@ Die Bilder zeigen Mock-Daten aus `frontend/scripts/shot.mjs`.
 
 ## Was es kann
 
-Die WebUI hat sieben Ansichten. **Start** zeigt, was gerade läuft und was als Nächstes ansteht, dazu den Tagesplan mit Drag-and-drop. Im **Kalender** liegen Termine (auch als Wochenserie) und geplante Aufgaben nebeneinander, daneben die erfasste Zeit. Der **ICS-Import** aktualisiert Termine mit bekannter UID. **Aufgaben** nehmen eine Schnellschreibweise an, etwa `Sport 30m @morgen #Kairo !hoch`, und lassen sich über Tastenkürzel bedienen. Dazu kommen **Gewohnheiten** mit 28-Tage-Raster, **Projekte** mit Farbe, Ressourcen und Zeitsummen, der **Wochenrückblick** und ein **Papierkorb**. Aufgaben, Termine und Gewohnheiten landen beim Löschen zuerst dort. Löschen, Erledigen und Verschieben bieten einen Rückgängig-Toast.
+Die WebUI hat acht Ansichten. **Start** zeigt, was gerade läuft und was als Nächstes ansteht, dazu den Tagesplan mit Drag-and-drop. Im **Kalender** liegen Termine (auch als Wochenserie) und geplante Aufgaben nebeneinander, daneben die erfasste Zeit. Der **ICS-Import** aktualisiert Termine mit bekannter UID. **Aufgaben** nehmen eine Schnellschreibweise an, etwa `Sport 30m @morgen #Kairo !hoch`, und lassen sich über Tastenkürzel bedienen. Dazu kommen **Gewohnheiten** mit 28-Tage-Raster, **Projekte** mit Farbe, Ressourcen und Zeitsummen, der **Wochenrückblick**, **Notizen** und ein **Papierkorb**. Notizen sind normale Markdown-Dateien in einem Ordner (Standard `~/life-os`, `KAIRO_NOTES_DIR`), die man parallel in VSCodium bearbeiten kann; hat sich eine Datei seit dem Laden geändert, fragt Kairo vor dem Überschreiben nach. Im Dateibaum lassen sich Notizen und Ordner per Drag-and-drop verschieben, umbenennen (Doppelklick oder F2) und löschen. Gelöschtes landet in `.trash/` im Notizordner. Aufgaben, Termine und Gewohnheiten landen beim Löschen zuerst dort. Löschen, Erledigen und Verschieben bieten einen Rückgängig-Toast.
 
 Die Extension für VSCodium erkennt das Projekt zum geöffneten Ordner und zeigt die Tasks von heute. Sie startet, pausiert und schließt Tasks, auch aus der Statusleiste. Ein Klick auf „In VSCodium“ in der WebUI öffnet den Projektordner samt Ressourcen der Task. Bei Inaktivität fragt sie nach, statt die Zeit weiterlaufen zu lassen.
 
@@ -49,17 +49,19 @@ Entwickelt wird unter macOS. Autostart und Menüleiste gibt es nur dort, das Bac
 ## Schnellstart
 
 ```sh
-make install     # npm ci in frontend/ und extension/
+make install     # pnpm install in frontend/ und extension/
 make build       # baut die WebUI und danach das Backend
 ./backend/bin/kairo
 ```
 
 Die WebUI läuft dann unter <http://127.0.0.1:8742>. Das Binary enthält die WebUI, es braucht keinen zweiten Prozess. Die Reihenfolge in `make build` ist wichtig, weil `embed` beim Kompilieren greift.
 
+Kürzer geht es mit `make link`: Danach startet `kairo` im Terminal das Backend (baut bei geänderten Quellen vorher neu) und öffnet die WebUI im Browser. Läuft schon ein Server, wird nur der Browser geöffnet. Argumente wie `kairo backup` gehen ans Binary. Nach einem Verschieben des Repos `make link` erneut ausführen.
+
 Autostart bei jedem Login (macOS):
 
 ```sh
-cp backend/bin/kairo ~/.local/bin/kairo
+cp backend/bin/kairo ~/.local/bin/kairo   # überschreibt den Befehl aus make link; ohne make link nötig
 kairo install      # entfernen: kairo uninstall
 kairo backup       # Kopie der Datenbank nach backups/ neben der Datenbank
 ```
@@ -72,7 +74,7 @@ Zwei Terminals:
 
 ```sh
 cd backend  && go run ./cmd/server           # http://127.0.0.1:8742
-cd frontend && npm run dev                   # http://127.0.0.1:5173, leitet /api und /ws ans Backend
+cd frontend && pnpm dev                      # http://127.0.0.1:5173, leitet /api und /ws ans Backend
 ```
 
 Alle Prüfungen auf einmal, so wie sie auch die CI ausführt:
@@ -83,12 +85,12 @@ make check
 
 Das sind `gofmt`, `go vet` und `go test` im Backend, Typprüfung und Tests im Frontend sowie Kompilieren und Tests der Extension.
 
-UI-Änderungen werden angesehen, nicht nur gebaut. Mit laufendem `npm run dev` erzeugt `npm run shot` ein Bild mit Mock-Daten in `frontend/.shots/`:
+UI-Änderungen werden angesehen, nicht nur gebaut. Mit laufendem `pnpm dev` erzeugt `pnpm shot` ein Bild mit Mock-Daten in `frontend/.shots/`:
 
 ```sh
 cd frontend
-npm run shot -- --view week|work|day|month     # Kalender
-npm run shot -- --route tasks|habits|projects|review|trash [--theme light] [--size 1280x800] [--time 10:30]
+pnpm shot --view week|work|day|month          # Kalender
+pnpm shot --route tasks|habits|projects|review|trash|notes [--theme light] [--size 1280x800] [--time 10:30]
 ```
 
 ## Konfiguration und Sicherheit
