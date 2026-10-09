@@ -80,6 +80,7 @@ func TestResourceListRejectsUnknownType(t *testing.T) {
 func TestResourceTypeInferred(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir unter Windows
 	dir := filepath.Join(home, "Uni")
 	file := filepath.Join(dir, "skript.pdf")
 	if err := os.Mkdir(dir, 0o755); err != nil {
