@@ -12,9 +12,9 @@ const inCode = () => { window.location.href = `vscodium://kairo-local.kairo/star
 
 <template>
   <div v-if="isOpen(task)" class="row nowrap">
-    <button v-if="running" type="button" class="btn btn-primary" :aria-label="`Pause: ${task.title}`" @click="$emit('run', () => taskAction(task.id, 'pause'))">Pause</button>
-    <button v-else type="button" class="btn btn-primary" :aria-label="`Start: ${task.title}`" @click="$emit('run', () => taskAction(task.id, 'start'))">Start</button>
-    <button type="button" class="btn btn-secondary" :aria-label="`Fertig: ${task.title}`" @click="setDone(task, 'COMPLETED', (fn) => emit('run', fn))">Fertig</button>
-    <button type="button" class="btn btn-ghost" :aria-label="`In VSCodium starten: ${task.title}`" @click="inCode">In VSCodium</button>
+    <button v-if="running" type="button" class="btn btn-primary" :aria-label="`${$t('Pause')}: ${task.title}`" @click="$emit('run', () => taskAction(task.id, 'pause'))">{{ $t('Pause') }}</button>
+    <button v-else type="button" class="btn btn-primary" :aria-label="`${$t('Start')}: ${task.title}`" @click="$emit('run', () => taskAction(task.id, 'start'))">{{ $t('Start') }}</button>
+    <button type="button" class="btn btn-secondary" :aria-label="`${$t('Fertig')}: ${task.title}`" @click="setDone(task, 'COMPLETED', (fn) => emit('run', fn))">{{ $t('Fertig') }}</button>
+    <button type="button" class="btn btn-ghost" :aria-label="`In VSCodium starten: ${task.title}`" @click="inCode">{{ $t('In VSCodium') }}</button>
   </div>
 </template>

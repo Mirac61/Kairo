@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { dayLabel, hm } from '@/lib/dates'
 import type { Quick } from '@/lib/quickAdd'
+import { t } from '@/lib/i18n'
 
 const props = defineProps<{ q: Quick; today: string }>()
 const PRIO = { URGENT: 'Dringend', HIGH: 'Hoch', MEDIUM: 'Mittel', LOW: 'Niedrig' } as const
@@ -13,7 +14,7 @@ const hints = computed(() => {
     q.date && `${dayLabel(q.date, props.today)}${q.time ? ` ${q.time}` : ''}`,
     q.minutes && hm(q.minutes),
     q.project && `#${q.project.name}`,
-    q.priority && PRIO[q.priority],
+    q.priority && t(PRIO[q.priority]),
   ].filter(Boolean) as string[]
 })
 </script>

@@ -5,6 +5,11 @@
   "publisher": "kairo-local",
   "version": "0.0.2",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mirac61/Kairo"
+  },
   "packageManager": "pnpm@12.9.1",
   "engines": {
     "vscode": "^1.90.0"
@@ -12,7 +17,7 @@
   "categories": [
     "Other"
   ],
-  "main": "./out/extension.js",
+  "main": "./out/extension/src/extension.js",
   "activationEvents": ["onStartupFinished", "onUri"],
   "contributes": {
     "viewsContainers": {
@@ -127,8 +132,8 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "tsc -p ./ && node out/core.test.js",
-    "package": "tsc -p ./ && pnpm dlx @vscode/vsce package"
+    "test": "tsc -p ./ && node out/extension/src/core.test.js",
+    "package": "tsc -p ./ && pnpm dlx @vscode/vsce package --skip-license"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

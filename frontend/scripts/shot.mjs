@@ -1,7 +1,7 @@
 // Screenshot einer Ansicht mit Mock-Daten, um UI-Änderungen anzusehen statt nur zu bauen.
 //   pnpm dev               (in einem zweiten Terminal)
 //   pnpm shot --view day --theme light --size 1280x800
-//   pnpm shot --route tasks|habits|projects|review|trash|notes
+//   pnpm shot --route tasks|habits|projects|review|trash|notes|settings
 //   pnpm shot --view work --time 10:30       (Uhrzeit festsetzen: Jetzt-Linie und Scrollposition des Kalenders)
 // Kalender-Ansichten: week (Mo–So), work (Mo–Fr), day, month. Ergebnis: frontend/.shots/<view|route>-<theme>.png
 // Das Backend wird nur für nicht gemockte Pfade gebraucht (z. B. /api/health); die Kalenderdaten stammen aus diesem Skript.
@@ -12,8 +12,9 @@ import { chromium } from 'playwright'
 const { values: o } = parseArgs({
   options: {
     view: { type: 'string', default: 'week' },
-    route: { type: 'string', default: 'calendar' }, // calendar | tasks | habits | projects | review | trash | notes
+    route: { type: 'string', default: 'calendar' }, // calendar | tasks | habits | projects | review | trash | notes | settings
     theme: { type: 'string', default: 'dark' },
+    lang: { type: 'string', default: 'de' }, // de | en
     size: { type: 'string', default: '1555x900' },
     aside: { type: 'string', default: 'open' }, // „Ungeplant“-Spalte: open | closed
     click: { type: 'string' }, // CSS-Selektor, der vor dem Screenshot angeklickt wird (z. B. '.task-row .row-title')
@@ -129,6 +130,7 @@ const mock = {
   '/api/review': review,
   '/api/trash': trash,
   '/api/notes': () => noteTree,
+  '/api/settings': () => ({ settings: { notesDir: '/Users/demo/Kairo', workStart: '09:00', workEnd: '17:00' }, env: { timezone: 'KAIRO_TIMEZONE' }, path: '/Users/demo/.config/kairo/config.json', restart_needed: true }),
   '/api/today': (q) => {
     const date = q.get('date') ?? day(todayIdx)
     const open = (t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
@@ -147,20 +149,21 @@ const completionsOf = /^\/api\/habits\/(h\d)\/completions$/
 // --- Browser
 let browser
 try {
-  browser = await chromium.launch()
+  browser = await chromium.launch({ args: ['--lang=de-DE'] })
 } catch (e) {
   throw new Error(`Chromium fehlt: pnpm exec playwright install chromium (${e.message.split('\n')[0]})`)
 }
-const page = await (await browser.newContext({ viewport: { width, height }, colorScheme: o.theme })).newPage()
+const page = await (await browser.newContext({ viewport: { width, height }, colorScheme: o.theme, locale: 'de-DE' })).newPage()
 if (o.time) await page.clock.setFixedTime(new Date(`${day(todayIdx)}T${o.time}:00`))
-await page.addInitScript(([view, theme, aside]) => {
+await page.addInitScript(([view, theme, aside, lang]) => {
   localStorage.setItem('kairo-cal-view', view)
   localStorage.setItem('kairo-cal-weekend', '1')
   localStorage.setItem('kairo-cal-unplanned', aside === 'open' ? '1' : '0')
   localStorage.setItem('kairo-theme', theme)
+  localStorage.setItem('kairo-lang', lang)
   localStorage.setItem('kairo-notes-open', '["uni"]')
   localStorage.setItem('kairo-notes-file', 'uni/Software Engineering.md')
-}, [VIEWS[o.view], o.theme, o.aside])
+}, [VIEWS[o.view], o.theme, o.aside, o.lang])
 await page.route('**/api/**', (route) => {
   const u = new URL(route.request().url())
   const c = completionsOf.exec(u.pathname)

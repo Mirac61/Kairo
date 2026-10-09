@@ -32,15 +32,15 @@ async function add() {
 
 <template>
   <div class="res-edit">
-    <span class="lbl">Ressourcen</span>
+    <span class="lbl">{{ $t('Ressourcen') }}</span>
     <div v-for="r in resources" :key="r.id" class="res-line">
       <span class="res-t">{{ r.label || r.target }} <span class="muted">· {{ r.type }}</span></span>
       <button class="icon-btn" type="button" :aria-label="`Ressource entfernen: ${r.label || r.target}`" @click="change(() => deleteResource(r.id))"><svg class="ic"><use href="#i-trash" /></svg></button>
     </div>
     <form class="res-add" @submit.prevent="add">
-      <input v-model="target" class="input" placeholder="URL oder Pfad (~ erlaubt)" aria-label="Ziel" />
-      <input v-model="label" class="input" placeholder="Name (optional)" aria-label="Name" />
-      <button class="btn btn-secondary" type="submit">Hinzufügen</button>
+      <input v-model="target" class="input" :placeholder="$t('URL oder Pfad (~ erlaubt)')" :aria-label="$t('Ziel')" />
+      <input v-model="label" class="input" :placeholder="$t('Name (optional)')" :aria-label="$t('Name')" />
+      <button class="btn btn-secondary" type="submit">{{ $t('Hinzufügen') }}</button>
     </form>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
   </div>

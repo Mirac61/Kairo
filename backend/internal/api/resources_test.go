@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"kairo/internal/repository"
@@ -106,7 +107,7 @@ func TestResourceTypeOptional(t *testing.T) {
 		}
 	}
 	// Ein gesetzter Typ gewinnt; leeres Ziel bleibt ein Fehler.
-	rec := call(h, "POST", "/api/resources", `{"project_id":"`+project.ID+`","type":"FILE","target":"`+dir+`"}`)
+	rec := call(h, "POST", "/api/resources", `{"project_id":"`+project.ID+`","type":"FILE","target":`+strconv.Quote(dir)+`}`)
 	var res resourceDTO
 	_ = json.Unmarshal(rec.Body.Bytes(), &res)
 	if rec.Code != 201 || res.Type != "FILE" {

@@ -32,3 +32,8 @@ export function fillTemplate(text: string, notePath: string, now = new Date()) {
   }
   return text.replace(/\{\{(\w+)\}\}/g, (m, k: string) => values[k] ?? m)
 }
+
+// Pfadteile im Notizordner (immer mit „/“, relativ zur Wurzel).
+export const withExt = (name: string, ext = '.md') => (name.toLowerCase().endsWith(ext.toLowerCase()) ? name : name + ext)
+export const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name)
+export const under = (p: string, prefix: string) => p === prefix || p.startsWith(`${prefix}/`)

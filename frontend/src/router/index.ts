@@ -16,6 +16,7 @@ export default createRouter({
   routes: [
     { path: '/', redirect: '/today' },
     ...navItems.map(({ path, name, component }) => ({ path, name, component })),
+    { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/today' },
   ],
 })

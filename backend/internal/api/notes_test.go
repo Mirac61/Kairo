@@ -13,7 +13,7 @@ import (
 )
 
 func TestNotes(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "life-os") // fehlt noch, Open legt ihn an
+	dir := filepath.Join(t.TempDir(), "notizen") // fehlt noch, Open legt ihn an
 	store, err := notes.Open(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -59,11 +59,15 @@ func TestNotes(t *testing.T) {
 	// Alles außerhalb des Wurzelordners, Nicht-Markdown und Versteckte sind tabu.
 	outside := t.TempDir()
 	_ = os.WriteFile(filepath.Join(outside, "geheim.md"), []byte("x"), 0o644)
-	_ = os.Symlink(filepath.Join(outside, "geheim.md"), filepath.Join(dir, "link.md"))
-	_ = os.Symlink(outside, filepath.Join(dir, "raus"))
 	_ = os.WriteFile(filepath.Join(dir, "bild.png"), nil, 0o644)
 	_ = os.Mkdir(filepath.Join(dir, ".git"), 0o755)
-	for _, p := range []string{"/api/notes/..%2Fx.md", "/api/notes/uni%2F..%2F..%2Fx.md", "/api/notes/link.md", "/api/notes/raus/geheim.md", "/api/notes/bild.png", "/api/notes/.git/x.md"} {
+	forbidden := []string{"/api/notes/..%2Fx.md", "/api/notes/uni%2F..%2F..%2Fx.md", "/api/notes/bild.png", "/api/notes/.git/x.md"}
+	// Symlinks braucht unter Windows Admin-Rechte; ohne sie fehlt nur dieser Teil.
+	if os.Symlink(filepath.Join(outside, "geheim.md"), filepath.Join(dir, "link.md")) == nil &&
+		os.Symlink(outside, filepath.Join(dir, "raus")) == nil {
+		forbidden = append(forbidden, "/api/notes/link.md", "/api/notes/raus/geheim.md")
+	}
+	for _, p := range forbidden {
 		if rec := call(h, "GET", p, ``); rec.Code != http.StatusBadRequest {
 			t.Errorf("GET %s: Status %d, erwartet 400", p, rec.Code)
 		}

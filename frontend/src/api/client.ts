@@ -1,11 +1,12 @@
 import { setProjectColors } from '@/lib/projectColor'
+import { t } from '@/lib/i18n'
 
 export class ApiError extends Error {
   readonly status: number
   readonly body: unknown
 
   constructor(status: number, statusText: string, body: unknown) {
-    super(`API-Fehler ${status}${statusText ? ` ${statusText}` : ''}`)
+    super(`${t('API-Fehler')} ${status}${statusText ? ` ${statusText}` : ''}`)
     this.name = 'ApiError'
     this.status = status
     this.body = body
@@ -146,7 +147,7 @@ export const restoreTask = (id: string) => api<unknown>(`/tasks/${id}/restore`, 
 // Fehlertext aus {"error": "..."} des Backends, sonst Standardtext.
 export function errorMessage(e: unknown): string {
   const body = e instanceof ApiError ? (e.body as { error?: string } | undefined) : undefined
-  return body?.error ?? 'Backend nicht erreichbar.'
+  return body?.error ?? t('Backend nicht erreichbar.')
 }
 
 export const createProject = (body: Partial<Project>) =>
@@ -279,7 +280,7 @@ export interface IcsImportResult {
 export const importIcs = (text: string) =>
   api<IcsImportResult>('/calendar/import', { method: 'POST', headers: { 'Content-Type': 'text/calendar' }, body: text })
 
-// Notizen: Markdown-Dateien, PDFs und Bilder im Notizordner (Standard ~/life-os). path ist relativ, mit „/“.
+// Notizen: Markdown-Dateien, PDFs und Bilder im Notizordner (Standard ~/Kairo, siehe Einstellungen). path ist relativ, mit „/“.
 export interface NoteNode {
   name: string
   path: string
@@ -332,3 +333,25 @@ export const replaceFile = (path: string, file: Blob, mtime: string, force = fal
   api<{ mtime: string }>(`${filePath(path)}?mtime=${encodeURIComponent(mtime)}${force ? '&force=1' : ''}`, {
     method: 'PUT', headers: { 'Content-Type': file.type }, body: file,
   })
+
+export interface SettingsFile {
+  notesDir?: string
+  workStart?: string
+  workEnd?: string
+  timezone?: string
+}
+
+export interface Settings {
+  settings: SettingsFile
+  // Feld → Umgebungsvariable, die es festlegt; diese Felder sind in der WebUI gesperrt.
+  env: Partial<Record<keyof SettingsFile, string>>
+  path: string
+  restart_needed: boolean
+}
+
+export const getSettings = () => api<Settings>('/settings')
+
+export const saveSettings = (body: SettingsFile) =>
+  api<Settings>('/settings', { method: 'PUT', body: JSON.stringify(body) })
+
+export const restartBackend = () => api<void>('/restart', { method: 'POST' })

@@ -93,8 +93,9 @@ func validateResource(r domain.Resource) error {
 		return nil
 	}
 	// Pfade sind Referenzen für Clients mit eigenem Arbeitsverzeichnis, also nie relativ.
-	if !strings.HasPrefix(r.Target, "/") && r.Target != "~" && !strings.HasPrefix(r.Target, "~/") {
-		return fmt.Errorf("%w: target muss ein absoluter Pfad sein (/… oder ~/…)", domain.ErrInvalid)
+	// "/" gilt auf jedem System, damit Pfade von macOS/Linux-Clients auch auf einem Windows-Backend gehen.
+	if !strings.HasPrefix(r.Target, "/") && !filepath.IsAbs(r.Target) && r.Target != "~" && !strings.HasPrefix(r.Target, "~/") {
+		return fmt.Errorf("%w: target muss ein absoluter Pfad sein (/…, C:\\… oder ~/…)", domain.ErrInvalid)
 	}
 	return nil
 }

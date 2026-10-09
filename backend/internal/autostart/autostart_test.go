@@ -1,8 +1,9 @@
-package launchd
+package autostart
 
 import (
 	"encoding/xml"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -46,14 +47,39 @@ func TestKairoEnvOnlyTakesSetKairoVariables(t *testing.T) {
 }
 
 func TestInstallRefusesGoRunBinary(t *testing.T) {
-	if _, err := Install("/var/folders/x/T/go-build123/b001/exe/server", nil); err == nil {
+	if _, _, err := Install("/var/folders/x/T/go-build123/b001/exe/server", nil); err == nil {
 		t.Error("Binary von go run wurde akzeptiert")
 	}
 }
 
 func TestPaths(t *testing.T) {
-	plist, log := Paths("/Users/x")
-	if plist != "/Users/x/Library/LaunchAgents/app.kairo.backend.plist" || log != "/Users/x/Library/Logs/kairo.log" {
+	plist, log := launchdPaths("/Users/x")
+	if plist != filepath.FromSlash("/Users/x/Library/LaunchAgents/app.kairo.backend.plist") || log != filepath.FromSlash("/Users/x/Library/Logs/kairo.log") {
 		t.Errorf("Paths = %s, %s", plist, log)
+	}
+}
+
+func TestUnitQuotesAndEnv(t *testing.T) {
+	u := string(Unit(`/home/x/my bin/kairo`, map[string]string{"KAIRO_PORT": "9000", "KAIRO_DB_PATH": `/a"b/50%.db`}))
+	for _, want := range []string{
+		`ExecStart="/home/x/my bin/kairo"`,
+		`Environment="KAIRO_DB_PATH=/a\"b/50%%.db"` + "\nEnvironment=\"KAIRO_PORT=9000\"",
+		"Restart=always", "WantedBy=default.target",
+	} {
+		if !strings.Contains(u, want) {
+			t.Errorf("fehlt %q in\n%s", want, u)
+		}
+	}
+}
+
+func TestScriptQuotesPaths(t *testing.T) {
+	s := string(Script(`C:\Program Files\kairo.exe`, `C:\Users\x\kairo.log`, map[string]string{"KAIRO_PORT": "9000"}))
+	for _, want := range []string{
+		`sh.Environment("Process")("KAIRO_PORT") = "9000"`,
+		`sh.Run "cmd /c """"C:\Program Files\kairo.exe"" >> ""C:\Users\x\kairo.log"" 2>&1""", 0, False`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("fehlt %q in\n%s", want, s)
+		}
 	}
 }

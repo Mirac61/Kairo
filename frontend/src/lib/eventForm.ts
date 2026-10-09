@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '@/api/client'
+import type { CalendarEvent, EventBody, Task } from '@/api/client'
 import { addDays, hhmm, ymd } from './dates.ts'
 
 // Wiederholung: wöchentlich an Wochentagen, optional mit Enddatum (RRULE-Teilmenge des Backends).
@@ -62,4 +62,27 @@ export function ruleOf(f: Form): string {
   if (!f.repeat) return ''
   const days = f.days.length ? f.days : [CODE_OF_DAY[new Date(`${f.date}T00:00:00`).getDay()]!]
   return `FREQ=WEEKLY;BYDAY=${days.join(',')}${f.until ? `;UNTIL=${f.until.replaceAll('-', '')}` : ''}`
+}
+
+// Was „Speichern“ im Dialog schickt: eine neue Task oder die Felder eines Termins.
+// Eine eigene Regel (customRule) bleibt unangetastet; beim Bearbeiten entfernt '' die Wiederholung.
+export function requestOf(f: Form, title: string): { task: Partial<Task> } | { event: EventBody } {
+  const start = new Date(`${f.date}T${f.allDay ? '00:00' : f.from}`)
+  const end = f.allDay ? addDays(new Date(`${f.endDate || f.date}T00:00`), 1) : new Date(`${f.date}T${f.to}`)
+  if (f.kind === 'task') {
+    return { task: {
+      title,
+      planned_date: f.date,
+      planned_start_at: f.allDay ? null : start.toISOString(),
+      project_id: f.projectId || undefined,
+      estimated_minutes: f.allDay ? 0 : Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000)),
+    } }
+  }
+  const event: EventBody = { title, location: f.location, project_id: f.projectId }
+  if (!f.keepTimes) Object.assign(event, { start_at: start.toISOString(), end_at: end.toISOString() })
+  if (f.customRule === null) {
+    const rule = ruleOf(f)
+    if (f.id || rule) event.recurrence_rule = rule
+  }
+  return { event }
 }

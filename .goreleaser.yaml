@@ -1,0 +1,33 @@
+# Release-Build: `git tag v0.1.0 && git push --tags` startet .github/workflows/release.yml.
+# Lokal ausprobieren: goreleaser release --snapshot --clean (Ergebnis in dist/).
+version: 2
+project_name: kairo
+
+before:
+  hooks:
+    # Das Binary bettet die WebUI ein, also zuerst das Frontend bauen; die Extension hängt als .vsix am Release.
+    - sh -c "cd frontend && pnpm install --frozen-lockfile && pnpm build"
+    - sh -c "cd extension && pnpm install --frozen-lockfile && pnpm package"
+
+builds:
+  - dir: backend
+    main: ./cmd/server
+    binary: kairo
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files: [LICENSE, README.md]
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  extra_files:
+    - glob: ./extension/*.vsix

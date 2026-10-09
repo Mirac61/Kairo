@@ -2,6 +2,7 @@
 //   Dauer:    30m · 30 min · 1h · 1,5h · 1h30        Tag:  @heute · @morgen · @übermorgen · @mo … @sonntag · @12.10.
 //   Uhrzeit:  @14:30 (ohne Tag: heute)               Projekt: #name (ganzer Name oder Anfang, Groß/Klein egal)
 //   Priorität: !dringend · !hoch · !mittel · !niedrig
+// Englisch geht immer mit: @today · @tomorrow · @mon … @sunday · !urgent · !high · !medium · !low.
 // Reine Funktion ohne Imports, damit quickAdd.test.ts sie direkt mit Node prüfen kann.
 export interface QuickProject { id: string; name: string }
 export interface Quick {
@@ -13,8 +14,15 @@ export interface Quick {
   priority: 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW' | null
 }
 
-const PRIO = { dringend: 'URGENT', hoch: 'HIGH', mittel: 'MEDIUM', niedrig: 'LOW' } as const
-const WEEKDAYS = ['sonntag', 'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag'] // Index = Date.getUTCDay()
+const PRIO = {
+  dringend: 'URGENT', hoch: 'HIGH', mittel: 'MEDIUM', niedrig: 'LOW',
+  urgent: 'URGENT', high: 'HIGH', medium: 'MEDIUM', low: 'LOW',
+} as const
+// Index = Date.getUTCDay(); ab zwei Buchstaben reicht der Anfang (@mo, @do, @tue). Kein Anfang passt auf zwei Tage.
+const WEEKDAYS = [
+  ['sonntag', 'sunday'], ['montag', 'monday'], ['dienstag', 'tuesday'], ['mittwoch', 'wednesday'],
+  ['donnerstag', 'thursday'], ['freitag', 'friday'], ['samstag', 'saturday'],
+]
 const MAX_MINUTES = 24 * 60
 const pad = (n: number) => String(n).padStart(2, '0')
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
@@ -23,10 +31,10 @@ const addDays = (day: string, n: number) => { const d = at(day); d.setUTCDate(d.
 
 // Tag aus dem Teil nach „@“, null wenn es kein Tag ist. Ein Wochentag meint den nächsten (nie heute).
 function dayOf(word: string, today: string): string | null {
-  if (word === 'heute') return today
-  if (word === 'morgen') return addDays(today, 1)
+  if (word === 'heute' || word === 'today') return today
+  if (word === 'morgen' || word === 'tomorrow') return addDays(today, 1)
   if (word === 'übermorgen' || word === 'uebermorgen') return addDays(today, 2)
-  const wd = WEEKDAYS.findIndex((n) => word === n || (word.length === 2 && n.startsWith(word)))
+  const wd = word.length < 2 ? -1 : WEEKDAYS.findIndex((names) => names.some((n) => n.startsWith(word)))
   if (wd >= 0) return addDays(today, ((wd - at(today).getUTCDay() + 6) % 7) + 1)
   const m = word.match(/^(\d{1,2})\.(\d{1,2})\.?$/)
   if (!m) return null

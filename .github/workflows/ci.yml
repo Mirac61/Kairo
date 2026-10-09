@@ -7,7 +7,10 @@ on:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: backend
@@ -16,7 +19,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
-      - run: test -z "$(gofmt -l .)"
+      # Windows checkt mit CRLF aus; gofmt reicht auf einem System.
+      - if: runner.os == 'Linux'
+        run: test -z "$(gofmt -l .)"
       - run: go vet ./...
       - run: go test ./...
 
@@ -40,6 +45,26 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: cd frontend && pnpm install --frozen-lockfile
+      - run: cd frontend && pnpm exec playwright install --with-deps chromium
+      - run: make build
+      - run: cd frontend && pnpm e2e
+
   extension:
     runs-on: ubuntu-latest
     defaults:
@@ -55,7 +80,6 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: extension/pnpm-lock.yaml
-      - run: cmp ../frontend/src/lib/quickAdd.ts src/quickAdd.ts
       - run: pnpm install --frozen-lockfile
       - run: pnpm compile
       - run: pnpm test

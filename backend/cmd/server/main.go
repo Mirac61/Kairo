@@ -11,12 +11,13 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"kairo/internal/api"
+	"kairo/internal/autostart"
 	"kairo/internal/config"
-	"kairo/internal/launchd"
 	"kairo/internal/notes"
 	"kairo/internal/realtime"
 	"kairo/internal/repository"
@@ -37,7 +38,16 @@ func main() {
 // dispatch führt "install", "uninstall" oder (ohne Argument) den Server aus.
 func dispatch(args []string) error {
 	if len(args) == 0 {
-		return run()
+		if err := run(); !errors.Is(err, errRestart) {
+			return err
+		}
+		// Neustart aus der WebUI: dasselbe Binary mit denselben Argumenten und
+		// derselben Umgebung liest config.json neu.
+		bin, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		return restartSelf(bin)
 	}
 	switch args[0] {
 	case "install":
@@ -48,19 +58,19 @@ func dispatch(args []string) error {
 		if bin, err = filepath.EvalSymlinks(bin); err != nil {
 			return err
 		}
-		plist, err := launchd.Install(bin, os.Environ())
+		path, log, err := autostart.Install(bin, os.Environ())
 		if err != nil {
 			return err
 		}
-		fmt.Println("LaunchAgent eingerichtet:", plist)
-		fmt.Println("Das Backend startet jetzt bei jedem Login. Log:", filepath.Join(os.Getenv("HOME"), "Library", "Logs", "kairo.log"))
+		fmt.Println("Autostart eingerichtet:", path)
+		fmt.Println("Das Backend läuft jetzt und startet bei jedem Login. Log:", log)
 		return nil
 	case "uninstall":
-		plist, err := launchd.Uninstall()
+		path, err := autostart.Uninstall()
 		if err != nil {
 			return err
 		}
-		fmt.Println("LaunchAgent entfernt:", plist)
+		fmt.Println("Autostart entfernt:", path)
 		return nil
 	case "backup":
 		return backup(args[1:])
@@ -95,6 +105,9 @@ func backup(args []string) error {
 // backupDir ist das Verzeichnis für Backups: backups/ neben der Datenbank.
 func backupDir(cfg config.Config) string { return filepath.Join(filepath.Dir(cfg.DBPath), "backups") }
 
+// errRestart beendet run, damit dispatch den Prozess neu startet.
+var errRestart = errors.New("Neustart")
+
 func run() error {
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
@@ -104,6 +117,7 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	var restart atomic.Bool
 
 	token, err := api.LoadOrCreateToken(cfg.TokenPath)
 	if err != nil {
@@ -140,6 +154,7 @@ func run() error {
 		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil).WithWorkWindow(cfg.WorkStart, cfg.WorkEnd),
 		Review:    service.NewReviewService(tasks, projects, habits, calendar, timeTracking, cfg.Location, nil),
 		Notes:     notesStore,
+		Settings:  &api.Settings{Running: cfg, Getenv: os.Getenv, Restart: func() { restart.Store(true); stop() }},
 		Hub:       hub,
 	}
 
@@ -167,6 +182,9 @@ func run() error {
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
+	}
+	if restart.Load() {
+		return errRestart
 	}
 	return nil
 }

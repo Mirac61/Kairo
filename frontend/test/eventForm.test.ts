@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { dur, entryMinutes, weekStart, ymd } from '../src/lib/dates.ts'
-import { editForm, isAllDay, newForm, ruleOf } from '../src/lib/eventForm.ts'
+import { editForm, isAllDay, newForm, requestOf, ruleOf } from '../src/lib/eventForm.ts'
 
 const ev = (over: object) => ({
   id: 'e1', title: 'Vorlesung', location: 'H 1.02', occurrence_start: '', occurrence_end: '', project_id: null,
@@ -50,4 +50,22 @@ test('Datumshelfer', () => {
   assert.equal(dur(90), '1 Std 30 Min')
   assert.equal(entryMinutes({ started_at: '2026-10-07T10:00:00Z', ended_at: '2026-10-07T11:15:30Z' }), 75)
   assert.equal(entryMinutes({ started_at: '2026-10-07T10:00:00Z', ended_at: null }, Date.parse('2026-10-07T10:20:00Z')), 20)
+})
+
+test('Speichern: Task, neuer Termin, Serie bearbeiten', () => {
+  const f = newForm(new Date(2026, 9, 7, 10, 0), new Date(2026, 9, 7, 11, 30), false)
+  assert.deepEqual(requestOf({ ...f, kind: 'task' }, 'Lernen'), { task: {
+    title: 'Lernen', planned_date: '2026-10-07', planned_start_at: new Date(2026, 9, 7, 10, 0).toISOString(), project_id: undefined, estimated_minutes: 90,
+  } })
+  // Neuer Termin ohne Wiederholung schickt keine Regel, beim Bearbeiten entfernt '' sie.
+  const neu = requestOf(f, 'Termin')
+  assert.ok('event' in neu && !('recurrence_rule' in neu.event) && neu.event.end_at === new Date(2026, 9, 7, 11, 30).toISOString())
+  const edit = requestOf({ ...f, id: 'e1' }, 'Termin')
+  assert.ok('event' in edit && edit.event.recurrence_rule === '')
+  // Eigene Regel und mehrtägige Zeiten bleiben, wie sie sind.
+  const keep = requestOf({ ...f, id: 'e1', customRule: 'FREQ=DAILY', keepTimes: true }, 'Termin')
+  assert.ok('event' in keep && !('recurrence_rule' in keep.event) && !('start_at' in keep.event))
+  // Ganztägig: Ende ist Mitternacht nach dem letzten Tag.
+  const all = requestOf({ ...f, allDay: true, endDate: '2026-10-08' }, 'Urlaub')
+  assert.ok('event' in all && all.event.end_at === new Date(2026, 9, 9).toISOString())
 })

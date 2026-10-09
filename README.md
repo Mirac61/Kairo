@@ -1,110 +1,105 @@
 # Kairo
 
-Kairo ist ein lokaler Planer für Aufgaben, Termine und Gewohnheiten. Geplant wird in der WebUI, gearbeitet wird in VSCodium. Die Daten liegen in einer SQLite-Datei auf dem eigenen Rechner, einen Cloud-Dienst gibt es nicht.
+**Plan your day in the browser. Do the work in your editor. Kairo keeps both in sync.**
 
-Die Zeiterfassung läuft über echte Zeitstempel. Ein Timer startet nur durch eine ausdrückliche Aktion, nie weil ein Ordner geöffnet wurde.
+Kairo is a planner for tasks, calendar events, habits and notes. It runs on your own computer (macOS, Windows or Linux): no account, no cloud, no subscription. Your data is one SQLite file you can copy anywhere.
 
-![Start](docs/screenshots/start.png)
+![Kairo start page](docs/screenshots/start.png)
 
-![Kalender](docs/screenshots/kalender.png)
+## Why Kairo
 
-![Aufgaben](docs/screenshots/aufgaben.png)
+- **One place for your day.** Calendar, tasks and habits sit side by side, so you see at a glance what's on and what's next.
+- **Built for working in your editor.** The VSCodium/VS Code extension knows which project you have open and shows its tasks. Start a timer right there.
+- **Honest time tracking.** Timers only run when you start them. When you go idle, Kairo asks before it counts the time.
+- **Notes are just files.** Markdown in a normal folder, so you can edit them in Kairo or in your editor. You can also annotate PDFs and images.
+- **Fast to type.** `Gym 30m @tomorrow #Uni !high` creates a 30-minute, high-priority task for tomorrow in project "Uni".
+- **English or German.** Switch the language in the settings at any time.
 
-Die Bilder zeigen Mock-Daten aus `frontend/scripts/shot.mjs`.
+## Get started in two minutes
 
-## Was es kann
+1. **Download** the file for your system from the [latest release](https://github.com/Mirac61/Kairo/releases):
 
-Die WebUI hat acht Ansichten. **Start** zeigt, was gerade läuft und was als Nächstes ansteht, dazu den Tagesplan mit Drag-and-drop. Im **Kalender** liegen Termine (auch als Wochenserie) und geplante Aufgaben nebeneinander, daneben die erfasste Zeit. Der **ICS-Import** aktualisiert Termine mit bekannter UID. **Aufgaben** nehmen eine Schnellschreibweise an, etwa `Sport 30m @morgen #Kairo !hoch`, und lassen sich über Tastenkürzel bedienen. Dazu kommen **Gewohnheiten** mit 28-Tage-Raster, **Projekte** mit Farbe, Ressourcen und Zeitsummen, der **Wochenrückblick**, **Notizen** und ein **Papierkorb**. Notizen sind normale Markdown-Dateien in einem Ordner (Standard `~/life-os`, `KAIRO_NOTES_DIR`), die man parallel in VSCodium bearbeiten kann; hat sich eine Datei seit dem Laden geändert, fragt Kairo vor dem Überschreiben nach. Im Dateibaum lassen sich Notizen und Ordner per Drag-and-drop verschieben, umbenennen (Doppelklick oder F2) und löschen. Gelöschtes landet in `.trash/` im Notizordner. Neben Markdown zeigt der Notizbereich auch PDFs und Bilder (png, jpg, gif, webp); andere Dateien bleiben ausgeblendet. PDFs und Bilder lassen sich per Drag-and-drop aus dem Finder oder über „Datei hinzufügen“ ablegen und in Kairo bezeichnen: Stift, Textmarker, Linie, Pfeil, Rechteck, Ellipse und Text, mit Zoom (⌘+/⌘−, Pinch) und Rückgängig. Bis zum Speichern bleibt jede Form einzeln verschieb- und skalierbar; Speichern brennt sie in die Datei ein und legt die alte Fassung in `.trash/`. Bilder lassen sich beim Speichern zusätzlich verkleinern. Die geteilte Ansicht zeigt links ein PDF oder Bild und rechts eine Notiz; der Trenner lässt sich verschieben. Beim Wechsel zwischen Dokument und Notiz bleibt beides geladen, und Kairo merkt sich je Datei Zoom und Leseposition. Ein eingefügter Screenshot (⌘V) landet als Bild im Ordner `assets/` neben der Notiz und wird relativ verlinkt, sodass VSCodium ihn ebenfalls anzeigt. Notizen im Ordner `Vorlagen/` dienen als Vorlagen: Eine leere Notiz bietet sie zum Einfügen an, Platzhalter wie `{{titel}}`, `{{ordner}}`, `{{datum}}`, `{{wochentag}}` und `{{uhrzeit}}` werden dabei ersetzt. Aufgaben, Termine und Gewohnheiten landen beim Löschen zuerst dort. Löschen, Erledigen und Verschieben bieten einen Rückgängig-Toast.
+   | System | File |
+   |---|---|
+   | macOS (Apple Silicon) | `kairo_…_darwin_arm64.tar.gz` |
+   | macOS (Intel) | `kairo_…_darwin_amd64.tar.gz` |
+   | Windows | `kairo_…_windows_amd64.zip` |
+   | Linux | `kairo_…_linux_amd64.tar.gz` (or `arm64`) |
 
-Die Extension für VSCodium erkennt das Projekt zum geöffneten Ordner und zeigt die Tasks von heute. Sie startet, pausiert und schließt Tasks, auch aus der Statusleiste. Ein Klick auf „In VSCodium“ in der WebUI öffnet den Projektordner samt Ressourcen der Task. Bei Inaktivität fragt sie nach, statt die Zeit weiterlaufen zu lassen.
+2. **Unpack it and start Kairo.**
+   - **macOS / Linux:** in a terminal, run `tar xzf kairo_*.tar.gz` and then `./kairo`. If macOS blocks it, run `xattr -d com.apple.quarantine kairo` once.
+   - **Windows:** unzip, then double-click `kairo.exe`. If SmartScreen warns you, click "More info" → "Run anyway".
+3. **Open <http://127.0.0.1:8742>** in your browser. Kairo starts in your browser's language; you can change it under settings.
 
-Für die macOS-Menüleiste liegt ein SwiftBar-Plugin in `tools/menubar/`.
+Optional: install `kairo-*.vsix` from the same release in VSCodium or VS Code (Extensions → "Install from VSIX…").
 
-## Aufbau
+**Start Kairo automatically at login.** Put the program in a fixed place and run `kairo install` from there. Remove it with `kairo uninstall`.
 
-```
-WebUI (Vue 3)      ─┐
-Extension          ─┼─ HTTP + WebSocket ─ Backend (Go) ─ SQLite
-SwiftBar-Plugin    ─┘
-```
+| System | How it starts | Log |
+|---|---|---|
+| macOS | LaunchAgent | `~/Library/Logs/kairo.log` |
+| Linux | systemd user service | `journalctl --user -u kairo` |
+| Windows | script in your Startup folder (no window) | `%LOCALAPPDATA%\kairo\kairo.log` |
 
-| Ordner | Inhalt |
+## What's inside
+
+![Calendar](docs/screenshots/kalender.png)
+
+| View | What it does |
 |---|---|
-| `backend/` | Go, `net/http`, SQLite ohne cgo. Schichten: `api`, `service`, `domain`, `repository` |
-| `frontend/` | Vue 3, TypeScript, Vite, PrimeVue, FullCalendar |
-| `extension/` | VSCodium-Extension in TypeScript |
-| `tools/` | SwiftBar-Plugin |
-| `docs/` | Vision, Anforderungen, Architektur, Roadmap, Reviews |
+| **Start** | Running timer, what's next, today's plan with drag and drop |
+| **Calendar** | Events and planned tasks in one week, next to the time you tracked. Imports `.ics` files |
+| **Tasks** | Quick-add syntax, keyboard shortcuts, subtasks, priorities |
+| **Habits** | Daily or weekly habits with a 28-day grid |
+| **Projects** | Colors, links and files, time per project |
+| **Notes** | Markdown, PDFs and images. Draw on PDFs, split view, templates |
+| **Week** | A short review of your week |
+| **Trash** | Everything you delete can be restored |
 
-Backend und SQLite sind die einzige Quelle der Wahrheit. WebUI und Extension speichern keine Produktdaten. Das Schema ändert sich ausschließlich über Migrationen in `backend/migrations/`.
+Almost every action can be undone right away.
 
-## Voraussetzungen
+![Tasks](docs/screenshots/aufgaben.png)
 
-- Go in der Version aus `backend/go.mod`
-- Node.js ab 22.18 (die Frontend-Tests führen TypeScript direkt aus)
-- VSCodium oder VS Code für die Extension
+## Your data
 
-Entwickelt wird unter macOS. Autostart und Menüleiste gibt es nur dort, das Backend selbst ist nicht an macOS gebunden.
+- Everything stays on your machine. Kairo only listens on `127.0.0.1`.
+- Database: `~/.local/share/kairo/kairo.db` (on Windows inside your user folder). Kairo makes a backup at every start; `kairo backup` makes one on demand.
+- Notes: `~/Kairo` by default. You can change it in the app under settings.
 
-## Schnellstart
+---
+
+## For developers
+
+**Build from source.** You need Go (version from `backend/go.mod`), Node.js 22.18+ and pnpm.
 
 ```sh
-make install     # pnpm install in frontend/ und extension/
-make build       # baut die WebUI und danach das Backend
+make install   # install dependencies
+make build     # build web UI + backend
 ./backend/bin/kairo
 ```
 
-Die WebUI läuft dann unter <http://127.0.0.1:8742>. Das Binary enthält die WebUI, es braucht keinen zweiten Prozess. Die Reihenfolge in `make build` ist wichtig, weil `embed` beim Kompilieren greift.
-
-Kürzer geht es mit `make link`: Danach startet `kairo` im Terminal das Backend (baut bei geänderten Quellen vorher neu) und öffnet die WebUI im Browser. Läuft schon ein Server, wird nur der Browser geöffnet. Argumente wie `kairo backup` gehen ans Binary. Nach einem Verschieben des Repos `make link` erneut ausführen.
-
-Autostart bei jedem Login (macOS):
+**Develop.**
 
 ```sh
-cp backend/bin/kairo ~/.local/bin/kairo   # überschreibt den Befehl aus make link; ohne make link nötig
-kairo install      # entfernen: kairo uninstall
-kairo backup       # Kopie der Datenbank nach backups/ neben der Datenbank
+cd backend  && go run ./cmd/server   # API on :8742
+cd frontend && pnpm dev              # UI on :5173 with hot reload
+make check                           # everything CI runs
+make e2e                             # browser smoke tests
 ```
 
-Beim Serverstart legt Kairo außerdem selbst ein Backup an.
+**How it fits together.**
 
-## Entwicklung
-
-Zwei Terminals:
-
-```sh
-cd backend  && go run ./cmd/server           # http://127.0.0.1:8742
-cd frontend && pnpm dev                      # http://127.0.0.1:5173, leitet /api und /ws ans Backend
+```
+Web UI (Vue 3)  ─┐
+Extension       ─┼─ HTTP + WebSocket ─ Backend (Go) ─ SQLite
+Menu bar plugin ─┘
 ```
 
-Alle Prüfungen auf einmal, so wie sie auch die CI ausführt:
+The Go backend is the only place that stores data. The web UI is built into the binary. More detail:
 
-```sh
-make check
-```
+- [`backend/README.md`](backend/README.md): configuration and environment variables
+- [`frontend/README.md`](frontend/README.md) and [`extension/README.md`](extension/README.md)
+- [`docs/`](docs/): vision, architecture and roadmap (in German)
+- Releases are built from tags with `.goreleaser.yaml`
 
-Das sind `gofmt`, `go vet` und `go test` im Backend, Typprüfung und Tests im Frontend sowie Kompilieren und Tests der Extension.
-
-UI-Änderungen werden angesehen, nicht nur gebaut. Mit laufendem `pnpm dev` erzeugt `pnpm shot` ein Bild mit Mock-Daten in `frontend/.shots/`:
-
-```sh
-cd frontend
-pnpm shot --view week|work|day|month          # Kalender
-pnpm shot --route tasks|habits|projects|review|trash|notes [--theme light] [--size 1280x800] [--time 10:30]
-```
-
-## Konfiguration und Sicherheit
-
-Das Backend bindet sich immer an `127.0.0.1`. Schreibende Aufrufe brauchen einen eigenen `Origin` oder das Token aus `~/.config/kairo/token`. Port, Datenbankpfad und Zeitzone stellt man über Umgebungsvariablen ein. Die Tabelle steht in [`backend/README.md`](backend/README.md).
-
-## Dokumentation
-
-- [Vision](docs/00_VISION.md): Idee, Ziele und Leitprinzipien
-- [Produktanforderungen](docs/01_PRODUCT_REQUIREMENTS.md)
-- [Architektur](docs/02_ARCHITECTURE.md): Komponenten, Datenmodell, Struktur
-- [Regeln für Agenten](docs/03_AGENT_GUIDELINES.md) und [Einstieg für Agenten](docs/04_AGENT_HANDOFF.md)
-- [Roadmap](docs/05_ROADMAP.md): Phasen 0 bis 7 sind gebaut
-- [Design-Review](docs/06_DESIGN_REVIEW.md) und [UX-Review](docs/07_UX_REVIEW.md)
-- [Designsystem](docs/design-system/index.html): Tokens und Komponenten als Vorlage
-
-Die Extension beschreibt [`extension/README.md`](extension/README.md), das Frontend [`frontend/README.md`](frontend/README.md).
+MIT licensed.

@@ -208,3 +208,25 @@ export async function drawOnPdf(lib: typeof PdfLib, bytes: ArrayBuffer, pages: P
   })
   return doc.save()
 }
+
+// ---------- Werkzeugleiste
+export const TOOLS: { id: Tool; label: string; key: string; icon: string; sep?: boolean }[] = [
+  { id: 'select', label: 'Auswählen', key: 'V', icon: '#i-cursor', sep: true },
+  { id: 'pen', label: 'Stift', key: 'P', icon: '#i-pen' },
+  { id: 'marker', label: 'Textmarker', key: 'M', icon: '#i-marker', sep: true },
+  { id: 'line', label: 'Linie', key: 'L', icon: '#i-line' },
+  { id: 'arrow', label: 'Pfeil', key: 'A', icon: '#i-arrow' },
+  { id: 'rect', label: 'Rechteck', key: 'R', icon: '#i-rect' },
+  { id: 'ellipse', label: 'Ellipse', key: 'O', icon: '#i-ellipse', sep: true },
+  { id: 'text', label: 'Text', key: 'T', icon: '#i-text' },
+]
+export const TOOL_KEYS: Record<string, Tool> = Object.fromEntries(TOOLS.map((t) => [t.key.toLowerCase(), t.id]))
+export const COLORS = [['#e5484d', 'Rot'], ['#ffd60a', 'Gelb'], ['#30a46c', 'Grün'], ['#0090ff', 'Blau'], ['#1c1c1c', 'Schwarz'], ['#ffffff', 'Weiß']] as const
+export const SIZES: { id: Size; label: string }[] = [{ id: 's', label: 'Dünn' }, { id: 'm', label: 'Mittel' }, { id: 'l', label: 'Dick' }]
+export const SCALES = [1, 0.75, 0.5, 0.25]
+
+// Nächste Zoomstufe in Prozent; zwischen zwei Stufen geht es zur nächsten in Richtung dir.
+const ZOOM_STEPS = [10, 25, 33, 50, 67, 75, 90, 100, 125, 150, 200, 300, 400, 600, 800]
+export function zoomStep(pct: number, dir: 1 | -1): number {
+  return dir > 0 ? ZOOM_STEPS.find((s) => s > pct + 0.5) ?? 800 : [...ZOOM_STEPS].reverse().find((s) => s < pct - 0.5) ?? 10
+}

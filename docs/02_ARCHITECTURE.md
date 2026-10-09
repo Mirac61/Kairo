@@ -568,6 +568,10 @@ Vorteile:
 -   keine externe Datenbank notwendig
 -   einfaches Backup
 -   schnell genug für eine persönliche Anwendung
+-   ohne cgo dank `modernc.org/sqlite`
+
+WAL-Modus, `busy_timeout` und Fremdschlüssel sind eingeschaltet
+(`backend/internal/repository/sqlite.go`).
 
 Die Datenbankdatei soll nicht im Frontend liegen.
 
@@ -632,15 +636,30 @@ ebenfalls 127.0.0.1 ansprechen können. Deshalb:
 
 # Betrieb
 
--   Autostart: `kairo install` richtet einen macOS-LaunchAgent
-    (`~/Library/LaunchAgents/`) ein, sodass das Backend beim Login
-    startet. `kairo uninstall` entfernt ihn.
-    Gebaut wird mit `go build -o ~/.local/bin/kairo ./cmd/server`; der
-    Agent (`app.kairo.backend`) startet genau dieses Binary mit den beim
-    Installieren gesetzten `KAIRO_*`-Variablen, hält es am Laufen
-    (`KeepAlive`) und schreibt das Log nach `~/Library/Logs/kairo.log`.
-    Nach einem Update das Binary ersetzen und `kairo install` erneut
-    ausführen. Ein Binary von `go run` wird abgelehnt.
+-   Plattformen: macOS, Linux und Windows (Releases je für amd64 und
+    arm64). Die CI testet das Backend auf allen dreien.
+-   Autostart: `kairo install` startet das Backend sofort und bei jedem
+    Login, `kairo uninstall` entfernt das wieder (Paket `autostart`).
+    Es startet genau das Binary, von dem aus installiert wurde, mit den
+    dabei gesetzten `KAIRO_*`-Variablen. Ein Binary von `go run` wird
+    abgelehnt. Nach einem Update das Binary ersetzen und `kairo install`
+    erneut ausführen.
+    -   macOS: LaunchAgent `app.kairo.backend` mit `KeepAlive`, Log
+        `~/Library/Logs/kairo.log`.
+    -   Linux: systemd-User-Unit `kairo.service` mit `Restart=always`,
+        Log über `journalctl --user -u kairo`.
+    -   Windows: `Kairo.vbs` im Autostart-Ordner des Nutzers; `wscript`
+        startet das Backend ohne Fenster, Log
+        `%LOCALAPPDATA%\kairo\kairo.log`. `kairo uninstall` löscht nur das
+        Skript, ein laufendes Backend läuft bis zum Abmelden weiter.
+-   Neustart aus der WebUI: unter macOS und Linux ersetzt `exec` den
+    Prozess (gleiche PID), unter Windows startet ein neuer Prozess und
+    der alte endet.
+-   Sprache der WebUI: Deutsch ist die Quelle, `frontend/src/lib/en.ts`
+    die englische Übersetzung (Schlüssel = deutscher Text). Die Wahl
+    steht im Browser (`localStorage`), nicht im Backend; ohne Wahl gilt
+    die Browsersprache. Backend-Fehlermeldungen und Extension bleiben
+    deutsch.
 -   Läuft das Backend nicht, zeigt die Extension „Backend offline“ und
     versucht regelmäßig, sich neu zu verbinden.
 -   WebUI: Das Go-Binary liefert die gebaute WebUI selbst aus (`embed`),
@@ -655,21 +674,37 @@ ebenfalls 127.0.0.1 ansprechen können. Deshalb:
 Port, Datenbankpfad, Zeitzone, Arbeitszeitfenster und ggf. Log-Level
 sollen über Konfiguration steuerbar sein.
 
+Notizordner, Arbeitszeitfenster und Zeitzone stellt man in der WebUI
+unter Einstellungen ein:
+
+-   Die Werte stehen in `~/.config/kairo/config.json` (neben dem Token,
+    Pfad über `KAIRO_CONFIG_PATH` änderbar). `config.Load` liest erst die
+    Datei, dann die Umgebung; eine gesetzte `KAIRO_*`-Variable hat
+    Vorrang, und die WebUI sperrt das Feld dann.
+-   `GET`/`PUT /api/settings` liest und schreibt die Datei. Vor dem
+    Schreiben prüft das Backend die Werte wie beim Start und beim
+    Notizordner zusätzlich, dass er existiert und beschreibbar ist.
+-   Port, Datenbankpfad, Token und Log-Level bleiben nur per Umgebung
+    einstellbar; falsch gesetzt sperren sie WebUI und Extension aus.
+-   Geänderte Werte gelten nach einem Neustart. `POST /api/restart`
+    fährt den Server sauber herunter und startet dasselbe Binary neu
+    (siehe Betrieb).
+-   Der Standard-Notizordner ist `~/Kairo`.
+
 ------------------------------------------------------------------------
 
 # Erweiterbarkeit
 
-Die Architektur soll später ermöglichen:
+Repository und Domain bleiben sauber getrennt, damit ein Wechsel der
+Speicherung nicht die Business-Logik berührt.
 
-``` text
-SQLite
-   ↓
-PostgreSQL
-```
-
-ohne die gesamte Business-Logik umzuschreiben.
-
-Deshalb Repository und Domain sauber trennen.
+Ein Wechsel zu PostgreSQL ist trotzdem nicht geplant. Kairo ist ein
+lokales Einzelnutzer-Programm; PostgreSQL würde einen laufenden Server,
+Installation und eigene Backups verlangen und erst bei vielen Nutzern
+oder vielen gleichzeitigen Schreibern etwas bringen. Sollte Kairo später
+zwischen Geräten synchronisieren, wäre eher ein Sync-Ansatz auf
+SQLite-Basis zu prüfen (z. B. Litestream oder cr-sqlite) als ein
+zentraler Server.
 
 ------------------------------------------------------------------------
 

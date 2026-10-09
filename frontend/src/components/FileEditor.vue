@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist'
 import { ApiError, errorMessage, fetchFile, replaceFile } from '@/api/client'
 import {
-  FONT, LINE, baseline, bounds, boxFrom, corners, drawOnCanvas, drawOnPdf, linesOf, pathOf, resizeBox, sizeFor, snapped, transformed,
+  COLORS, FONT, LINE, TOOL_KEYS, baseline, bounds, boxFrom, corners, linesOf, pathOf, resizeBox, sizeFor, snapped, transformed, zoomStep,
   type Box, type Page, type Pt, type Shape, type Size, type Stroke, type Text, type Tool,
 } from '@/lib/annotate'
-import { filesUrl } from '@/lib/noteFiles'
+import { imageBlob, pdfBlob } from '@/lib/fileSave'
 import { store } from '@/lib/storage'
+import { t } from '@/lib/i18n'
+import { useHistory } from '@/composables/useHistory'
+import { usePdfRender } from '@/composables/usePdfRender'
+import FileEditorBar from '@/components/FileEditorBar.vue'
 
 // PDFs und Bilder ansehen und bezeichnen: Stift, Textmarker, Linie, Pfeil, Rechteck, Ellipse, Text; Zoom; Bilder auch verkleinern.
 // Bis zum Speichern bleibt jede Form einzeln wählbar; Speichern brennt sie in die Datei ein (die alte Fassung landet in .trash).
@@ -19,20 +22,6 @@ const IMAGE_TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg
 const imageType = IMAGE_TYPES[props.path.split('.').pop()!.toLowerCase()]
 const editable = props.kind === 'pdf' || !!imageType // GIF kann der Browser nicht schreiben: nur ansehen
 
-const TOOLS: { id: Tool; label: string; key: string; icon: string; sep?: boolean }[] = [
-  { id: 'select', label: 'Auswählen', key: 'V', icon: '#i-cursor', sep: true },
-  { id: 'pen', label: 'Stift', key: 'P', icon: '#i-pen' },
-  { id: 'marker', label: 'Textmarker', key: 'M', icon: '#i-marker', sep: true },
-  { id: 'line', label: 'Linie', key: 'L', icon: '#i-line' },
-  { id: 'arrow', label: 'Pfeil', key: 'A', icon: '#i-arrow' },
-  { id: 'rect', label: 'Rechteck', key: 'R', icon: '#i-rect' },
-  { id: 'ellipse', label: 'Ellipse', key: 'O', icon: '#i-ellipse', sep: true },
-  { id: 'text', label: 'Text', key: 'T', icon: '#i-text' },
-]
-const KEYS = Object.fromEntries(TOOLS.map((t) => [t.key.toLowerCase(), t.id]))
-const COLORS = [['#e5484d', 'Rot'], ['#ffd60a', 'Gelb'], ['#30a46c', 'Grün'], ['#0090ff', 'Blau'], ['#1c1c1c', 'Schwarz'], ['#ffffff', 'Weiß']] as const
-const SIZES: { id: Size; label: string }[] = [{ id: 's', label: 'Dünn' }, { id: 'm', label: 'Mittel' }, { id: 'l', label: 'Dick' }]
-const SCALES = [1, 0.75, 0.5, 0.25]
 
 // ---------- Datei laden
 const pages = ref<Page[]>([])
@@ -42,16 +31,8 @@ const loading = ref(true)
 const imgUrl = ref('')
 let img: HTMLImageElement | null = null
 let bytes: ArrayBuffer | null = null // Original-PDF für pdf-lib
-let pdf: PDFDocumentProxy | null = null
-let pdfPages: PDFPageProxy[] = []
 let version = ''
 let nextId = 1
-
-async function loadPdfjs() {
-  const [pdfjs, worker] = await Promise.all([import('pdfjs-dist'), import('pdfjs-dist/build/pdf.worker.min.mjs?url')])
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default
-  return pdfjs
-}
 
 // keepView: nach dem Speichern Zoom und Scrollposition behalten.
 async function show(blob: Blob, keepView = false) {
@@ -64,24 +45,11 @@ async function show(blob: Blob, keepView = false) {
     ;[img, imgUrl.value] = [next, url]
     pages.value = [{ w: next.naturalWidth, h: next.naturalHeight, t: [1, 0, 0, 1, 0, 0] }]
   } else {
-    // ponytail: ohne cMaps, Standardschriften und WASM-Decoder von pdf.js (seltene CJK-/JPEG-2000-PDFs zeigen dann Lücken); bei Bedarf nach public/ kopieren.
-    const pdfjs = await loadPdfjs()
     bytes = await blob.arrayBuffer()
-    const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise
-    const list = await Promise.all(Array.from({ length: doc.numPages }, (_, i) => doc.getPage(i + 1)))
-    for (const i of tasks.keys()) cancel(i)
-    void pdf?.loadingTask.destroy()
-    ;[pdf, pdfPages] = [doc, list]
-    rendered.clear()
-    pages.value = list.map((p) => {
-      const v = p.getViewport({ scale: 1 })
-      return { w: v.width, h: v.height, t: v.transform }
-    })
+    pages.value = await pdfRender.open(bytes)
   }
   shapes.value = pages.value.map(() => [])
-  hist = [snapshot()]
-  histLen.value = 1
-  at.value = savedAt.value = 0
+  history.reset()
   outScale.value = 1
   sel.value = editing.value = null
   await nextTick()
@@ -89,7 +57,7 @@ async function show(blob: Blob, keepView = false) {
     needsView = true
     applyView()
   }
-  observe()
+  pdfRender.observe()
   scheduleRender(0)
 }
 
@@ -101,75 +69,29 @@ async function load() {
     version = f.mtime
     await show(f.blob)
   } catch (e) {
-    failed.value = e instanceof ApiError ? errorMessage(e) : `Die Datei lässt sich nicht anzeigen (${e instanceof Error ? e.message : e}).`
+    failed.value = e instanceof ApiError ? errorMessage(e) : t('Die Datei lässt sich nicht anzeigen ({reason}).', { reason: e instanceof Error ? e.message : String(e) })
   } finally {
     loading.value = false
   }
 }
 
 // ---------- Verlauf (Rückgängig/Wiederholen) und Speichern
-let hist: string[] = []
-const histLen = ref(0)
-const at = ref(0)
-const savedAt = ref(0)
+const history = useHistory(() => shapes.value, (v) => (shapes.value = v))
+const { at, len: histLen, commit } = history
 const outScale = ref(1) // Bild verkleinern beim Speichern
-const snapshot = () => JSON.stringify(shapes.value)
-const dirty = computed(() => at.value !== savedAt.value || outScale.value !== 1)
+const dirty = computed(() => history.changed.value || outScale.value !== 1)
 watch(dirty, (d) => emit('dirty', d))
 
-function commit() {
-  hist = hist.slice(0, at.value + 1)
-  if (savedAt.value > at.value) savedAt.value = -1 // gespeicherter Stand liegt im verworfenen Zweig
-  hist.push(snapshot())
-  histLen.value = hist.length
-  at.value = hist.length - 1
-}
 function go(to: number) {
-  if (to < 0 || to >= hist.length) return
   commitText()
-  at.value = to
-  shapes.value = JSON.parse(hist[to]!)
-  sel.value = null
-}
-
-// Verkleinern in Halbschritten: ein großer Sprung lässt Browser Treppen und Moiré zeichnen.
-function scaled(src: HTMLImageElement, w: number, h: number) {
-  let cur: CanvasImageSource = src
-  let [cw, ch] = [src.naturalWidth, src.naturalHeight]
-  for (;;) {
-    const half = cw / 2 >= w && ch / 2 >= h
-    const c = document.createElement('canvas')
-    ;[c.width, c.height] = half ? [Math.round(cw / 2), Math.round(ch / 2)] : [w, h]
-    const ctx = c.getContext('2d')!
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(cur, 0, 0, c.width, c.height)
-    ;[cur, cw, ch] = [c, c.width, c.height]
-    if (!half) return c
-  }
-}
-
-async function imageBlob(): Promise<Blob> {
-  const pg = pages.value[0]!
-  const [w, h] = [Math.max(1, Math.round(pg.w * outScale.value)), Math.max(1, Math.round(pg.h * outScale.value))]
-  const c = scaled(img!, w, h)
-  const ctx = c.getContext('2d')!
-  ctx.scale(w / pg.w, h / pg.h)
-  drawOnCanvas(ctx, shapes.value[0]!)
-  const blob = await new Promise<Blob | null>((res) => c.toBlob(res, imageType, 0.92))
-  if (!blob || blob.type !== imageType) throw new Error(`Dieser Browser kann ${imageType} nicht schreiben.`)
-  return blob
+  if (history.go(to)) sel.value = null
 }
 
 async function save(force = false) {
   commitText()
-  let blob: Blob
-  if (props.kind === 'pdf') {
-    try {
-      blob = new Blob([(await drawOnPdf(await import('pdf-lib'), bytes!, pages.value, shapes.value)) as BlobPart], { type: 'application/pdf' })
-    } catch {
-      throw new Error('Kairo kann diese PDF nicht bearbeiten (verschlüsselt oder beschädigt).')
-    }
-  } else blob = await imageBlob()
+  const blob = props.kind === 'pdf'
+    ? await pdfBlob(bytes!, pages.value, shapes.value)
+    : await imageBlob(img!, pages.value[0]!, shapes.value[0]!, outScale.value, imageType!)
   const resized = outScale.value !== 1
   version = (await replaceFile(props.path, blob, version, force)).mtime
   await show(blob, !resized)
@@ -182,7 +104,6 @@ const scroller = ref<HTMLElement>()
 const zoom = ref(1) // CSS-Pixel pro Seiteneinheit
 const base = props.kind === 'pdf' ? 96 / 72 : 1 / window.devicePixelRatio // 100 %: PDF in Druckgröße, Bild Pixel für Pixel
 const pct = computed(() => Math.round((zoom.value / base) * 100))
-const STEPS = [10, 25, 33, 50, 67, 75, 90, 100, 125, 150, 200, 300, 400, 600, 800]
 
 // Zoomt um einen Bildschirmpunkt (Mauszeiger, sonst Mitte); der Punkt auf der Seite bleibt dabei unter dem Zeiger.
 // Selbst gezoomt (user) heißt: nicht mehr automatisch an die Breite anpassen.
@@ -207,11 +128,7 @@ function zoomTo(z: number, cx?: number, cy?: number, user = true) {
   scheduleRender()
 }
 
-function step(dir: 1 | -1) {
-  const p = pct.value
-  const next = dir > 0 ? STEPS.find((s) => s > p + 0.5) ?? 800 : [...STEPS].reverse().find((s) => s < p - 0.5) ?? 10
-  zoomTo((next / 100) * base)
-}
+const step = (dir: 1 | -1) => zoomTo((zoomStep(pct.value, dir) / 100) * base)
 
 // PDF: Seitenbreite; Bild: ganz sichtbar, aber nie größer als 100 %.
 function fit(top = false) {
@@ -300,72 +217,9 @@ function onGesture(e: Event) {
   else if (gesture) zoomTo(gesture * g.scale, g.clientX, g.clientY)
 }
 
-// ---------- PDF-Seiten rendern: nur sichtbare (±1 Bildschirm), scharf für Zoom × Pixeldichte
-const canvases: (HTMLCanvasElement | null)[] = []
-const setCanvas = (i: number) => (el: unknown) => (canvases[i] = el as HTMLCanvasElement | null)
-const rendered = new Map<number, number>() // Seite → gerenderte Skala
-const tasks = new Map<number, RenderTask>()
-const visible = new Set<number>()
-let observer: IntersectionObserver | null = null
-let renderTimer = 0
-const MAX_PIXELS = 16e6 // größte Canvas-Fläche, die Safari noch zeichnet
-
-function observe() {
-  observer?.disconnect()
-  if (props.kind !== 'pdf' || !scroller.value) return
-  observer = new IntersectionObserver((entries) => {
-    for (const en of entries) {
-      const i = Number((en.target as HTMLElement).dataset.i)
-      if (en.isIntersecting) visible.add(i)
-      else {
-        visible.delete(i)
-        free(i)
-      }
-    }
-    scheduleRender(0)
-  }, { root: scroller.value, rootMargin: '100% 0px' })
-  scroller.value.querySelectorAll('.fe-page').forEach((el) => observer!.observe(el))
-}
-
-function scheduleRender(delay = 150) {
-  clearTimeout(renderTimer)
-  renderTimer = window.setTimeout(() => visible.forEach((i) => void renderPage(i)), delay)
-}
-
-async function renderPage(i: number) {
-  const [page, canvas, pg] = [pdfPages[i], canvases[i], pages.value[i]]
-  if (!page || !canvas || !pg) return
-  const scale = Math.min(zoom.value * window.devicePixelRatio, Math.sqrt(MAX_PIXELS / (pg.w * pg.h)))
-  if (Math.abs((rendered.get(i) ?? 0) - scale) < 1e-3) return
-  cancel(i)
-  // Erst offscreen rendern, dann umkopieren: beim Zoomen bleibt das alte Bild stehen, statt weiß zu blitzen.
-  const off = document.createElement('canvas')
-  const viewport = page.getViewport({ scale })
-  ;[off.width, off.height] = [Math.ceil(viewport.width), Math.ceil(viewport.height)]
-  const task = page.render({ canvas: off, viewport })
-  tasks.set(i, task)
-  try {
-    await task.promise
-  } catch {
-    return // abgebrochen
-  }
-  if (tasks.get(i) !== task) return
-  tasks.delete(i)
-  ;[canvas.width, canvas.height] = [off.width, off.height]
-  canvas.getContext('2d')!.drawImage(off, 0, 0)
-  rendered.set(i, scale)
-}
-
-function cancel(i: number) {
-  tasks.get(i)?.cancel()
-  tasks.delete(i)
-}
-function free(i: number) {
-  cancel(i)
-  const c = canvases[i]
-  if (c) c.width = c.height = 0
-  rendered.delete(i)
-}
+// ---------- PDF-Seiten rendern
+const pdfRender = usePdfRender(zoom, pages, scroller)
+const { scheduleRender, setCanvas } = pdfRender
 
 // ---------- Werkzeuge
 const tool = ref<Tool>('select')
@@ -617,7 +471,7 @@ function onKey(e: KeyboardEvent) {
     sel.value = null
     tool.value = 'select'
   } else {
-    const t = KEYS[k]
+    const t = TOOL_KEYS[k]
     if (t) pickTool(t)
   }
 }
@@ -635,63 +489,22 @@ onBeforeUnmount(() => {
   clearTimeout(viewTimer)
   saveView()
   resize.disconnect()
-  observer?.disconnect()
-  clearTimeout(renderTimer)
-  for (const i of tasks.keys()) cancel(i)
-  void pdf?.loadingTask.destroy()
+  pdfRender.dispose()
   if (imgUrl.value) URL.revokeObjectURL(imgUrl.value)
 })
 </script>
 
 <template>
   <div class="fe">
-    <div class="fe-bar" role="toolbar" aria-label="Bearbeiten">
-      <template v-if="editable">
-        <template v-for="t in TOOLS" :key="t.id">
-          <button
-            type="button" class="icon-btn" :class="{ on: tool === t.id }" :aria-pressed="tool === t.id"
-            :aria-label="t.label" :data-tip="`${t.label} (${t.key})`" @click="pickTool(t.id)"
-          ><svg class="ic"><use :href="t.icon" /></svg></button>
-          <i v-if="t.sep" class="sep" />
-        </template>
-        <i class="sep" />
-        <button
-          v-for="[c, name] in COLORS" :key="c" type="button" class="fe-sw" :class="{ on: activeColor === c }"
-          :aria-pressed="activeColor === c" :aria-label="name" :data-tip="name" @click="pickColor(c)"
-        ><i :style="{ background: c }" /></button>
-        <i class="sep" />
-        <button
-          v-for="(z, k) in SIZES" :key="z.id" type="button" class="icon-btn fe-dot" :class="{ on: size === z.id }"
-          :aria-pressed="size === z.id" :aria-label="z.label" :data-tip="z.label" @click="pickSize(z.id)"
-        ><i :style="{ width: `${4 + k * 3}px`, height: `${4 + k * 3}px` }" /></button>
-        <i class="sep" />
-        <button type="button" class="icon-btn" aria-label="Rückgängig" data-tip="Rückgängig (⌘Z)" :disabled="at === 0" @click="go(at - 1)"><svg class="ic"><use href="#i-undo" /></svg></button>
-        <button type="button" class="icon-btn" aria-label="Wiederholen" data-tip="Wiederholen (⇧⌘Z)" :disabled="at >= histLen - 1" @click="go(at + 1)"><svg class="ic"><use href="#i-redo" /></svg></button>
-        <button type="button" class="icon-btn" aria-label="Auswahl löschen" data-tip="Löschen (⌫)" :disabled="!sel" @click="removeSelected"><svg class="ic"><use href="#i-trash" /></svg></button>
-        <template v-if="kind === 'image' && pages[0]">
-          <i class="sep" />
-          <label class="fe-scale" :data-tip="`Beim Speichern: ${Math.round(pages[0].w * outScale)} × ${Math.round(pages[0].h * outScale)} px`">
-            <span>Größe</span>
-            <select v-model.number="outScale" aria-label="Größe beim Speichern">
-              <option v-for="k in SCALES" :key="k" :value="k">{{ k * 100 }} %</option>
-            </select>
-          </label>
-        </template>
-      </template>
-      <span class="fe-zoom">
-        <button type="button" class="icon-btn" aria-label="Verkleinern" data-tip="Verkleinern (⌘−)" @click="step(-1)"><svg class="ic"><use href="#i-minus" /></svg></button>
-        <button type="button" class="fe-pct" aria-label="Einpassen" data-tip="Einpassen (⌘0)" @click="fit()">{{ pct }} %</button>
-        <button type="button" class="icon-btn" aria-label="Vergrößern" data-tip="Vergrößern (⌘+)" @click="step(1)"><svg class="ic"><use href="#i-plus" /></svg></button>
-        <template v-if="kind === 'pdf'">
-          <i class="sep" />
-          <a class="icon-btn" :href="filesUrl(path)" target="_blank" rel="noopener" aria-label="Im PDF-Viewer des Browsers öffnen" data-tip="Im PDF-Viewer öffnen (Suche, Drucken)"><svg class="ic"><use href="#i-external" /></svg></a>
-        </template>
-      </span>
-    </div>
+    <FileEditorBar
+      v-model:out-scale="outScale" :kind="kind" :path="path" :editable="editable" :tool="tool" :color="activeColor" :size="size"
+      :can-undo="at > 0" :can-redo="at < histLen - 1" :can-remove="!!sel" :page="pages[0]" :pct="pct"
+      @tool="pickTool" @color="pickColor" @size="pickSize" @undo="go(at - 1)" @redo="go(at + 1)" @remove="removeSelected" @zoom="step" @fit="fit()"
+    />
 
     <div ref="scroller" class="fe-scroll" @scroll.passive="onScroll">
       <p v-if="failed" class="fe-msg" role="alert">{{ failed }}</p>
-      <p v-else-if="loading && !pages.length" class="fe-msg">Lädt …</p>
+      <p v-else-if="loading && !pages.length" class="fe-msg">{{ $t('Lädt …') }}</p>
       <div class="fe-pages" :class="{ single: kind === 'image' }">
         <div
           v-for="(pg, i) in pages" :key="i" class="fe-page" :data-i="i"
@@ -734,7 +547,7 @@ onBeforeUnmount(() => {
           </svg>
           <textarea
             v-if="editing?.page === i" :ref="setTextarea" v-model="editText" class="fe-ta" :style="taStyle"
-            spellcheck="false" aria-label="Text" @blur="commitText" @keydown.esc.prevent="commitText" @keydown.meta.enter.prevent="commitText"
+            spellcheck="false" :aria-label="$t('Text')" @blur="commitText" @keydown.esc.prevent="commitText" @keydown.meta.enter.prevent="commitText"
           />
         </div>
       </div>
@@ -744,22 +557,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .fe { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-/* wie die Werkzeugleiste des Markdown-Editors */
-.fe-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 2px; min-height: 40px; padding: 4px 16px; border-bottom: 1px solid var(--br-subtle); background: var(--bg-0); }
-.fe-bar [data-tip]:hover::after { bottom: auto; top: calc(100% + 8px); } /* Tooltip unter der Leiste, nicht über dem Pfad */
-.fe-bar .icon-btn.on { background: var(--bg-selected); color: var(--a-blue-hi); }
-.fe-bar .icon-btn:disabled { color: var(--tx-disabled); background: none; cursor: default; }
-.sep { flex: none; width: 1px; height: 16px; margin: 0 6px; background: var(--br-default); }
-.fe-sw { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; transition: box-shadow var(--dur) ease-out; }
-.fe-sw i { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(127 127 127 / .45); }
-.fe-sw:hover { box-shadow: 0 0 0 1px var(--br-strong); }
-.fe-sw.on { box-shadow: 0 0 0 1.5px var(--tx-primary); }
-.fe-dot i { border-radius: 50%; background: currentColor; }
-.fe-scale { display: inline-flex; align-items: center; gap: 6px; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
-.fe-scale select { height: 26px; padding: 0 6px; border: 1px solid var(--br-default); border-radius: var(--r-s); background: var(--bg-1); color: var(--tx-primary); font: 400 12px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
-.fe-zoom { display: flex; align-items: center; gap: 2px; margin-left: auto; } /* bricht die Leiste um, bleibt der Zoom rechts */
-.fe-pct { min-width: 52px; height: 28px; border-radius: var(--r-s); font: 400 12px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-secondary); transition: background var(--dur) ease-out, color var(--dur) ease-out; }
-.fe-pct:hover { background: var(--bg-2); color: var(--tx-primary); }
 
 .fe-scroll { position: relative; flex: 1; min-height: 0; overflow: auto; background: var(--bg-2); }
 .fe-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; box-sizing: border-box; width: max-content; min-width: 100%; padding: 24px; }

@@ -8,6 +8,7 @@ import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import { vDialog } from '@/lib/dialog'
 import { PROJECT_COLORS, projectColor } from '@/lib/projectColor'
+import { locale, t } from '@/lib/i18n'
 import { daysAgo, dur, entryMinutes, hm, weekStart, ymd } from '@/lib/dates'
 import { store } from '@/lib/storage'
 import DeleteButton from '@/components/DeleteButton.vue'
@@ -15,7 +16,7 @@ import ResourceList from '@/components/ResourceList.vue'
 import SearchField from '@/components/SearchField.vue'
 import TaskActions from '@/components/TaskActions.vue'
 
-const STATUS: Record<string, string> = { ACTIVE: 'Aktiv', PAUSED: 'Pausiert', COMPLETED: 'Abgeschlossen', ARCHIVED: 'Archiviert' }
+const STATUS: Record<string, string> = { ACTIVE: t('Aktiv'), PAUSED: t('Pausiert'), COMPLETED: t('Abgeschlossen'), ARCHIVED: t('Archiviert') }
 const RES_ICON = { URL: 'i-link', FILE: 'i-file', FOLDER: 'i-file' } as const
 
 interface Progress { project_id: string | null; done_tasks: number; total_tasks: number; tracked_minutes: number }
@@ -102,7 +103,7 @@ const setLayout = (l: 'grid' | 'list') => {
 const tabs = computed(() => Object.entries(STATUS).map(([status, label]) => ({ status, label, n: shown.value.filter((p) => p.status === status).length })))
 const list = computed(() => shown.value
   .filter((p) => p.status === tab.value)
-  .sort((a, b) => sort.value === 'name' ? a.name.localeCompare(b.name, 'de') : (minutes.value[b.id]?.last ?? 0) - (minutes.value[a.id]?.last ?? 0)))
+  .sort((a, b) => sort.value === 'name' ? a.name.localeCompare(b.name, locale.value) : (minutes.value[b.id]?.last ?? 0) - (minutes.value[a.id]?.last ?? 0)))
 const lastActive = (id: string) => {
   const t = minutes.value[id]?.last
   return t ? daysAgo(ymd(new Date(t)), ymd(new Date())) : ''
@@ -121,28 +122,28 @@ useLiveEvents(load)
   <div class="view-inner">
     <div class="v-head v-head-row">
       <div>
-        <h1 class="v-title">Projekte</h1>
-        <div class="v-sub">Fortschritt und verknüpfte Ressourcen.</div>
+        <h1 class="v-title">{{ $t('Projekte') }}</h1>
+        <div class="v-sub">{{ $t('Fortschritt und verknüpfte Ressourcen.') }}</div>
       </div>
-      <button class="btn btn-primary" type="button" @click="openDialog()"><svg class="ic"><use href="#i-plus" /></svg>Neues Projekt</button>
+      <button class="btn btn-primary" type="button" @click="openDialog()"><svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neues Projekt') }}</button>
     </div>
     <div v-if="error && !dialog" class="badge" role="alert">{{ error }}</div>
 
     <div class="filterbar">
       <button v-for="t in tabs" :key="t.status" type="button" class="fchip" :aria-pressed="tab === t.status" :disabled="!t.n && tab !== t.status" @click="tab = t.status">{{ t.label }} <span class="count">{{ t.n }}</span></button>
-      <SearchField v-model="search" label="Projekte durchsuchen" />
+      <SearchField v-model="search" :label="$t('Projekte durchsuchen')" />
       <span class="spacer"></span>
-      <select v-model="sort" class="input" aria-label="Sortieren nach">
-        <option value="recent">Zuletzt aktiv</option>
-        <option value="name">Name</option>
+      <select v-model="sort" class="input" :aria-label="$t('Sortieren nach')">
+        <option value="recent">{{ $t('Zuletzt aktiv') }}</option>
+        <option value="name">{{ $t('Name') }}</option>
       </select>
-      <span class="seg" role="group" aria-label="Ansicht">
-        <button type="button" aria-label="Kacheln" :aria-pressed="layout === 'grid'" @click="setLayout('grid')"><svg class="ic"><use href="#i-grid" /></svg></button>
-        <button type="button" aria-label="Liste" :aria-pressed="layout === 'list'" @click="setLayout('list')"><svg class="ic"><use href="#i-list" /></svg></button>
+      <span class="seg" role="group" :aria-label="$t('Ansicht')">
+        <button type="button" :aria-label="$t('Kacheln')" :aria-pressed="layout === 'grid'" @click="setLayout('grid')"><svg class="ic"><use href="#i-grid" /></svg></button>
+        <button type="button" :aria-label="$t('Liste')" :aria-pressed="layout === 'list'" @click="setLayout('list')"><svg class="ic"><use href="#i-list" /></svg></button>
       </span>
     </div>
-    <div v-if="!projects.length" class="v-sub">Keine Projekte.</div>
-    <div v-else-if="!list.length" class="v-sub">Keine Projekte<template v-if="search"> für „{{ search }}“</template> in „{{ STATUS[tab] }}“.</div>
+    <div v-if="!projects.length" class="v-sub">{{ $t('Keine Projekte.') }}</div>
+    <div v-else-if="!list.length" class="v-sub">{{ search ? $t('Keine Projekte für „{q}“ in „{tab}“.', { q: search, tab: STATUS[tab] ?? '' }) : $t('Keine Projekte in „{tab}“.', { tab: STATUS[tab] ?? '' }) }}</div>
     <div v-else class="proj-list" :class="layout">
       <article v-for="p in list" :key="p.id" class="proj-card" :class="{ open: openId === p.id }" :style="{ '--pc': projectColor(p.id) }">
         <div class="proj-head">
@@ -150,10 +151,10 @@ useLiveEvents(load)
           <button type="button" class="proj-name proj-toggle" :aria-expanded="openId === p.id" @click="openId = openId === p.id ? null : p.id">{{ p.name }}</button>
           <span class="proj-end">
             <span class="proj-last">{{ lastActive(p.id) }}</span>
-            <button class="btn btn-ghost proj-act" type="button" @click="openDialog(p)">Bearbeiten</button>
+            <button class="btn btn-ghost proj-act" type="button" @click="openDialog(p)">{{ $t('Bearbeiten') }}</button>
           </span>
         </div>
-        <div class="proj-desc" :class="{ none: !p.description }">{{ p.description || 'Keine Beschreibung' }}</div>
+        <div class="proj-desc" :class="{ none: !p.description }">{{ p.description || $t('Keine Beschreibung') }}</div>
         <div class="proj-meta mono">{{ p.local_path ?? '' }}</div>
         <div v-if="resOf(p.id).length" class="proj-res">
           <component :is="href(r) ? 'a' : 'span'" v-for="r in resOf(p.id)" :key="r.id" class="res" :href="href(r)" target="_blank" rel="noopener">
@@ -165,14 +166,14 @@ useLiveEvents(load)
           <span class="proj-pct">{{ pct(p.id) }} %</span>
         </div>
         <div class="proj-foot">
-          <span class="proj-stat"><b class="mono">{{ openTasks(p.id).length }}</b> offen</span>
-          <span class="proj-stat"><b class="mono">{{ hm(minutes[p.id]?.week ?? 0) }}</b> diese Woche</span>
+          <span class="proj-stat"><b class="mono">{{ openTasks(p.id).length }}</b> {{ $t('offen') }}</span>
+          <span class="proj-stat"><b class="mono">{{ hm(minutes[p.id]?.week ?? 0) }}</b> {{ $t('diese Woche') }}</span>
           <span class="spacer"></span>
-          <button v-if="p.local_path" class="btn btn-ghost" type="button" :aria-label="`In VSCodium öffnen: ${p.name}`" @click="inCode(p)">VSCodium ↗</button>
+          <button v-if="p.local_path" class="btn btn-ghost" type="button" :aria-label="`${$t('In VSCodium öffnen')}: ${p.name}`" @click="inCode(p)">{{ $t('VSCodium ↗') }}</button>
         </div>
         <div v-if="openId === p.id" class="proj-more">
-          <div class="proj-meta">Erfasst: {{ dur(minutes[p.id]?.week) }} diese Woche · {{ dur(minutes[p.id]?.total) }} gesamt<template v-if="frac(p.id)"> · {{ frac(p.id) }} Aufgaben erledigt</template></div>
-          <span class="lbl">Offene Aufgaben<span v-if="openTasks(p.id).length" class="count"> · {{ openTasks(p.id).length }}</span></span>
+          <div class="proj-meta">{{ $t('Erfasst: {week} diese Woche · {total} gesamt', { week: dur(minutes[p.id]?.week), total: dur(minutes[p.id]?.total) }) }}<template v-if="frac(p.id)"> · {{ $t('{n} Aufgaben erledigt', { n: frac(p.id) }) }}</template></div>
+          <span class="lbl">{{ $t('Offene Aufgaben') }}<span v-if="openTasks(p.id).length" class="count"> · {{ openTasks(p.id).length }}</span></span>
           <div v-if="openTasks(p.id).length" class="card tasklist">
             <div v-for="t in openTasks(p.id)" :key="t.id" class="task-row">
               <span class="t">{{ t.title }}</span>
@@ -182,41 +183,41 @@ useLiveEvents(load)
               <TaskActions class="row-act" :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
             </div>
           </div>
-          <div v-else class="proj-meta">Keine offenen Aufgaben.</div>
+          <div v-else class="proj-meta">{{ $t('Keine offenen Aufgaben.') }}</div>
         </div>
       </article>
     </div>
 
     <div v-if="dialog" v-dialog="() => (dialog = false)" class="overlay open" @mousedown.self="dialog = false">
-      <div class="dialog" :aria-label="editing ? 'Projekt bearbeiten' : 'Neues Projekt'">
+      <div class="dialog" :aria-label="editing ? $t('Projekt bearbeiten') : $t('Neues Projekt')">
         <form @submit.prevent="save">
           <div class="dlg-head">
-            <h3>{{ editing ? 'Projekt bearbeiten' : 'Neues Projekt' }}</h3>
-            <button class="icon-btn" type="button" aria-label="Schließen" @click="dialog = false"><svg class="ic"><use href="#i-x" /></svg></button>
+            <h3>{{ editing ? $t('Projekt bearbeiten') : $t('Neues Projekt') }}</h3>
+            <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="dialog = false"><svg class="ic"><use href="#i-x" /></svg></button>
           </div>
           <div class="dlg-body">
-            <div class="field"><label for="p-name">Name</label><input id="p-name" v-model="form.name" class="input" placeholder="Projektname" /></div>
-            <div class="field"><label for="p-desc">Beschreibung</label><input id="p-desc" v-model="form.description" class="input" /></div>
+            <div class="field"><label for="p-name">{{ $t('Name') }}</label><input id="p-name" v-model="form.name" class="input" :placeholder="$t('Projektname')" /></div>
+            <div class="field"><label for="p-desc">{{ $t('Beschreibung') }}</label><input id="p-desc" v-model="form.description" class="input" /></div>
             <div v-if="error" class="badge" role="alert">{{ error }}</div>
-            <div class="field"><label for="p-path">Ordner</label><input id="p-path" v-model="form.local_path" class="input" placeholder="Absoluter Pfad oder ~/…, muss existieren (optional)" /></div>
+            <div class="field"><label for="p-path">{{ $t('Ordner') }}</label><input id="p-path" v-model="form.local_path" class="input" :placeholder="$t('Absoluter Pfad oder ~/…, muss existieren (optional)')" /></div>
             <div class="field">
-              <label id="p-color-l">Farbe</label>
+              <label id="p-color-l">{{ $t('Farbe') }}</label>
               <div class="swatches" role="radiogroup" aria-labelledby="p-color-l">
-                <label v-for="[c, label] in PROJECT_COLORS" :key="c" class="swatch" :title="label">
+                <label v-for="[c, label] in PROJECT_COLORS" :key="c" class="swatch" :title="$t(label)">
                   <input v-model="form.color" type="radio" name="p-color" :value="c" :aria-label="label" /><span :style="{ background: `var(--p-${c})` }"></span>
                 </label>
               </div>
             </div>
             <div v-if="editing" class="field">
-              <label for="p-status">Status</label>
+              <label for="p-status">{{ $t('Status') }}</label>
               <select id="p-status" v-model="form.status" class="input"><option v-for="(l, v) in STATUS" :key="v" :value="v">{{ l }}</option></select>
             </div>
           </div>
           <div class="dlg-foot">
-            <DeleteButton v-if="editing" :text="`„${editing.name}“ löschen? Die Tasks bleiben ohne Projekt, ihre Zeiteinträge landen in „Sonstiges“.`" @confirm="run(() => deleteProject(editing!.id)).then((ok) => ok && (dialog = false))" />
+            <DeleteButton v-if="editing" :text="$t('„{name}“ löschen? Die Tasks bleiben ohne Projekt, ihre Zeiteinträge landen in „Sonstiges“.', { name: editing.name })" @confirm="run(() => deleteProject(editing!.id)).then((ok) => ok && (dialog = false))" />
             <span class="spacer"></span>
-            <button class="btn btn-ghost" type="button" @click="dialog = false">Abbrechen</button>
-            <button class="btn btn-primary" type="submit">{{ editing ? 'Speichern' : 'Anlegen' }}</button>
+            <button class="btn btn-ghost" type="button" @click="dialog = false">{{ $t('Abbrechen') }}</button>
+            <button class="btn btn-primary" type="submit">{{ editing ? $t('Speichern') : $t('Anlegen') }}</button>
           </div>
         </form>
 

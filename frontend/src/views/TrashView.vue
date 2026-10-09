@@ -5,6 +5,7 @@ import {
   type Project, type Trash,
 } from '@/api/client'
 import { projectColor } from '@/lib/projectColor'
+import { locale, t } from '@/lib/i18n'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import DeleteButton from '@/components/DeleteButton.vue'
@@ -18,7 +19,7 @@ const { error, load, run } = useLoader(async () => {
 })
 
 const when = (iso: string) =>
-  new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
+  new Intl.DateTimeFormat(locale.value, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
 
 // Eine Liste, neueste zuerst; der Typ steht als Icon und Wort in der Zeile.
 const rows = computed(() => [
@@ -34,7 +35,7 @@ const count = (k: string) => rows.value.filter((r) => !k || r.kind === k).length
 const search = ref('')
 const shown = computed(() => {
   const q = search.value.trim().toLowerCase()
-  return rows.value.filter((r) => (!kind.value || r.kind === kind.value) && (!q || `${r.title} ${r.kind}`.toLowerCase().includes(q)))
+  return rows.value.filter((r) => (!kind.value || r.kind === kind.value) && (!q || `${r.title} ${t(r.kind)}`.toLowerCase().includes(q)))
 })
 
 onMounted(load)
@@ -44,27 +45,27 @@ useLiveEvents(load)
 <template>
   <div class="view-inner">
     <div class="v-head">
-      <h1 class="v-title">Papierkorb</h1>
-      <div class="v-sub">{{ rows.length }} {{ rows.length === 1 ? 'Eintrag' : 'Einträge' }}</div>
+      <h1 class="v-title">{{ $t('Papierkorb') }}</h1>
+      <div class="v-sub">{{ $tn(rows.length, '{n} Eintrag', '{n} Einträge') }}</div>
     </div>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
-    <div v-if="!rows.length" class="v-sub">Der Papierkorb ist leer.</div>
+    <div v-if="!rows.length" class="v-sub">{{ $t('Der Papierkorb ist leer.') }}</div>
     <template v-else>
     <div class="filterbar">
-      <button type="button" class="fchip" :aria-pressed="kind === ''" @click="kind = ''">Alle <span class="count">{{ count('') }}</span></button>
-      <button v-for="k in KINDS" :key="k" type="button" class="fchip" :aria-pressed="kind === k" :disabled="!count(k)" @click="kind = k">{{ PLURAL[k] }} <span class="count">{{ count(k) }}</span></button>
-      <SearchField v-model="search" label="Papierkorb durchsuchen" />
+      <button type="button" class="fchip" :aria-pressed="kind === ''" @click="kind = ''">{{ $t('Alle') }} <span class="count">{{ count('') }}</span></button>
+      <button v-for="k in KINDS" :key="k" type="button" class="fchip" :aria-pressed="kind === k" :disabled="!count(k)" @click="kind = k">{{ $t(PLURAL[k]) }} <span class="count">{{ count(k) }}</span></button>
+      <SearchField v-model="search" :label="$t('Papierkorb durchsuchen')" />
     </div>
-    <div v-if="!shown.length" class="v-sub">Keine Treffer für „{{ search }}“.</div>
+    <div v-if="!shown.length" class="v-sub">{{ $t('Keine Treffer für „{q}“.', { q: search }) }}</div>
     <div v-else class="tasklist">
       <div v-for="r in shown" :key="r.kind + r.id" class="task-row">
         <svg class="ic tr-ic" aria-hidden="true"><use :href="`#i-${r.icon}`" /></svg>
         <span class="t tr-title">{{ r.title }}
-          <span class="tr-from">{{ r.kind }}<template v-if="r.project && projectName.get(r.project)"> · <i class="pdot" :style="{ background: projectColor(r.project) }"></i>aus {{ projectName.get(r.project) }}</template></span>
+          <span class="tr-from">{{ $t(r.kind) }}<template v-if="r.project && projectName.get(r.project)"> · <i class="pdot" :style="{ background: projectColor(r.project) }"></i>aus {{ projectName.get(r.project) }}</template></span>
         </span>
         <span class="due">{{ when(r.at) }}</span>
-        <span class="row-act"><button type="button" class="btn btn-secondary" :aria-label="`Wiederherstellen: ${r.title}`" @click="run(r.restore)">Wiederherstellen</button>
-        <DeleteButton ghost label="Endgültig löschen" :text="`„${r.title}“ endgültig löschen? Das lässt sich nicht rückgängig machen.`" @confirm="run(r.purge)" /></span>
+        <span class="row-act"><button type="button" class="btn btn-secondary" :aria-label="`Wiederherstellen: ${r.title}`" @click="run(r.restore)">{{ $t('Wiederherstellen') }}</button>
+        <DeleteButton ghost :label="$t('Endgültig löschen')" :text="$t('„{title}“ endgültig löschen? Das lässt sich nicht rückgängig machen.', { title: r.title })" @confirm="run(r.purge)" /></span>
       </div>
     </div>
     </template>

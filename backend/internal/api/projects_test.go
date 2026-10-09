@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -37,7 +38,7 @@ func TestProjectsCRUD(t *testing.T) {
 	h := newProjectsRouter(t)
 
 	dir := t.TempDir()
-	rec := call(h, "POST", "/api/projects", `{"name":"AlgoDat","local_path":"`+dir+`"}`)
+	rec := call(h, "POST", "/api/projects", `{"name":"AlgoDat","local_path":`+strconv.Quote(dir)+`}`)
 	if rec.Code != 201 {
 		t.Fatalf("POST = %d %s", rec.Code, rec.Body)
 	}

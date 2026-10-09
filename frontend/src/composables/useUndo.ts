@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { taskAction, updateTask, type Task } from '@/api/client'
+import { t } from '@/lib/i18n'
 
 const TTL_MS = 8_000
 
@@ -30,7 +31,7 @@ export function useUndo() {
     const prev = task.status === 'IN_PROGRESS' ? 'PAUSED' : task.status
     void run(async () => {
       await (status === 'COMPLETED' ? taskAction(id, 'complete') : updateTask(id, { status }))
-      offer(`„${title}“ ${status === 'COMPLETED' ? 'erledigt' : 'abgebrochen'}`, () => run(() => updateTask(id, { status: prev })))
+      offer(t(status === 'COMPLETED' ? '„{title}“ erledigt' : '„{title}“ abgebrochen', { title }), () => run(() => updateTask(id, { status: prev })))
     })
   }
   return { pending, offer, undo, dismiss, setDone }
