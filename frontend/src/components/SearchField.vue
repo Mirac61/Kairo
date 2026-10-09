@@ -18,7 +18,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 <template>
   <!-- Esc leert die Suche, ein zweites Esc verlässt das Feld. -->
   <input
-    ref="el" v-model="model" type="search" class="input" placeholder="Suchen …" title="Suchen (/)" :aria-label="label" aria-keyshortcuts="/"
+    ref="el" v-model="model" type="search" class="input" :placeholder="$t('Suchen …')" :title="$t('Suchen (/)')" :aria-label="label" aria-keyshortcuts="/"
     @keydown.esc="model ? (model = '') : el?.blur()"
   />
 </template>

@@ -6,8 +6,10 @@ MVP.
 **Stand:** Die Phasen 0–7 sind gebaut. Dazu kamen nach dem MVP: der
 Wochenrückblick in der WebUI, ICS-Import, Papierkorb mit Rückgängig-Toast,
 Projektfarben, Statusleiste, Befehle und URI-Handler in der Extension, das
-SwiftBar-Plugin (`tools/menubar/`) und Backups. In Phase 8 steht nur noch,
-was fehlt.
+SwiftBar-Plugin (`tools/menubar/`), Backups, die Einstellungsseite
+(`config.json`), Playwright-Smoke-Tests und Releases mit fertigen
+Binaries. In Phase 8 steht nur noch, was fehlt, unter „Pflege“ der Stand
+der Aufräumarbeiten.
 
 Innerhalb jeder Phase wird jede Funktion als vertikale Scheibe gebaut
 (siehe `03_AGENT_GUIDELINES.md`, Entwicklungsstil).
@@ -189,3 +191,53 @@ Mögliche spätere Funktionen:
 -   automatische Kontextvorschläge
 
 Diese Funktionen sind bewusst nicht Teil des MVP.
+
+------------------------------------------------------------------------
+
+# Pflege
+
+Technische Schulden und Aufräumarbeiten, keine neuen Funktionen.
+
+## Erledigt
+
+-   **Frontend-Tests:** `frontend/e2e/smoke.test.mjs` startet das Backend
+    mit leerer Datenbank und prüft im Browser: Aufgabe anlegen, Timer
+    starten und stoppen, Termin verschieben, Notiz speichern, PDF und
+    Bild bezeichnen. `make e2e` lokal, eigener Job in der CI.
+-   **Große Komponenten:** Aus `FileEditor.vue` sind Werkzeugleiste
+    (`FileEditorBar.vue`), PDF-Rendern (`usePdfRender`), Verlauf
+    (`useHistory`) und Speichern (`lib/fileSave.ts`) herausgelöst, aus
+    `CalendarView.vue` der Termin-Dialog (`EventDialog.vue`) und die
+    Speicherlogik (`requestOf` in `lib/eventForm.ts`). Rechenteile der
+    Startseite liegen in `lib/dayPlan.ts`, Pfadhelfer der Notizen in
+    `lib/noteFiles.ts`; alles mit Tests in `frontend/test/`.
+-   **`quickAdd.ts` nur einmal:** Die Extension kompiliert
+    `frontend/src/lib/quickAdd.ts` mit (`rootDir: ".."` in
+    `extension/tsconfig.json`); Kopie und `cmp`-Prüfung sind weg.
+-   **Einstieg ohne Build:** `.goreleaser.yaml` baut bei einem Tag `v*`
+    Binaries für macOS und Linux (arm64/amd64) und hängt die Extension
+    als `.vsix` an das Release (`.github/workflows/release.yml`).
+-   **README:** auf Englisch, für neue Nutzer gekürzt.
+-   **Windows und Linux:** Releases für alle drei Systeme, Autostart per
+    systemd bzw. Autostart-Ordner, Neustart ohne `exec` unter Windows,
+    Windows-Pfade in Ressourcen und Projekterkennung der Extension.
+    Backend-Tests laufen in der CI auf Linux, macOS und Windows.
+-   **Englisch/Deutsch:** Sprachwahl in den Einstellungen (sofort, je
+    Browser). Die Schnelleingabe versteht zusätzlich `@today`,
+    `@tomorrow`, englische Wochentage und `!high` usw.
+
+## Offen
+
+-   Die Extension und die Fehlermeldungen des Backends sind nur
+    deutsch. Die Extension könnte `vscode.env.language` folgen.
+-   Unter Windows ist das Backend nur cross-kompiliert und in der CI
+    getestet, noch nicht von Hand ausprobiert.
+
+-   `CalendarView.vue`, `NotesView.vue` und `FileEditor.vue` haben noch
+    knapp 600 Zeilen. Der Rest hängt eng an FullCalendar bzw. am
+    Zeiger-Handling der Zeichenfläche; weiter teilen, wenn eine Änderung
+    dort ohnehin ansteht.
+-   Vor dem Veröffentlichen entscheiden, ob `AGENTS.md`,
+    `03_AGENT_GUIDELINES.md`, `04_AGENT_HANDOFF.md` und die Reviews
+    `06`/`07` öffentlich bleiben. Die Screenshots in `docs/screenshots/`
+    zeigen nur Mock-Daten aus `frontend/scripts/shot.mjs`.

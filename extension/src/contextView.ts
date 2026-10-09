@@ -15,7 +15,7 @@ import {
   updateTask,
 } from "./backendClient";
 import { expandHome, joinUrl, matchProject, Project, Resource, Task, Today, todayList, weekRange } from "./core";
-import { parseQuickAdd, taskBody } from "./quickAdd";
+import { parseQuickAdd, taskBody } from "../../frontend/src/lib/quickAdd";
 import { LiveEvents } from "./liveEvents";
 
 export interface State {

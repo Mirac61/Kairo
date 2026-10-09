@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -85,10 +86,11 @@ func TestLoadOrCreateToken(t *testing.T) {
 	if err != nil || len(tok) != 64 {
 		t.Fatalf("tok=%q err=%v", tok, err)
 	}
-	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 {
+	// Windows kennt keine Unix-Dateirechte; dort schützt das Nutzerprofil die Datei.
+	if fi, _ := os.Stat(path); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
 		t.Errorf("Datei-Modus %v", fi.Mode().Perm())
 	}
-	if fi, _ := os.Stat(filepath.Dir(path)); fi.Mode().Perm() != 0o700 {
+	if fi, _ := os.Stat(filepath.Dir(path)); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o700 {
 		t.Errorf("Dir-Modus %v", fi.Mode().Perm())
 	}
 	again, err := LoadOrCreateToken(path)

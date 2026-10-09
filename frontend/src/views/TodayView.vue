@@ -10,9 +10,11 @@ import { useShortcuts } from '@/composables/useShortcuts'
 import { useUndo } from '@/composables/useUndo'
 import { daysAgo, dur, entryMinutes, hhmm, hm, ymd } from '@/lib/dates'
 import { parseQuickAdd, taskBody } from '@/lib/quickAdd'
+import { columns, doneSeconds, minutesOfDay, stopwatch } from '@/lib/dayPlan'
 import QuickHints from '@/components/QuickHints.vue'
 import { habitColor, projectColor } from '@/lib/projectColor'
 import TaskActions from '@/components/TaskActions.vue'
+import { locale, t } from '@/lib/i18n'
 import DeleteButton from '@/components/DeleteButton.vue'
 
 // Planungsfenster der Tagesleiste und des Tagesplans.
@@ -60,16 +62,12 @@ onUnmounted(() => clearInterval(tick))
 
 // Das Backend meldet ohne konfigurierte Zeitzone "Local"; das ist kein gültiger IANA-Name.
 const tz = computed(() => (today.value?.timezone === 'Local' ? undefined : today.value?.timezone))
-const fmt = (iso: string) => new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: tz.value }).format(new Date(iso))
+const fmt = (iso: string) => new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit', timeZone: tz.value }).format(new Date(iso))
 // Minuten seit Mitternacht in der Zeitzone des Backends.
-function minsOf(ms: number) {
-  const p = new Intl.DateTimeFormat('de-DE', { hour: 'numeric', minute: 'numeric', hourCycle: 'h23', timeZone: tz.value }).formatToParts(new Date(ms))
-  const n = (t: string) => Number(p.find((x) => x.type === t)?.value ?? 0)
-  return n('hour') * 60 + n('minute')
-}
+const minsOf = (ms: number) => minutesOfDay(ms, tz.value)
 
 const dateLabel = computed(() =>
-  new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(now.value)))
+  new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(now.value)))
 
 const nowMin = computed(() => minsOf(now.value))
 const runEntry = computed(() => today.value?.running_time_entry ?? null)
@@ -81,18 +79,13 @@ const pausedTask = computed(() => {
   return e ? tasksById.value.get(e.task_id!) : undefined
 })
 // Heute schon abgeschlossene Zeit der Task, damit der Timer nach Pause und Fortsetzen weiterzählt.
-const doneSecs = (id: string) =>
-  entries.value.reduce((s, e) => (e.task_id === id && e.ended_at ? s + (Date.parse(e.ended_at) - Date.parse(e.started_at)) / 1000 : s), 0)
+const doneSecs = (id: string) => doneSeconds(entries.value, id)
 const runSecs = computed(() => {
   const e = runEntry.value
   if (e) return (e.task_id ? doneSecs(e.task_id) : 0) + Math.max(0, (now.value - Date.parse(e.started_at)) / 1000)
   return pausedTask.value ? doneSecs(pausedTask.value.id) : 0
 })
-const elapsed = computed(() => {
-  const s = Math.floor(runSecs.value)
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${Math.floor(s / 3600)}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`
-})
+const elapsed = computed(() => stopwatch(runSecs.value))
 
 interface Block { key: string; title: string; start: number; end: number; kind: 'event' | 'task'; done: boolean; running?: boolean; color: string; sub: string }
 
@@ -131,20 +124,20 @@ const runPct = computed(() => (runGoal.value ? Math.min(100, (runSecs.value / 60
 
 // „Als Nächstes“: die nächste offene Aufgabe (das Backend sortiert nach Uhrzeit), oder ein Termin, der vorher beginnt.
 const queue = computed(() => openTasks.value.filter((t) => t.id !== cardTask.value?.id))
-const lead = (start: number | null) => (start === null ? '' : start > nowMin.value ? `in ${dur(start - nowMin.value)}` : `geplant ${hm(start)}`)
+const lead = (start: number | null) => (start === null ? '' : start > nowMin.value ? t('in {time}', { time: dur(start - nowMin.value) }) : t('geplant {time}', { time: hm(start) }))
 const nextItem = computed(() => {
-  const t = queue.value[0]
-  const tStart = t?.planned_start_at ? minsOf(Date.parse(t.planned_start_at)) : null
+  const next = queue.value[0]
+  const tStart = next?.planned_start_at ? minsOf(Date.parse(next.planned_start_at)) : null
   const ev = nextEvent.value
-  if (ev && (!t || (tStart !== null && ev.start < tStart))) {
-    return { kind: 'Termin', title: ev.title, project: '', color: ev.color, when: `${hm(ev.start)}–${hm(ev.end)}`, lead: lead(ev.start), task: undefined, then: '' }
+  if (ev && (!next || (tStart !== null && ev.start < tStart))) {
+    return { kind: t('Termin'), title: ev.title, project: '', color: ev.color, when: `${hm(ev.start)}–${hm(ev.end)}`, lead: lead(ev.start), task: undefined, then: '' }
   }
-  if (!t) return null
+  if (!next) return null
   const after = queue.value[1]
   return {
-    kind: 'Aufgabe', title: t.title, project: projectNames.value.get(t.project_id ?? '') ?? '', color: projectColor(t.project_id), task: t, lead: lead(tStart),
-    when: [t.planned_start_at ? `${hm(tStart!)}–${hm(tStart! + (t.estimated_minutes || 30))}` : '', t.estimated_minutes ? hm(t.estimated_minutes) : ''].filter(Boolean).join(' · '),
-    then: after ? `danach ${after.planned_start_at ? `${fmt(after.planned_start_at)} ` : ''}${after.title}` : '',
+    kind: t('Aufgabe'), title: next.title, project: projectNames.value.get(next.project_id ?? '') ?? '', color: projectColor(next.project_id), task: next, lead: lead(tStart),
+    when: [next.planned_start_at ? `${hm(tStart!)}–${hm(tStart! + (next.estimated_minutes || 30))}` : '', next.estimated_minutes ? hm(next.estimated_minutes) : ''].filter(Boolean).join(' · '),
+    then: after ? `${t('danach')} ${after.planned_start_at ? `${fmt(after.planned_start_at)} ` : ''}${after.title}` : '',
   }
 })
 
@@ -153,7 +146,7 @@ const dueRows = computed(() => [
   ...(today.value?.overdue ?? []).map((t) => ({ t, od: true })),
   ...openTasks.value.map((t) => ({ t, od: false })),
 ])
-const whenOf = (r: { t: Task; od: boolean }) => (r.od ? daysAgo(r.t.planned_date!, today.value!.date) : r.t.planned_start_at ? fmt(r.t.planned_start_at) : 'Heute')
+const whenOf = (r: { t: Task; od: boolean }) => (r.od ? daysAgo(r.t.planned_date!, today.value!.date) : r.t.planned_start_at ? fmt(r.t.planned_start_at) : t('Heute'))
 const activeOnly = computed(() => today.value?.active_tasks ?? [])
 const doneCount = computed(() => (today.value?.tasks ?? []).filter((t) => t.status === 'COMPLETED').length)
 
@@ -161,26 +154,8 @@ const y = (m: number) => ((m - START_H * 60) / 60) * HOUR
 // Kürzere Blöcke zeichnet das Raster mit Mindesthöhe (22 px = 30 Minuten).
 const MIN_BLOCK = 30
 
-// Überlappende Blöcke stehen nebeneinander: Spalte und Spaltenzahl je Block.
-const layout = computed(() => {
-  const pos = new Map<string, { col: number; cols: number }>()
-  let cluster: { key: string; col: number }[] = []
-  let ends: number[] = [] // Ende des letzten Blocks je Spalte
-  const flush = () => {
-    for (const c of cluster) pos.set(c.key, { col: c.col, cols: ends.length })
-    cluster = []
-    ends = []
-  }
-  for (const b of blocks.value) { // nach Beginn sortiert
-    if (ends.length && b.start >= Math.max(...ends)) flush() // nichts überlappt mehr
-    let col = ends.findIndex((e) => e <= b.start)
-    if (col < 0) col = ends.length
-    ends[col] = Math.max(b.end, b.start + MIN_BLOCK)
-    cluster.push({ key: b.key, col })
-  }
-  flush()
-  return pos
-})
+// Überlappende Blöcke stehen nebeneinander.
+const layout = computed(() => columns(blocks.value, MIN_BLOCK))
 
 const style = (b: Block) => {
   const top = Math.max(y(b.start), 0)
@@ -209,11 +184,11 @@ function instantAt(min: number) {
 }
 
 // Plan einer Task ändern; Rückgängig stellt den bisherigen Tag und die Uhrzeit wieder her.
-function reschedule(t: Task, plan: { planned_date: string; planned_start_at: string }, done: string) {
-  const { id, title, planned_date, planned_start_at } = t
+function reschedule(task: Task, plan: { planned_date: string; planned_start_at: string }, done: string) {
+  const { id, title, planned_date, planned_start_at } = task
   void run(async () => {
     await updateTask(id, plan)
-    offer(`„${title}“ ${done}`, () => run(() => updateTask(id, { planned_date: planned_date ?? '', planned_start_at: planned_start_at ?? '' })))
+    offer(t(done, { title }), () => run(() => updateTask(id, { planned_date: planned_date ?? '', planned_start_at: planned_start_at ?? '' })))
   })
 }
 
@@ -223,7 +198,7 @@ function dropTask(e: DragEvent) {
   const top = (e.currentTarget as HTMLElement).getBoundingClientRect().top
   const snapped = START_H * 60 + Math.round(((e.clientY - top) / HOUR) * 4) * 15 // auf 15 Minuten
   const min = Math.min(Math.max(snapped, START_H * 60), END_H * 60 - 15)
-  reschedule(task, { planned_date: today.value.date, planned_start_at: instantAt(min).toISOString() }, 'eingeplant')
+  reschedule(task, { planned_date: today.value.date, planned_start_at: instantAt(min).toISOString() }, '„{title}“ eingeplant')
 }
 
 const quickParsed = computed(() => parseQuickAdd(quick.value, projectList.value, today.value?.date))
@@ -241,14 +216,14 @@ function addQuick() {
 function moveTo(t: Task, days: number) {
   const d = new Date(`${today.value!.date}T12:00:00Z`)
   d.setUTCDate(d.getUTCDate() + days)
-  reschedule(t, { planned_date: d.toISOString().slice(0, 10), planned_start_at: '' }, 'verschoben')
+  reschedule(t, { planned_date: d.toISOString().slice(0, 10), planned_start_at: '' }, '„{title}“ verschoben')
 }
 
 function removeEntry(e: TimeEntry) {
   const { task_id, started_at, ended_at } = e
   void run(async () => {
     await deleteTimeEntry(e.id)
-    if (task_id && ended_at) offer('Zeiteintrag gelöscht', () => run(() => createTimeEntry({ task_id, started_at, ended_at })))
+    if (task_id && ended_at) offer(t('Zeiteintrag gelöscht'), () => run(() => createTimeEntry({ task_id, started_at, ended_at })))
   })
 }
 
@@ -256,7 +231,7 @@ function removeEntry(e: TimeEntry) {
 const entryMin = (e: TimeEntry) => entryMinutes(e, now.value)
 const entryProject = (e: TimeEntry) => e.project_id ?? tasksById.value.get(e.task_id ?? '')?.project_id ?? null
 const entryLabel = (e: TimeEntry) =>
-  (e.task_id && taskTitles.value.get(e.task_id)) || (e.project_id && projectNames.value.get(e.project_id)) || 'Projektzeit'
+  (e.task_id && taskTitles.value.get(e.task_id)) || (e.project_id && projectNames.value.get(e.project_id)) || t('Projektzeit')
 
 // Zeit nachtragen: Task, Tag und Uhrzeiten in der Zeitzone des Browsers.
 const manual = ref({ task: '', date: ymd(new Date()), from: '', to: '' })
@@ -290,93 +265,93 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
         <div>
           <h1 class="day-title">{{ dateLabel }}</h1>
           <div v-if="allDay.length" class="st-allday">
-            <span class="cdot" :style="{ background: allDay[0]!.color }"></span>Ganztags: {{ allDay.map((b) => b.title).join(', ') }}
+            <span class="cdot" :style="{ background: allDay[0]!.color }"></span>{{ $t('Ganztags') }}: {{ allDay.map((b) => b.title).join(', ') }}
           </div>
         </div>
         <div class="st-stats">
-          <div><span>geplant</span><b>{{ hm(today.planned_minutes) }}</b></div>
-          <div><span>erfasst</span><b>{{ hm(today.tracked_minutes) }}</b></div>
-          <div title="Frei ab jetzt"><span>frei</span><b>{{ hm(today.free_minutes) }}</b></div>
+          <div><span>{{ $t('geplant') }}</span><b>{{ hm(today.planned_minutes) }}</b></div>
+          <div><span>{{ $t('erfasst') }}</span><b>{{ hm(today.tracked_minutes) }}</b></div>
+          <div :title="$t('Frei ab jetzt')"><span>{{ $t('frei') }}</span><b>{{ hm(today.free_minutes) }}</b></div>
         </div>
       </header>
 
       <div class="st-cards">
-        <section class="st-card" aria-label="Läuft">
+        <section class="st-card" :aria-label="$t('Läuft')">
           <template v-if="runEntry || pausedTask">
-            <div class="st-top"><span class="st-lbl"><i class="run-dot" :class="{ off: !runEntry }"></i>{{ runEntry ? 'Läuft' : 'Pausiert' }}</span><span v-if="runGoal" class="st-aside">Ziel {{ hm(runGoal) }}</span></div>
+            <div class="st-top"><span class="st-lbl"><i class="run-dot" :class="{ off: !runEntry }"></i>{{ runEntry ? $t('Läuft') : $t('Pausiert') }}</span><span v-if="runGoal" class="st-aside">{{ $t('Ziel') }} {{ hm(runGoal) }}</span></div>
             <div class="st-run">
               <div class="st-main">
                 <div class="st-t">{{ cardTask?.title ?? entryLabel(runEntry!) }}</div>
-                <div class="st-meta"><span class="chip" :style="{ '--chip-c': projectColor(runProject) }"><span class="cdot"></span>{{ projectNames.get(runProject ?? '') ?? 'Ohne Projekt' }}<template v-if="runEntry"> · seit {{ fmt(runEntry.started_at) }}</template></span></div>
+                <div class="st-meta"><span class="chip" :style="{ '--chip-c': projectColor(runProject) }"><span class="cdot"></span>{{ projectNames.get(runProject ?? '') ?? $t('Ohne Projekt') }}<template v-if="runEntry"> · {{ $t('seit {time}', { time: fmt(runEntry.started_at) }) }}</template></span></div>
               </div>
               <span class="st-timer mono">{{ elapsed }}</span>
             </div>
             <div v-if="runGoal" class="st-bar" aria-hidden="true"><i :style="{ width: runPct + '%', background: projectColor(runProject) }"></i></div>
             <div v-if="cardTask" class="st-btns">
-              <button v-if="runningTask" type="button" class="btn btn-secondary" @click="run(() => taskAction(runningTask!.id, 'pause'))">Pause</button>
-              <button v-else type="button" class="btn btn-primary" @click="run(() => taskAction(cardTask!.id, 'start'))">Fortsetzen</button>
-              <button type="button" class="btn btn-secondary" @click="setDone(cardTask!, 'COMPLETED', run)">Fertig</button>
+              <button v-if="runningTask" type="button" class="btn btn-secondary" @click="run(() => taskAction(runningTask!.id, 'pause'))">{{ $t('Pause') }}</button>
+              <button v-else type="button" class="btn btn-primary" @click="run(() => taskAction(cardTask!.id, 'start'))">{{ $t('Fortsetzen') }}</button>
+              <button type="button" class="btn btn-secondary" @click="setDone(cardTask!, 'COMPLETED', run)">{{ $t('Fertig') }}</button>
             </div>
           </template>
           <template v-else>
-            <div class="st-top"><span class="st-lbl"><i class="run-dot off"></i>Kein Timer</span></div>
-            <div class="st-t is-free">Es läuft gerade nichts.</div>
-            <div class="st-meta">Starte eine Aufgabe, um Zeit zu erfassen.</div>
+            <div class="st-top"><span class="st-lbl"><i class="run-dot off"></i>{{ $t('Kein Timer') }}</span></div>
+            <div class="st-t is-free">{{ $t('Es läuft gerade nichts.') }}</div>
+            <div class="st-meta">{{ $t('Starte eine Aufgabe, um Zeit zu erfassen.') }}</div>
           </template>
         </section>
 
-        <section class="st-card" aria-label="Als Nächstes">
+        <section class="st-card" :aria-label="$t('Als Nächstes')">
           <template v-if="nextItem">
-            <div class="st-top"><span class="st-lbl">Als Nächstes<span v-if="nextItem.lead" class="st-lead">· {{ nextItem.lead }}</span></span><span class="st-aside">{{ nextItem.kind }}</span></div>
+            <div class="st-top"><span class="st-lbl">{{ $t('Als Nächstes') }}<span v-if="nextItem.lead" class="st-lead">· {{ nextItem.lead }}</span></span><span class="st-aside">{{ nextItem.kind }}</span></div>
             <div class="st-t">{{ nextItem.title }}</div>
             <div class="st-meta">
               <span v-if="nextItem.project" class="chip" :style="{ '--chip-c': nextItem.color }"><span class="cdot"></span>{{ nextItem.project }}</span>
               <span v-if="nextItem.when">{{ nextItem.when }}</span>
             </div>
             <div v-if="nextItem.task" class="st-btns">
-              <button type="button" class="btn btn-primary" @click="run(() => taskAction(nextItem!.task!.id, 'start'))"><svg class="ic" viewBox="0 0 24 24" style="fill:currentColor;stroke:none;width:11px;height:11px"><path d="M7 4.5v15l12-7.5z" /></svg>Jetzt starten</button>
-              <button type="button" class="btn btn-secondary" @click="moveTo(nextItem.task, 1)">Verschieben</button>
+              <button type="button" class="btn btn-primary" @click="run(() => taskAction(nextItem!.task!.id, 'start'))"><svg class="ic" viewBox="0 0 24 24" style="fill:currentColor;stroke:none;width:11px;height:11px"><path d="M7 4.5v15l12-7.5z" /></svg>{{ $t('Jetzt starten') }}</button>
+              <button type="button" class="btn btn-secondary" @click="moveTo(nextItem.task, 1)">{{ $t('Verschieben') }}</button>
               <span v-if="nextItem.then" class="st-then">{{ nextItem.then }}</span>
             </div>
           </template>
           <template v-else>
-            <div class="st-top"><span class="st-lbl">Als Nächstes</span></div>
-            <div class="st-t is-free">Keine offene Aufgabe für heute.</div>
+            <div class="st-top"><span class="st-lbl">{{ $t('Als Nächstes') }}</span></div>
+            <div class="st-t is-free">{{ $t('Keine offene Aufgabe für heute.') }}</div>
           </template>
         </section>
       </div>
 
-      <div v-if="today.unestimated_tasks" class="v-sub">{{ today.unestimated_tasks }} {{ today.unestimated_tasks === 1 ? 'Aufgabe' : 'Aufgaben' }} ohne Schätzung, gerechnet mit 30 Min.</div>
-      <div v-if="today.overplanned_minutes" class="badge"><span class="cdot" style="background:var(--a-red)"></span>Überplant um {{ hm(today.overplanned_minutes) }} h</div>
+      <div v-if="today.unestimated_tasks" class="v-sub">{{ $tn(today.unestimated_tasks, '{n} Aufgabe ohne Schätzung, gerechnet mit 30 Min.', '{n} Aufgaben ohne Schätzung, gerechnet mit 30 Min.') }}</div>
+      <div v-if="today.overplanned_minutes" class="badge"><span class="cdot" style="background:var(--a-red)"></span>{{ $t('Überplant um {time} h', { time: hm(today.overplanned_minutes) }) }}</div>
 
       <div class="start-grid">
         <section class="start-col">
-          <div class="col-head"><h2 class="col-title">Heute fällig <span class="count">{{ dueRows.length }}</span></h2><router-link class="col-link" to="/tasks">Alle Aufgaben</router-link></div>
+          <div class="col-head"><h2 class="col-title">{{ $t('Heute fällig') }} <span class="count">{{ dueRows.length }}</span></h2><router-link class="col-link" to="/tasks">{{ $t('Alle Aufgaben') }}</router-link></div>
           <div v-if="dueRows.length" class="tasklist">
             <div v-for="r in dueRows" :key="r.t.id" class="task-row" draggable="true" @dragstart="dragTask($event, r.t)">
-              <button type="button" class="cb ring" :style="{ '--rc': projectColor(r.t.project_id) }" role="checkbox" aria-checked="false" :aria-label="`${r.t.title} erledigt`" @click="setDone(r.t, 'COMPLETED', run)"></button>
+              <button type="button" class="cb ring" :style="{ '--rc': projectColor(r.t.project_id) }" role="checkbox" aria-checked="false" :aria-label="$t('{title} erledigt', { title: r.t.title })" @click="setDone(r.t, 'COMPLETED', run)"></button>
               <span class="t">{{ r.t.title }}</span>
               <span class="chip st-proj" :style="{ '--chip-c': projectColor(r.t.project_id) }"><template v-if="r.t.project_id"><span class="cdot"></span>{{ projectNames.get(r.t.project_id) }}</template></span>
               <span class="due" :class="{ od: r.od, now: !r.od && !!r.t.planned_start_at }">{{ whenOf(r) }}</span>
               <span class="dur">{{ r.t.estimated_minutes ? hm(r.t.estimated_minutes) : '' }}</span>
-              <span v-if="r.od" class="row-act"><button type="button" class="btn btn-ghost" @click="moveTo(r.t, 0)">→ Heute</button><button type="button" class="btn btn-ghost" @click="moveTo(r.t, 1)">→ Morgen</button></span>
+              <span v-if="r.od" class="row-act"><button type="button" class="btn btn-ghost" @click="moveTo(r.t, 0)">{{ $t('→ Heute') }}</button><button type="button" class="btn btn-ghost" @click="moveTo(r.t, 1)">{{ $t('→ Morgen') }}</button></span>
               <TaskActions v-else class="row-act" :task="r.t" :running="runningTaskId === r.t.id" @run="run" />
             </div>
           </div>
-          <div v-else class="v-sub">Keine offenen Aufgaben für heute.</div>
-          <div v-if="doneCount" class="v-sub">{{ doneCount }} erledigt</div>
+          <div v-else class="v-sub">{{ $t('Keine offenen Aufgaben für heute.') }}</div>
+          <div v-if="doneCount" class="v-sub">{{ $t('{n} erledigt', { n: doneCount }) }}</div>
           <form class="addrow" @submit.prevent="addQuick">
             <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-            <input ref="quickEl" v-model="quick" type="text" placeholder="Aufgabe hinzufügen, z. B. Sport 30m @morgen #Kairo" aria-label="Aufgabe für heute hinzufügen" aria-keyshortcuts="n" />
+            <input ref="quickEl" v-model="quick" type="text" :placeholder="$t('Aufgabe hinzufügen, z. B. Sport 30m @morgen #Kairo')" :aria-label="$t('Aufgabe für heute hinzufügen')" aria-keyshortcuts="n" />
             <kbd class="key" aria-hidden="true">N</kbd>
           </form>
           <QuickHints :q="quickParsed" :today="today.date" />
 
           <template v-if="activeOnly.length">
-            <div class="col-head st-gap"><h2 class="col-title">Aktiv, nicht für heute geplant <span class="count">{{ activeOnly.length }}</span></h2></div>
+            <div class="col-head st-gap"><h2 class="col-title">{{ $t('Aktiv, nicht für heute geplant') }} <span class="count">{{ activeOnly.length }}</span></h2></div>
             <div class="tasklist">
               <div v-for="t in activeOnly" :key="t.id" class="task-row" draggable="true" @dragstart="dragTask($event, t)">
-                <button type="button" class="cb ring" :style="{ '--rc': projectColor(t.project_id) }" role="checkbox" aria-checked="false" :aria-label="`${t.title} erledigt`" @click="setDone(t, 'COMPLETED', run)"></button>
+                <button type="button" class="cb ring" :style="{ '--rc': projectColor(t.project_id) }" role="checkbox" aria-checked="false" :aria-label="$t('{title} erledigt', { title: t.title })" @click="setDone(t, 'COMPLETED', run)"></button>
                 <span class="t">{{ t.title }}</span>
                 <TaskActions class="row-act" :task="t" :running="runningTaskId === t.id" @run="run" />
               </div>
@@ -384,34 +359,34 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
           </template>
 
           <template v-if="today.habits.length">
-            <div class="col-head st-gap"><h2 class="col-title">Gewohnheiten</h2><router-link class="col-link" to="/habits">Alle ansehen</router-link></div>
+            <div class="col-head st-gap"><h2 class="col-title">{{ $t('Gewohnheiten') }}</h2><router-link class="col-link" to="/habits">{{ $t('Alle ansehen') }}</router-link></div>
             <div class="st-habits">
               <button
                 v-for="h in today.habits" :key="h.id" type="button" class="st-hab" :class="{ 'is-done': h.done }" role="checkbox" :aria-checked="h.done"
                 @click="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
               >
                 <span class="cb sq" :style="{ '--rc': habitColor(h.id) }" :aria-checked="h.done" aria-hidden="true"></span>
-                <span class="st-hab-t"><b>{{ h.name }}</b><small>{{ h.done ? 'erledigt' : 'offen' }}<template v-if="h.week_progress"> · {{ h.week_progress.done }}/{{ h.week_progress.target }}</template></small></span>
+                <span class="st-hab-t"><b>{{ h.name }}</b><small>{{ h.done ? $t('erledigt') : $t('offen') }}<template v-if="h.week_progress"> · {{ h.week_progress.done }}/{{ h.week_progress.target }}</template></small></span>
               </button>
             </div>
           </template>
 
           <div class="col-head st-gap">
-            <h2 class="col-title">Zeiterfassung <span class="count">{{ hm(today.tracked_minutes) }} heute</span></h2>
-            <button type="button" class="col-link" :aria-expanded="manualOpen" @click="manualOpen = !manualOpen">Zeit nachtragen</button>
+            <h2 class="col-title">{{ $t('Zeiterfassung') }} <span class="count">{{ hm(today.tracked_minutes) }} {{ $t('heute') }}</span></h2>
+            <button type="button" class="col-link" :aria-expanded="manualOpen" @click="manualOpen = !manualOpen">{{ $t('Zeit nachtragen') }}</button>
           </div>
           <form v-if="manualOpen" class="manual-form" @submit.prevent="addEntry" @input="saved = false">
-            <label class="field wide"><span>Aufgabe</span>
+            <label class="field wide"><span>{{ $t('Aufgabe') }}</span>
               <select v-model="manual.task" class="input" required>
-                <option value="" disabled>Aufgabe wählen</option>
+                <option value="" disabled>{{ $t('Aufgabe wählen') }}</option>
                 <option v-for="[id, title] in taskTitles" :key="id" :value="id">{{ title }}</option>
               </select>
             </label>
-            <label class="field"><span>Datum</span><input v-model="manual.date" class="input" type="date" required /></label>
-            <label class="field"><span>Start</span><input v-model="manual.from" class="input" type="time" required /></label>
-            <label class="field"><span>Ende</span><input v-model="manual.to" class="input" type="time" required /></label>
-            <button type="submit" class="btn btn-secondary">Eintragen</button>
-            <span v-if="saved" class="v-sub" role="status">Gespeichert.</span>
+            <label class="field"><span>{{ $t('Datum') }}</span><input v-model="manual.date" class="input" type="date" required /></label>
+            <label class="field"><span>{{ $t('Start') }}</span><input v-model="manual.from" class="input" type="time" required /></label>
+            <label class="field"><span>{{ $t('Ende') }}</span><input v-model="manual.to" class="input" type="time" required /></label>
+            <button type="submit" class="btn btn-secondary">{{ $t('Eintragen') }}</button>
+            <span v-if="saved" class="v-sub" role="status">{{ $t('Gespeichert.') }}</span>
           </form>
           <div v-if="entries.length" class="tasklist">
             <div v-for="e in entries" :key="e.id" class="task-row te-row" :style="{ '--acc': projectColor(entryProject(e)) }">
@@ -419,20 +394,20 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
               <span class="t">{{ entryLabel(e) }}</span>
               <span class="st-proj te-proj">{{ projectNames.get(entryProject(e) ?? '') ?? '' }}</span>
               <span class="te-range">
-                <input class="input te-time" type="time" :value="clock(e.started_at)" aria-label="Start" @change="setTime(e, 'started_at', ($event.target as HTMLInputElement).value)" />
+                <input class="input te-time" type="time" :value="clock(e.started_at)" :aria-label="$t('Start')" @change="setTime(e, 'started_at', ($event.target as HTMLInputElement).value)" />
                 <span>–</span>
-                <input v-if="e.ended_at" class="input te-time" type="time" :value="clock(e.ended_at)" aria-label="Ende" @change="setTime(e, 'ended_at', ($event.target as HTMLInputElement).value)" />
-                <span v-else class="te-run">läuft</span>
+                <input v-if="e.ended_at" class="input te-time" type="time" :value="clock(e.ended_at)" :aria-label="$t('Ende')" @change="setTime(e, 'ended_at', ($event.target as HTMLInputElement).value)" />
+                <span v-else class="te-run">{{ $t('läuft') }}</span>
               </span>
               <span class="dur te-dur">{{ hm(entryMin(e)) }}</span>
-              <span v-if="e.ended_at" class="row-act"><DeleteButton ghost text="Zeiteintrag löschen?" @confirm="removeEntry(e)" /></span>
+              <span v-if="e.ended_at" class="row-act"><DeleteButton ghost :text="$t('Zeiteintrag löschen?')" @confirm="removeEntry(e)" /></span>
             </div>
           </div>
-          <div v-else class="v-sub">Noch keine Zeit erfasst.</div>
+          <div v-else class="v-sub">{{ $t('Noch keine Zeit erfasst.') }}</div>
         </section>
 
         <section class="start-col">
-          <div class="col-head"><h2 class="col-title">Tagesplan</h2><router-link class="col-link" to="/calendar">Kalender<svg class="ic" aria-hidden="true"><use href="#i-right" /></svg></router-link></div>
+          <div class="col-head"><h2 class="col-title">{{ $t('Tagesplan') }}</h2><router-link class="col-link" to="/calendar">{{ $t('Kalender') }}<svg class="ic" aria-hidden="true"><use href="#i-right" /></svg></router-link></div>
           <div class="dayplan">
             <div class="dp-scroll">
               <div class="dp-body">
@@ -452,7 +427,7 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
               </div>
             </div>
           </div>
-          <div class="v-sub st-hint">Aufgaben aus der Liste in den Plan ziehen, um sie einzuplanen.</div>
+          <div class="v-sub st-hint">{{ $t('Aufgaben aus der Liste in den Plan ziehen, um sie einzuplanen.') }}</div>
         </section>
       </div>
     </template>

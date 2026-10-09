@@ -1,5 +1,5 @@
 import * as assert from "node:assert/strict";
-import { parseQuickAdd, taskBody } from "./quickAdd";
+import { parseQuickAdd, taskBody } from "../../frontend/src/lib/quickAdd";
 import { errorMessage, expandHome, formatElapsed, isIdle, matchProject, parseUriTarget, pendingFresh, Project, Resource, resourcesFirst, startable, Task, todayList, weekRange } from "./core";
 
 const p = (id: string, local_path: string | null): Project => ({ id, name: id, description: "", status: "ACTIVE", local_path });
@@ -9,6 +9,11 @@ assert.equal(matchProject(projects, "/code/kairo/backend")?.id, "kairo"); // lä
 assert.equal(matchProject(projects, "/code/kairo")?.id, "kairo"); // exakt
 assert.equal(matchProject(projects, "/code/kairo2/x")?.id, "kairo2"); // kein Präfix-Treffer auf kairo
 assert.equal(matchProject(projects, "/code/other")?.id, "root");
+// Windows: Backslashes und Groß/Klein egal, ~ mit Backslash
+const winProjects = [{ id: "w", name: "W", local_path: "C:\\Code\\Kairo" }, { id: "h", name: "H", local_path: "~\\notes" }] as Project[];
+assert.equal(matchProject(winProjects, "c:\\code\\kairo\\backend", "C:\\Users\\x", true)?.id, "w");
+assert.equal(matchProject(winProjects, "C:\\Users\\x\\Notes", "C:\\Users\\x", true)?.id, "h");
+assert.equal(matchProject(winProjects, "C:\\Code\\Kairo2", "C:\\Users\\x", true), undefined);
 assert.equal(matchProject(projects, "/tmp"), undefined);
 const home = [p("tilde", "~/code/kairo"), p("tilde2", "~code")];
 assert.equal(matchProject(home, "/Users/m/code/kairo/backend", "/Users/m")?.id, "tilde"); // ~ wird erweitert

@@ -9,7 +9,7 @@ const { pending, undo } = useUndo()
   <div id="toasts" role="status">
     <div v-if="pending" class="toast-item">
       <span>{{ pending.text }}</span>
-      <button type="button" class="btn btn-ghost" @click="undo">Rückgängig</button>
+      <button type="button" class="btn btn-ghost" @click="undo">{{ $t('Rückgängig') }}</button>
     </div>
   </div>
 </template>

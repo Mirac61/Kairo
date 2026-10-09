@@ -7,20 +7,22 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin, { Draggable, type EventResizeDoneArg } from '@fullcalendar/interaction'
 import deLocale from '@fullcalendar/core/locales/de'
+import enGbLocale from '@fullcalendar/core/locales/en-gb'
 import type { CalendarOptions, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
 import Message from 'primevue/message'
 import {
   createEvent, createTask, deleteEvent, errorMessage, getOccurrences, importIcs, isOpen, listProjects, listTasks, listTimeEntries, restoreEvent, skipOccurrence, taskAction, updateEvent, updateTask,
-  type CalendarEvent, type EventBody, type Project, type Task,
+  type CalendarEvent, type Project, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useShortcuts } from '@/composables/useShortcuts'
 import { useUndo } from '@/composables/useUndo'
-import { vDialog } from '@/lib/dialog'
+import EventDialog from '@/components/EventDialog.vue'
 import { addDays, hhmm, hm, ymd } from '@/lib/dates'
-import { editForm, isAllDay, newForm, ruleOf, WEEKDAYS, type Form } from '@/lib/eventForm'
+import { editForm, isAllDay, newForm, requestOf, type Form } from '@/lib/eventForm'
 import { projectColor } from '@/lib/projectColor'
 import { store } from '@/lib/storage'
+import { lang, locale, t } from '@/lib/i18n'
 
 // Tasks ohne Dauer erscheinen mit dieser Länge im Raster.
 const DEFAULT_TASK_MINUTES = 30
@@ -47,11 +49,11 @@ function paintDay(th: HTMLElement) {
   const q = (sel: string) => th.querySelector<HTMLElement>(sel)
   const plan = q('.kt-plan')
   if (!plan) return // Monatskopf hat keine Statistik
-  const [p, t] = stats.get(th.dataset.date ?? '') ?? [0, 0]
-  plan.textContent = p ? `Plan ${hm(p)}` : 'frei'
-  q('.kt-ist')!.textContent = t ? `Ist ${hm(t)}` : ''
+  const [p, ist] = stats.get(th.dataset.date ?? '') ?? [0, 0]
+  plan.textContent = p ? `${t('Plan')} ${hm(p)}` : t('frei')
+  q('.kt-ist')!.textContent = ist ? `${t('Ist')} ${hm(ist)}` : ''
   q('.kt-bar .p')!.style.width = `${Math.min(100, p / 4.8)}%` // 8 h = volle Breite
-  q('.kt-bar .t')!.style.width = `${Math.min(100, t / 4.8)}%`
+  q('.kt-bar .t')!.style.width = `${Math.min(100, ist / 4.8)}%`
 }
 
 const router = useRouter()
@@ -129,7 +131,7 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
     bump(ymd(s), 1, (en.getTime() - s.getTime()) / 60_000)
     const pid = te.project_id ?? tasks.find((t) => t.id === te.task_id)?.project_id
     const min = Math.round((en.getTime() - s.getTime()) / 60_000)
-    const title = tasks.find((t) => t.id === te.task_id)?.title ?? 'Zeit'
+    const title = tasks.find((t) => t.id === te.task_id)?.title ?? t('Zeit')
     entries.push({
       id: `x:${te.id}`, start: s, end: en, display: 'background', classNames: ['kt-track'],
       extendedProps: { kind: 'track', title, label: `${hhmm(s)}–${hhmm(en)} · ${hm(min)}`, color: pid ? projectColor(pid) : undefined },
@@ -166,7 +168,7 @@ function moved(info: EventDropArg | EventResizeDoneArg, resized: boolean) {
   const start = event.start
   const old = info.oldEvent
   if (!start || !old.start) return info.revert()
-  const label = `„${event.title}“ ${resized ? 'angepasst' : 'verschoben'}`
+  const label = t(resized ? '„{title}“ angepasst' : '„{title}“ verschoben', { title: event.title })
   if (kind === 'task') {
     const before: Record<string, unknown> = { planned_date: ymd(old.start), planned_start_at: old.allDay ? '' : old.start.toISOString() }
     if (resized) before.estimated_minutes = est
@@ -189,39 +191,17 @@ function moved(info: EventDropArg | EventResizeDoneArg, resized: boolean) {
 }
 
 // Ein Dialog zum Anlegen (Termin oder Task) und Bearbeiten von Terminen.
-const kindOptions = [{ label: 'Termin', value: 'event' }, { label: 'Task', value: 'task' }]
 const form = ref<Form | null>(null)
 const openForm = (start: Date, end: Date, allDay: boolean) => (form.value = newForm(start, end, allDay))
 const openEdit = (ev: CalendarEvent, day: string) => (form.value = editForm(ev, day))
-
-const toggleDay = (code: string) => {
-  const f = form.value!
-  f.days = f.days.includes(code) ? f.days.filter((d) => d !== code) : WEEKDAYS.map(([c]) => c).filter((c) => c === code || f.days.includes(c))
-}
 
 function save() {
   const f = form.value
   const title = f?.title.trim()
   if (!f || !title) return
-  const start = new Date(`${f.date}T${f.allDay ? '00:00' : f.from}`)
-  const end = f.allDay ? addDays(new Date(`${f.endDate || f.date}T00:00`), 1) : new Date(`${f.date}T${f.to}`)
   form.value = null
-  void guarded(() => {
-    if (f.kind === 'task') {
-      return createTask({
-        title,
-        planned_date: f.date,
-        planned_start_at: f.allDay ? null : start.toISOString(),
-        project_id: f.projectId || undefined,
-        estimated_minutes: f.allDay ? 0 : Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000)),
-      })
-    }
-    const body: EventBody = { title, location: f.location, project_id: f.projectId }
-    if (!f.keepTimes) Object.assign(body, { start_at: start.toISOString(), end_at: end.toISOString() })
-    if (f.customRule !== null) return updateEvent(f.id!, body)
-    const rule = ruleOf(f)
-    return f.id ? updateEvent(f.id, { ...body, recurrence_rule: rule }) : createEvent({ ...body, recurrence_rule: rule || undefined })
-  })
+  const r = requestOf(f, title)
+  void guarded(() => ('task' in r ? createTask(r.task) : f.id ? updateEvent(f.id, r.event) : createEvent(r.event)))
 }
 
 // Klick auf einen Termin öffnet den Dialog; ein Klick auf eine Task öffnet sie in der Tasks-Liste.
@@ -240,10 +220,10 @@ function remove(onlyThis: boolean) {
   void guarded(async () => {
     if (onlyThis) {
       const before = await skipOccurrence(id, day)
-      offer(`„${title}“ gelöscht`, () => guarded(() => updateEvent(id, { recurrence_exdates: before })))
+      offer(t('„{title}“ gelöscht', { title }), () => guarded(() => updateEvent(id, { recurrence_exdates: before })))
     } else {
       await deleteEvent(id)
-      offer(`„${title}“ gelöscht`, () => guarded(() => restoreEvent(id)))
+      offer(t('„{title}“ gelöscht', { title }), () => guarded(() => restoreEvent(id)))
     }
   })
 }
@@ -253,7 +233,7 @@ const title = ref('')
 const week = ref(0) // Kalenderwoche, nur in der Tagesansicht
 // „Woche“ zeigt Mo–Fr (timeGridWorkWeek); der Schalter „Sa/So“ wechselt zur vollen Woche (timeGridWeek).
 const WORK = 'timeGridWorkWeek'
-const views = [['dayGridMonth', 'Monat', 'm'], [WORK, 'Woche', 'w'], ['timeGridDay', 'Tag', 'd']] as const
+const views = [['dayGridMonth', t('Monat'), 'm'], [WORK, t('Woche'), 'w'], ['timeGridDay', t('Tag'), 'd']] as const
 const fullWeek = ref(store.get('kairo-cal-weekend') === '1')
 const weekView = () => (fullWeek.value ? 'timeGridWeek' : WORK)
 const storedView = store.get('kairo-cal-view')
@@ -279,12 +259,12 @@ function toggleUp() {
 
 const run = (fn: () => Promise<unknown>) => guarded(fn)
 // „Verschieben“ setzt den Eintrag auf morgen, gleiche Uhrzeit.
-function postpone(t: Task) {
-  const before = { planned_date: t.planned_date ?? '', planned_start_at: t.planned_start_at ?? '' }
+function postpone(task: Task) {
+  const before = { planned_date: task.planned_date ?? '', planned_start_at: task.planned_start_at ?? '' }
   const shift = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, d.getHours(), d.getMinutes())
   void guarded(async () => {
-    await updateTask(t.id, { planned_date: ymd(shift(new Date(`${t.planned_date}T00:00:00`))), planned_start_at: t.planned_start_at ? shift(new Date(t.planned_start_at)).toISOString() : '' })
-    offer(`„${t.title}“ auf morgen verschoben`, () => guarded(() => updateTask(t.id, before)))
+    await updateTask(task.id, { planned_date: ymd(shift(new Date(`${task.planned_date}T00:00:00`))), planned_start_at: task.planned_start_at ? shift(new Date(task.planned_start_at)).toISOString() : '' })
+    offer(t('„{title}“ auf morgen verschoben', { title: task.title }), () => guarded(() => updateTask(task.id, before)))
   })
 }
 
@@ -302,22 +282,15 @@ async function importFile(e: Event) {
   if (!file) return
   try {
     const r = await importIcs(await file.text())
-    const parts = [`${r.created} neu`, `${r.updated} aktualisiert`]
-    if (r.skipped) parts.push(`${r.skipped} übersprungen`)
-    if (r.unsupported_rules) parts.push(`${r.unsupported_rules} Serien als Einzeltermin`)
+    const parts = [t('{n} neu', { n: r.created }), t('{n} aktualisiert', { n: r.updated })]
+    if (r.skipped) parts.push(t('{n} übersprungen', { n: r.skipped }))
+    if (r.unsupported_rules) parts.push(t('{n} Serien als Einzeltermin', { n: r.unsupported_rules }))
     notice.value = { text: parts.join(', '), notes: r.notes }
     error.value = ''
     cal.value?.getApi().refetchEvents()
   } catch (err) {
     error.value = errorMessage(err)
   }
-}
-
-// Erster Fokus der Rückfrage liegt auf der sicheren Wahl.
-const safeBtn = ref<HTMLElement>()
-const askDelete = () => {
-  form.value!.ask = true
-  void nextTick(() => safeBtn.value?.focus())
 }
 
 const projectOptions = computed(() => projects.value.filter((p) => p.status !== 'ARCHIVED' || p.id === form.value?.projectId))
@@ -361,10 +334,10 @@ const scrollStart = () => {
 
 const options: CalendarOptions = {
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
-  locales: [deLocale],
-  locale: 'de',
+  locales: [deLocale, enGbLocale],
+  locale: lang.value === 'de' ? 'de' : 'en-gb',
   firstDay: 1,
-  allDayText: 'Ganztag',
+  allDayText: t('Ganztag'),
   initialView: view.value,
   views: { [WORK]: { type: 'timeGrid', duration: { weeks: 1 }, hiddenDays: [0, 6] }, dayGridMonth: { eventDisplay: 'block', dayMaxEvents: 3 } },
   moreLinkContent: (a) => `+ ${a.num} weitere`,
@@ -378,7 +351,7 @@ const options: CalendarOptions = {
   eventClassNames: (a) => (a.event.id === nextId ? ['kt-next'] : []),
   datesSet: (a) => {
     const day = a.view.type === 'timeGridDay'
-    title.value = day ? a.view.currentStart.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : a.view.title
+    title.value = day ? a.view.currentStart.toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }) : a.view.title
     week.value = day ? isoWeek(a.view.currentStart) : 0
     view.value = a.view.type
     store.set('kairo-cal-view', a.view.type)
@@ -386,11 +359,11 @@ const options: CalendarOptions = {
   },
   dayHeaderContent: (a) => {
     const month = a.view.type === 'dayGridMonth'
-    const wd = a.date.toLocaleDateString('de-DE', { weekday: month ? 'short' : 'long' }).replace('.', '')
+    const wd = a.date.toLocaleDateString(locale.value, { weekday: month ? 'short' : 'long' }).replace('.', '')
     if (month) return wd
     if (a.view.type === 'timeGridDay') { // Spaltenköpfe Plan | Erfasst
       const head = el('div', 'kt-dayhead')
-      head.append(el('span', '', 'Plan'), el('span', 'kt-trk-h', 'Erfasst'))
+      head.append(el('span', '', t('Plan')), el('span', 'kt-trk-h', t('Erfasst')))
       return { domNodes: [head] }
     }
     const row = el('div', 'kt-row')
@@ -467,7 +440,7 @@ const options: CalendarOptions = {
     const title = unplanned.value.find((t) => t.id === id)?.title
     void guarded(async () => {
       await updateTask(id, body)
-      offer(`„${title}“ geplant`, () => guarded(() => updateTask(id, { planned_date: '', planned_start_at: '' })))
+      offer(t('„{title}“ geplant', { title: title ?? '' }), () => guarded(() => updateTask(id, { planned_date: '', planned_start_at: '' })))
     })
   },
 }
@@ -489,47 +462,47 @@ useLiveEvents(() => {
     <div class="cal">
       <div class="cal-toolbar">
         <div class="cal-nav">
-          <button class="icon-btn" aria-label="Zurück" title="Zurück (←)" @click="cal?.getApi().prev()"><svg class="ic"><use href="#i-left" /></svg></button>
-          <button class="icon-btn" aria-label="Weiter" title="Weiter (→)" @click="cal?.getApi().next()"><svg class="ic"><use href="#i-right" /></svg></button>
+          <button class="icon-btn" :aria-label="$t('Zurück')" :title="$t('Zurück (←)')" @click="cal?.getApi().prev()"><svg class="ic"><use href="#i-left" /></svg></button>
+          <button class="icon-btn" :aria-label="$t('Weiter')" :title="$t('Weiter (→)')" @click="cal?.getApi().next()"><svg class="ic"><use href="#i-right" /></svg></button>
         </div>
-        <button class="btn btn-ghost" title="Heute (t)" aria-keyshortcuts="t" @click="cal?.getApi().today()">Heute</button>
+        <button class="btn btn-ghost" :title="$t('Heute (t)')" aria-keyshortcuts="t" @click="cal?.getApi().today()">{{ $t('Heute') }}</button>
         <h2 class="cal-title">{{ title }}</h2>
-        <span v-if="week" class="cal-kw">KW {{ week }}</span>
+        <span v-if="week" class="cal-kw">{{ $t('KW') }} {{ week }}</span>
         <span class="spacer" />
         <div v-if="isWeek" class="cal-legend" aria-hidden="true">
-          <span><i class="lg-termin" />Termin</span><span><i class="lg-task" />Aufgabe</span><span><i class="lg-track" />Erfasst</span>
+          <span><i class="lg-termin" />{{ $t('Termin') }}</span><span><i class="lg-task" />{{ $t('Aufgabe') }}</span><span><i class="lg-track" />{{ $t('Erfasst') }}</span>
         </div>
         <div class="seg">
           <button v-for="[v, l, k] in views" :key="v" :aria-pressed="view === v || (v === WORK && view === 'timeGridWeek')" :title="`${l} (${k})`" :aria-keyshortcuts="k" @click="goView(v)">{{ l }}</button>
         </div>
-        <button v-if="isWeek" class="btn btn-ghost" :aria-pressed="fullWeek" title="Samstag und Sonntag anzeigen" @click="toggleWeekend">Sa/So<span v-if="!fullWeek && weekendEntries" class="up-count"> {{ weekendEntries }}</span></button>
+        <button v-if="isWeek" class="btn btn-ghost" :aria-pressed="fullWeek" :title="$t('Samstag und Sonntag anzeigen')" @click="toggleWeekend">{{ $t('Sa/So') }}<span v-if="!fullWeek && weekendEntries" class="up-count"> {{ weekendEntries }}</span></button>
         <input ref="fileInput" type="file" accept=".ics,text/calendar" hidden @change="importFile" />
-        <button class="btn btn-secondary" @click="fileInput?.click()">ICS importieren</button>
-        <button class="btn btn-primary" title="Neuer Eintrag (n)" aria-keyshortcuts="n" @click="openNew"><svg class="ic"><use href="#i-plus" /></svg>Neuer Eintrag</button>
+        <button class="btn btn-secondary" @click="fileInput?.click()">{{ $t('ICS importieren') }}</button>
+        <button class="btn btn-primary" :title="$t('Neuer Eintrag (n)')" aria-keyshortcuts="n" @click="openNew"><svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neuer Eintrag') }}</button>
       </div>
       <div v-if="isDay && dayStat" class="cal-stats">
-        <span>geplant <b>{{ hm(dayStat.plan) }}</b></span><span>erfasst <b>{{ hm(dayStat.ist) }}</b></span><span>frei <b>{{ hm(dayStat.free) }}</b></span>
+        <span>{{ $t('geplant') }} <b>{{ hm(dayStat.plan) }}</b></span><span>{{ $t('erfasst') }} <b>{{ hm(dayStat.ist) }}</b></span><span>{{ $t('frei') }} <b>{{ hm(dayStat.free) }}</b></span>
       </div>
       <div class="cal-fc"><FullCalendar ref="cal" :options="options" /></div>
     </div>
     <aside class="unplanned" :class="{ shut: !upOpen, wide: isDay }" aria-labelledby="up-title">
-      <section v-if="isDay && nextUp && upOpen" class="next" aria-label="Als Nächstes">
-        <div class="next-head"><span>Als Nächstes · in {{ inMin(nextUp.start) }}</span><span>{{ nextUp.task ? 'Aufgabe' : 'Termin' }}</span></div>
+      <section v-if="isDay && nextUp && upOpen" class="next" :aria-label="$t('Als Nächstes')">
+        <div class="next-head"><span>{{ $t('Als Nächstes') }} · {{ $t('in {time}', { time: inMin(nextUp.start) }) }}</span><span>{{ nextUp.task ? $t('Aufgabe') : $t('Termin') }}</span></div>
         <h3>{{ nextUp.title }}</h3>
         <div class="next-meta">
-          <span><i class="next-dot" :style="{ background: nextUp.color }" />{{ nextUp.proj || 'Ohne Projekt' }}</span>
+          <span><i class="next-dot" :style="{ background: nextUp.color }" />{{ nextUp.proj || $t('Ohne Projekt') }}</span>
           <span>{{ hhmm(nextUp.start) }}–{{ hhmm(nextUp.end) }}</span><span>{{ hm(Math.round((nextUp.end.getTime() - nextUp.start.getTime()) / 60_000)) }}</span>
         </div>
         <div v-if="nextUp.task" class="row nowrap">
-          <button v-if="nextUp.task.status === 'IN_PROGRESS'" type="button" class="btn btn-primary" @click="run(() => taskAction(nextUp!.task!.id, 'pause'))">Pause</button>
-          <button v-else type="button" class="btn btn-primary" @click="run(() => taskAction(nextUp!.task!.id, 'start'))">Start</button>
-          <button type="button" class="btn btn-secondary" @click="setDone(nextUp.task, 'COMPLETED', run)">Fertig</button>
-          <button type="button" class="btn btn-ghost" @click="postpone(nextUp.task)">Verschieben</button>
+          <button v-if="nextUp.task.status === 'IN_PROGRESS'" type="button" class="btn btn-primary" @click="run(() => taskAction(nextUp!.task!.id, 'pause'))">{{ $t('Pause') }}</button>
+          <button v-else type="button" class="btn btn-primary" @click="run(() => taskAction(nextUp!.task!.id, 'start'))">{{ $t('Start') }}</button>
+          <button type="button" class="btn btn-secondary" @click="setDone(nextUp.task, 'COMPLETED', run)">{{ $t('Fertig') }}</button>
+          <button type="button" class="btn btn-ghost" @click="postpone(nextUp.task)">{{ $t('Verschieben') }}</button>
         </div>
       </section>
       <div class="up-head">
-        <h3 id="up-title"><span class="up-lbl">Ungeplant </span><span class="up-count">{{ unplanned.length }}</span></h3>
-        <span v-if="isDay && upOpen" class="up-hint">in den Plan ziehen</span>
+        <h3 id="up-title"><span class="up-lbl">{{ $t('Ungeplant') }} </span><span class="up-count">{{ unplanned.length }}</span></h3>
+        <span v-if="isDay && upOpen" class="up-hint">{{ $t('in den Plan ziehen') }}</span>
         <button type="button" class="icon-btn" :aria-expanded="upOpen" :aria-label="upOpen ? 'Ungeplant einklappen' : 'Ungeplant ausklappen'" @click="toggleUp"><svg class="ic"><use :href="upOpen ? '#i-right' : '#i-left'" /></svg></button>
       </div>
       <div v-show="upOpen" ref="unplannedEl" class="up-list">
@@ -542,60 +515,7 @@ useLiveEvents(() => {
     </aside>
     </div>
 
-    <div v-if="form" v-dialog="() => (form = null)" class="overlay open" @mousedown.self="form = null">
-      <form class="dialog" aria-labelledby="cal-dlg-title" @submit.prevent="save">
-        <div class="dlg-head"><h3 id="cal-dlg-title">{{ form.id ? 'Termin bearbeiten' : 'Neuer Eintrag' }}</h3></div>
-        <div class="dlg-body">
-          <div v-if="!form.id" class="seg">
-            <button v-for="o in kindOptions" :key="o.value" type="button" :aria-pressed="form.kind === o.value" @click="form.kind = o.value">{{ o.label }}</button>
-          </div>
-          <div class="field"><label>Titel</label><input v-model="form.title" class="input" placeholder="Titel" autofocus /></div>
-          <template v-if="form.kind === 'event'">
-            <label class="lbl"><input v-model="form.allDay" type="checkbox" :disabled="form.keepTimes" /> Ganztägig</label>
-            <div class="dlg-row">
-              <div class="field"><label>{{ form.repeat || form.customRule ? 'Erster Termin' : 'Datum' }}</label><input v-model="form.date" class="input" type="date" required /></div>
-              <div v-if="form.allDay" class="field"><label>Bis (einschließlich)</label><input v-model="form.endDate" class="input" type="date" :min="form.date" required /></div>
-              <template v-else-if="!form.keepTimes">
-                <div class="field"><label>Von</label><input v-model="form.from" class="input" type="time" required /></div>
-                <div class="field"><label>Bis</label><input v-model="form.to" class="input" type="time" required /></div>
-              </template>
-            </div>
-            <span v-if="form.keepTimes" class="lbl">Mehrtägiger Termin: Beginn und Ende bleiben unverändert.</span>
-            <div class="field"><label>Ort</label><input v-model="form.location" class="input" placeholder="optional" /></div>
-            <span v-if="form.customRule" class="lbl">Serie mit eigener Regel ({{ form.customRule }}); sie bleibt unverändert.</span>
-            <template v-else>
-              <label class="lbl"><input v-model="form.repeat" type="checkbox" /> Wöchentlich wiederholen</label>
-              <template v-if="form.repeat">
-                <div class="seg" role="group" aria-label="Wochentage">
-                  <button v-for="[code, label] in WEEKDAYS" :key="code" type="button" :aria-pressed="form.days.includes(code)" @click="toggleDay(code)">{{ label }}</button>
-                </div>
-                <div class="field"><label>Endet am</label><input v-model="form.until" class="input" type="date" :min="form.date" /></div>
-              </template>
-            </template>
-            <span v-if="form.id && (form.repeat || form.customRule)" class="lbl">Änderungen gelten für die ganze Serie.</span>
-          </template>
-          <div class="field">
-            <label for="cal-project">Projekt</label>
-            <select id="cal-project" v-model="form.projectId" class="input">
-              <option value="">Kein Projekt</option>
-              <option v-for="p in projectOptions" :key="p.id" :value="p.id">{{ p.name }}</option>
-            </select>
-          </div>
-        </div>
-        <div v-if="form.ask" class="dlg-foot">
-          <span class="q">{{ form.day ? 'Nur diesen Termin oder die ganze Serie löschen?' : 'Termin löschen?' }}</span>
-          <button ref="safeBtn" type="button" class="btn btn-ghost" @click="form.ask = false">Abbrechen</button>
-          <button v-if="form.day" type="button" class="btn btn-secondary" @click="remove(true)">Nur dieser Termin</button>
-          <button type="button" class="btn btn-primary" @click="remove(false)">{{ form.day ? 'Ganze Serie löschen' : 'Termin löschen' }}</button>
-        </div>
-        <div v-else class="dlg-foot">
-          <button v-if="form.id" type="button" class="btn btn-secondary" @click="askDelete">Löschen</button>
-          <span class="spacer" />
-          <button type="button" class="btn btn-ghost" @click="form = null">Abbrechen</button>
-          <button type="submit" class="btn btn-primary">{{ form.id ? 'Speichern' : 'Anlegen' }}</button>
-        </div>
-      </form>
-    </div>
+    <EventDialog v-if="form" :form="form" :projects="projectOptions" @save="save" @remove="remove" @close="form = null" />
   </div>
 </template>
 
@@ -648,9 +568,4 @@ useLiveEvents(() => {
 .lg-task { border-style: dashed !important; }
 .lg-track { width: 3px !important; height: 12px !important; border: 0 !important; border-radius: 2px !important; background: var(--tx-secondary); }
 @container (max-width: 1180px) { .cal-legend { display: none; } }
-.dlg-row { display: flex; gap: 12px; }
-.dlg-foot { flex-wrap: wrap; }
-.dlg-foot .spacer { flex: 1; }
-.dlg-foot .q { flex: 1 0 100%; font-size: 13px; color: var(--tx-secondary); }
-.dlg-row .field { flex: 1; }
 </style>

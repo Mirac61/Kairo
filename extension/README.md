@@ -34,9 +34,8 @@ Die Extension speichert keine Produktdaten; das Backend ist die Source of Truth.
     `<kairo.backendUrl>/review` im Browser öffnet.
   - **Schnelleingabe:** wie in der WebUI, etwa `Sport 30m !hoch @morgen #Uni`
     (Dauer, Priorität, Tag oder Uhrzeit, Projekt). Ohne Angaben landet die Task
-    für heute im Workspace-Projekt. `src/quickAdd.ts` ist eine Kopie von
-    `frontend/src/lib/quickAdd.ts`; `make check` schlägt fehl, wenn beide
-    auseinanderlaufen.
+    für heute im Workspace-Projekt. Der Parser wird direkt aus
+    `frontend/src/lib/quickAdd.ts` mitkompiliert, es gibt keine Kopie.
   - **Projekte:** Filterfeld, oben das Workspace-Projekt mit Fortschritt, darunter
     die Gruppen Aktiv, Pausiert und Archiv (der Zustand eingeklappt/aufgeklappt
     bleibt erhalten). Projekte mit offenen Tasks stehen vorn, rechts die Zahl

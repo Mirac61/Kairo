@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import ConfirmPopup from 'primevue/confirmpopup'
+import { usePrimeVue } from 'primevue/config'
+import de from 'primelocale/de.json'
+import en from 'primelocale/en.json'
+import { lang } from '@/lib/i18n'
 import { navItems } from '@/router'
 import UndoToast from '@/components/UndoToast.vue'
 import { useBackendStatus } from '@/composables/useBackendStatus'
@@ -12,6 +16,13 @@ import { store } from '@/lib/storage'
 import { projectColor } from '@/lib/projectColor'
 
 const { online, version } = useBackendStatus()
+
+// Sprache: <html lang> für Screenreader und Silbentrennung, PrimeVue für seine eigenen Texte.
+const primevue = usePrimeVue()
+watchEffect(() => {
+  document.documentElement.lang = lang.value
+  primevue.config.locale = lang.value === 'de' ? de.de : en.en
+})
 const router = useRouter()
 
 useLiveEvents(loadSidebar)
@@ -86,6 +97,7 @@ function toggleTheme() {
     <symbol id="i-split" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M12 4.5v15"/></symbol>
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9.5 6 15.5 12l-6 6"/></symbol>
     <symbol id="i-pen" viewBox="0 0 24 24"><path d="M15.5 4.5 19.5 8.5 8.5 19.5H4.5V15.5z"/><path d="M13 7l4 4"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6.5V4.5h5v2M6.5 6.5l.8 13a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-13"/></symbol>
     <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 2.4 17.5a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17h.01"/></symbol>
     <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3.5 13.5 6 5a1.5 1.5 0 0 1 1.4-1h9.2A1.5 1.5 0 0 1 18 5l2.5 8.5V18a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18z"/><path d="M3.5 13.5H9a3 3 0 0 0 6 0h5.5"/></symbol>
@@ -93,18 +105,18 @@ function toggleTheme() {
 </svg>
   <div class="app">
     <aside class="sidebar" :class="{ mini }">
-      <div class="logo" role="img" aria-label="Kairo"><span class="logo-word" aria-hidden="true">K<i class="lw-a"></i>IR<i class="lw-o"></i></span><span class="logo-mark" aria-hidden="true"><i></i></span></div>
+      <div class="logo" role="img" :aria-label="$t('Kairo')"><span class="logo-word" aria-hidden="true">K<i class="lw-a"></i>IR<i class="lw-o"></i></span><span class="logo-mark" aria-hidden="true"><i></i></span></div>
       <button type="button" class="sb-new" aria-keyshortcuts="Meta+K Control+K" @click="newEntry">
-        <svg class="ic"><use href="#i-plus" /></svg><span class="sb-new-l">Neu …</span><kbd class="key" aria-hidden="true">⌘K</kbd>
+        <svg class="ic"><use href="#i-plus" /></svg><span class="sb-new-l">{{ $t('Neu …') }}</span><kbd class="key" aria-hidden="true">⌘K</kbd>
       </button>
-      <nav aria-label="Hauptnavigation">
-        <RouterLink v-for="item in navItems" :key="item.path" :to="item.path" class="nav-item" :aria-label="mini ? item.label : undefined" :data-tip="mini ? item.label : undefined">
-          <svg class="ic"><use :href="`#i-${item.icon}`" /></svg><span class="nav-l">{{ item.label }}</span>
+      <nav :aria-label="$t('Hauptnavigation')">
+        <RouterLink v-for="item in navItems" :key="item.path" :to="item.path" class="nav-item" :aria-label="mini ? $t(item.label) : undefined" :data-tip="mini ? $t(item.label) : undefined">
+          <svg class="ic"><use :href="`#i-${item.icon}`" /></svg><span class="nav-l">{{ $t(item.label) }}</span>
           <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
         </RouterLink>
       </nav>
       <div v-if="pins.length" class="pins">
-        <div class="pins-head"><span>Aktiv</span><span>diese Woche</span></div>
+        <div class="pins-head"><span>{{ $t('Aktiv') }}</span><span>{{ $t('diese Woche') }}</span></div>
         <RouterLink v-for="p in pins" :key="p.id" to="/projects" class="nav-item pin">
           <span class="pin-dot"><i :style="{ background: projectColor(p.id) }"></i></span><span class="nav-l">{{ p.name }}</span>
           <span v-if="p.minutes" class="nav-n">{{ hm(p.minutes) }}</span>
@@ -113,15 +125,16 @@ function toggleTheme() {
       <div class="sidebar-footer">
         <div class="status" :class="{ off: !online }">
           <span class="status-dot" />
-          <span>{{ online ? `Verbunden${version ? ` (${version})` : ''}` : 'Getrennt' }}</span>
+          <span>{{ online ? `${$t('Verbunden')}${version ? ` (${version})` : ''}` : $t('Getrennt') }}</span>
         </div>
         <div class="sb-btns">
-          <button class="icon-btn" aria-label="Theme wechseln" data-tip="Theme wechseln" @click="toggleTheme">
+          <RouterLink to="/settings" class="icon-btn" :aria-label="$t('Einstellungen')" :data-tip="$t('Einstellungen')"><svg class="ic"><use href="#i-gear" /></svg></RouterLink>
+          <button class="icon-btn" :aria-label="$t('Theme wechseln')" :data-tip="$t('Theme wechseln')" @click="toggleTheme">
             <svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg>
           </button>
           <button
-            class="icon-btn sb-toggle" :aria-expanded="!mini" :aria-label="mini ? 'Seitenleiste ausklappen' : 'Seitenleiste einklappen'"
-            :data-tip="mini ? 'Ausklappen' : 'Einklappen'" @click="toggleSidebar"
+            class="icon-btn sb-toggle" :aria-expanded="!mini" :aria-label="mini ? $t('Seitenleiste ausklappen') : $t('Seitenleiste einklappen')"
+            :data-tip="mini ? $t('Ausklappen') : $t('Einklappen')" @click="toggleSidebar"
           ><svg class="ic"><use :href="mini ? '#i-right' : '#i-left'" /></svg></button>
         </div>
       </div>

@@ -98,19 +98,25 @@ export function todayList(t: Today | undefined): (Task & { overdue?: boolean })[
 
 const trimSlashes = (p: string): string => (p.length > 1 ? p.replace(/\/+$/, "") : p);
 
+/** Vergleichsform eines Pfads: "/" statt "\\", unter Windows ohne Groß/Klein. */
+const norm = (p: string, win: boolean): string => {
+  const s = trimSlashes(p.replace(/\\/g, "/"));
+  return win ? s.toLowerCase() : s;
+};
+
 /** Ersetzt ein führendes "~" durch das Home-Verzeichnis. */
-export const expandHome = (p: string, home: string = homedir()): string => p.replace(/^~(?=$|\/)/, home);
+export const expandHome = (p: string, home: string = homedir()): string => p.replace(/^~(?=$|[/\\])/, home);
 
 /** Projekt mit dem längsten local_path, der folder gleich ist oder umfasst. "~" in local_path steht für home. */
-export function matchProject(projects: Project[], folder: string, home: string = homedir()): Project | undefined {
-  const f = trimSlashes(folder);
+export function matchProject(projects: Project[], folder: string, home: string = homedir(), win = process.platform === "win32"): Project | undefined {
+  const f = norm(folder, win);
   let best: Project | undefined;
   let bestLen = -1;
   for (const p of projects) {
     if (!p.local_path) {
       continue;
     }
-    const lp = trimSlashes(expandHome(p.local_path, home));
+    const lp = norm(expandHome(p.local_path, home), win);
     const covers = f === lp || f.startsWith(lp === "/" ? "/" : `${lp}/`);
     if (covers && lp.length > bestLen) {
       best = p;

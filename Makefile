@@ -1,4 +1,4 @@
-.PHONY: help install build check run link
+.PHONY: help install build check e2e run link
 
 BIN := backend/bin/kairo
 BINDIR ?= $(HOME)/.local/bin
@@ -14,6 +14,7 @@ help:
 	@echo "make run      bei Bedarf bauen, Backend starten, WebUI im Browser öffnen"
 	@echo "make link     Befehl 'kairo' nach $(BINDIR) legen (startet 'make run')"
 	@echo "make check    gofmt, vet, Tests, Typprüfung, Extension-Build"
+	@echo "make e2e      bauen, dann Playwright-Smoke-Tests gegen ein Backend mit leerer Datenbank"
 
 install:
 	cd frontend && pnpm install --frozen-lockfile
@@ -45,6 +46,8 @@ link:
 check:
 	cd backend && test -z "$$(gofmt -l .)" && go vet ./... && go test ./...
 	cd frontend && pnpm type-check && pnpm test
-	# Die Extension trägt eine Kopie des Schnelleingabe-Parsers der WebUI; beide müssen gleich bleiben.
-	cmp frontend/src/lib/quickAdd.ts extension/src/quickAdd.ts
 	cd extension && pnpm compile && pnpm test
+
+# Smoke-Tests im Browser; das Backend läuft dabei mit Temp-Daten auf Port 8813.
+e2e: build
+	cd frontend && pnpm e2e

@@ -1,7 +1,9 @@
-// Package config liest die Kairo-Konfiguration aus der Umgebung.
+// Package config liest die Kairo-Konfiguration aus config.json und der Umgebung.
+// Umgebungsvariablen haben Vorrang vor der Datei.
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -20,6 +22,8 @@ type Config struct {
 	Port      int
 	DBPath    string
 	TokenPath string
+	// ConfigPath ist die Datei mit den Einstellungen aus der WebUI.
+	ConfigPath string
 	// NotesDir ist der Wurzelordner der Notizen (Markdown-Dateien).
 	NotesDir string
 	Location *time.Location
@@ -41,8 +45,112 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("config: %s=%q ungültig: %s", e.Key, e.Value, e.Reason)
 }
 
-// Load liest die Konfiguration über getenv (z. B. os.Getenv).
+// File sind die Einstellungen in config.json, die die WebUI ändern darf.
+// Leere Felder bedeuten Standardwert.
+type File struct {
+	NotesDir  string `json:"notesDir,omitempty"`
+	WorkStart string `json:"workStart,omitempty"`
+	WorkEnd   string `json:"workEnd,omitempty"`
+	Timezone  string `json:"timezone,omitempty"`
+}
+
+// FileKeys ordnet jedem Feld von File die Umgebungsvariable zu, die es überschreibt.
+var FileKeys = map[string]string{
+	"notesDir": "KAIRO_NOTES_DIR", "workStart": "KAIRO_WORK_START", "workEnd": "KAIRO_WORK_END", "timezone": "KAIRO_TIMEZONE",
+}
+
+func (f File) lookup(key string) string {
+	return map[string]string{
+		"KAIRO_NOTES_DIR": f.NotesDir, "KAIRO_WORK_START": f.WorkStart, "KAIRO_WORK_END": f.WorkEnd, "KAIRO_TIMEZONE": f.Timezone,
+	}[key]
+}
+
+// Validate prüft die Werte wie Load und zusätzlich, dass der Notizordner
+// existiert und beschreibbar ist.
+func (f File) Validate() error {
+	if _, err := resolve(f.lookup); err != nil {
+		return err
+	}
+	if f.NotesDir == "" {
+		return nil
+	}
+	if !filepath.IsAbs(f.NotesDir) {
+		return &Error{"notesDir", f.NotesDir, "erwartet absoluten Pfad"}
+	}
+	probe, err := os.CreateTemp(f.NotesDir, ".kairo-check-*")
+	if err != nil {
+		return &Error{"notesDir", f.NotesDir, "Ordner fehlt oder ist nicht beschreibbar"}
+	}
+	probe.Close()
+	return os.Remove(probe.Name())
+}
+
+// ReadFile liest config.json; fehlt die Datei, ist das Ergebnis leer.
+func ReadFile(path string) (File, error) {
+	var f File
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return f, nil
+	}
+	if err != nil {
+		return f, err
+	}
+	if err := json.Unmarshal(b, &f); err != nil {
+		return f, fmt.Errorf("config: %s: %w", path, err)
+	}
+	return f, nil
+}
+
+// WriteFile schreibt config.json und legt den Ordner bei Bedarf an.
+func WriteFile(path string, f File) error {
+	b, err := json.MarshalIndent(f, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(b, '\n'), 0o600)
+}
+
+// File liefert die laufenden Werte in der Form von config.json.
+// Die Systemzeitzone ist leer.
+func (c Config) File() File {
+	f := File{NotesDir: c.NotesDir, WorkStart: clock(c.WorkStart), WorkEnd: clock(c.WorkEnd)}
+	if c.Location != time.Local {
+		f.Timezone = c.Location.String()
+	}
+	return f
+}
+
+func clock(m int) string { return fmt.Sprintf("%02d:%02d", m/60, m%60) }
+
+// Load liest config.json (Pfad aus KAIRO_CONFIG_PATH, sonst
+// ~/.config/kairo/config.json) und danach die Umgebung über getenv (z. B. os.Getenv).
 func Load(getenv func(string) string) (Config, error) {
+	path := getenv("KAIRO_CONFIG_PATH")
+	if path == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return Config{}, fmt.Errorf("config: Home-Verzeichnis unbekannt: %w", err)
+		}
+		path = filepath.Join(home, ".config", "kairo", "config.json")
+	}
+	f, err := ReadFile(path)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg, err := resolve(func(k string) string {
+		if v := getenv(k); v != "" {
+			return v
+		}
+		return f.lookup(k)
+	})
+	cfg.ConfigPath = path
+	return cfg, err
+}
+
+func resolve(getenv func(string) string) (Config, error) {
 	var cfg Config
 	var errs []error
 
@@ -70,7 +178,7 @@ func Load(getenv func(string) string) (Config, error) {
 	}
 	cfg.NotesDir = getenv("KAIRO_NOTES_DIR")
 	if cfg.NotesDir == "" {
-		cfg.NotesDir = filepath.Join(home, "life-os")
+		cfg.NotesDir = filepath.Join(home, "Kairo")
 	}
 
 	cfg.Location = time.Local

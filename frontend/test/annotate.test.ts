@@ -1,7 +1,7 @@
 // Prüfung der Zeichen-Geometrie und des PDF-Exports: node test/annotate.test.ts
 import assert from 'node:assert/strict'
 import * as lib from 'pdf-lib'
-import { apply, bounds, boxFrom, resizeBox, drawOnPdf, invert, pathOf, snapped, transformed, type Page, type Shape } from '../src/lib/annotate.ts'
+import { apply, bounds, boxFrom, resizeBox, drawOnPdf, invert, pathOf, snapped, transformed, zoomStep, type Page, type Shape } from '../src/lib/annotate.ts'
 
 const near = (a: number[], b: number[]) => a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < 1e-6, `${a} ≠ ${b}`))
 const measure = (t: string, size: number) => t.length * size * 0.5
@@ -48,3 +48,10 @@ const back = await lib.PDFDocument.load(out)
 assert.equal(back.getPageCount(), 2)
 assert.ok(out.length > bytes.length)
 console.log('annotate ok')
+
+// Zoomstufen: von einer Stufe zur nächsten, zwischen zwei Stufen zur nächsten in Richtung, an den Rändern stehen bleiben
+assert.equal(zoomStep(100, 1), 125)
+assert.equal(zoomStep(100, -1), 90)
+assert.equal(zoomStep(110, -1), 100)
+assert.equal(zoomStep(800, 1), 800)
+assert.equal(zoomStep(10, -1), 10)

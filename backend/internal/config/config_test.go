@@ -9,8 +9,15 @@ import (
 	"time"
 )
 
+// env liefert m als Umgebung; ohne KAIRO_CONFIG_PATH zeigt sie auf eine fehlende
+// Datei, damit Tests nie die echte config.json lesen.
 func env(m map[string]string) func(string) string {
-	return func(k string) string { return m[k] }
+	return func(k string) string {
+		if k == "KAIRO_CONFIG_PATH" && m[k] == "" {
+			return "/nonexistent/kairo/config.json"
+		}
+		return m[k]
+	}
 }
 
 func TestLoadDefaults(t *testing.T) {
@@ -27,7 +34,7 @@ func TestLoadDefaults(t *testing.T) {
 	if !strings.HasSuffix(cfg.TokenPath, filepath.Join(".config", "kairo", "token")) {
 		t.Errorf("TokenPath = %s", cfg.TokenPath)
 	}
-	if filepath.Base(cfg.NotesDir) != "life-os" {
+	if filepath.Base(cfg.NotesDir) != "Kairo" {
 		t.Errorf("NotesDir = %s", cfg.NotesDir)
 	}
 	if cfg.Addr() != "127.0.0.1:8742" {
@@ -80,6 +87,42 @@ func TestLoadWorkWindow(t *testing.T) {
 	} {
 		if _, err := Load(env(bad)); err == nil {
 			t.Errorf("%v sollte ungültig sein", bad)
+		}
+	}
+}
+
+func TestLoadFileUnderEnv(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "kairo", "config.json")
+	if err := WriteFile(path, File{NotesDir: dir, WorkStart: "08:00", Timezone: "Europe/Berlin"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(env(map[string]string{"KAIRO_CONFIG_PATH": path, "KAIRO_WORK_START": "07:00"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Datei gilt, die Umgebung schlägt sie.
+	if cfg.NotesDir != dir || cfg.WorkStart != 420 || cfg.Location.String() != "Europe/Berlin" || cfg.ConfigPath != path {
+		t.Errorf("unerwartet: %+v", cfg)
+	}
+	if got := cfg.File(); got != (File{NotesDir: dir, WorkStart: "07:00", WorkEnd: "17:00", Timezone: "Europe/Berlin"}) {
+		t.Errorf("File() = %+v", got)
+	}
+}
+
+func TestFileValidate(t *testing.T) {
+	dir := t.TempDir()
+	if err := (File{NotesDir: dir, WorkStart: "08:00", WorkEnd: "12:00"}).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []File{
+		{NotesDir: filepath.Join(dir, "fehlt")},
+		{NotesDir: "relativ"},
+		{WorkStart: "18:00"},
+		{Timezone: "Mars/Olympus"},
+	} {
+		if f.Validate() == nil {
+			t.Errorf("%+v sollte ungültig sein", f)
 		}
 	}
 }

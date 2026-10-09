@@ -38,3 +38,13 @@ assert.equal(f('Fertig!').priority, null)
 assert.deepEqual(f('Lampen kaufen 1h @fr 18:00 #SmartHome !dringend'), { title: 'Lampen kaufen 18:00', minutes: 60, date: '2026-10-09', time: null, project: projects[1], priority: 'URGENT' })
 assert.equal(f('#Kairo').title, '') // nur Token: kein Titel, die Ansicht legt nichts an
 console.log('quickAdd: ok')
+
+// Englisch
+assert.equal(f('Gym @today').date, '2026-10-07')
+assert.equal(f('Gym @tomorrow').date, '2026-10-08')
+assert.equal(f('Gym @fri').date, '2026-10-09')
+assert.equal(f('Gym @tu').date, '2026-10-13')
+assert.equal(f('Gym @Wednesday').date, '2026-10-14')
+assert.equal(f('Gym @mitt').date, '2026-10-14')
+assert.equal(f('Gym !high').priority, 'HIGH')
+assert.equal(f('Gym @x').title, 'Gym @x') // ein Buchstabe ist kein Tag

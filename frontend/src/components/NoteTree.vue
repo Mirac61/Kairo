@@ -109,11 +109,11 @@ function dragOver(e: DragEvent, n: NoteNode) {
         </button>
         <span class="nt-act">
           <template v-if="n.dir">
-            <button type="button" class="icon-btn" :aria-label="`Neue Notiz in ${n.name}`" data-tip="Neue Notiz" @click="ctx.startAdd(n.path, false)"><svg class="ic"><use href="#i-plus" /></svg></button>
-            <button type="button" class="icon-btn" :aria-label="`Neuer Ordner in ${n.name}`" data-tip="Neuer Ordner" @click="ctx.startAdd(n.path, true)"><svg class="ic"><use href="#i-proj" /></svg></button>
+            <button type="button" class="icon-btn" :aria-label="$t('Neue Notiz in {name}', { name: n.name })" :data-tip="$t('Neue Notiz')" @click="ctx.startAdd(n.path, false)"><svg class="ic"><use href="#i-plus" /></svg></button>
+            <button type="button" class="icon-btn" :aria-label="$t('Neuer Ordner in {name}', { name: n.name })" :data-tip="$t('Neuer Ordner')" @click="ctx.startAdd(n.path, true)"><svg class="ic"><use href="#i-proj" /></svg></button>
           </template>
-          <button type="button" class="icon-btn" :aria-label="`${label(n)} umbenennen`" data-tip="Umbenennen (F2)" @click="startRename(n)"><svg class="ic"><use href="#i-pen" /></svg></button>
-          <button type="button" class="icon-btn" :aria-label="`${label(n)} löschen`" data-tip="Löschen" @click="ctx.remove(n, $event.currentTarget as HTMLElement)"><svg class="ic"><use href="#i-trash" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="`${label(n)} umbenennen`" :data-tip="$t('Umbenennen (F2)')" @click="startRename(n)"><svg class="ic"><use href="#i-pen" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="$t('{name} löschen', { name: label(n) })" :data-tip="$t('Löschen')" @click="ctx.remove(n, $event.currentTarget as HTMLElement)"><svg class="ic"><use href="#i-trash" /></svg></button>
         </span>
       </div>
       <NoteTree v-if="n.dir && ctx.open.has(n.path)" :nodes="n.children ?? []" :ctx="ctx" :parent="n.path" :depth="depth + 1" />
@@ -121,8 +121,8 @@ function dragOver(e: DragEvent, n: NoteNode) {
     <li v-if="ctx.adding?.parent === parent" role="none" class="nt-new" :style="indent()">
       <svg class="ic nt-ic" aria-hidden="true"><use :href="ctx.adding.dir ? '#i-proj' : '#i-md'" /></svg>
       <input
-        v-model="name" v-start="ctx.adding.dir ? '' : `${ymd(new Date())} `" class="input nt-input" :placeholder="ctx.adding.dir ? 'Ordnername' : 'Name der Notiz'"
-        :aria-label="ctx.adding.dir ? 'Name des neuen Ordners' : 'Name der neuen Notiz'"
+        v-model="name" v-start="ctx.adding.dir ? '' : `${ymd(new Date())} `" class="input nt-input" :placeholder="ctx.adding.dir ? $t('Ordnername') : $t('Name der Notiz')"
+        :aria-label="ctx.adding.dir ? $t('Name des neuen Ordners') : $t('Name der neuen Notiz')"
         @keydown.enter.prevent="submit(ctx.submitAdd, ctx.cancelAdd)" @keydown.esc.prevent="ctx.cancelAdd()" @blur="ctx.cancelAdd()"
       />
     </li>

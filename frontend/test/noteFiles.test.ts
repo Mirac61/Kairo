@@ -1,6 +1,6 @@
 // Prüfung der Notizdateien: node test/noteFiles.test.ts
 import assert from 'node:assert/strict'
-import { fileKind, fillTemplate, previewImages } from '../src/lib/noteFiles.ts'
+import { fileKind, fillTemplate, join, previewImages, under, withExt } from '../src/lib/noteFiles.ts'
 
 assert.equal(fileKind('Uni/a.MD'), 'md')
 assert.equal(fileKind('skript.pdf'), 'pdf')
@@ -25,3 +25,12 @@ assert.equal(fillTemplate('{{ordner}}', 'oben.md', fri), '')
 assert.equal(fillTemplate('{{titel}}', 'Uni/2026-10-09 VL 3.md', fri), 'VL 3') // Datum vorn steckt schon in {{datum}}
 assert.equal(fillTemplate('{{titel}}', '2026-10-09.md', fri), '2026-10-09') // nur Datum: bleibt
 console.log('noteFiles ok')
+
+// Pfadteile
+assert.equal(withExt('Plan'), 'Plan.md')
+assert.equal(withExt('Plan.MD'), 'Plan.MD')
+assert.equal(withExt('a', '.pdf'), 'a.pdf')
+assert.equal(join('', 'a.md'), 'a.md')
+assert.equal(join('Uni', 'a.md'), 'Uni/a.md')
+assert.ok(under('Uni/a.md', 'Uni') && under('Uni', 'Uni'))
+assert.ok(!under('Uni2/a.md', 'Uni'))

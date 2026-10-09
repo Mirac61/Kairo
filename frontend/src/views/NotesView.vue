@@ -9,8 +9,9 @@ import FileEditor from '@/components/FileEditor.vue'
 import NoteTree, { canDrop, canDropHere, parentOf, type TreeCtx } from '@/components/NoteTree.vue'
 import { ymd } from '@/lib/dates'
 import { vDialog } from '@/lib/dialog'
-import { fileKind, fillTemplate, previewImages } from '@/lib/noteFiles'
+import { fileKind, fillTemplate, join, previewImages, under, withExt } from '@/lib/noteFiles'
 import { store } from '@/lib/storage'
+import { t } from '@/lib/i18n'
 
 // Mermaid, KaTeX, Prettier und Highlight lädt md-editor-v3 vom CDN; sie sind abgeschaltet (Kairo läuft lokal).
 // Bilder landen über uploadImages neben der Notiz.
@@ -18,7 +19,7 @@ const TOOLBAR: ToolbarNames[] = [
   'bold', 'italic', 'strikeThrough', 'title', '-', 'quote', 'unorderedList', 'orderedList', 'task', '-',
   'codeRow', 'code', 'link', 'image', 'table', '-', 'revoke', 'next', '=', 'preview', 'previewOnly',
 ]
-const DISCARD = 'Ungespeicherte Änderungen verwerfen?'
+const DISCARD = t('Ungespeicherte Änderungen verwerfen?')
 const POLL_MS = 5000
 
 // Zwei Plätze: eine Notiz (Markdown) und ein Dokument (PDF oder Bild). Einzeln ist einer sichtbar, geteilt beide
@@ -123,12 +124,9 @@ const ctx: TreeCtx = reactive({
 // Pfade baut der Baum selbst; ein Name ist nur ein Teil (der Browser würde „..“ in der URL sonst auflösen).
 function badName(name: string) {
   if (!/[/\\]/.test(name) && !name.startsWith('.')) return false
-  error.value = 'Ein Name darf kein „/“ enthalten und nicht mit „.“ beginnen.'
+  error.value = t('Ein Name darf kein „/“ enthalten und nicht mit „.“ beginnen.')
   return true
 }
-const withExt = (name: string, ext = '.md') => (name.toLowerCase().endsWith(ext.toLowerCase()) ? name : name + ext)
-const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name)
-const under = (p: string, prefix: string) => p === prefix || p.startsWith(`${prefix}/`)
 
 // Nach Umbenennen oder Verschieben: offene Dateien und aufgeklappte Ordner mitnehmen.
 function remap(from: string, to: string) {
@@ -147,7 +145,7 @@ async function move(from: string, to: string) {
     tree.value = await listNotes()
     error.value = ''
   } catch (e) {
-    error.value = e instanceof ApiError && e.status === 409 ? `„${to}“ existiert schon.` : errorMessage(e)
+    error.value = e instanceof ApiError && e.status === 409 ? t('„{name}“ existiert schon.', { name: to }) : errorMessage(e)
   }
 }
 
@@ -171,7 +169,7 @@ async function drop(dir: string, files?: FileList) {
 async function addFiles(dir: string, files: File[]) {
   const bad = files.find((f) => !fileKind(f.name))
   if (bad) {
-    error.value = `„${bad.name}“: Kairo nimmt nur Markdown, PDFs und Bilder (png, jpg, gif, webp).`
+    error.value = t('„{name}“: Kairo nimmt nur Markdown, PDFs und Bilder (png, jpg, gif, webp).', { name: bad.name })
     return
   }
   let last = ''
@@ -186,7 +184,7 @@ async function addFiles(dir: string, files: File[]) {
     }
     error.value = ''
   } catch (e) {
-    error.value = e instanceof ApiError && e.status === 409 ? 'Eine Datei mit diesem Namen gibt es dort schon.' : errorMessage(e)
+    error.value = e instanceof ApiError && e.status === 409 ? t('Eine Datei mit diesem Namen gibt es dort schon.') : errorMessage(e)
   }
   if (dir) ctx.open.add(dir)
   saveOpen()
@@ -216,10 +214,10 @@ function remove(n: NoteNode, anchor: HTMLElement) {
   confirmPopup.require({
     target: anchor,
     message: n.dir
-      ? `Ordner „${n.name}“ mit allem Inhalt löschen? Er landet in .trash im Notizordner.`
-      : `„${n.name.replace(/\.md$/i, '')}“ löschen? Die Notiz landet in .trash im Notizordner.`,
-    acceptLabel: 'Löschen',
-    rejectLabel: 'Abbrechen',
+      ? t('Ordner „{name}“ mit allem Inhalt löschen? Er landet in .trash im Notizordner.', { name: n.name })
+      : t('„{name}“ löschen? Die Notiz landet in .trash im Notizordner.', { name: n.name.replace(/\.md$/i, '') }),
+    acceptLabel: t('Löschen'),
+    rejectLabel: t('Abbrechen'),
     defaultFocus: 'reject',
     acceptProps: { size: 'small' },
     rejectProps: { severity: 'secondary', size: 'small', text: true },
@@ -435,11 +433,11 @@ onBeforeUnmount(() => {
   <div class="notes" :class="{ shut: !treeOpen }">
     <aside v-show="treeOpen" id="nt-pane" class="nt-pane">
       <div class="nt-head">
-        <span class="lbl">Notizen</span>
+        <span class="lbl">{{ $t('Notizen') }}</span>
         <span class="nt-head-act">
-          <button type="button" class="icon-btn" aria-label="Neue Notiz" data-tip="Neue Notiz" @click="ctx.startAdd('', false)"><svg class="ic"><use href="#i-plus" /></svg></button>
-          <button type="button" class="icon-btn" aria-label="Neuer Ordner" data-tip="Neuer Ordner" @click="ctx.startAdd('', true)"><svg class="ic"><use href="#i-proj" /></svg></button>
-          <button type="button" class="icon-btn" aria-label="Datei hinzufügen" data-tip="PDF, Bild oder Notiz hinzufügen" @click="filePick?.click()"><svg class="ic"><use href="#i-upload" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Neue Notiz')" :data-tip="$t('Neue Notiz')" @click="ctx.startAdd('', false)"><svg class="ic"><use href="#i-plus" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Neuer Ordner')" :data-tip="$t('Neuer Ordner')" @click="ctx.startAdd('', true)"><svg class="ic"><use href="#i-proj" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Datei hinzufügen')" :data-tip="$t('PDF, Bild oder Notiz hinzufügen')" @click="filePick?.click()"><svg class="ic"><use href="#i-upload" /></svg></button>
           <input ref="filePick" type="file" multiple hidden accept=".md,.pdf,.png,.jpg,.jpeg,.gif,.webp" @change="pick" />
         </span>
       </div>
@@ -449,7 +447,7 @@ onBeforeUnmount(() => {
         @dragleave.self="ctx.dropTarget = null" @drop.prevent="ctx.drop('', $event.dataTransfer?.files)"
       >
         <NoteTree :nodes="tree" :ctx="ctx" />
-        <p v-if="!tree.length && !ctx.adding" class="nt-empty">Noch keine Notizen. Lege oben eine an oder zieh PDFs und Bilder hierher.</p>
+        <p v-if="!tree.length && !ctx.adding" class="nt-empty">{{ $t('Noch keine Notizen. Lege oben eine an oder zieh PDFs und Bilder hierher.') }}</p>
       </div>
     </aside>
 
@@ -468,26 +466,26 @@ onBeforeUnmount(() => {
             <template v-if="pathOf(pn)">
               <span v-for="(c, i) in crumbsOf(pathOf(pn)!)" :key="i" :class="{ last: i === crumbsOf(pathOf(pn)!).length - 1 }">{{ c }}</span>
             </template>
-            <span v-else class="last">{{ pn === 'doc' ? 'Kein PDF geöffnet' : 'Keine Notiz geöffnet' }}</span>
+            <span v-else class="last">{{ pn === 'doc' ? $t('Kein PDF geöffnet') : $t('Keine Notiz geöffnet') }}</span>
           </div>
-          <span v-if="isDirty(pn)" class="ed-dirty" role="status"><i></i>Ungespeichert</span>
+          <span v-if="isDirty(pn)" class="ed-dirty" role="status"><i></i>{{ $t('Ungespeichert') }}</span>
           <button v-if="canSave(pn)" type="button" class="btn btn-secondary ed-save" :disabled="!isDirty(pn) || saving" aria-keyshortcuts="Meta+S Control+S" @click="save(false, pn)">
-            Speichern<kbd class="key" aria-hidden="true">⌘S</kbd>
+            {{ $t('Speichern') }}<kbd class="key" aria-hidden="true">⌘S</kbd>
           </button>
           <button
             v-if="pn === (split ? 'note' : shown)" type="button" class="icon-btn" :class="{ on: split }" :aria-pressed="split"
-            aria-label="Geteilte Ansicht" :data-tip="split ? 'Nur eine Datei zeigen' : 'Geteilt: PDF links, Notiz rechts'" @click="toggleSplit"
+            :aria-label="$t('Geteilte Ansicht')" :data-tip="split ? $t('Nur eine Datei zeigen') : $t('Geteilt: PDF links, Notiz rechts')" @click="toggleSplit"
           ><svg class="ic"><use href="#i-split" /></svg></button>
         </header>
         <div v-if="error && pn === errorPane" class="ed-bar" role="alert">{{ error }}</div>
 
         <template v-if="pn === 'note'">
           <div v-if="external" class="ed-bar" role="alert">
-            Die Datei wurde außerhalb von Kairo geändert. Beim Speichern fragt Kairo nach.
-            <button type="button" class="btn btn-ghost" @click="reload('note')">Verwerfen und neu laden</button>
+            {{ $t('Die Datei wurde außerhalb von Kairo geändert. Beim Speichern fragt Kairo nach.') }}
+            <button type="button" class="btn btn-ghost" @click="reload('note')">{{ $t('Verwerfen und neu laden') }}</button>
           </div>
           <div v-if="offerTemplates" class="ed-tpl">
-            <span>Vorlage</span>
+            <span>{{ $t('Vorlage') }}</span>
             <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t)">{{ t.name.replace(/\.md$/i, '') }}</button>
           </div>
           <MdEditor
@@ -495,36 +493,36 @@ onBeforeUnmount(() => {
             :toolbars="TOOLBAR" :footers="[]" :sanitize="sanitize" no-highlight no-mermaid no-katex no-prettier no-echarts
             @on-upload-img="uploadImages"
           />
-          <div v-else class="ed-empty">Wähle links eine Notiz oder lege eine neue an.</div>
+          <div v-else class="ed-empty">{{ $t('Wähle links eine Notiz oder lege eine neue an.') }}</div>
         </template>
         <template v-else>
           <FileEditor
             v-if="docPath && (docKind === 'pdf' || docKind === 'image')" :ref="setDocEd" :key="docPath" :path="docPath" :kind="docKind"
             :active="visible('doc') && (!split || focus === 'doc')" @dirty="docDirtyFlag = $event"
           />
-          <div v-else class="ed-empty">Wähle im Baum ein PDF oder ein Bild.</div>
+          <div v-else class="ed-empty">{{ $t('Wähle im Baum ein PDF oder ein Bild.') }}</div>
         </template>
       </section>
       <div
-        v-if="split" class="ed-split" role="separator" aria-orientation="vertical" aria-label="Breite der Hälften" tabindex="0"
+        v-if="split" class="ed-split" role="separator" aria-orientation="vertical" :aria-label="$t('Breite der Hälften')" tabindex="0"
         :aria-valuenow="Math.round(ratio * 100)" aria-valuemin="25" aria-valuemax="75" :style="{ left: `${ratio * 100}%` }"
         @pointerdown="startResize" @keydown.left.prevent="nudge(-0.05)" @keydown.right.prevent="nudge(0.05)"
       />
     </div>
 
     <div v-if="conflict" v-dialog="() => (conflict = null)" class="overlay open" @mousedown.self="conflict = null">
-      <div class="dialog" aria-label="Datei extern geändert">
+      <div class="dialog" :aria-label="$t('Datei extern geändert')">
         <div class="dlg-head">
-          <h3>Datei wurde extern geändert</h3>
-          <button class="icon-btn" type="button" aria-label="Schließen" @click="conflict = null"><svg class="ic"><use href="#i-x" /></svg></button>
+          <h3>{{ $t('Datei wurde extern geändert') }}</h3>
+          <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="conflict = null"><svg class="ic"><use href="#i-x" /></svg></button>
         </div>
         <div class="dlg-body">
-          <p class="ed-msg">„{{ pathOf(conflict) }}“ wurde seit dem Laden außerhalb von Kairo geändert, zum Beispiel in VSCodium. Überschreiben ersetzt diese Änderungen durch deinen Stand aus Kairo.</p>
+          <p class="ed-msg">{{ $t('„{name}“ wurde seit dem Laden außerhalb von Kairo geändert, zum Beispiel in VSCodium. Überschreiben ersetzt diese Änderungen durch deinen Stand aus Kairo.', { name: pathOf(conflict) ?? '' }) }}</p>
         </div>
         <div class="dlg-foot">
-          <button class="btn btn-ghost" type="button" @click="conflict = null">Abbrechen</button>
-          <button class="btn btn-secondary" type="button" @click="reload(conflict)">Verwerfen und neu laden</button>
-          <button class="btn btn-primary" type="button" @click="save(true, conflict)">Überschreiben</button>
+          <button class="btn btn-ghost" type="button" @click="conflict = null">{{ $t('Abbrechen') }}</button>
+          <button class="btn btn-secondary" type="button" @click="reload(conflict)">{{ $t('Verwerfen und neu laden') }}</button>
+          <button class="btn btn-primary" type="button" @click="save(true, conflict)">{{ $t('Überschreiben') }}</button>
         </div>
       </div>
     </div>

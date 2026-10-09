@@ -3,14 +3,15 @@ import { computed, onMounted, ref } from 'vue'
 import { getReview, isOpen, listHabits, listProjects, listTasks, updateTask, type Habit, type Review, type Task } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
-import { addDays, daysAgo, hm, weekStart, ymd } from '@/lib/dates'
+import { addDays, daysAgo, dm, hm, weekStart, ymd } from '@/lib/dates'
+import { locale, t } from '@/lib/i18n'
 import { habitColor, projectColor } from '@/lib/projectColor'
 
 // Die API liefert completed_at, Task kennt es noch nicht.
 type DoneTask = Task & { completed_at: string | null }
 
-const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-const short = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' })
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((d) => t(d))
+const short = new Intl.DateTimeFormat(locale.value, { day: 'numeric', month: 'short' })
 const today = () => ymd(new Date())
 
 const monday = ref(weekStart(new Date()))
@@ -52,9 +53,9 @@ const calendarMinutes = computed(() => review.value?.days.reduce((s, d) => s + d
 const planToDate = computed(() => days.value.filter((d) => !d.future).reduce((s, d) => s + d.plan, 0))
 const trackedPct = computed(() => (planToDate.value ? Math.round(((review.value?.tracked_minutes ?? 0) / planToDate.value) * 100) : 0))
 const weekTasks = computed(() => tasks.value.filter((t) => t.planned_date && t.planned_date >= from.value && t.planned_date <= to.value && t.status !== 'CANCELLED'))
-const dayCaption = (d: (typeof days.value)[number]) => (d.future ? (d.plan ? `${hm(d.plan)} geplant` : 'frei') : `${hm(d.tracked_minutes)} / ${hm(d.plan)}`)
+const dayCaption = (d: (typeof days.value)[number]) => (d.future ? (d.plan ? t('{time} geplant', { time: hm(d.plan) }) : t('frei')) : `${hm(d.tracked_minutes)} / ${hm(d.plan)}`)
 const dayText = (d: (typeof days.value)[number]) =>
-  `${WD[d.i]} ${d.date.slice(8)}.${d.date.slice(5, 7)}.: erfasst ${hm(d.tracked_minutes)} h, geplant ${hm(d.plan)} h, ${d.completed_tasks} erledigt`
+  `${WD[d.i]} ${dm(d.date)}: ` + t('erfasst {tracked} h, geplant {plan} h, {done} erledigt', { tracked: hm(d.tracked_minutes), plan: hm(d.plan), done: d.completed_tasks })
 
 const projects = computed(() => (review.value?.projects ?? []).filter((p) => p.tracked_minutes || p.completed_tasks))
 const maxProject = computed(() => Math.max(1, ...projects.value.map((p) => p.tracked_minutes)))
@@ -93,30 +94,30 @@ useLiveEvents(load)
   <div class="view-inner">
     <div class="v-head v-head-row">
       <div>
-        <h1 class="v-title">Woche</h1>
-        <div class="v-sub">Rückblick · {{ range }} · KW {{ kw }}</div>
+        <h1 class="v-title">{{ $t('Woche') }}</h1>
+        <div class="v-sub">{{ $t('Rückblick') }} · {{ range }} · {{ $t('KW') }} {{ kw }}</div>
       </div>
       <div class="rv-nav">
-        <button class="icon-btn" type="button" aria-label="Vorherige Woche" @click="go(addDays(monday, -7))"><svg class="ic"><use href="#i-left" /></svg></button>
-        <button class="btn btn-ghost" type="button" :disabled="isCurrent" @click="go(weekStart(new Date()))">Diese Woche</button>
-        <button class="icon-btn" type="button" aria-label="Nächste Woche" :disabled="isCurrent" @click="go(addDays(monday, 7))"><svg class="ic"><use href="#i-right" /></svg></button>
+        <button class="icon-btn" type="button" :aria-label="$t('Vorherige Woche')" @click="go(addDays(monday, -7))"><svg class="ic"><use href="#i-left" /></svg></button>
+        <button class="btn btn-ghost" type="button" :disabled="isCurrent" @click="go(weekStart(new Date()))">{{ $t('Diese Woche') }}</button>
+        <button class="icon-btn" type="button" :aria-label="$t('Nächste Woche')" :disabled="isCurrent" @click="go(addDays(monday, 7))"><svg class="ic"><use href="#i-right" /></svg></button>
       </div>
     </div>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
     <template v-if="review">
       <div class="rv-stats">
-        <div><span class="lbl">Erfasst</span><span class="rv-big mono">{{ hm(review.tracked_minutes) }}</span><span v-if="planToDate" class="rv-note">{{ trackedPct }} % von {{ hm(planToDate) }} bis heute geplant</span></div>
-        <div><span class="lbl">Termine</span><span class="rv-big mono">{{ hm(calendarMinutes) }}</span><span class="rv-note">Kalenderzeit</span></div>
-        <div><span class="lbl">Erledigt</span><span class="rv-big mono">{{ review.completed_tasks }}<small v-if="weekTasks.length"> / {{ weekTasks.length }}</small></span><span class="rv-note">Aufgaben dieser Woche</span></div>
+        <div><span class="lbl">{{ $t('Erfasst') }}</span><span class="rv-big mono">{{ hm(review.tracked_minutes) }}</span><span v-if="planToDate" class="rv-note">{{ $t('{pct} % von {plan} bis heute geplant', { pct: trackedPct, plan: hm(planToDate) }) }}</span></div>
+        <div><span class="lbl">{{ $t('Termine') }}</span><span class="rv-big mono">{{ hm(calendarMinutes) }}</span><span class="rv-note">{{ $t('Kalenderzeit') }}</span></div>
+        <div><span class="lbl">{{ $t('Erledigt') }}</span><span class="rv-big mono">{{ review.completed_tasks }}<small v-if="weekTasks.length"> / {{ weekTasks.length }}</small></span><span class="rv-note">{{ $t('Aufgaben dieser Woche') }}</span></div>
         <div>
-          <span class="lbl">Überfällig geworden</span><span class="rv-big mono" :class="{ od: overdue.length }">{{ overdue.length }}</span>
+          <span class="lbl">{{ $t('Überfällig geworden') }}</span><span class="rv-big mono" :class="{ od: overdue.length }">{{ overdue.length }}</span>
           <span v-if="overdue.length" class="rv-note">{{ overdue[0]!.title }}<template v-if="overdue.length > 1"> + {{ overdue.length - 1 }}</template></span>
         </div>
       </div>
 
       <div class="card rv-chart">
-        <div class="rv-legend"><h2 class="col-title">Plan und Ist pro Tag</h2><span class="spacer"></span><span><i class="k-plan"></i>Geplant</span><span><i class="k-trk"></i>Erfasst</span><span><i class="k-soon"></i>Kommt noch</span></div>
+        <div class="rv-legend"><h2 class="col-title">{{ $t('Plan und Ist pro Tag') }}</h2><span class="spacer"></span><span><i class="k-plan"></i>{{ $t('Geplant') }}</span><span><i class="k-trk"></i>{{ $t('Erfasst') }}</span><span><i class="k-soon"></i>{{ $t('Kommt noch') }}</span></div>
         <div class="rv-days" role="img" :aria-label="days.map(dayText).join('; ')">
           <div v-for="d in days" :key="d.date" class="rv-day" :class="{ now: d.date === today() }" :title="dayText(d)">
             <div class="rv-bars">
@@ -131,7 +132,7 @@ useLiveEvents(load)
 
       <div class="start-grid">
         <div class="start-col">
-          <div class="col-head"><h2 class="col-title">Zeit pro Projekt</h2></div>
+          <div class="col-head"><h2 class="col-title">{{ $t('Zeit pro Projekt') }}</h2></div>
           <div class="tasklist">
             <div v-for="p in projects" :key="p.project_id ?? ''" class="rv-proj">
               <span class="rv-name"><span class="pdot" :style="{ background: projectColor(p.project_id) }"></span>{{ p.name }}</span>
@@ -139,40 +140,40 @@ useLiveEvents(load)
               <span class="rv-n mono">{{ hm(p.tracked_minutes) }}</span>
               <span class="rv-n mono rv-pct">{{ Math.round((p.tracked_minutes / projectTotal) * 100) }} %</span>
             </div>
-            <div v-if="!projects.length" class="v-sub rv-empty">Keine Zeit erfasst.</div>
+            <div v-if="!projects.length" class="v-sub rv-empty">{{ $t('Keine Zeit erfasst.') }}</div>
           </div>
 
-          <div class="col-head rv-gap"><h2 class="col-title">Gewohnheiten</h2></div>
+          <div class="col-head rv-gap"><h2 class="col-title">{{ $t('Gewohnheiten') }}</h2></div>
           <div class="tasklist">
             <div v-for="h in review.habits" :key="h.habit_id" class="task-row">
               <span class="pdot" :style="{ background: habitColor(h.habit_id) }"></span>
               <span class="t">{{ h.name }}</span>
               <span class="rv-n mono">{{ h.done }}<template v-if="target(h.habit_id)">/{{ target(h.habit_id) }}</template></span>
-              <span class="rv-n">{{ h.streak }} Tage Serie</span>
+              <span class="rv-n">{{ $t('{n} Tage Serie', { n: h.streak }) }}</span>
             </div>
-            <div v-if="!review.habits.length" class="v-sub rv-empty">Keine aktiven Gewohnheiten.</div>
+            <div v-if="!review.habits.length" class="v-sub rv-empty">{{ $t('Keine aktiven Gewohnheiten.') }}</div>
           </div>
         </div>
 
         <div class="start-col">
-          <div class="col-head"><h2 class="col-title">Erledigt</h2></div>
+          <div class="col-head"><h2 class="col-title">{{ $t('Erledigt') }}</h2></div>
           <div class="tasklist">
             <div v-for="t in completed" :key="t.id" class="task-row">
               <span class="rv-ck" :style="{ background: projectColor(t.project_id) }" aria-hidden="true"><svg viewBox="0 0 10 10"><path d="M2 5.2l2 2 4-4.4" /></svg></span>
               <span class="t">{{ t.title }}</span>
               <span class="due">{{ doneMeta(t) }}</span>
             </div>
-            <div v-if="!completed.length" class="v-sub rv-empty">Nichts erledigt.</div>
+            <div v-if="!completed.length" class="v-sub rv-empty">{{ $t('Nichts erledigt.') }}</div>
           </div>
 
-          <div class="col-head rv-gap"><h2 class="col-title">Überfällig geworden</h2></div>
+          <div class="col-head rv-gap"><h2 class="col-title">{{ $t('Überfällig geworden') }}</h2></div>
           <div class="tasklist">
             <div v-for="t in overdue" :key="t.id" class="task-row rv-od">
               <span class="t">{{ t.title }}</span>
               <span class="due od">{{ projectName(t.project_id) ? `${projectName(t.project_id)} · ` : '' }}{{ daysAgo(t.planned_date!, today()) }}</span>
-              <button type="button" class="btn btn-ghost" :aria-label="`Einplanen: ${t.title}`" @click="plan(t)">Einplanen</button>
+              <button type="button" class="btn btn-ghost" :aria-label="`Einplanen: ${t.title}`" @click="plan(t)">{{ $t('Einplanen') }}</button>
             </div>
-            <div v-if="!overdue.length" class="v-sub rv-empty">Nichts überfällig.</div>
+            <div v-if="!overdue.length" class="v-sub rv-empty">{{ $t('Nichts überfällig.') }}</div>
           </div>
         </div>
       </div>
