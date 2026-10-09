@@ -7,10 +7,12 @@ import {
   type Box, type Page, type Pt, type Shape, type Size, type Stroke, type Text, type Tool,
 } from '@/lib/annotate'
 import { filesUrl } from '@/lib/noteFiles'
+import { store } from '@/lib/storage'
 
 // PDFs und Bilder ansehen und bezeichnen: Stift, Textmarker, Linie, Pfeil, Rechteck, Ellipse, Text; Zoom; Bilder auch verkleinern.
 // Bis zum Speichern bleibt jede Form einzeln wählbar; Speichern brennt sie in die Datei ein (die alte Fassung landet in .trash).
-const props = defineProps<{ path: string; kind: 'pdf' | 'image' }>()
+// active: sichtbar und zuletzt benutzt; nur dann gelten die Tastenkürzel (geteilte Ansicht: die Notiz daneben tippt sonst Werkzeuge).
+const props = defineProps<{ path: string; kind: 'pdf' | 'image'; active: boolean }>()
 const emit = defineEmits<{ dirty: [boolean] }>()
 
 const IMAGE_TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' }
@@ -83,7 +85,10 @@ async function show(blob: Blob, keepView = false) {
   outScale.value = 1
   sel.value = editing.value = null
   await nextTick()
-  if (!keepView) fit(true)
+  if (!keepView) {
+    needsView = true
+    applyView()
+  }
   observe()
   scheduleRender(0)
 }
@@ -180,9 +185,11 @@ const pct = computed(() => Math.round((zoom.value / base) * 100))
 const STEPS = [10, 25, 33, 50, 67, 75, 90, 100, 125, 150, 200, 300, 400, 600, 800]
 
 // Zoomt um einen Bildschirmpunkt (Mauszeiger, sonst Mitte); der Punkt auf der Seite bleibt dabei unter dem Zeiger.
-function zoomTo(z: number, cx?: number, cy?: number) {
+// Selbst gezoomt (user) heißt: nicht mehr automatisch an die Breite anpassen.
+function zoomTo(z: number, cx?: number, cy?: number, user = true) {
   const el = scroller.value
   if (!el) return
+  if (user) fitted = false
   z = Math.min(Math.max(z, 0.1 * base), 8 * base)
   const r = el.getBoundingClientRect()
   ;[cx, cy] = [cx ?? r.left + el.clientWidth / 2, cy ?? r.top + el.clientHeight / 2]
@@ -209,13 +216,73 @@ function step(dir: 1 | -1) {
 // PDF: Seitenbreite; Bild: ganz sichtbar, aber nie größer als 100 %.
 function fit(top = false) {
   const el = scroller.value
-  if (!el || !pages.value.length) return
+  if (!el?.clientWidth || !pages.value.length) return // ausgeblendet: beim Einblenden passt der ResizeObserver an
   const [w, h] = [el.clientWidth - 48, el.clientHeight - 48]
   const first = pages.value[0]!
   const z = props.kind === 'pdf' ? w / Math.max(...pages.value.map((p) => p.w)) : Math.min(w / first.w, h / first.h, base)
-  zoomTo(z)
+  zoomTo(z, undefined, undefined, false)
+  fitted = true
   if (top) void nextTick(() => el.scrollTo(0, 0))
 }
+
+// ---------- Ausschnitt merken: je Datei Zoom und Scrollposition, damit man nach einem Wechsel dort weiterliest
+const VIEWS = 'kairo-notes-views'
+type View = { z: number; x: number; y: number } // z = 0: eingepasst; x, y als Anteil, passt so auch bei anderer Fensterbreite
+let fitted = true // Zoom folgt der Breite, bis man selbst zoomt
+let needsView = false // nach dem Laden: gemerkten Ausschnitt anwenden, sobald der Editor sichtbar ist
+let lastView: { x: number; y: number } | null = null
+let viewTimer = 0
+let wasHidden = false
+
+function readViews(): Record<string, View> {
+  try { return JSON.parse(store.get(VIEWS) ?? '{}') } catch { return {} }
+}
+function saveView() {
+  if (!lastView) return
+  const all = readViews()
+  delete all[props.path] // ans Ende: von den 50 zuletzt benutzten bleiben die neuesten
+  all[props.path] = { z: fitted ? 0 : zoom.value, ...lastView }
+  store.set(VIEWS, JSON.stringify(Object.fromEntries(Object.entries(all).slice(-50))))
+}
+function onScroll() {
+  const el = scroller.value
+  if (!el?.clientWidth) return // ausgeblendet: der Browser setzt die Position zurück, die alte gilt weiter
+  lastView = { x: el.scrollLeft / el.scrollWidth, y: el.scrollTop / el.scrollHeight }
+  clearTimeout(viewTimer)
+  viewTimer = window.setTimeout(saveView, 300)
+}
+function scrollToView(v: { x: number; y: number }) {
+  const el = scroller.value!
+  void nextTick(() => {
+    el.scrollTop = v.y * el.scrollHeight
+    el.scrollLeft = v.x * el.scrollWidth
+  })
+}
+function applyView() {
+  const el = scroller.value
+  if (!needsView || !el?.clientWidth || !pages.value.length) return
+  needsView = false
+  const v = readViews()[props.path]
+  if (!v) return fit(true)
+  if (v.z) {
+    zoom.value = v.z
+    fitted = false
+    scheduleRender(0)
+  } else fit()
+  scrollToView(v)
+}
+// Breite ändert sich (geteilte Ansicht, Trenner, Fenster) oder der Editor wird wieder eingeblendet.
+const resize = new ResizeObserver(() => {
+  if (!scroller.value?.clientWidth) {
+    wasHidden = true
+    return
+  }
+  if (needsView) return applyView()
+  if (fitted) fit()
+  if (wasHidden && lastView) scrollToView(lastView)
+  wasHidden = false
+})
+watch(zoom, onScroll)
 
 // ⌘/Strg + Mausrad und Trackpad-Pinch (Chrome/Firefox); Safari meldet Pinch als gesture*-Ereignisse.
 let gesture = 0
@@ -532,7 +599,7 @@ const taStyle = computed(() => {
 
 // ---------- Tastatur
 function onKey(e: KeyboardEvent) {
-  if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable], .overlay')) return
+  if (!props.active || (e.target as HTMLElement).closest('input, textarea, select, [contenteditable], .overlay')) return
   const k = e.key.toLowerCase()
   if (e.metaKey || e.ctrlKey) {
     const act = { '+': () => step(1), '=': () => step(1), '-': () => step(-1), '0': () => fit(), z: () => go(at.value + (e.shiftKey ? 1 : -1)), y: () => go(at.value + 1) }[k]
@@ -560,10 +627,14 @@ onMounted(() => {
   const el = scroller.value!
   el.addEventListener('wheel', onWheel, { passive: false })
   for (const t of ['gesturestart', 'gesturechange', 'gestureend']) el.addEventListener(t, onGesture)
+  resize.observe(el)
   void load()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
+  clearTimeout(viewTimer)
+  saveView()
+  resize.disconnect()
   observer?.disconnect()
   clearTimeout(renderTimer)
   for (const i of tasks.keys()) cancel(i)
@@ -618,7 +689,7 @@ onBeforeUnmount(() => {
       </span>
     </div>
 
-    <div ref="scroller" class="fe-scroll">
+    <div ref="scroller" class="fe-scroll" @scroll.passive="onScroll">
       <p v-if="failed" class="fe-msg" role="alert">{{ failed }}</p>
       <p v-else-if="loading && !pages.length" class="fe-msg">Lädt …</p>
       <div class="fe-pages" :class="{ single: kind === 'image' }">

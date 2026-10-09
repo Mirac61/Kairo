@@ -21,21 +21,36 @@ const TOOLBAR: ToolbarNames[] = [
 const DISCARD = 'Ungespeicherte Änderungen verwerfen?'
 const POLL_MS = 5000
 
+// Zwei Plätze: eine Notiz (Markdown) und ein Dokument (PDF oder Bild). Einzeln ist einer sichtbar, geteilt beide
+// (Dokument links, Notiz rechts). Beide bleiben geladen, damit ein Wechsel Scrollposition, Zoom und Ungespeichertes behält.
+type Pane = 'doc' | 'note'
+const PANES: Pane[] = ['doc', 'note']
 const tree = ref<NoteNode[]>([])
-const path = ref<string | null>(null) // offene Datei
+const notePath = ref<string | null>(null)
+const docPath = ref<string | null>(null)
+const shown = ref<Pane>('note') // einzeln: der sichtbare Platz
+const split = ref(store.get('kairo-notes-split') === '1')
+const focus = ref<Pane>('note') // zuletzt benutzt; dorthin gehen ⌘S und „Datei hinzufügen“
+const visible = (p: Pane) => split.value || shown.value === p
+const current = computed<Pane>(() => (split.value ? focus.value : shown.value))
+const pathOf = (p: Pane) => (p === 'doc' ? docPath.value : notePath.value)
+
 const text = ref('') // Inhalt im Editor
 const saved = ref('') // Inhalt laut Platte (beim Laden oder letzten Speichern)
 const mtime = ref('') // Version beim Laden; das Backend prüft sie beim Speichern
-const kind = computed(() => (path.value ? fileKind(path.value) : ''))
-const fileEd = ref<InstanceType<typeof FileEditor>>() // PDFs und Bilder: eigener Editor mit eigenem Stand
-const fileDirty = ref(false)
-watch(path, () => (fileDirty.value = false))
-const dirty = computed(() => path.value !== null && (text.value !== saved.value || fileDirty.value))
-const canSave = computed(() => kind.value === 'md' || kind.value === 'pdf' || (kind.value === 'image' && !/\.gif$/i.test(path.value!)))
 const external = ref(false) // auf der Platte geändert, während hier Ungespeichertes liegt
-const conflict = ref(false)
+const docKind = computed(() => (docPath.value ? fileKind(docPath.value) : ''))
+const docEd = ref<InstanceType<typeof FileEditor> | null>(null)
+const setDocEd = (el: unknown) => (docEd.value = el as InstanceType<typeof FileEditor> | null) // Funktions-Ref: im v-for wäre ref="…" ein Array
+const docDirtyFlag = ref(false)
+watch(docPath, () => (docDirtyFlag.value = false))
+const isDirty = (p: Pane) => (p === 'doc' ? docDirtyFlag.value : notePath.value !== null && text.value !== saved.value)
+const dirty = computed(() => isDirty('doc') || isDirty('note'))
+const canSave = (p: Pane) => (p === 'doc' ? !!docPath.value && !/\.gif$/i.test(docPath.value) : notePath.value !== null)
+const conflict = ref<Pane | null>(null)
 const saving = ref(false)
 const error = ref('')
+const errorPane = computed<Pane>(() => (visible('note') ? 'note' : 'doc')) // Fehler stehen im rechten bzw. einzigen Platz
 
 // Der Dateibaum lässt sich einklappen, damit die Notiz die volle Breite bekommt.
 const treeOpen = ref(store.get('kairo-notes-tree') !== '0')
@@ -44,7 +59,30 @@ function toggleTree() {
   store.set('kairo-notes-tree', treeOpen.value ? '1' : '0')
 }
 
-const crumbs = computed(() => path.value?.replace(/\.[^./]+$/, '').split('/') ?? [])
+// Geteilte Ansicht: Breite des Dokuments als Anteil, per Trenner verschiebbar.
+const ratio = ref(Math.min(0.75, Math.max(0.25, Number(store.get('kairo-notes-ratio')) || 0.5)))
+function toggleSplit() {
+  split.value = !split.value
+  if (!split.value && !pathOf(shown.value)) shown.value = docPath.value ? 'doc' : 'note'
+}
+function startResize(e: PointerEvent) {
+  e.preventDefault()
+  const box = (e.currentTarget as HTMLElement).parentElement!.getBoundingClientRect()
+  const move = (ev: PointerEvent) => (ratio.value = Math.min(0.75, Math.max(0.25, (ev.clientX - box.left) / box.width)))
+  const up = () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', up)
+    store.set('kairo-notes-ratio', String(ratio.value))
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up)
+}
+function nudge(d: number) {
+  ratio.value = Math.min(0.75, Math.max(0.25, ratio.value + d))
+  store.set('kairo-notes-ratio', String(ratio.value))
+}
+
+const crumbsOf = (p: string) => p.replace(/\.[^./]+$/, '').split('/')
 
 function readOpen(): string[] {
   try { return JSON.parse(store.get('kairo-notes-open') ?? '[]') } catch { return [] }
@@ -53,7 +91,7 @@ const saveOpen = () => store.set('kairo-notes-open', JSON.stringify([...ctx.open
 const confirmPopup = useConfirm()
 let renamingDir = false // Ordner bekommen beim Umbenennen kein .md
 const ctx: TreeCtx = reactive({
-  get active() { return path.value },
+  isActive: (p: string) => (visible('note') && p === notePath.value) || (visible('doc') && p === docPath.value),
   open: new Set(readOpen()),
   adding: null as TreeCtx['adding'],
   renaming: null as string | null,
@@ -92,13 +130,11 @@ const withExt = (name: string, ext = '.md') => (name.toLowerCase().endsWith(ext.
 const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name)
 const under = (p: string, prefix: string) => p === prefix || p.startsWith(`${prefix}/`)
 
-// Nach Umbenennen oder Verschieben: offene Datei und aufgeklappte Ordner mitnehmen.
+// Nach Umbenennen oder Verschieben: offene Dateien und aufgeklappte Ordner mitnehmen.
 function remap(from: string, to: string) {
   const re = (p: string) => (under(p, from) ? to + p.slice(from.length) : p)
-  if (path.value) {
-    path.value = re(path.value)
-    store.set('kairo-notes-file', path.value)
-  }
+  if (notePath.value) notePath.value = re(notePath.value)
+  if (docPath.value) docPath.value = re(docPath.value)
   ctx.open = new Set([...ctx.open].map(re))
   saveOpen()
 }
@@ -160,13 +196,14 @@ async function addFiles(dir: string, files: File[]) {
   if (last) await openFile(last)
 }
 
-// „Datei hinzufügen“ legt in den Ordner der offenen Datei.
+// „Datei hinzufügen“ legt in den Ordner der zuletzt benutzten Datei.
 const filePick = ref<HTMLInputElement>()
 function pick(e: Event) {
   const input = e.target as HTMLInputElement
   const files = [...(input.files ?? [])]
   input.value = ''
-  void addFiles(path.value ? parentOf(path.value) : '', files)
+  const p = pathOf(current.value) ?? notePath.value ?? docPath.value
+  void addFiles(p ? parentOf(p) : '', files)
 }
 
 // Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab.
@@ -189,11 +226,12 @@ function remove(n: NoteNode, anchor: HTMLElement) {
     accept: async () => {
       try {
         await deleteNote(n.path)
-        if (path.value && under(path.value, n.path)) {
-          path.value = null
+        if (notePath.value && under(notePath.value, n.path)) {
+          notePath.value = null
           text.value = saved.value = ''
-          store.set('kairo-notes-file', '')
         }
+        if (docPath.value && under(docPath.value, n.path)) docPath.value = null
+        if (!pathOf(shown.value)) shown.value = docPath.value ? 'doc' : 'note'
         tree.value = await listNotes()
         error.value = ''
       } catch (e) {
@@ -209,20 +247,23 @@ function show(n: { content: string; mtime: string }) {
   external.value = false
 }
 
-// PDFs und Bilder haben keinen Text; sie lädt FileEditor selbst.
-const load = (p: string) => (fileKind(p) === 'md' ? readNote(p) : Promise.resolve({ content: '', mtime: '' }))
-
+// Notizen gehen in den Notiz-Platz, PDFs und Bilder in den Dokument-Platz; der andere Platz bleibt, wie er ist.
 async function openFile(p: string) {
-  if (p === path.value || (dirty.value && !confirm(DISCARD))) return
-  try {
-    const n = await load(p)
-    path.value = p
-    show(n)
+  const pane: Pane = fileKind(p) === 'md' ? 'note' : 'doc'
+  if (p !== pathOf(pane)) {
+    if (isDirty(pane) && !confirm(DISCARD)) return
+    if (pane === 'note') {
+      try {
+        show(await readNote(p))
+      } catch (e) {
+        error.value = errorMessage(e)
+        return
+      }
+      notePath.value = p
+    } else docPath.value = p
     error.value = ''
-    store.set('kairo-notes-file', p)
-  } catch (e) {
-    error.value = errorMessage(e)
   }
+  shown.value = focus.value = pane
 }
 
 async function add(name: string) {
@@ -245,7 +286,7 @@ async function add(name: string) {
 // Eingefügte Bilder (⌘V, Toolbar) landen in assets/ neben der Notiz; der Link ist relativ, damit VSCodium sie genauso zeigt.
 const ASSETS = 'assets'
 async function uploadImages(files: File[], done: (urls: string[]) => void) {
-  const p = path.value
+  const p = notePath.value
   if (!p) return
   const d = new Date()
   const stamp = `${ymd(d)}-${[d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join('')}`
@@ -266,67 +307,55 @@ async function uploadImages(files: File[], done: (urls: string[]) => void) {
     error.value = errorMessage(e)
   }
 }
-const sanitize = (html: string) => (path.value ? previewImages(html, path.value) : html)
+const sanitize = (html: string) => (notePath.value ? previewImages(html, notePath.value) : html)
 
 // Vorlagen sind Notizen im Ordner „Vorlagen“; eine leere Notiz bietet sie an.
 const TEMPLATES = 'Vorlagen'
 const templates = computed(() => tree.value.find((n) => n.dir && n.name === TEMPLATES)?.children?.filter((n) => fileKind(n.path) === 'md') ?? [])
-const offerTemplates = computed(() => kind.value === 'md' && !text.value.trim() && templates.value.length > 0 && !under(path.value!, TEMPLATES))
+const offerTemplates = computed(() => !!notePath.value && !text.value.trim() && templates.value.length > 0 && !under(notePath.value, TEMPLATES))
 
 async function useTemplate(t: NoteNode) {
-  const p = path.value
+  const p = notePath.value
   try {
     const { content } = await readNote(t.path)
-    if (p && path.value === p && !text.value.trim()) text.value = fillTemplate(content, p)
+    if (p && notePath.value === p && !text.value.trim()) text.value = fillTemplate(content, p)
   } catch (e) {
     error.value = errorMessage(e)
   }
 }
 
 // force überschreibt auch eine extern geänderte Datei (nach Rückfrage im Dialog).
-async function save(force = false) {
-  if (!path.value || saving.value || (!dirty.value && !force)) return
-  if (kind.value !== 'md') return saveFile(force)
-  const [p, content] = [path.value, text.value]
+async function save(force = false, pane: Pane = current.value) {
+  if (!pathOf(pane) || saving.value || (!isDirty(pane) && !force)) return
   saving.value = true
   try {
-    const r = await saveNote(p, content, mtime.value, force)
-    if (path.value === p) {
-      saved.value = content
-      mtime.value = r.mtime
-      external.value = false
+    if (pane === 'doc') await docEd.value?.save(force)
+    else {
+      const [p, content] = [notePath.value!, text.value]
+      const r = await saveNote(p, content, mtime.value, force)
+      if (notePath.value === p) {
+        saved.value = content
+        mtime.value = r.mtime
+        external.value = false
+      }
     }
-    conflict.value = false
+    conflict.value = null
     error.value = ''
   } catch (e) {
-    if (e instanceof ApiError && e.status === 409) conflict.value = true
-    else error.value = errorMessage(e)
-  } finally {
-    saving.value = false
-  }
-}
-
-// PDFs und Bilder speichert der Editor selbst; Konflikt und Fehler zeigt die Ansicht wie bei Notizen.
-async function saveFile(force: boolean) {
-  saving.value = true
-  try {
-    await fileEd.value?.save(force)
-    conflict.value = false
-    error.value = ''
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 409) conflict.value = true
+    if (e instanceof ApiError && e.status === 409) conflict.value = pane
+    // PDFs und Bilder: eigene Fehlermeldungen des Editors (z. B. verschlüsselte PDF) durchreichen
     else error.value = e instanceof Error && !(e instanceof ApiError) && !(e instanceof TypeError) ? e.message : errorMessage(e)
   } finally {
     saving.value = false
   }
 }
 
-async function reload() {
-  conflict.value = false
-  if (!path.value) return
-  if (kind.value !== 'md') return fileEd.value?.reload()
+async function reload(pane: Pane) {
+  conflict.value = null
+  if (pane === 'doc') return docEd.value?.reload()
+  if (!notePath.value) return
   try {
-    show(await readNote(path.value))
+    show(await readNote(notePath.value))
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -337,11 +366,11 @@ async function refresh() {
   if (document.visibilityState !== 'visible' || saving.value) return
   try {
     tree.value = await listNotes()
-    const [p, m] = [path.value, mtime.value]
-    if (!p || fileKind(p) !== 'md') return
+    const [p, m] = [notePath.value, mtime.value]
+    if (!p) return
     const n = await readNote(p)
-    if (n.mtime === m || path.value !== p || mtime.value !== m || saving.value) return // inzwischen gespeichert oder gewechselt
-    if (dirty.value) external.value = true
+    if (n.mtime === m || notePath.value !== p || mtime.value !== m || saving.value) return // inzwischen gespeichert oder gewechselt
+    if (isDirty('note')) external.value = true
     else show(n)
   } catch { /* Backend kurz weg oder Datei gelöscht: nächste Runde */ }
 }
@@ -355,6 +384,14 @@ function onUnload(e: BeforeUnloadEvent) {
   if (dirty.value) e.preventDefault()
 }
 onBeforeRouteLeave(() => !dirty.value || confirm(DISCARD))
+
+// Stand für den nächsten Besuch: offene Dateien, sichtbarer Platz, geteilt oder nicht.
+watch([notePath, docPath, shown, split], () => {
+  store.set('kairo-notes-file', notePath.value ?? '')
+  store.set('kairo-notes-doc', docPath.value ?? '')
+  store.set('kairo-notes-shown', shown.value)
+  store.set('kairo-notes-split', split.value ? '1' : '0')
+})
 
 // md-editor-v3 bekommt das Theme als Prop; Kairo schaltet es über data-theme an <html>.
 const dark = ref(document.documentElement.dataset.theme !== 'light')
@@ -372,8 +409,18 @@ onMounted(async () => {
   } catch (e) {
     error.value = errorMessage(e)
   }
-  const last = store.get('kairo-notes-file')
-  if (last) void load(last).then((n) => { if (!path.value) { path.value = last; show(n) } }, () => {})
+  // Früher stand in kairo-notes-file auch eine PDF; die wandert in den Dokument-Platz.
+  const files = new Set<string>()
+  const walk = (ns: NoteNode[]) => ns.forEach((n) => (n.dir ? walk(n.children ?? []) : files.add(n.path)))
+  walk(tree.value)
+  const [lastNote, lastDoc] = [store.get('kairo-notes-file') ?? '', store.get('kairo-notes-doc') ?? '']
+  const doc = [lastDoc, lastNote].find((p) => p && fileKind(p) !== 'md' && files.has(p))
+  if (doc) docPath.value = doc
+  shown.value = store.get('kairo-notes-shown') === 'doc' && doc ? 'doc' : 'note'
+  focus.value = shown.value
+  if (lastNote && fileKind(lastNote) === 'md' && files.has(lastNote)) {
+    void readNote(lastNote).then((n) => { if (!notePath.value) { notePath.value = lastNote; show(n) } }, () => {})
+  }
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey, true)
@@ -406,55 +453,78 @@ onBeforeUnmount(() => {
       </div>
     </aside>
 
-    <section class="ed" @click="openPreviewImage">
-      <header class="ed-head">
-        <button
-          type="button" class="icon-btn" aria-controls="nt-pane" :aria-expanded="treeOpen"
-          :aria-label="treeOpen ? 'Dateibaum einklappen' : 'Dateibaum ausklappen'" :data-tip="treeOpen ? 'Dateibaum einklappen' : 'Dateibaum ausklappen'"
-          @click="toggleTree"
-        ><svg class="ic"><use :href="treeOpen ? '#i-left' : '#i-right'" /></svg></button>
-        <div class="ed-path">
-          <template v-if="path">
-            <span v-for="(c, i) in crumbs" :key="i" :class="{ last: i === crumbs.length - 1 }">{{ c }}</span>
-          </template>
-          <span v-else class="last">Keine Notiz geöffnet</span>
-        </div>
-        <span v-if="dirty" class="ed-dirty" role="status"><i></i>Ungespeichert</span>
-        <button v-if="canSave" type="button" class="btn btn-secondary ed-save" :disabled="!dirty || saving" aria-keyshortcuts="Meta+S Control+S" @click="save()">
-          Speichern<kbd class="key" aria-hidden="true">⌘S</kbd>
-        </button>
-      </header>
-      <div v-if="error" class="ed-bar" role="alert">{{ error }}</div>
-      <div v-if="external" class="ed-bar" role="alert">
-        Die Datei wurde außerhalb von Kairo geändert. Beim Speichern fragt Kairo nach.
-        <button type="button" class="btn btn-ghost" @click="reload">Verwerfen und neu laden</button>
-      </div>
-      <div v-if="offerTemplates" class="ed-tpl">
-        <span>Vorlage</span>
-        <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t)">{{ t.name.replace(/\.md$/i, '') }}</button>
-      </div>
-      <MdEditor
-        v-if="kind === 'md'" v-model="text" class="ed-md" :theme="dark ? 'dark' : 'light'" language="en-US" preview-theme="default"
-        :toolbars="TOOLBAR" :footers="[]" :sanitize="sanitize" no-highlight no-mermaid no-katex no-prettier no-echarts
-        @on-upload-img="uploadImages"
-      />
-      <FileEditor v-else-if="kind === 'pdf' || kind === 'image'" ref="fileEd" :key="path!" :path="path!" :kind="kind" @dirty="fileDirty = $event" />
-      <div v-else class="ed-empty">Wähle links eine Notiz oder lege eine neue an.</div>
-    </section>
+    <div class="eds" :class="{ split }" :style="split ? { gridTemplateColumns: `minmax(0, ${ratio}fr) minmax(0, ${1 - ratio}fr)` } : undefined">
+      <section
+        v-for="pn in PANES" v-show="visible(pn)" :key="pn" class="ed" :class="`ed-${pn}`"
+        @pointerdown.capture="focus = pn" @focusin="focus = pn" @click="openPreviewImage"
+      >
+        <header class="ed-head">
+          <button
+            v-if="pn === (split ? 'doc' : shown)" type="button" class="icon-btn" aria-controls="nt-pane" :aria-expanded="treeOpen"
+            :aria-label="treeOpen ? 'Dateibaum einklappen' : 'Dateibaum ausklappen'" :data-tip="treeOpen ? 'Dateibaum einklappen' : 'Dateibaum ausklappen'"
+            @click="toggleTree"
+          ><svg class="ic"><use :href="treeOpen ? '#i-left' : '#i-right'" /></svg></button>
+          <div class="ed-path">
+            <template v-if="pathOf(pn)">
+              <span v-for="(c, i) in crumbsOf(pathOf(pn)!)" :key="i" :class="{ last: i === crumbsOf(pathOf(pn)!).length - 1 }">{{ c }}</span>
+            </template>
+            <span v-else class="last">{{ pn === 'doc' ? 'Kein PDF geöffnet' : 'Keine Notiz geöffnet' }}</span>
+          </div>
+          <span v-if="isDirty(pn)" class="ed-dirty" role="status"><i></i>Ungespeichert</span>
+          <button v-if="canSave(pn)" type="button" class="btn btn-secondary ed-save" :disabled="!isDirty(pn) || saving" aria-keyshortcuts="Meta+S Control+S" @click="save(false, pn)">
+            Speichern<kbd class="key" aria-hidden="true">⌘S</kbd>
+          </button>
+          <button
+            v-if="pn === (split ? 'note' : shown)" type="button" class="icon-btn" :class="{ on: split }" :aria-pressed="split"
+            aria-label="Geteilte Ansicht" :data-tip="split ? 'Nur eine Datei zeigen' : 'Geteilt: PDF links, Notiz rechts'" @click="toggleSplit"
+          ><svg class="ic"><use href="#i-split" /></svg></button>
+        </header>
+        <div v-if="error && pn === errorPane" class="ed-bar" role="alert">{{ error }}</div>
 
-    <div v-if="conflict" v-dialog="() => (conflict = false)" class="overlay open" @mousedown.self="conflict = false">
+        <template v-if="pn === 'note'">
+          <div v-if="external" class="ed-bar" role="alert">
+            Die Datei wurde außerhalb von Kairo geändert. Beim Speichern fragt Kairo nach.
+            <button type="button" class="btn btn-ghost" @click="reload('note')">Verwerfen und neu laden</button>
+          </div>
+          <div v-if="offerTemplates" class="ed-tpl">
+            <span>Vorlage</span>
+            <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t)">{{ t.name.replace(/\.md$/i, '') }}</button>
+          </div>
+          <MdEditor
+            v-if="notePath" v-model="text" class="ed-md" :theme="dark ? 'dark' : 'light'" language="en-US" preview-theme="default"
+            :toolbars="TOOLBAR" :footers="[]" :sanitize="sanitize" no-highlight no-mermaid no-katex no-prettier no-echarts
+            @on-upload-img="uploadImages"
+          />
+          <div v-else class="ed-empty">Wähle links eine Notiz oder lege eine neue an.</div>
+        </template>
+        <template v-else>
+          <FileEditor
+            v-if="docPath && (docKind === 'pdf' || docKind === 'image')" :ref="setDocEd" :key="docPath" :path="docPath" :kind="docKind"
+            :active="visible('doc') && (!split || focus === 'doc')" @dirty="docDirtyFlag = $event"
+          />
+          <div v-else class="ed-empty">Wähle im Baum ein PDF oder ein Bild.</div>
+        </template>
+      </section>
+      <div
+        v-if="split" class="ed-split" role="separator" aria-orientation="vertical" aria-label="Breite der Hälften" tabindex="0"
+        :aria-valuenow="Math.round(ratio * 100)" aria-valuemin="25" aria-valuemax="75" :style="{ left: `${ratio * 100}%` }"
+        @pointerdown="startResize" @keydown.left.prevent="nudge(-0.05)" @keydown.right.prevent="nudge(0.05)"
+      />
+    </div>
+
+    <div v-if="conflict" v-dialog="() => (conflict = null)" class="overlay open" @mousedown.self="conflict = null">
       <div class="dialog" aria-label="Datei extern geändert">
         <div class="dlg-head">
           <h3>Datei wurde extern geändert</h3>
-          <button class="icon-btn" type="button" aria-label="Schließen" @click="conflict = false"><svg class="ic"><use href="#i-x" /></svg></button>
+          <button class="icon-btn" type="button" aria-label="Schließen" @click="conflict = null"><svg class="ic"><use href="#i-x" /></svg></button>
         </div>
         <div class="dlg-body">
-          <p class="ed-msg">„{{ path }}“ wurde seit dem Laden außerhalb von Kairo geändert, zum Beispiel in VSCodium. Überschreiben ersetzt diese Änderungen durch deinen Stand aus Kairo.</p>
+          <p class="ed-msg">„{{ pathOf(conflict) }}“ wurde seit dem Laden außerhalb von Kairo geändert, zum Beispiel in VSCodium. Überschreiben ersetzt diese Änderungen durch deinen Stand aus Kairo.</p>
         </div>
         <div class="dlg-foot">
-          <button class="btn btn-ghost" type="button" @click="conflict = false">Abbrechen</button>
-          <button class="btn btn-secondary" type="button" @click="reload">Verwerfen und neu laden</button>
-          <button class="btn btn-primary" type="button" @click="save(true)">Überschreiben</button>
+          <button class="btn btn-ghost" type="button" @click="conflict = null">Abbrechen</button>
+          <button class="btn btn-secondary" type="button" @click="reload(conflict)">Verwerfen und neu laden</button>
+          <button class="btn btn-primary" type="button" @click="save(true, conflict)">Überschreiben</button>
         </div>
       </div>
     </div>
@@ -471,7 +541,15 @@ onBeforeUnmount(() => {
 .nt-scroll.drop { box-shadow: inset 0 0 0 1px var(--a-blue-hi); }
 .nt-empty { padding: 8px; font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
 
+.eds { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); min-width: 0; min-height: 0; }
 .ed { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.eds.split .ed-doc { border-right: 1px solid var(--br-subtle); }
+/* Trenner: schmale Griffzone über der Grenze, beim Hover/Ziehen als Linie sichtbar */
+.ed-split { position: absolute; top: 0; bottom: 0; z-index: 2; width: 9px; margin-left: -4px; cursor: col-resize; }
+.ed-split::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; transition: background var(--dur) ease-out; }
+.ed-split:hover::after, .ed-split:active::after, .ed-split:focus-visible::after { background: var(--a-blue-hi); }
+.ed-split:focus-visible { outline: none; }
+.ed-head .icon-btn.on { background: var(--bg-selected); color: var(--a-blue-hi); }
 .ed-head { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px 0 12px; border-bottom: 1px solid var(--br-subtle); }
 .ed-path { flex: 1; min-width: 0; display: flex; align-items: center; overflow: hidden; white-space: nowrap; font: 400 13px/1 var(--font-ui); color: var(--tx-muted); }
 .ed-path span + span::before { content: '/'; margin: 0 6px; color: var(--tx-disabled); }

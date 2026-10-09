@@ -3,7 +3,7 @@ import type { NoteNode } from '@/api/client'
 
 // Gemeinsamer Zustand aller Ebenen; die Ansicht hält ihn, damit Ereignisse nicht durch jede Ebene gereicht werden müssen.
 export interface TreeCtx {
-  active: string | null
+  isActive(path: string): boolean // offen und sichtbar (geteilt: Notiz und Dokument)
   open: Set<string>
   adding: { parent: string; dir: boolean } | null
   renaming: string | null
@@ -92,14 +92,14 @@ function dragOver(e: DragEvent, n: NoteNode) {
       </div>
       <div
         v-else class="nt-row" draggable="true"
-        :class="{ active: !n.dir && n.path === ctx.active, drop: n.dir && ctx.dropTarget === n.path, dragging: ctx.dragging === n.path }"
+        :class="{ active: !n.dir && ctx.isActive(n.path), drop: n.dir && ctx.dropTarget === n.path, dragging: ctx.dragging === n.path }"
         @dragstart="dragStart($event, n)" @dragend="ctx.dragging = ctx.dropTarget = null"
         @dragover="dragOver($event, n)" @drop.prevent.stop="ctx.drop(dirOf(n), $event.dataTransfer?.files)"
       >
         <button
           type="button" class="nt-main" role="treeitem" :style="indent()"
           :aria-expanded="n.dir ? ctx.open.has(n.path) : undefined"
-          :aria-current="!n.dir && n.path === ctx.active ? 'page' : undefined"
+          :aria-current="!n.dir && ctx.isActive(n.path) ? 'page' : undefined"
           aria-keyshortcuts="F2"
           @click="n.dir ? ctx.toggle(n.path) : ctx.select(n.path)" @dblclick="startRename(n)" @keydown.f2.prevent="startRename(n)"
         >
