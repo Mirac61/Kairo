@@ -33,7 +33,8 @@ export const canDropHere = (e: DragEvent, from: string | null, dir: string) =>
 </script>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
+import { ymd } from '@/lib/dates'
 import { fileKind } from '@/lib/noteFiles'
 
 // Rekursiv: ein Ordner rendert seine Kinder wieder mit NoteTree. parent '' ist der Wurzelordner.
@@ -41,6 +42,13 @@ const props = withDefaults(defineProps<{ nodes: NoteNode[]; ctx: TreeCtx; parent
 
 const name = ref('')
 const vFocus = { mounted: (el: HTMLInputElement) => { el.focus(); el.select() } }
+// Neue Notiz: das Feld beginnt mit dem heutigen Datum (Vorlesungen sortieren sich so von selbst), der Cursor steht dahinter.
+const vStart = {
+  mounted: (el: HTMLInputElement, b: { value: string }) => {
+    name.value = b.value
+    void nextTick(() => { el.focus(); el.setSelectionRange(el.value.length, el.value.length) })
+  },
+}
 const indent = () => ({ paddingLeft: `${8 + props.depth * 14}px` })
 // Dateien ohne Endung; den Typ zeigt das Icon.
 const label = (n: NoteNode) => (n.dir ? n.name : n.name.replace(/\.[^.]+$/, ''))
@@ -113,7 +121,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
     <li v-if="ctx.adding?.parent === parent" role="none" class="nt-new" :style="indent()">
       <svg class="ic nt-ic" aria-hidden="true"><use :href="ctx.adding.dir ? '#i-proj' : '#i-md'" /></svg>
       <input
-        v-model="name" v-focus class="input nt-input" :placeholder="ctx.adding.dir ? 'Ordnername' : 'Name der Notiz'"
+        v-model="name" v-start="ctx.adding.dir ? '' : `${ymd(new Date())} `" class="input nt-input" :placeholder="ctx.adding.dir ? 'Ordnername' : 'Name der Notiz'"
         :aria-label="ctx.adding.dir ? 'Name des neuen Ordners' : 'Name der neuen Notiz'"
         @keydown.enter.prevent="submit(ctx.submitAdd, ctx.cancelAdd)" @keydown.esc.prevent="ctx.cancelAdd()" @blur="ctx.cancelAdd()"
       />

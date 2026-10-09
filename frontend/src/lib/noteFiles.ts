@@ -18,12 +18,13 @@ export const previewImages = (html: string, notePath: string) =>
   )
 
 // Vorlagen: {{titel}} {{ordner}} {{datum}} {{wochentag}} {{uhrzeit}}; Unbekanntes bleibt stehen.
+// {{titel}} ist der Name ohne Datum vorn („2026-10-09 VL 3“ → „VL 3“), das steht schon in {{datum}}.
 const DAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
 export function fillTemplate(text: string, notePath: string, now = new Date()) {
   const pad = (n: number) => String(n).padStart(2, '0')
   const parts = notePath.split('/')
   const values: Record<string, string> = {
-    titel: parts.at(-1)!.replace(/\.md$/i, ''),
+    titel: parts.at(-1)!.replace(/\.md$/i, '').replace(/^\d{4}-\d{2}-\d{2}\s+(?=\S)/, ''),
     ordner: parts.at(-2) ?? '',
     datum: `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`,
     wochentag: DAYS[now.getDay()]!,

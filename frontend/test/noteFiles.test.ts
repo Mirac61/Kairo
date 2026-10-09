@@ -22,4 +22,6 @@ assert.equal(
   '# VL 1\nComputerarchitektur · Freitag, 09.10.2026 14:05 {{neu}}',
 )
 assert.equal(fillTemplate('{{ordner}}', 'oben.md', fri), '')
+assert.equal(fillTemplate('{{titel}}', 'Uni/2026-10-09 VL 3.md', fri), 'VL 3') // Datum vorn steckt schon in {{datum}}
+assert.equal(fillTemplate('{{titel}}', '2026-10-09.md', fri), '2026-10-09') // nur Datum: bleibt
 console.log('noteFiles ok')
