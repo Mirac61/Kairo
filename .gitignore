@@ -33,5 +33,7 @@ backend/internal/web/dist/*
 CLAUDE.local.md
 FIX_PROMPT.md
 REVIEW_PROMPT.md
+docs/06_DESIGN_REVIEW.md
+docs/07_UX_REVIEW.md
 docs/08_VERBESSERUNGEN.md
 /dist/
