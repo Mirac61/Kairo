@@ -3,7 +3,7 @@
   "displayName": "Kairo",
   "description": "Kairo: Planen in der WebUI, Arbeiten in VSCodium.",
   "publisher": "kairo-local",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "packageManager": "pnpm@12.9.1",
   "engines": {
