@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { useConfirm } from 'primevue/useconfirm'
 import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
-import { ApiError, createNote, deleteNote, errorMessage, listNotes, moveNote, readNote, saveNote, type NoteNode } from '@/api/client'
-import NoteTree, { canDrop, parentOf, type TreeCtx } from '@/components/NoteTree.vue'
+import { ApiError, createNote, deleteNote, errorMessage, listNotes, moveNote, readNote, saveNote, uploadFile, type NoteNode } from '@/api/client'
+import FileEditor from '@/components/FileEditor.vue'
+import NoteTree, { canDrop, canDropHere, parentOf, type TreeCtx } from '@/components/NoteTree.vue'
+import { ymd } from '@/lib/dates'
 import { vDialog } from '@/lib/dialog'
+import { fileKind, fillTemplate, previewImages } from '@/lib/noteFiles'
 import { store } from '@/lib/storage'
 
-// Bilder hochladen, Mermaid, KaTeX, Prettier und Highlight lädt md-editor-v3 vom CDN; sie sind abgeschaltet (Kairo läuft lokal).
+// Mermaid, KaTeX, Prettier und Highlight lädt md-editor-v3 vom CDN; sie sind abgeschaltet (Kairo läuft lokal).
+// Bilder landen über uploadImages neben der Notiz.
 const TOOLBAR: ToolbarNames[] = [
   'bold', 'italic', 'strikeThrough', 'title', '-', 'quote', 'unorderedList', 'orderedList', 'task', '-',
-  'codeRow', 'code', 'link', 'table', '-', 'revoke', 'next', '=', 'preview', 'previewOnly',
+  'codeRow', 'code', 'link', 'image', 'table', '-', 'revoke', 'next', '=', 'preview', 'previewOnly',
 ]
 const DISCARD = 'Ungespeicherte Änderungen verwerfen?'
 const POLL_MS = 5000
@@ -22,7 +26,12 @@ const path = ref<string | null>(null) // offene Datei
 const text = ref('') // Inhalt im Editor
 const saved = ref('') // Inhalt laut Platte (beim Laden oder letzten Speichern)
 const mtime = ref('') // Version beim Laden; das Backend prüft sie beim Speichern
-const dirty = computed(() => path.value !== null && text.value !== saved.value)
+const kind = computed(() => (path.value ? fileKind(path.value) : ''))
+const fileEd = ref<InstanceType<typeof FileEditor>>() // PDFs und Bilder: eigener Editor mit eigenem Stand
+const fileDirty = ref(false)
+watch(path, () => (fileDirty.value = false))
+const dirty = computed(() => path.value !== null && (text.value !== saved.value || fileDirty.value))
+const canSave = computed(() => kind.value === 'md' || kind.value === 'pdf' || (kind.value === 'image' && !/\.gif$/i.test(path.value!)))
 const external = ref(false) // auf der Platte geändert, während hier Ungespeichertes liegt
 const conflict = ref(false)
 const saving = ref(false)
@@ -35,7 +44,7 @@ function toggleTree() {
   store.set('kairo-notes-tree', treeOpen.value ? '1' : '0')
 }
 
-const crumbs = computed(() => path.value?.replace(/\.md$/i, '').split('/') ?? [])
+const crumbs = computed(() => path.value?.replace(/\.[^./]+$/, '').split('/') ?? [])
 
 function readOpen(): string[] {
   try { return JSON.parse(store.get('kairo-notes-open') ?? '[]') } catch { return [] }
@@ -70,7 +79,7 @@ const ctx: TreeCtx = reactive({
   submitRename: (name: string) => void rename(name),
   cancelRename() { ctx.renaming = null },
   remove: (n: NoteNode, anchor: HTMLElement) => remove(n, anchor),
-  drop: (dir: string) => void drop(dir),
+  drop: (dir: string, files?: FileList) => void drop(dir, files),
 })
 
 // Pfade baut der Baum selbst; ein Name ist nur ein Teil (der Browser würde „..“ in der URL sonst auflösen).
@@ -79,7 +88,7 @@ function badName(name: string) {
   error.value = 'Ein Name darf kein „/“ enthalten und nicht mit „.“ beginnen.'
   return true
 }
-const withMd = (name: string) => (/\.md$/i.test(name) ? name : `${name}.md`)
+const withExt = (name: string, ext = '.md') => (name.toLowerCase().endsWith(ext.toLowerCase()) ? name : name + ext)
 const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name)
 const under = (p: string, prefix: string) => p === prefix || p.startsWith(`${prefix}/`)
 
@@ -110,15 +119,60 @@ async function rename(name: string) {
   const from = ctx.renaming
   ctx.renaming = null
   if (!from || badName(name)) return
-  await move(from, join(parentOf(from), renamingDir ? name : withMd(name)))
+  await move(from, join(parentOf(from), renamingDir ? name : withExt(name, from.slice(from.lastIndexOf('.')))))
 }
 
-async function drop(dir: string) {
+async function drop(dir: string, files?: FileList) {
   const from = ctx.dragging
   ctx.dragging = ctx.dropTarget = null
+  if (files?.length) return addFiles(dir, [...files])
   if (!from || !canDrop(from, dir)) return
   if (dir) ctx.open.add(dir)
   await move(from, join(dir, from.slice(from.lastIndexOf('/') + 1)))
+}
+
+// Dateien aus dem Finder oder über „Datei hinzufügen“: PDFs und Bilder unverändert, Markdown als neue Notiz.
+async function addFiles(dir: string, files: File[]) {
+  const bad = files.find((f) => !fileKind(f.name))
+  if (bad) {
+    error.value = `„${bad.name}“: Kairo nimmt nur Markdown, PDFs und Bilder (png, jpg, gif, webp).`
+    return
+  }
+  let last = ''
+  try {
+    for (const f of files) {
+      const p = join(dir, f.name)
+      if (fileKind(p) === 'md') {
+        const { mtime } = await createNote(p)
+        await saveNote(p, await f.text(), mtime ?? '')
+      } else await uploadFile(p, f)
+      last = p
+    }
+    error.value = ''
+  } catch (e) {
+    error.value = e instanceof ApiError && e.status === 409 ? 'Eine Datei mit diesem Namen gibt es dort schon.' : errorMessage(e)
+  }
+  if (dir) ctx.open.add(dir)
+  saveOpen()
+  try {
+    tree.value = await listNotes()
+  } catch { /* nächste Runde von refresh */ }
+  if (last) await openFile(last)
+}
+
+// „Datei hinzufügen“ legt in den Ordner der offenen Datei.
+const filePick = ref<HTMLInputElement>()
+function pick(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = [...(input.files ?? [])]
+  input.value = ''
+  void addFiles(path.value ? parentOf(path.value) : '', files)
+}
+
+// Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab.
+function openPreviewImage(e: MouseEvent) {
+  const img = (e.target as HTMLElement).closest<HTMLImageElement>('.md-editor-preview img')
+  if (img) window.open(img.src, '_blank')
 }
 
 function remove(n: NoteNode, anchor: HTMLElement) {
@@ -155,10 +209,13 @@ function show(n: { content: string; mtime: string }) {
   external.value = false
 }
 
+// PDFs und Bilder haben keinen Text; sie lädt FileEditor selbst.
+const load = (p: string) => (fileKind(p) === 'md' ? readNote(p) : Promise.resolve({ content: '', mtime: '' }))
+
 async function openFile(p: string) {
   if (p === path.value || (dirty.value && !confirm(DISCARD))) return
   try {
-    const n = await readNote(p)
+    const n = await load(p)
     path.value = p
     show(n)
     error.value = ''
@@ -173,7 +230,7 @@ async function add(name: string) {
   ctx.adding = null
   if (!target) return
   if (badName(name)) return
-  const p = join(target.parent, target.dir ? name : withMd(name))
+  const p = join(target.parent, target.dir ? name : withExt(name))
   try {
     await createNote(p, target.dir)
     if (target.dir) ctx.toggle(p)
@@ -185,9 +242,51 @@ async function add(name: string) {
   }
 }
 
+// Eingefügte Bilder (⌘V, Toolbar) landen in assets/ neben der Notiz; der Link ist relativ, damit VSCodium sie genauso zeigt.
+const ASSETS = 'assets'
+async function uploadImages(files: File[], done: (urls: string[]) => void) {
+  const p = path.value
+  if (!p) return
+  const d = new Date()
+  const stamp = `${ymd(d)}-${[d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join('')}`
+  const base = p.slice(p.lastIndexOf('/') + 1).replace(/\.md$/i, '')
+  const dir = join(parentOf(p), ASSETS)
+  try {
+    await createNote(dir, true).catch((e) => { if (!(e instanceof ApiError && e.status === 409)) throw e }) // 409: gibt es schon
+    const names: string[] = []
+    for (const [i, f] of files.entries()) {
+      const name = `${base}-${stamp}${files.length > 1 ? `-${i + 1}` : ''}.${f.type === 'image/jpeg' ? 'jpg' : f.type.split('/')[1]}`
+      await uploadFile(join(dir, name), f)
+      names.push(`${ASSETS}/${encodeURI(name)}`)
+    }
+    done(names)
+    tree.value = await listNotes()
+    error.value = ''
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+const sanitize = (html: string) => (path.value ? previewImages(html, path.value) : html)
+
+// Vorlagen sind Notizen im Ordner „Vorlagen“; eine leere Notiz bietet sie an.
+const TEMPLATES = 'Vorlagen'
+const templates = computed(() => tree.value.find((n) => n.dir && n.name === TEMPLATES)?.children?.filter((n) => fileKind(n.path) === 'md') ?? [])
+const offerTemplates = computed(() => kind.value === 'md' && !text.value.trim() && templates.value.length > 0 && !under(path.value!, TEMPLATES))
+
+async function useTemplate(t: NoteNode) {
+  const p = path.value
+  try {
+    const { content } = await readNote(t.path)
+    if (p && path.value === p && !text.value.trim()) text.value = fillTemplate(content, p)
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
 // force überschreibt auch eine extern geänderte Datei (nach Rückfrage im Dialog).
 async function save(force = false) {
   if (!path.value || saving.value || (!dirty.value && !force)) return
+  if (kind.value !== 'md') return saveFile(force)
   const [p, content] = [path.value, text.value]
   saving.value = true
   try {
@@ -207,9 +306,25 @@ async function save(force = false) {
   }
 }
 
+// PDFs und Bilder speichert der Editor selbst; Konflikt und Fehler zeigt die Ansicht wie bei Notizen.
+async function saveFile(force: boolean) {
+  saving.value = true
+  try {
+    await fileEd.value?.save(force)
+    conflict.value = false
+    error.value = ''
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) conflict.value = true
+    else error.value = e instanceof Error && !(e instanceof ApiError) && !(e instanceof TypeError) ? e.message : errorMessage(e)
+  } finally {
+    saving.value = false
+  }
+}
+
 async function reload() {
   conflict.value = false
   if (!path.value) return
+  if (kind.value !== 'md') return fileEd.value?.reload()
   try {
     show(await readNote(path.value))
   } catch (e) {
@@ -223,7 +338,7 @@ async function refresh() {
   try {
     tree.value = await listNotes()
     const [p, m] = [path.value, mtime.value]
-    if (!p) return
+    if (!p || fileKind(p) !== 'md') return
     const n = await readNote(p)
     if (n.mtime === m || path.value !== p || mtime.value !== m || saving.value) return // inzwischen gespeichert oder gewechselt
     if (dirty.value) external.value = true
@@ -258,7 +373,7 @@ onMounted(async () => {
     error.value = errorMessage(e)
   }
   const last = store.get('kairo-notes-file')
-  if (last) void readNote(last).then((n) => { if (!path.value) { path.value = last; show(n) } }, () => {})
+  if (last) void load(last).then((n) => { if (!path.value) { path.value = last; show(n) } }, () => {})
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey, true)
@@ -277,19 +392,21 @@ onBeforeUnmount(() => {
         <span class="nt-head-act">
           <button type="button" class="icon-btn" aria-label="Neue Notiz" data-tip="Neue Notiz" @click="ctx.startAdd('', false)"><svg class="ic"><use href="#i-plus" /></svg></button>
           <button type="button" class="icon-btn" aria-label="Neuer Ordner" data-tip="Neuer Ordner" @click="ctx.startAdd('', true)"><svg class="ic"><use href="#i-proj" /></svg></button>
+          <button type="button" class="icon-btn" aria-label="Datei hinzufügen" data-tip="PDF, Bild oder Notiz hinzufügen" @click="filePick?.click()"><svg class="ic"><use href="#i-upload" /></svg></button>
+          <input ref="filePick" type="file" multiple hidden accept=".md,.pdf,.png,.jpg,.jpeg,.gif,.webp" @change="pick" />
         </span>
       </div>
       <div
         class="nt-scroll" :class="{ drop: ctx.dropTarget === '' }"
-        @dragover="canDrop(ctx.dragging, '') && ($event.preventDefault(), ctx.dropTarget = '')"
-        @dragleave.self="ctx.dropTarget = null" @drop.prevent="ctx.drop('')"
+        @dragover="canDropHere($event, ctx.dragging, '') && ($event.preventDefault(), ctx.dropTarget = '')"
+        @dragleave.self="ctx.dropTarget = null" @drop.prevent="ctx.drop('', $event.dataTransfer?.files)"
       >
         <NoteTree :nodes="tree" :ctx="ctx" />
-        <p v-if="!tree.length && !ctx.adding" class="nt-empty">Noch keine Notizen. Lege oben eine an.</p>
+        <p v-if="!tree.length && !ctx.adding" class="nt-empty">Noch keine Notizen. Lege oben eine an oder zieh PDFs und Bilder hierher.</p>
       </div>
     </aside>
 
-    <section class="ed">
+    <section class="ed" @click="openPreviewImage">
       <header class="ed-head">
         <button
           type="button" class="icon-btn" aria-controls="nt-pane" :aria-expanded="treeOpen"
@@ -303,7 +420,7 @@ onBeforeUnmount(() => {
           <span v-else class="last">Keine Notiz geöffnet</span>
         </div>
         <span v-if="dirty" class="ed-dirty" role="status"><i></i>Ungespeichert</span>
-        <button v-if="path" type="button" class="btn btn-secondary ed-save" :disabled="!dirty || saving" aria-keyshortcuts="Meta+S Control+S" @click="save()">
+        <button v-if="canSave" type="button" class="btn btn-secondary ed-save" :disabled="!dirty || saving" aria-keyshortcuts="Meta+S Control+S" @click="save()">
           Speichern<kbd class="key" aria-hidden="true">⌘S</kbd>
         </button>
       </header>
@@ -312,10 +429,16 @@ onBeforeUnmount(() => {
         Die Datei wurde außerhalb von Kairo geändert. Beim Speichern fragt Kairo nach.
         <button type="button" class="btn btn-ghost" @click="reload">Verwerfen und neu laden</button>
       </div>
+      <div v-if="offerTemplates" class="ed-tpl">
+        <span>Vorlage</span>
+        <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t)">{{ t.name.replace(/\.md$/i, '') }}</button>
+      </div>
       <MdEditor
-        v-if="path" v-model="text" class="ed-md" :theme="dark ? 'dark' : 'light'" language="en-US" preview-theme="default"
-        :toolbars="TOOLBAR" :footers="[]" no-highlight no-mermaid no-katex no-prettier no-upload-img no-echarts
+        v-if="kind === 'md'" v-model="text" class="ed-md" :theme="dark ? 'dark' : 'light'" language="en-US" preview-theme="default"
+        :toolbars="TOOLBAR" :footers="[]" :sanitize="sanitize" no-highlight no-mermaid no-katex no-prettier no-echarts
+        @on-upload-img="uploadImages"
       />
+      <FileEditor v-else-if="kind === 'pdf' || kind === 'image'" ref="fileEd" :key="path!" :path="path!" :kind="kind" @dirty="fileDirty = $event" />
       <div v-else class="ed-empty">Wähle links eine Notiz oder lege eine neue an.</div>
     </section>
 
@@ -359,6 +482,10 @@ onBeforeUnmount(() => {
 .ed-save .key { padding: 2px 5px; font-size: 11px; }
 .ed-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 16px 6px 24px; border-bottom: 1px solid var(--br-subtle); font: 400 13px/1.4 var(--font-ui); color: var(--a-red); }
 .ed-bar .btn { height: 28px; }
+.ed-tpl { display: flex; align-items: center; gap: 4px; padding: 6px 16px 6px 24px; border-bottom: 1px solid var(--br-subtle); font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
+.ed-tpl span { margin-right: 4px; }
+.ed-tpl .btn { height: 28px; }
+.ed :deep(.md-editor-preview img) { cursor: zoom-in; }
 .ed-empty { flex: 1; display: grid; place-items: center; font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
 .ed-msg { font: 400 13px/1.5 var(--font-ui); color: var(--tx-secondary); }
 

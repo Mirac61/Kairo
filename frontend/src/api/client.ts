@@ -279,7 +279,7 @@ export interface IcsImportResult {
 export const importIcs = (text: string) =>
   api<IcsImportResult>('/calendar/import', { method: 'POST', headers: { 'Content-Type': 'text/calendar' }, body: text })
 
-// Notizen: Markdown-Dateien im Notizordner (Standard ~/life-os). path ist relativ, mit „/“.
+// Notizen: Markdown-Dateien, PDFs und Bilder im Notizordner (Standard ~/life-os). path ist relativ, mit „/“.
 export interface NoteNode {
   name: string
   path: string
@@ -312,3 +312,23 @@ export const moveNote = (path: string, to: string) =>
 
 // Löschen verschiebt nach .trash/ im Notizordner (dort von Hand wiederherstellbar).
 export const deleteNote = (path: string) => api<{ trash: string }>(notePath(path), { method: 'DELETE' })
+
+// PDFs und Bilder (Rohbytes). Ausgeliefert werden sie unter filesUrl (lib/noteFiles).
+const filePath = (path: string) => `/files/${path.split('/').map(encodeURIComponent).join('/')}`
+
+// Legt eine Datei an; 409, wenn der Name schon existiert.
+export const uploadFile = (path: string, file: Blob) =>
+  api<{ path: string }>(filePath(path), { method: 'POST', headers: { 'Content-Type': file.type }, body: file })
+
+// Lädt eine Datei samt Version (mtime) zum Bearbeiten.
+export async function fetchFile(path: string) {
+  const res = await fetch(`/api${filePath(path)}`)
+  if (!res.ok) throw new ApiError(res.status, res.statusText, await res.json().catch(() => undefined))
+  return { blob: await res.blob(), mtime: res.headers.get('X-Kairo-Mtime') ?? '' }
+}
+
+// Speichert eine bearbeitete Datei; 409, wenn sie sich seit dem Laden geändert hat (außer force). Die alte Fassung landet in .trash.
+export const replaceFile = (path: string, file: Blob, mtime: string, force = false) =>
+  api<{ mtime: string }>(`${filePath(path)}?mtime=${encodeURIComponent(mtime)}${force ? '&force=1' : ''}`, {
+    method: 'PUT', headers: { 'Content-Type': file.type }, body: file,
+  })

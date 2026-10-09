@@ -6,6 +6,7 @@ package notes
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -49,7 +50,7 @@ func Open(dir string) (*Store, error) {
 // Close gibt den Wurzelordner frei.
 func (s *Store) Close() error { return s.root.Close() }
 
-// Tree listet Ordner und .md-Dateien; versteckte Einträge (.git, .obsidian, …)
+// Tree listet Ordner, Notizen (.md), PDFs und Bilder; versteckte Einträge (.git, .obsidian, …)
 // fehlen. Symlinks auf Ordner werden nicht verfolgt (keine Schleifen).
 func (s *Store) Tree() ([]Node, error) { return s.tree(".") }
 
@@ -69,7 +70,7 @@ func (s *Store) tree(dir string) ([]Node, error) {
 				return nil, err
 			}
 			dirs = append(dirs, Node{Name: e.Name(), Path: p, Dir: true, Children: children})
-		case isMarkdown(p) && s.isFile(p):
+		case Kind(p) != "" && s.isFile(p):
 			files = append(files, Node{Name: e.Name(), Path: p})
 		}
 	}
@@ -87,7 +88,7 @@ func (s *Store) isFile(p string) bool {
 
 // Read liefert Inhalt und Version (mtime) einer Notiz.
 func (s *Store) Read(p string) (content, version string, err error) {
-	if p, err = checkPath(p, true); err != nil {
+	if p, err = checkPath(p, "md"); err != nil {
 		return "", "", err
 	}
 	fi, err := s.root.Stat(p)
@@ -101,7 +102,7 @@ func (s *Store) Read(p string) (content, version string, err error) {
 	if err != nil {
 		return "", "", mapErr(err)
 	}
-	return string(b), versionOf(fi), nil
+	return string(b), Version(fi), nil
 }
 
 // Save schreibt eine Notiz. Hat sich die Datei seit dem Laden geändert (andere
@@ -109,7 +110,7 @@ func (s *Store) Read(p string) (content, version string, err error) {
 // Geschrieben wird über eine temporäre Datei und Rename, damit ein Abbruch nie
 // eine halbe Notiz hinterlässt (ein Symlink wird dabei durch eine echte Datei ersetzt).
 func (s *Store) Save(p, content, version string, force bool) (string, error) {
-	p, err := checkPath(p, true)
+	p, err := checkPath(p, "md")
 	if err != nil {
 		return "", err
 	}
@@ -119,7 +120,7 @@ func (s *Store) Save(p, content, version string, force bool) (string, error) {
 	switch fi, err := s.root.Stat(p); {
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
 		return "", mapErr(err)
-	case !force && (err != nil || versionOf(fi) != version):
+	case !force && (err != nil || Version(fi) != version):
 		return "", fmt.Errorf("%w: %s wurde außerhalb von Kairo geändert", domain.ErrConflict, p)
 	case err == nil:
 		perm = fi.Mode().Perm()
@@ -136,12 +137,12 @@ func (s *Store) Save(p, content, version string, force bool) (string, error) {
 	if err != nil {
 		return "", mapErr(err)
 	}
-	return versionOf(fi), nil
+	return Version(fi), nil
 }
 
 // CreateFile legt eine leere Notiz an; existiert sie schon: domain.ErrConflict.
 func (s *Store) CreateFile(p string) (string, error) {
-	p, err := checkPath(p, true)
+	p, err := checkPath(p, "md")
 	if err != nil {
 		return "", err
 	}
@@ -156,12 +157,12 @@ func (s *Store) CreateFile(p string) (string, error) {
 	if err != nil {
 		return "", mapErr(err)
 	}
-	return versionOf(fi), nil
+	return Version(fi), nil
 }
 
 // Mkdir legt einen Ordner an; der übergeordnete Ordner muss existieren.
 func (s *Store) Mkdir(p string) error {
-	p, err := checkPath(p, false)
+	p, err := checkPath(p)
 	if err != nil {
 		return err
 	}
@@ -170,7 +171,7 @@ func (s *Store) Mkdir(p string) error {
 
 // Move benennt eine Notiz oder einen Ordner um bzw. verschiebt sie; ein vorhandenes Ziel wird nie überschrieben.
 func (s *Store) Move(from, to string) error {
-	from, err := checkPath(from, false)
+	from, err := checkPath(from)
 	if err != nil {
 		return err
 	}
@@ -178,7 +179,11 @@ func (s *Store) Move(from, to string) error {
 	if err != nil {
 		return mapErr(err)
 	}
-	if to, err = checkPath(to, !fi.IsDir()); err != nil {
+	kinds := []string{Kind(from)} // eine Datei behält ihren Typ
+	if fi.IsDir() {
+		kinds = nil
+	}
+	if to, err = checkPath(to, kinds...); err != nil {
 		return err
 	}
 	if to == from {
@@ -197,24 +202,117 @@ func (s *Store) Move(from, to string) error {
 	return mapErr(s.root.Rename(from, to))
 }
 
+// Open öffnet ein PDF oder Bild zum Ausliefern.
+func (s *Store) Open(p string) (*os.File, fs.FileInfo, error) {
+	p, err := checkPath(p, "pdf", "image")
+	if err != nil {
+		return nil, nil, err
+	}
+	f, err := s.root.Open(p)
+	if err != nil {
+		return nil, nil, mapErr(err)
+	}
+	fi, err := f.Stat()
+	if err == nil && !fi.Mode().IsRegular() {
+		err = fmt.Errorf("%w: %s ist keine Datei", domain.ErrInvalid, p)
+	}
+	if err != nil {
+		f.Close()
+		return nil, nil, mapErr(err)
+	}
+	return f, fi, nil
+}
+
+// Upload legt ein PDF oder Bild an; existiert es schon: domain.ErrConflict.
+// Bricht das Schreiben ab, wird die halbe Datei wieder gelöscht.
+func (s *Store) Upload(p string, r io.Reader) error {
+	p, err := checkPath(p, "pdf", "image")
+	if err != nil {
+		return err
+	}
+	f, err := s.root.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return mapErr(err)
+	}
+	_, err = io.Copy(f, r)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = s.root.Remove(p)
+		return mapErr(err)
+	}
+	return nil
+}
+
+// Replace ersetzt ein PDF oder Bild (nach dem Bearbeiten in Kairo). Die alte Fassung
+// landet in .trash/, damit sich Zeichnungen rückgängig machen lassen. Wie bei Save gibt
+// es domain.ErrConflict, wenn sich die Datei seit dem Laden geändert hat, außer bei force.
+func (s *Store) Replace(p string, r io.Reader, version string, force bool) (string, error) {
+	p, err := checkPath(p, "pdf", "image")
+	if err != nil {
+		return "", err
+	}
+	tmp := path.Join(path.Dir(p), "."+path.Base(p)+".kairo-tmp")
+	f, err := s.root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return "", mapErr(err)
+	}
+	_, err = io.Copy(f, r)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = s.root.Remove(tmp)
+		return "", mapErr(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fi, err := s.root.Stat(p)
+	switch {
+	case err != nil:
+		err = mapErr(err)
+	case !force && Version(fi) != version:
+		err = fmt.Errorf("%w: %s wurde außerhalb von Kairo geändert", domain.ErrConflict, p)
+	default:
+		_ = s.root.Chmod(tmp, fi.Mode().Perm())
+		if _, err = s.trash(p); err == nil {
+			err = mapErr(s.root.Rename(tmp, p))
+		}
+	}
+	if err != nil {
+		_ = s.root.Remove(tmp)
+		return "", err
+	}
+	if fi, err = s.root.Stat(p); err != nil {
+		return "", mapErr(err)
+	}
+	return Version(fi), nil
+}
+
 // Trash ist der Ordner für gelöschte Notizen; als versteckter Ordner fehlt er im Baum.
 const Trash = ".trash"
 
 // Delete verschiebt eine Notiz oder einen Ordner (mit Inhalt) nach .trash/, mit Zeitstempel im Namen.
 // Wiederherstellen geht von Hand im Finder oder in VSCodium.
 func (s *Store) Delete(p string) (string, error) {
-	p, err := checkPath(p, false)
+	p, err := checkPath(p)
 	if err != nil {
 		return "", err
 	}
 	if _, err := s.root.Lstat(p); err != nil {
 		return "", mapErr(err)
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.trash(p)
+}
+
+// trash verschiebt p nach .trash/; der Aufrufer hält s.mu.
+func (s *Store) trash(p string) (string, error) {
 	if err := s.root.Mkdir(Trash, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
 		return "", mapErr(err)
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	dest := path.Join(Trash, time.Now().Format("20060102-150405")+" "+path.Base(p))
 	for i := 2; ; i++ { // zweimal dasselbe in einer Sekunde gelöscht
 		if _, err := s.root.Lstat(dest); errors.Is(err, fs.ErrNotExist) {
@@ -225,9 +323,9 @@ func (s *Store) Delete(p string) (string, error) {
 	return dest, mapErr(s.root.Rename(p, dest))
 }
 
-// checkPath lässt nur relative Pfade ohne ".." und ohne versteckte Teile zu,
-// bei Dateien zusätzlich nur die Endung .md.
-func checkPath(p string, file bool) (string, error) {
+// checkPath lässt nur relative Pfade ohne ".." und ohne versteckte Teile zu;
+// sind kinds angegeben, muss Kind(p) einer davon sein.
+func checkPath(p string, kinds ...string) (string, error) {
 	if !filepath.IsLocal(p) || p == "." || path.Clean(p) != p {
 		return "", fmt.Errorf("%w: Pfad %q nicht erlaubt", domain.ErrInvalid, p)
 	}
@@ -236,16 +334,28 @@ func checkPath(p string, file bool) (string, error) {
 			return "", fmt.Errorf("%w: versteckte Pfade (%q) nicht erlaubt", domain.ErrInvalid, p)
 		}
 	}
-	if file && !isMarkdown(p) {
-		return "", fmt.Errorf("%w: nur .md-Dateien erlaubt", domain.ErrInvalid)
+	if kinds != nil && !slices.Contains(kinds, Kind(p)) {
+		return "", fmt.Errorf("%w: Dateityp von %q nicht erlaubt", domain.ErrInvalid, p)
 	}
 	return p, nil
 }
 
-func isMarkdown(p string) bool { return strings.EqualFold(path.Ext(p), ".md") }
+// Kind ist der Dateityp, den Kairo im Notizordner zeigt: "md", "pdf", "image"
+// oder "" (alles andere bleibt unsichtbar). SVG fehlt, weil es Skript enthalten kann.
+func Kind(p string) string {
+	switch strings.ToLower(path.Ext(p)) {
+	case ".md":
+		return "md"
+	case ".pdf":
+		return "pdf"
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+		return "image"
+	}
+	return ""
+}
 
-// versionOf ist die mtime in Nanosekunden, als String (passt sonst nicht exakt in JS-Zahlen).
-func versionOf(fi fs.FileInfo) string { return strconv.FormatInt(fi.ModTime().UnixNano(), 10) }
+// Version ist die mtime in Nanosekunden, als String (passt sonst nicht exakt in JS-Zahlen).
+func Version(fi fs.FileInfo) string { return strconv.FormatInt(fi.ModTime().UnixNano(), 10) }
 
 // mapErr übersetzt Dateisystemfehler in Domain-Fehler. Alles Übrige, vor allem
 // "path escapes from parent" von os.Root (Symlink nach außen), gilt als ungültige Eingabe.

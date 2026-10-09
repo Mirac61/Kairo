@@ -97,16 +97,116 @@ func TestNotes(t *testing.T) {
 		t.Fatal("Ziel des Links gelöscht")
 	}
 
-	// Baum: nur Ordner und .md, ohne Versteckte und ohne Symlinks nach außen.
+	// Baum: nur Ordner, .md, PDFs und Bilder, ohne Versteckte und ohne Symlinks nach außen.
 	rec := call(h, "GET", "/api/notes", ``)
 	var tree []notes.Node
 	if err := json.NewDecoder(rec.Body).Decode(&tree); err != nil {
 		t.Fatal(err)
 	}
-	if len(tree) != 1 || tree[0].Path != "uni" || len(tree[0].Children) != 1 || tree[0].Children[0].Path != "uni/se.md" {
+	if len(tree) != 2 || tree[0].Path != "uni" || tree[1].Path != "bild.png" || len(tree[0].Children) != 1 || tree[0].Children[0].Path != "uni/se.md" {
 		t.Fatalf("Baum: %+v", tree)
 	}
 	if strings.Contains(rec.Body.String(), "kairo-tmp") {
 		t.Fatal("temporäre Datei im Baum")
+	}
+}
+
+func TestNoteFiles(t *testing.T) {
+	dir := t.TempDir()
+	store, err := notes.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	h := NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{Notes: store})
+	png := "\x89PNG\r\n\x1a\n" + strings.Repeat("\x00", 16)
+	_ = os.WriteFile(filepath.Join(dir, "skript.pdf"), []byte("%PDF-1.4"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "film.mp4"), []byte("x"), 0o644)
+
+	if rec := call(h, "POST", "/api/files/a.png", png); rec.Code != http.StatusCreated {
+		t.Fatalf("Upload: %d %s", rec.Code, rec.Body)
+	}
+	for p, want := range map[string]int{
+		"/api/files/a.png":      http.StatusConflict,   // nie überschreiben
+		"/api/files/b.svg":      http.StatusBadRequest, // kein erlaubter Typ
+		"/api/files/b.md":       http.StatusBadRequest,
+		"/api/files/..%2Fb.png": http.StatusBadRequest,
+	} {
+		if rec := call(h, "POST", p, png); rec.Code != want {
+			t.Errorf("POST %s: %d, erwartet %d", p, rec.Code, want)
+		}
+	}
+	if rec := call(h, "POST", "/api/files/c.png", "<html>"); rec.Code != http.StatusBadRequest {
+		t.Errorf("Nicht-Bild hochgeladen: %d", rec.Code)
+	}
+	if rec := call(h, "POST", "/api/files/d.pdf", png); rec.Code != http.StatusBadRequest {
+		t.Errorf("Bild als PDF hochgeladen: %d", rec.Code)
+	}
+	if rec := call(h, "POST", "/api/files/Folien.pdf", "%PDF-1.7\n"); rec.Code != http.StatusCreated {
+		t.Errorf("PDF hochladen: %d %s", rec.Code, rec.Body)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "c.png")); err == nil {
+		t.Error("abgelehntes Bild liegt trotzdem auf der Platte")
+	}
+
+	rec := call(h, "GET", "/api/files/a.png", ``)
+	if rec.Code != http.StatusOK || rec.Body.String() != png || rec.Header().Get("Content-Type") != "image/png" || rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("GET a.png: %d %q %v", rec.Code, rec.Body, rec.Header())
+	}
+	if rec := call(h, "GET", "/api/files/skript.pdf", ``); rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/pdf" {
+		t.Fatalf("GET skript.pdf: %d %v", rec.Code, rec.Header())
+	}
+	for _, p := range []string{"/api/files/film.mp4", "/api/files/notiz.md"} {
+		if rec := call(h, "GET", p, ``); rec.Code != http.StatusBadRequest {
+			t.Errorf("GET %s: %d, erwartet 400", p, rec.Code)
+		}
+	}
+
+	// Bearbeitet speichern: passende Version ersetzt, die alte Fassung liegt danach in .trash/.
+	v := call(h, "GET", "/api/files/a.png", ``).Header().Get("X-Kairo-Mtime")
+	png2 := png + "neu"
+	if rec := call(h, "PUT", "/api/files/a.png?mtime=alt", png2); rec.Code != http.StatusConflict {
+		t.Errorf("veraltete Version: %d", rec.Code)
+	}
+	if rec := call(h, "PUT", "/api/files/a.png?mtime="+v, "<html>"); rec.Code != http.StatusBadRequest {
+		t.Errorf("Nicht-Bild ersetzt: %d", rec.Code)
+	}
+	if rec := call(h, "PUT", "/api/files/a.png?mtime="+v, png2); rec.Code != http.StatusOK {
+		t.Fatalf("ersetzen: %d %s", rec.Code, rec.Body)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "a.png")); string(b) != png2 {
+		t.Fatal("nicht ersetzt")
+	}
+	if old, _ := filepath.Glob(filepath.Join(dir, ".trash", "* a.png")); len(old) != 1 {
+		t.Fatalf("alte Fassung fehlt im Papierkorb: %v", old)
+	} else if b, _ := os.ReadFile(old[0]); string(b) != png {
+		t.Fatal("Papierkorb enthält nicht die alte Fassung")
+	}
+	if rec := call(h, "PUT", "/api/files/a.png?mtime=alt&force=1", png); rec.Code != http.StatusOK {
+		t.Errorf("force: %d", rec.Code)
+	}
+	if rec := call(h, "PUT", "/api/files/fehlt.png?force=1", png); rec.Code != http.StatusNotFound {
+		t.Errorf("ersetzen ohne Datei: %d", rec.Code)
+	}
+	if tmp, _ := filepath.Glob(filepath.Join(dir, ".*kairo-tmp")); len(tmp) != 0 {
+		t.Fatalf("temporäre Dateien übrig: %v", tmp)
+	}
+
+	// PDFs lassen sich umbenennen, behalten aber ihren Typ.
+	if rec := call(h, "PATCH", "/api/notes/skript.pdf", `{"to":"skript.md"}`); rec.Code != http.StatusBadRequest {
+		t.Errorf("Typwechsel beim Umbenennen: %d", rec.Code)
+	}
+	if rec := call(h, "PATCH", "/api/notes/skript.pdf", `{"to":"Skript 1.pdf"}`); rec.Code != http.StatusOK {
+		t.Errorf("PDF umbenennen: %d %s", rec.Code, rec.Body)
+	}
+
+	var tree []notes.Node
+	_ = json.NewDecoder(call(h, "GET", "/api/notes", ``).Body).Decode(&tree)
+	var names []string
+	for _, n := range tree {
+		names = append(names, n.Name)
+	}
+	if strings.Join(names, ",") != "a.png,Folien.pdf,Skript 1.pdf" {
+		t.Fatalf("Baum: %v", names)
 	}
 }
