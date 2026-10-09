@@ -26,6 +26,8 @@
     "@fullcalendar/vue3": "^6.1.21",
     "@primeuix/themes": "^2.0.3",
     "md-editor-v3": "^7.1.0",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.3.289",
     "primelocale": "^2.5.0",
     "primevue": "^4.5.5",
     "vue": "^3.5.43",

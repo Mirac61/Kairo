@@ -18,7 +18,7 @@ export interface TreeCtx {
   submitRename(name: string): void
   cancelRename(): void
   remove(node: NoteNode, anchor: HTMLElement): void
-  drop(dir: string): void
+  drop(dir: string, files?: FileList): void // files: aus dem Finder gezogen
 }
 
 export const parentOf = (path: string) => path.slice(0, Math.max(path.lastIndexOf('/'), 0))
@@ -26,10 +26,15 @@ export const parentOf = (path: string) => path.slice(0, Math.max(path.lastIndexO
 // Ziel ist sinnvoll: nicht der eigene Ordner und bei Ordnern nicht in sich selbst.
 export const canDrop = (from: string | null, dir: string) =>
   from !== null && dir !== parentOf(from) && dir !== from && !dir.startsWith(`${from}/`)
+
+// Dateien aus dem Finder dürfen in jeden Ordner, Einträge aus dem Baum nur an sinnvolle Ziele.
+export const canDropHere = (e: DragEvent, from: string | null, dir: string) =>
+  !!e.dataTransfer?.types.includes('Files') || canDrop(from, dir)
 </script>
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { fileKind } from '@/lib/noteFiles'
 
 // Rekursiv: ein Ordner rendert seine Kinder wieder mit NoteTree. parent '' ist der Wurzelordner.
 const props = withDefaults(defineProps<{ nodes: NoteNode[]; ctx: TreeCtx; parent?: string; depth?: number }>(), { parent: '', depth: 0 })
@@ -37,7 +42,10 @@ const props = withDefaults(defineProps<{ nodes: NoteNode[]; ctx: TreeCtx; parent
 const name = ref('')
 const vFocus = { mounted: (el: HTMLInputElement) => { el.focus(); el.select() } }
 const indent = () => ({ paddingLeft: `${8 + props.depth * 14}px` })
-const label = (n: NoteNode) => (n.dir ? n.name : n.name.replace(/\.md$/i, ''))
+// Dateien ohne Endung; den Typ zeigt das Icon.
+const label = (n: NoteNode) => (n.dir ? n.name : n.name.replace(/\.[^.]+$/, ''))
+const ICONS = { md: '#i-md', pdf: '#i-pdf', image: '#i-image', '': '#i-file' }
+const icon = (n: NoteNode) => (n.dir ? '#i-proj' : ICONS[fileKind(n.path)])
 // Auf einer Datei abgelegt heißt: in ihren Ordner.
 const dirOf = (n: NoteNode) => (n.dir ? n.path : props.parent)
 
@@ -57,7 +65,7 @@ function dragStart(e: DragEvent, n: NoteNode) {
   props.ctx.dragging = n.path
 }
 function dragOver(e: DragEvent, n: NoteNode) {
-  if (!canDrop(props.ctx.dragging, dirOf(n))) return // ohne preventDefault zeigt der Browser „nicht erlaubt“
+  if (!canDropHere(e, props.ctx.dragging, dirOf(n))) return // ohne preventDefault zeigt der Browser „nicht erlaubt“
   e.preventDefault()
   e.stopPropagation()
   props.ctx.dropTarget = dirOf(n)
@@ -68,7 +76,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
   <ul class="nt" :role="depth ? 'group' : 'tree'" :aria-label="depth ? undefined : 'Notizen'">
     <li v-for="n in nodes" :key="n.path" role="none">
       <div v-if="ctx.renaming === n.path" class="nt-new" :style="indent()">
-        <svg class="ic nt-ic" aria-hidden="true"><use :href="n.dir ? '#i-proj' : '#i-note'" /></svg>
+        <svg class="ic nt-ic" aria-hidden="true"><use :href="icon(n)" /></svg>
         <input
           v-model="name" v-focus class="input nt-input" :aria-label="`${n.name} umbenennen`"
           @keydown.enter.prevent="submit(ctx.submitRename, ctx.cancelRename)" @keydown.esc.prevent="ctx.cancelRename()" @blur="ctx.cancelRename()"
@@ -78,7 +86,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
         v-else class="nt-row" draggable="true"
         :class="{ active: !n.dir && n.path === ctx.active, drop: n.dir && ctx.dropTarget === n.path, dragging: ctx.dragging === n.path }"
         @dragstart="dragStart($event, n)" @dragend="ctx.dragging = ctx.dropTarget = null"
-        @dragover="dragOver($event, n)" @drop.prevent.stop="ctx.drop(dirOf(n))"
+        @dragover="dragOver($event, n)" @drop.prevent.stop="ctx.drop(dirOf(n), $event.dataTransfer?.files)"
       >
         <button
           type="button" class="nt-main" role="treeitem" :style="indent()"
@@ -88,7 +96,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
           @click="n.dir ? ctx.toggle(n.path) : ctx.select(n.path)" @dblclick="startRename(n)" @keydown.f2.prevent="startRename(n)"
         >
           <svg class="ic nt-chev" :class="{ open: ctx.open.has(n.path), hidden: !n.dir }" aria-hidden="true"><use href="#i-chev" /></svg>
-          <svg class="ic nt-ic" aria-hidden="true"><use :href="n.dir ? '#i-proj' : '#i-note'" /></svg>
+          <svg class="ic nt-ic" aria-hidden="true"><use :href="icon(n)" /></svg>
           <span class="nt-name">{{ label(n) }}</span>
         </button>
         <span class="nt-act">
@@ -103,7 +111,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
       <NoteTree v-if="n.dir && ctx.open.has(n.path)" :nodes="n.children ?? []" :ctx="ctx" :parent="n.path" :depth="depth + 1" />
     </li>
     <li v-if="ctx.adding?.parent === parent" role="none" class="nt-new" :style="indent()">
-      <svg class="ic nt-ic" aria-hidden="true"><use :href="ctx.adding.dir ? '#i-proj' : '#i-note'" /></svg>
+      <svg class="ic nt-ic" aria-hidden="true"><use :href="ctx.adding.dir ? '#i-proj' : '#i-md'" /></svg>
       <input
         v-model="name" v-focus class="input nt-input" :placeholder="ctx.adding.dir ? 'Ordnername' : 'Name der Notiz'"
         :aria-label="ctx.adding.dir ? 'Name des neuen Ordners' : 'Name der neuen Notiz'"
