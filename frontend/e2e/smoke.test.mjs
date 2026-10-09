@@ -80,6 +80,8 @@ test('Termin verschieben', async () => {
   const ev = await api('/calendar/events', { method: 'POST', body: JSON.stringify({ title: 'Smoke-Termin', start_at: at('10:00'), end_at: at('11:00') }) })
   await page.addInitScript(() => localStorage.setItem('kairo-cal-view', 'timeGridDay'))
   await page.goto(`${base}/calendar`)
+  // Steht der WebSocket, lädt der Kalender neu und ersetzt die Termin-Elemente; erst danach ziehen.
+  await page.waitForLoadState('networkidle')
   const event = page.locator('.fc-event', { hasText: 'Smoke-Termin' })
   await event.scrollIntoViewIfNeeded()
   const box = await event.boundingBox()
