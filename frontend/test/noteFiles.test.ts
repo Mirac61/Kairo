@@ -1,6 +1,6 @@
 // Prüfung der Notizdateien: node test/noteFiles.test.ts
 import assert from 'node:assert/strict'
-import { fileKind, fillTemplate, join, previewImages, under, withExt } from '../src/lib/noteFiles.ts'
+import { assetName, fileKind, fillTemplate, join, previewImages, under, withExt } from '../src/lib/noteFiles.ts'
 
 assert.equal(fileKind('Uni/a.MD'), 'md')
 assert.equal(fileKind('skript.pdf'), 'pdf')
@@ -34,3 +34,8 @@ assert.equal(join('', 'a.md'), 'a.md')
 assert.equal(join('Uni', 'a.md'), 'Uni/a.md')
 assert.ok(under('Uni/a.md', 'Uni') && under('Uni', 'Uni'))
 assert.ok(!under('Uni2/a.md', 'Uni'))
+
+// Eingefügte Bilder
+const at = new Date(2026, 9, 9, 14, 5, 7)
+assert.equal(assetName(note, 'image/png', at), 'VL 1-2026-10-09-140507.png')
+assert.equal(assetName('a.md', 'image/jpeg', at, 1, 2), 'a-2026-10-09-140507-2.jpg')

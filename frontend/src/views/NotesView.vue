@@ -2,23 +2,16 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { useConfirm } from 'primevue/useconfirm'
-import { MdEditor, type ToolbarNames } from 'md-editor-v3'
-import 'md-editor-v3/lib/style.css'
 import { ApiError, createNote, deleteNote, errorMessage, listNotes, moveNote, readNote, saveNote, uploadFile, type NoteNode } from '@/api/client'
 import FileEditor from '@/components/FileEditor.vue'
+import NoteEditor from '@/components/NoteEditor.vue'
 import NoteTree, { canDrop, canDropHere, parentOf, type TreeCtx } from '@/components/NoteTree.vue'
-import { ymd } from '@/lib/dates'
 import { vDialog } from '@/lib/dialog'
-import { fileKind, fillTemplate, join, previewImages, under, withExt } from '@/lib/noteFiles'
+import { fileKind, fillTemplate, join, under, withExt } from '@/lib/noteFiles'
 import { store } from '@/lib/storage'
 import { t } from '@/lib/i18n'
+import { useSplitRatio } from '@/composables/useSplitRatio'
 
-// Mermaid, KaTeX, Prettier und Highlight lädt md-editor-v3 vom CDN; sie sind abgeschaltet (Kairo läuft lokal).
-// Bilder landen über uploadImages neben der Notiz.
-const TOOLBAR: ToolbarNames[] = [
-  'bold', 'italic', 'strikeThrough', 'title', '-', 'quote', 'unorderedList', 'orderedList', 'task', '-',
-  'codeRow', 'code', 'link', 'image', 'table', '-', 'revoke', 'next', '=', 'preview', 'previewOnly',
-]
 const DISCARD = t('Ungespeicherte Änderungen verwerfen?')
 const POLL_MS = 5000
 
@@ -61,26 +54,10 @@ function toggleTree() {
 }
 
 // Geteilte Ansicht: Breite des Dokuments als Anteil, per Trenner verschiebbar.
-const ratio = ref(Math.min(0.75, Math.max(0.25, Number(store.get('kairo-notes-ratio')) || 0.5)))
+const { ratio, startResize, nudge } = useSplitRatio('kairo-notes-ratio')
 function toggleSplit() {
   split.value = !split.value
   if (!split.value && !pathOf(shown.value)) shown.value = docPath.value ? 'doc' : 'note'
-}
-function startResize(e: PointerEvent) {
-  e.preventDefault()
-  const box = (e.currentTarget as HTMLElement).parentElement!.getBoundingClientRect()
-  const move = (ev: PointerEvent) => (ratio.value = Math.min(0.75, Math.max(0.25, (ev.clientX - box.left) / box.width)))
-  const up = () => {
-    window.removeEventListener('pointermove', move)
-    window.removeEventListener('pointerup', up)
-    store.set('kairo-notes-ratio', String(ratio.value))
-  }
-  window.addEventListener('pointermove', move)
-  window.addEventListener('pointerup', up)
-}
-function nudge(d: number) {
-  ratio.value = Math.min(0.75, Math.max(0.25, ratio.value + d))
-  store.set('kairo-notes-ratio', String(ratio.value))
 }
 
 const crumbsOf = (p: string) => p.replace(/\.[^./]+$/, '').split('/')
@@ -204,12 +181,6 @@ function pick(e: Event) {
   void addFiles(p ? parentOf(p) : '', files)
 }
 
-// Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab.
-function openPreviewImage(e: MouseEvent) {
-  const img = (e.target as HTMLElement).closest<HTMLImageElement>('.md-editor-preview img')
-  if (img) window.open(img.src, '_blank')
-}
-
 function remove(n: NoteNode, anchor: HTMLElement) {
   confirmPopup.require({
     target: anchor,
@@ -281,31 +252,14 @@ async function add(name: string) {
   }
 }
 
-// Eingefügte Bilder (⌘V, Toolbar) landen in assets/ neben der Notiz; der Link ist relativ, damit VSCodium sie genauso zeigt.
-const ASSETS = 'assets'
-async function uploadImages(files: File[], done: (urls: string[]) => void) {
-  const p = notePath.value
-  if (!p) return
-  const d = new Date()
-  const stamp = `${ymd(d)}-${[d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join('')}`
-  const base = p.slice(p.lastIndexOf('/') + 1).replace(/\.md$/i, '')
-  const dir = join(parentOf(p), ASSETS)
+async function uploaded() {
   try {
-    await createNote(dir, true).catch((e) => { if (!(e instanceof ApiError && e.status === 409)) throw e }) // 409: gibt es schon
-    const names: string[] = []
-    for (const [i, f] of files.entries()) {
-      const name = `${base}-${stamp}${files.length > 1 ? `-${i + 1}` : ''}.${f.type === 'image/jpeg' ? 'jpg' : f.type.split('/')[1]}`
-      await uploadFile(join(dir, name), f)
-      names.push(`${ASSETS}/${encodeURI(name)}`)
-    }
-    done(names)
     tree.value = await listNotes()
     error.value = ''
   } catch (e) {
     error.value = errorMessage(e)
   }
 }
-const sanitize = (html: string) => (notePath.value ? previewImages(html, notePath.value) : html)
 
 // Vorlagen sind Notizen im Ordner „Vorlagen“; eine leere Notiz bietet sie an.
 const TEMPLATES = 'Vorlagen'
@@ -391,16 +345,11 @@ watch([notePath, docPath, shown, split], () => {
   store.set('kairo-notes-split', split.value ? '1' : '0')
 })
 
-// md-editor-v3 bekommt das Theme als Prop; Kairo schaltet es über data-theme an <html>.
-const dark = ref(document.documentElement.dataset.theme !== 'light')
-const themeObserver = new MutationObserver(() => { dark.value = document.documentElement.dataset.theme !== 'light' })
-
 let timer = 0
 onMounted(async () => {
   window.addEventListener('keydown', onKey, true)
   window.addEventListener('beforeunload', onUnload)
   window.addEventListener('focus', refresh)
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
   timer = window.setInterval(refresh, POLL_MS)
   try {
     tree.value = await listNotes()
@@ -424,7 +373,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey, true)
   window.removeEventListener('beforeunload', onUnload)
   window.removeEventListener('focus', refresh)
-  themeObserver.disconnect()
   clearInterval(timer)
 })
 </script>
@@ -454,7 +402,7 @@ onBeforeUnmount(() => {
     <div class="eds" :class="{ split }" :style="split ? { gridTemplateColumns: `minmax(0, ${ratio}fr) minmax(0, ${1 - ratio}fr)` } : undefined">
       <section
         v-for="pn in PANES" v-show="visible(pn)" :key="pn" class="ed" :class="`ed-${pn}`"
-        @pointerdown.capture="focus = pn" @focusin="focus = pn" @click="openPreviewImage"
+        @pointerdown.capture="focus = pn" @focusin="focus = pn"
       >
         <header class="ed-head">
           <button
@@ -488,11 +436,7 @@ onBeforeUnmount(() => {
             <span>{{ $t('Vorlage') }}</span>
             <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t)">{{ t.name.replace(/\.md$/i, '') }}</button>
           </div>
-          <MdEditor
-            v-if="notePath" v-model="text" class="ed-md" :theme="dark ? 'dark' : 'light'" language="en-US" preview-theme="default"
-            :toolbars="TOOLBAR" :footers="[]" :sanitize="sanitize" no-highlight no-mermaid no-katex no-prettier no-echarts
-            @on-upload-img="uploadImages"
-          />
+          <NoteEditor v-if="notePath" v-model="text" :path="notePath" @uploaded="uploaded" @error="error = $event" />
           <div v-else class="ed-empty">{{ $t('Wähle links eine Notiz oder lege eine neue an.') }}</div>
         </template>
         <template v-else>
@@ -561,53 +505,7 @@ onBeforeUnmount(() => {
 .ed-tpl { display: flex; align-items: center; gap: 4px; padding: 6px 16px 6px 24px; border-bottom: 1px solid var(--br-subtle); font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
 .ed-tpl span { margin-right: 4px; }
 .ed-tpl .btn { height: 28px; }
-.ed :deep(.md-editor-preview img) { cursor: zoom-in; }
 .ed-empty { flex: 1; display: grid; place-items: center; font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
 .ed-msg { font: 400 13px/1.5 var(--font-ui); color: var(--tx-secondary); }
 
-/* md-editor-v3 an die Kairo-Tokens anpassen (gilt für Dark und Light, weil die Tokens mitwechseln). */
-.ed :deep(.md-editor) {
-  --md-color: var(--tx-primary);
-  --md-hover-color: var(--tx-primary);
-  --md-bk-color: var(--bg-0);
-  --md-bk-color-outstand: var(--bg-2);
-  --md-bk-hover-color: var(--bg-hover);
-  --md-border-color: var(--br-subtle);
-  --md-border-hover-color: var(--br-strong);
-  --md-border-active-color: var(--br-strong);
-  --md-modal-mask: var(--scrim);
-  --md-modal-shadow: var(--shadow-pop);
-  --md-scrollbar-bg-color: transparent;
-  --md-scrollbar-thumb-color: var(--br-default);
-  --md-scrollbar-thumb-hover-color: var(--br-strong);
-  --md-scrollbar-thumb-active-color: var(--br-strong);
-  flex: 1; min-height: 0; height: auto; border: 0; border-radius: 0;
-  font-family: var(--font-ui);
-}
-.ed :deep(.md-editor .md-editor-toolbar-wrapper) { padding: 4px 16px; border-bottom-color: var(--br-subtle); }
-.ed :deep(.md-editor .md-editor-toolbar-item) { color: var(--tx-secondary); }
-.ed :deep(.md-editor .cm-editor) { font-family: var(--font-mono); font-size: 13px; }
-.ed :deep(.md-editor .cm-scroller) { padding: 0 8px; }
-.ed :deep(.md-editor .md-editor-preview) {
-  --md-theme-color: var(--tx-secondary);
-  --md-theme-heading-color: var(--tx-primary);
-  --md-theme-strong-color: var(--tx-primary);
-  --md-theme-link-color: var(--a-blue-tx);
-  --md-theme-link-hover-color: var(--a-blue-hi);
-  --md-theme-border-color: var(--br-subtle);
-  --md-theme-bg-color: var(--bg-0);
-  --md-theme-bg-color-inset: var(--bg-2);
-  --md-theme-quote-color: var(--tx-muted);
-  --md-theme-quote-border: 3px solid var(--br-strong);
-  --md-theme-quote-bg-color: transparent;
-  --md-theme-code-inline-color: var(--tx-primary);
-  --md-theme-code-inline-bg-color: var(--bg-2);
-  --md-theme-code-block-color: var(--tx-primary);
-  --md-theme-code-block-bg-color: var(--bg-1);
-  --md-theme-table-stripe-color: var(--bg-1);
-  --md-theme-table-border-color: var(--br-subtle);
-  --md-theme-table-td-border-color: var(--br-subtle);
-  font: 400 15px/1.6 var(--font-ui);
-  word-break: normal; overflow-wrap: anywhere; /* Standard ist break-all: bricht mitten im Wort */
-}
 </style>
