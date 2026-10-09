@@ -99,7 +99,7 @@ func TestResourceTypeOptional(t *testing.T) {
 		dir:                          "FOLDER",
 		dir + "/gibt-es-nicht.pdf":   "FILE",
 	} {
-		rec := call(h, "POST", "/api/resources", `{"project_id":"`+project.ID+`","target":"`+target+`"}`)
+		rec := call(h, "POST", "/api/resources", `{"project_id":"`+project.ID+`","target":`+strconv.Quote(target)+`}`)
 		var res resourceDTO
 		_ = json.Unmarshal(rec.Body.Bytes(), &res)
 		if rec.Code != 201 || res.Type != want || res.Target != target {

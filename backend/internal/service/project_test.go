@@ -94,6 +94,7 @@ func TestProjectLocalPathMustExist(t *testing.T) {
 	ctx := context.Background()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir unter Windows
 	if err := os.Mkdir(filepath.Join(home, "proj"), 0o755); err != nil {
 		t.Fatal(err)
 	}
