@@ -171,6 +171,7 @@ Die WebUI ist hauptsächlich für:
 -   Prioritäten
 -   Zeitplanung
 -   Rückblicke
+-   Notizen (Markdown, PDFs und Bilder in einem normalen Ordner)
 
 gedacht.
 

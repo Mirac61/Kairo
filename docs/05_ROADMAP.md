@@ -7,8 +7,9 @@ MVP.
 Wochenrückblick in der WebUI, ICS-Import, Papierkorb mit Rückgängig-Toast,
 Projektfarben, Statusleiste, Befehle und URI-Handler in der Extension, das
 SwiftBar-Plugin (`tools/menubar/`), Backups, die Einstellungsseite
-(`config.json`), Playwright-Smoke-Tests und Releases mit fertigen
-Binaries. In Phase 8 steht nur noch, was fehlt, unter „Pflege“ der Stand
+(`config.json`), Notizen mit PDFs, Bildern, Vorlagen und
+Zeichenwerkzeug, Englisch/Deutsch, Playwright-Smoke-Tests und Releases
+mit fertigen Binaries für macOS, Linux und Windows. In Phase 8 steht nur noch, was fehlt, unter „Pflege“ der Stand
 der Aufräumarbeiten.
 
 Innerhalb jeder Phase wird jede Funktion als vertikale Scheibe gebaut
@@ -208,14 +209,16 @@ Technische Schulden und Aufräumarbeiten, keine neuen Funktionen.
     (`FileEditorBar.vue`), PDF-Rendern (`usePdfRender`), Verlauf
     (`useHistory`) und Speichern (`lib/fileSave.ts`) herausgelöst, aus
     `CalendarView.vue` der Termin-Dialog (`EventDialog.vue`) und die
-    Speicherlogik (`requestOf` in `lib/eventForm.ts`). Rechenteile der
-    Startseite liegen in `lib/dayPlan.ts`, Pfadhelfer der Notizen in
-    `lib/noteFiles.ts`; alles mit Tests in `frontend/test/`.
+    Speicherlogik (`requestOf` in `lib/eventForm.ts`), aus
+    `NotesView.vue` der Markdown-Editor (`NoteEditor.vue`) und die
+    Breite der geteilten Ansicht (`useSplitRatio`). Rechenteile der
+    Startseite liegen in `lib/dayPlan.ts`, Pfadhelfer und Bildnamen der
+    Notizen in `lib/noteFiles.ts`; alles mit Tests in `frontend/test/`.
 -   **`quickAdd.ts` nur einmal:** Die Extension kompiliert
     `frontend/src/lib/quickAdd.ts` mit (`rootDir: ".."` in
     `extension/tsconfig.json`); Kopie und `cmp`-Prüfung sind weg.
 -   **Einstieg ohne Build:** `.goreleaser.yaml` baut bei einem Tag `v*`
-    Binaries für macOS und Linux (arm64/amd64) und hängt die Extension
+    Binaries für macOS, Linux und Windows (arm64/amd64) und hängt die Extension
     als `.vsix` an das Release (`.github/workflows/release.yml`).
 -   **README:** auf Englisch, für neue Nutzer gekürzt.
 -   **Windows und Linux:** Releases für alle drei Systeme, Autostart per
@@ -225,6 +228,12 @@ Technische Schulden und Aufräumarbeiten, keine neuen Funktionen.
 -   **Englisch/Deutsch:** Sprachwahl in den Einstellungen (sofort, je
     Browser). Die Schnelleingabe versteht zusätzlich `@today`,
     `@tomorrow`, englische Wochentage und `!high` usw.
+-   **Veröffentlichen:** Die Reviews `06`/`07` sind aus dem Repo
+    genommen. `AGENTS.md`, `03_AGENT_GUIDELINES.md` und
+    `04_AGENT_HANDOFF.md` bleiben öffentlich, weil sie die Arbeit mit
+    Coding-Agents am Projekt erleichtern. Die Screenshots in
+    `docs/screenshots/` zeigen nur Mock-Daten aus
+    `frontend/scripts/shot.mjs`.
 
 ## Offen
 
@@ -233,11 +242,7 @@ Technische Schulden und Aufräumarbeiten, keine neuen Funktionen.
 -   Unter Windows ist das Backend nur cross-kompiliert und in der CI
     getestet, noch nicht von Hand ausprobiert.
 
--   `CalendarView.vue`, `NotesView.vue` und `FileEditor.vue` haben noch
-    knapp 600 Zeilen. Der Rest hängt eng an FullCalendar bzw. am
-    Zeiger-Handling der Zeichenfläche; weiter teilen, wenn eine Änderung
-    dort ohnehin ansteht.
--   Vor dem Veröffentlichen entscheiden, ob `AGENTS.md`,
-    `03_AGENT_GUIDELINES.md`, `04_AGENT_HANDOFF.md` und die Reviews
-    `06`/`07` öffentlich bleiben. Die Screenshots in `docs/screenshots/`
-    zeigen nur Mock-Daten aus `frontend/scripts/shot.mjs`.
+-   `CalendarView.vue` und `FileEditor.vue` haben noch knapp 600 Zeilen,
+    `NotesView.vue` gut 500. Der Rest hängt eng an FullCalendar, am
+    Zeiger-Handling der Zeichenfläche bzw. am Dateibaum; weiter teilen,
+    wenn eine Änderung dort ohnehin ansteht.

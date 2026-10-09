@@ -29,7 +29,14 @@ SQLite
 
 VSCodium Extension
   → tatsächlicher Arbeitskontext
+
+Notizordner
+  → Markdown, PDFs und Bilder als normale Dateien
 ```
+
+**Stand:** MVP (Phasen 0–5) und die Phasen 6–7 sind gebaut, dazu Notizen,
+Einstellungen, Englisch/Deutsch und Releases für macOS, Linux und
+Windows. Was noch fehlt, steht in `05_ROADMAP.md` (Phase 8 und Pflege).
 
 ------------------------------------------------------------------------
 
@@ -43,7 +50,8 @@ Projects
 VSCodium Workspace
 ```
 
-Dazu kommt Time Tracking als Querschnittsthema über Tasks und Projects.
+Dazu kommt Time Tracking als Querschnittsthema über Tasks und Projects,
+und Notizen als Dateien neben der Datenbank.
 
 ------------------------------------------------------------------------
 
@@ -89,7 +97,7 @@ Das Backend MUSS in Go implementiert werden.
 
 Nicht Node.js.
 
-Empfohlene Struktur:
+Struktur:
 
 ``` text
 backend/
@@ -98,9 +106,12 @@ backend/
 ├── internal/service/
 ├── internal/repository/
 ├── internal/api/
-├── internal/websocket/
+├── internal/realtime/
+├── internal/notes/
 └── migrations/
 ```
+
+Die übrigen Pakete stehen in `02_ARCHITECTURE.md` (Go-Aufbau).
 
 ------------------------------------------------------------------------
 

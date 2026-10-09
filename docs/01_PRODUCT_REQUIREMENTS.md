@@ -290,7 +290,8 @@ Sie speichert Referenzen.
 -   `URL` muss eine `http`- oder `https`-URL sein.
 -   `label` ist optionaler Anzeigetext. Ressourcen werden nicht geändert,
     sondern gelöscht und neu angelegt (`GET`, `POST`, `DELETE`).
--   Notizen sind keine Ressourcen (komplexes Notizsystem ist Nicht-MVP).
+-   Notizen sind keine Ressourcen; sie liegen als Dateien im Notizordner
+    (siehe 11. Notizen).
 
 ------------------------------------------------------------------------
 
@@ -488,7 +489,48 @@ zählen.
 
 ------------------------------------------------------------------------
 
-# 11. MVP
+# 11. Notizen
+
+Notizen sind normale Dateien in einem Ordner (Standard `~/Kairo`, änderbar
+in den Einstellungen). Kairo speichert nichts davon in SQLite, damit
+dieselben Dateien parallel in VSCodium bearbeitet werden können.
+
+-   Der Dateibaum zeigt Ordner, Notizen (`.md`), PDFs und Bilder (png,
+    jpg, gif, webp). Versteckte Einträge (`.git`, `.obsidian`, `.trash`)
+    und SVG (kann Skript enthalten) fehlen.
+-   Anlegen, Umbenennen, Verschieben per Ziehen, Löschen. Gelöschtes
+    landet in `.trash/` im Notizordner. Eine neue Notiz beginnt mit dem
+    heutigen Datum im Namen.
+-   PDFs, Bilder und Markdown lassen sich aus dem Finder in den Baum
+    ziehen. Eingefügte Bilder landen in `assets/` neben der Notiz und
+    werden relativ verlinkt, damit VSCodium sie genauso zeigt.
+-   Vorlagen sind Notizen im Ordner `Vorlagen`; eine leere Notiz bietet
+    sie an. Platzhalter: `{{titel}}`, `{{ordner}}`, `{{datum}}`,
+    `{{wochentag}}`, `{{uhrzeit}}`.
+-   PDFs und Bilder lassen sich beschriften (Stift, Textmarker, Linie,
+    Pfeil, Rechteck, Ellipse, Text); gespeichert wird in die Datei.
+-   Geteilte Ansicht: PDF oder Bild links, Notiz rechts, Breite
+    verschiebbar. Beide bleiben geladen, ein Wechsel behält Scrollposition
+    und Ungespeichertes.
+-   Ändert sich eine Datei außerhalb von Kairo, lädt die WebUI sie still
+    neu, wenn nichts ungespeichert ist; sonst fragt sie beim Speichern
+    (Überschreiben oder Verwerfen).
+
+------------------------------------------------------------------------
+
+# 12. Einstellungen und Sprache
+
+-   Die Seite Einstellungen ändert Notizordner, Arbeitszeitfenster und
+    Zeitzone. Die Werte gelten nach einem Neustart, den die Seite per
+    Knopf auslöst. Der Notizordner muss existieren und beschreibbar sein.
+-   Port, Datenbankpfad und Token bleiben nur per Umgebung einstellbar.
+-   Die WebUI gibt es auf Deutsch und Englisch; die Wahl gilt sofort und
+    je Browser. Die Schnelleingabe versteht beide (`@morgen`/`@tomorrow`,
+    `!hoch`/`!high`).
+
+------------------------------------------------------------------------
+
+# 13. MVP
 
 Der MVP benötigt:
 
@@ -542,7 +584,8 @@ Zunächst nicht bauen:
 -   Accounts
 -   Teamfunktionen
 -   Mobile App
--   komplexes Notizsystem
+-   komplexes Notizsystem (Backlinks, Volltextsuche, Sync); gebaut ist
+    nur der Dateibaum aus 11. Notizen
 -   eigener Kalender-Sync zu jedem Anbieter
 -   KI-Agent
 -   Social Features

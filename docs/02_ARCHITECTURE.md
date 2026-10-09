@@ -29,6 +29,9 @@
 Beide Clients nutzen HTTP (REST) für Lesen und Ändern und WebSocket, um
 Änderungen in Echtzeit zu empfangen.
 
+Ausnahme sind Notizen: Markdown-Dateien, PDFs und Bilder liegen im
+Notizordner auf der Platte, nicht in SQLite (siehe Notizen).
+
 ------------------------------------------------------------------------
 
 # Backend: Go
@@ -57,7 +60,8 @@ Beispiel:
 ├── docs/          00_VISION.md … 05_ROADMAP.md
 ├── backend/       Go
 ├── frontend/      Vue 3 + TypeScript + Vite
-└── extension/     VSCodium-Extension
+├── extension/     VSCodium-Extension
+└── tools/menubar/ SwiftBar-Plugin
 ```
 
 Die Produktdaten (SQLite-Datei) liegen nicht im Repository, sondern im
@@ -66,7 +70,7 @@ konfigurierbar.
 
 ------------------------------------------------------------------------
 
-# Empfohlener Go-Aufbau
+# Go-Aufbau
 
 ``` text
 backend/
@@ -75,12 +79,16 @@ backend/
 │       └── main.go
 │
 ├── internal/
-│   ├── api/
+│   ├── api/         HTTP-Handler und DTOs
 │   ├── domain/
 │   ├── service/
-│   ├── repository/
-│   ├── websocket/
-│   └── config/
+│   ├── repository/  SQLite
+│   ├── realtime/    WebSocket-Hub
+│   ├── notes/       Notizordner (Dateien, kein SQLite)
+│   ├── ics/         ICS-Import
+│   ├── autostart/   kairo install/uninstall
+│   ├── config/
+│   └── web/         eingebettete WebUI (dist/)
 │
 ├── migrations/
 └── go.mod
@@ -199,6 +207,21 @@ POST   /api/resources
 DELETE /api/resources/:id
 
 GET    /api/today
+GET    /api/review
+
+GET    /api/notes                Dateibaum
+GET    /api/notes/:path
+POST   /api/notes/:path          neue Notiz ({"dir": true}: Ordner)
+PUT    /api/notes/:path          speichern
+PATCH  /api/notes/:path          umbenennen/verschieben
+DELETE /api/notes/:path          nach .trash/
+GET    /api/files/:path          PDF oder Bild
+POST   /api/files/:path          hochladen
+PUT    /api/files/:path          ersetzen (beschriftet)
+
+GET    /api/settings
+PUT    /api/settings
+POST   /api/restart
 ```
 
 ------------------------------------------------------------------------
@@ -456,6 +479,26 @@ POST /api/tasks/:id/complete
 (RFC 3339, ein `+` im Offset als `%2B` kodieren). `?running=true` liefert
 den laufenden Timer. Start, Pause und Abschluss antworten mit
 `{"task": …, "time_entry": … | null}`.
+
+------------------------------------------------------------------------
+
+# Notizen
+
+Paket `notes`. Die Dateien im Notizordner sind die Quelle; SQLite kennt
+sie nicht.
+
+-   Zugriff über `os.Root`: Pfade mit `..` und Symlinks, die aus dem
+    Notizordner hinauszeigen, lehnt schon das Betriebssystem ab.
+    Versteckte Pfade und andere Dateitypen als `.md`, PDF und Bilder
+    (png, jpg, gif, webp) sind ungültig.
+-   Version ist die mtime in Nanosekunden als String. `PUT` schickt die
+    beim Laden erhaltene Version mit; passt sie nicht mehr, antwortet das
+    Backend mit `409`, außer mit `force`. Geschrieben wird über eine
+    temporäre Datei und Rename.
+-   Löschen verschiebt nach `.trash/` im Notizordner, nicht in den
+    Papierkorb von Kairo.
+-   Notizen erzeugen keine WebSocket-Ereignisse. Die WebUI fragt alle
+    5 Sekunden und beim Fokus nach dem Baum und der offenen Notiz.
 
 ------------------------------------------------------------------------
 

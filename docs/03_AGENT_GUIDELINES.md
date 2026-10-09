@@ -129,6 +129,7 @@ Die WebUI soll:
 -   Habits
 -   Projects
 -   Zeitplanung
+-   Notizen
 
 bereitstellen.
 
@@ -137,6 +138,8 @@ bereitstellen.
 # Backend ist Source of Truth
 
 WebUI und Extension speichern Produktdaten nicht unabhängig voneinander.
+Notizen sind die Ausnahme: Sie bleiben Dateien im Notizordner, damit man
+sie auch in VSCodium bearbeiten kann.
 
 ``` text
 WebUI ─┐
