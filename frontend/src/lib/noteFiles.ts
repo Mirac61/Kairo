@@ -37,3 +37,11 @@ export function fillTemplate(text: string, notePath: string, now = new Date()) {
 export const withExt = (name: string, ext = '.md') => (name.toLowerCase().endsWith(ext.toLowerCase()) ? name : name + ext)
 export const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name)
 export const under = (p: string, prefix: string) => p === prefix || p.startsWith(`${prefix}/`)
+
+// Eingefügte Bilder heißen nach Notiz und Zeit („VL 1-2026-10-09-140500.png“), mehrere zugleich mit -1, -2 …
+export function assetName(notePath: string, mime: string, now: Date, i = 0, n = 1) {
+  const pad = (x: number) => String(x).padStart(2, '0')
+  const base = notePath.slice(notePath.lastIndexOf('/') + 1).replace(/\.md$/i, '')
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+  return `${base}-${stamp}${n > 1 ? `-${i + 1}` : ''}.${mime === 'image/jpeg' ? 'jpg' : mime.split('/')[1]}`
+}
