@@ -215,9 +215,9 @@ POST   /api/notes/:path          neue Notiz ({"dir": true}: Ordner)
 PUT    /api/notes/:path          speichern
 PATCH  /api/notes/:path          umbenennen/verschieben
 DELETE /api/notes/:path          nach .trash/
-GET    /api/files/:path          PDF oder Bild
+GET    /api/files/:path          PDF, Bild, Code oder Zeichnung (.excalidraw)
 POST   /api/files/:path          hochladen
-PUT    /api/files/:path          ersetzen (beschriftet)
+PUT    /api/files/:path          ersetzen (beschriftet bzw. gezeichnet, ?mtime=)
 
 GET    /api/settings
 PUT    /api/settings

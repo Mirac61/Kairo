@@ -541,8 +541,8 @@ Notizen sind normale Dateien in einem Ordner (Standard `~/Kairo`, änderbar
 in den Einstellungen). Kairo speichert nichts davon in SQLite, damit
 dieselben Dateien parallel in VSCodium bearbeitet werden können.
 
--   Der Dateibaum zeigt Ordner, Notizen (`.md`), PDFs und Bilder (png,
-    jpg, gif, webp). Versteckte Einträge (`.git`, `.obsidian`, `.trash`)
+-   Der Dateibaum zeigt Ordner, Notizen (`.md`), PDFs, Bilder (png,
+    jpg, gif, webp) und Zeichnungen (`.excalidraw`). Versteckte Einträge (`.git`, `.obsidian`, `.trash`)
     und SVG (kann Skript enthalten) fehlen.
 -   Anlegen, Umbenennen, Verschieben per Ziehen, Löschen. Gelöschtes
     landet in `.trash/` im Notizordner. Eine neue Notiz beginnt mit dem
@@ -560,9 +560,21 @@ dieselben Dateien parallel in VSCodium bearbeitet werden können.
     `{{wochentag}}`, `{{uhrzeit}}`.
 -   PDFs und Bilder lassen sich beschriften (Stift, Textmarker, Linie,
     Pfeil, Rechteck, Ellipse, Text); gespeichert wird in die Datei.
--   Geteilte Ansicht: links eine Notiz, ein PDF oder ein Bild, rechts
-    eine Notiz, Breite verschiebbar. Notizen aus dem Baum öffnen im
-    zuletzt angeklickten Platz. Beide bleiben geladen, ein Wechsel behält
+-   Zeichnungen: „Neue Zeichnung“ (im Notizen-Kopf und am Ordner) legt
+    eine `.excalidraw`-Datei an und öffnet sie links im Zeichen-Editor
+    (Excalidraw, JSON wie bei excalidraw.com; die Excalidraw-Extension
+    in VSCodium öffnet dieselbe Datei). Kairo speichert 1 s nach der
+    letzten Änderung von selbst, ⌘S geht auch. Die alte Fassung landet
+    in `.trash/`. Die Schriften liefert Kairo selbst aus, Zeichnen geht
+    offline (ohne die chinesische Schrift Xiaolai).
+-   Eingebettet wird wie ein Bild: `![](skizze.excalidraw)`. Die Vorschau
+    zeigt die Zeichnung als Bild (im Dunkeln invertiert), ein Klick
+    öffnet sie geteilt: links zeichnen, rechts die Notiz, die sich nach
+    jedem Speichern aktualisiert. Änderungen aus VSCodium kommen über
+    die 5-s-Abfrage an.
+-   Geteilte Ansicht: links eine Notiz, ein PDF, ein Bild oder eine
+    Zeichnung, rechts eine Notiz, Breite verschiebbar. Notizen aus dem
+    Baum öffnen im zuletzt angeklickten Platz. Beide bleiben geladen, ein Wechsel behält
     Scrollposition und Ungespeichertes.
 -   Der Editor nutzt die Rechtschreibprüfung des Browsers bzw. von macOS.
 -   Ändert sich eine Datei außerhalb von Kairo, lädt die WebUI sie still
