@@ -34,18 +34,28 @@ func TestHabitsCRUD(t *testing.T) {
 	}
 	var x habitDTO
 	_ = json.Unmarshal(rec.Body.Bytes(), &x)
-	if x.FrequencyType != "TIMES_PER_WEEK" || x.FrequencyConfig.Times != 3 || !x.Active || *x.PreferredTime != "18:00" {
+	if x.FrequencyType != "TIMES_PER_WEEK" || x.FrequencyConfig.Times != 3 || !x.Active || *x.PreferredTime != "18:00" || x.DurationMinutes != 30 {
 		t.Errorf("POST-Antwort = %+v", x)
 	}
 
+	var due []habitDueDTO
+	rec = call(h, "GET", "/api/habits/due?from=2026-01-05&to=2026-01-06", "")
+	_ = json.Unmarshal(rec.Body.Bytes(), &due)
+	if rec.Code != 200 || len(due) != 2 || due[1].Date != "2026-01-06" || *due[1].PreferredTime != "18:00" || due[0].DurationMinutes != 30 {
+		t.Errorf("GET due = %d %s", rec.Code, rec.Body)
+	}
+	if rec := call(h, "GET", "/api/habits/due?from=2026-01-05", ""); rec.Code != 400 {
+		t.Errorf("GET due ohne to = %d", rec.Code)
+	}
+
 	rec = call(h, "PATCH", "/api/habits/"+x.ID, `{"frequency_type":"SPECIFIC_WEEKDAYS",
-		"frequency_config":{"weekdays":["fr","mo"]},"preferred_time":"","active":false}`)
+		"frequency_config":{"weekdays":["fr","mo"]},"preferred_time":"","duration_minutes":45,"active":false}`)
 	if rec.Code != 200 {
 		t.Fatalf("PATCH = %d %s", rec.Code, rec.Body)
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &x)
 	if x.FrequencyType != "SPECIFIC_WEEKDAYS" || len(x.FrequencyConfig.Weekdays) != 2 || x.FrequencyConfig.Weekdays[0] != "MO" ||
-		x.PreferredTime != nil || x.Active || x.Name != "Sport" {
+		x.PreferredTime != nil || x.Active || x.Name != "Sport" || x.DurationMinutes != 45 {
 		t.Errorf("PATCH-Antwort = %+v", x)
 	}
 

@@ -250,6 +250,24 @@ func TestHabitDueOn(t *testing.T) {
 	if _, err := svc.DueOn(ctx, "heute"); !errors.Is(err, domain.ErrInvalid) {
 		t.Errorf("kaputtes Datum: %v", err)
 	}
+
+	// Mo 05.10. bis So 11.10.: daily 7×, Montags-Habit 1×, times an Mo und Di (danach Ziel erreicht).
+	week, err := svc.DueBetween(ctx, "2026-10-05", "2026-10-11")
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := map[string]int{}
+	for _, d := range week {
+		count[d.Habit.Name]++
+	}
+	if count["a-daily"] != 7 || count["b-weekdays"] != 1 || count["c-times"] != 2 || count["d-inactive"] != 0 || week[0].Occurrence.Date != "2026-10-05" {
+		t.Errorf("Woche: %v", count)
+	}
+	for _, r := range [][2]string{{"2026-10-11", "2026-10-05"}, {"2026-10-01", "2026-11-30"}} {
+		if _, err := svc.DueBetween(ctx, r[0], r[1]); !errors.Is(err, domain.ErrInvalid) {
+			t.Errorf("Bereich %v: %v", r, err)
+		}
+	}
 }
 
 func TestHabitCompletionsList(t *testing.T) {

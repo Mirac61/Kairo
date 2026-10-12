@@ -170,10 +170,28 @@ export interface Habit {
   description: string
   frequency_type: 'DAILY' | 'WEEKLY' | 'SPECIFIC_WEEKDAYS' | 'TIMES_PER_WEEK'
   frequency_config: FrequencyConfig
+  target_value: number | null
+  unit: string
+  preferred_time: string | null // HH:MM
+  duration_minutes: number
+  start_date: string
+  end_date: string | null
   active: boolean
 }
 
 export const listHabits = () => api<Habit[]>('/habits')
+
+export interface HabitDue {
+  habit_id: string
+  name: string
+  date: string
+  done: boolean
+  preferred_time: string | null
+  duration_minutes: number
+}
+
+// Fällige Habits je Tag, from/to inklusive, höchstens 42 Tage.
+export const habitsDue = (from: string, to: string) => api<HabitDue[]>(`/habits/due?from=${from}&to=${to}`)
 
 export const createHabit = (body: Partial<Habit>) =>
   api<Habit>('/habits', { method: 'POST', body: JSON.stringify(body) })

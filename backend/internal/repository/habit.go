@@ -18,7 +18,7 @@ type HabitRepository struct{ db *sql.DB }
 func NewHabitRepository(db *sql.DB) *HabitRepository { return &HabitRepository{db: db} }
 
 const habitColumns = `id, name, description, frequency_type, frequency_config, target_value, unit,
-	preferred_time, start_date, end_date, active, created_at`
+	preferred_time, start_date, end_date, active, created_at, duration_minutes`
 
 const completionColumns = `id, habit_id, date, value, completed_at, note`
 
@@ -39,7 +39,7 @@ func scanHabit(s scanner, extra ...any) (domain.Habit, error) {
 		active                int
 	)
 	if err := s.Scan(append([]any{&h.ID, &h.Name, &h.Description, &freq, &config, &target, &h.Unit,
-		&preferred, &h.StartDate, &end, &active, &created}, extra...)...); err != nil {
+		&preferred, &h.StartDate, &end, &active, &created, &h.DurationMinutes}, extra...)...); err != nil {
 		return domain.Habit{}, err
 	}
 	h.FrequencyType = domain.FrequencyType(freq)
@@ -92,9 +92,9 @@ func (r *HabitRepository) Create(ctx context.Context, h domain.Habit) error {
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO habits (`+habitColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO habits (`+habitColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		h.ID, h.Name, h.Description, string(h.FrequencyType), string(cfg), nullInt(h.TargetValue), h.Unit,
-		h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), formatTime(h.CreatedAt))
+		h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), formatTime(h.CreatedAt), h.DurationMinutes)
 	if err != nil {
 		return fmt.Errorf("repository: Habit anlegen: %w", err)
 	}
@@ -139,9 +139,9 @@ func (r *HabitRepository) Update(ctx context.Context, h domain.Habit) error {
 	}
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE habits SET name = ?, description = ?, frequency_type = ?, frequency_config = ?, target_value = ?,
-			unit = ?, preferred_time = ?, start_date = ?, end_date = ?, active = ? WHERE id = ? AND deleted_at IS NULL`,
+			unit = ?, preferred_time = ?, start_date = ?, end_date = ?, active = ?, duration_minutes = ? WHERE id = ? AND deleted_at IS NULL`,
 		h.Name, h.Description, string(h.FrequencyType), string(cfg), nullInt(h.TargetValue),
-		h.Unit, h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), h.ID)
+		h.Unit, h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), h.DurationMinutes, h.ID)
 	if err != nil {
 		return fmt.Errorf("repository: Habit ändern: %w", err)
 	}
