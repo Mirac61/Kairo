@@ -39,13 +39,16 @@ function restoreGitkeep(): Plugin {
 
 // Excalidraw-Schriften liegen neben der WebUI (window.EXCALIDRAW_ASSET_PATH = '/excalidraw/'), damit Kairo offline zeichnet.
 // ponytail: ohne Xiaolai (12 MB, nur chinesische Schrift); fehlt sie, nimmt Excalidraw das CDN bzw. eine Systemschrift.
+// Liberation fehlt auch: Excalidraw braucht sie nur beim Export auf dem Server.
+// Die Lizenzhinweise (THIRD_PARTY_NOTICES.md) kommen als /licenses.txt mit, die Einstellungen verlinken sie.
 function excalidrawFonts(): Plugin {
   const src = fileURLToPath(new URL('./node_modules/@excalidraw/excalidraw/dist/prod/fonts', import.meta.url))
   return {
     name: 'kairo-excalidraw-fonts',
     apply: 'build',
     closeBundle() {
-      cpSync(src, `${outDir}/excalidraw/fonts`, { recursive: true, filter: (f) => !f.includes('Xiaolai') })
+      cpSync(src, `${outDir}/excalidraw/fonts`, { recursive: true, filter: (f) => !/Xiaolai|Liberation/.test(f) })
+      cpSync(fileURLToPath(new URL('../THIRD_PARTY_NOTICES.md', import.meta.url)), `${outDir}/licenses.txt`)
     },
   }
 }
