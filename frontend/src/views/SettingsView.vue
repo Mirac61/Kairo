@@ -232,6 +232,10 @@ onMounted(() => {
                 <div class="st-text"><div class="st-t">{{ $t('Version') }}</div></div>
                 <code class="st-val">{{ version || '–' }}</code>
               </div>
+              <div class="st-row">
+                <div class="st-text"><div class="st-t">{{ $t('Lizenzen') }}</div><div class="st-h">{{ $t('Kairo steht unter MIT. Hinweise zu Excalidraw, React und den Schriften.') }}</div></div>
+                <a class="btn btn-secondary st-link" href="/licenses.txt" target="_blank" rel="noopener">{{ $t('Anzeigen') }}</a>
+              </div>
               <div class="st-row st-col">
                 <div class="st-text"><div class="st-t">{{ $t('Konfigurationsdatei') }}</div><div class="st-h">{{ $t('Hier speichert Kairo Notizordner, Arbeitszeit und Zeitzone. Umgebungsvariablen haben Vorrang.') }}</div></div>
                 <code class="st-val">{{ data?.path ?? '–' }}</code>
@@ -268,6 +272,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.st-link { text-decoration: none; }
 .st { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 100%; }
 .st-pane { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--br-subtle); background: var(--bg-1); }
 .st-head { display: flex; align-items: center; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--br-subtle); }
