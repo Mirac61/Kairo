@@ -21,9 +21,11 @@
   --tx-disabled:#6b6b6b;
   /* Farben nach dem Entwurf: Blau für Hauptaktionen und erfasste Zeit, Rot für Überfälliges, Grün für „läuft“, Heute neutral.
      Alles andere ist Grau; Farbe sonst nur als Projektpunkt (--p-*). */
-  --a-blue:oklch(0.6 0.17 258);      /* Hauptaktion (Fläche) */
-  --a-blue-hi:oklch(0.68 0.16 255);  /* erfasste Zeit, Auswahl, Jetzt-Linie */
-  --a-blue-tx:oklch(0.8 0.11 255);   /* Text-Links */
+  /* --a-hue ist die Akzentfarbe aus den Einstellungen (lib/prefs.ts), Standard Blau. */
+  --a-hue:255;
+  --a-blue:oklch(0.6 0.17 calc(var(--a-hue) + 3));      /* Hauptaktion (Fläche) */
+  --a-blue-hi:oklch(0.68 0.16 var(--a-hue));  /* erfasste Zeit, Auswahl, Jetzt-Linie */
+  --a-blue-tx:oklch(0.8 0.11 var(--a-hue));   /* Text-Links */
   --a-now:var(--a-blue-hi);
   --a-focus:var(--a-blue-hi);
   --a-run:oklch(0.75 0.14 150);
@@ -63,9 +65,9 @@
   --tx-secondary:#525252;
   --tx-muted:#6b6b6b;
   --tx-disabled:#8f8f8f;
-  --a-blue:oklch(0.52 0.19 258);
-  --a-blue-hi:oklch(0.55 0.18 255);
-  --a-blue-tx:oklch(0.5 0.16 255);
+  --a-blue:oklch(0.52 0.19 calc(var(--a-hue) + 3));
+  --a-blue-hi:oklch(0.55 0.18 var(--a-hue));
+  --a-blue-tx:oklch(0.5 0.16 var(--a-hue));
   --a-run:oklch(0.55 0.14 150);
   --a-red:oklch(0.55 0.2 25);
   --p-violet:oklch(0.58 0.13 300);
@@ -479,70 +481,20 @@ select.input{
 .count{font:400 13px/1 var(--font-mono);font-variant-numeric:tabular-nums;color:var(--tx-muted)}
 
 /* ---------- Gewohnheiten ---------- */
-/* Zweistufig: oben die Handlung (heute abhaken), unten der Beweis (28 Tage in vier Wochenblöcken). */
-.hab-today{margin-bottom:28px}
-.hab-day{margin:0 0 12px;font:600 13px/1.3 var(--font-ui);color:var(--tx-primary)}
-.hab-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
-.hab-chip{
-  display:flex;align-items:center;gap:12px;text-align:left;
-  min-height:60px;padding:0 16px;
-  border:1px solid var(--br-default);border-radius:var(--r-m);
-  background:var(--bg-1);color:var(--tx-primary);
-  transition:background var(--dur) ease-out,border-color var(--dur) ease-out;
-}
-.hab-chip:hover:not(:disabled){border-color:var(--br-strong);background:var(--bg-2)}
-.hab-chip[aria-checked="true"]{background:var(--bg-2)}
-.hab-chip:disabled{cursor:default;background:transparent;border-color:var(--br-subtle)}
-.hab-chip:disabled .hc-name{color:var(--tx-muted)}
-.hab-chip:disabled .cb{opacity:.4;border-style:dashed}
-.hab-chip .cb{pointer-events:none;width:20px;height:20px;border-radius:6px}
-.hc-text{display:grid;gap:3px;min-width:0}
-.hc-name{font:500 14px/1.2 var(--font-ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hc-sub{font:400 12px/1.2 var(--font-ui);color:var(--tx-muted)}
-
-.hab-card{padding:0 20px}
-.hab-row{
-  --hab-cols:200px minmax(0,1fr) 64px 88px;
-  display:grid;grid-template-columns:var(--hab-cols);gap:0 20px;align-items:center;
-}
-.hab-head{padding:16px 0 12px;border-bottom:1px solid var(--br-subtle)}
-.hab-item{padding:14px 0;border-bottom:1px solid var(--br-subtle)}
-.hab-item:last-of-type{border-bottom:0}
+/* Gewohnheiten (Graph und Woche liegen scoped in HabitsView.vue) */
 .hab-r{text-align:right;justify-items:end}
-.hab-id{display:grid;gap:3px;min-width:0}
-.hab-id>*{display:block}
-.hab-name{font:500 14px/1.3 var(--font-ui);color:var(--tx-primary)}
 .hab-sched{font:400 12px/1.4 var(--font-ui);color:var(--tx-muted)}
 .hab-num{display:grid}
 .hab-num .n{font:500 22px/1 var(--font-mono);font-variant-numeric:tabular-nums;color:var(--tx-primary);white-space:nowrap}
 .hab-num .n.cold{color:var(--tx-disabled)}
 .hab-wkn{display:grid;justify-items:stretch;gap:6px;width:100%;font:400 13px/1 var(--font-mono);color:var(--tx-secondary)}
-/* 28-Tage-Raster: vier Blöcke mit sieben Feldern */
-.hab-weeks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
-.hab-wk{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
-.hab-track i{
-  aspect-ratio:1;max-height:20px;justify-self:center;width:100%;max-width:20px;border-radius:4px;box-sizing:border-box;
-  background:transparent;border:1.5px solid var(--br-strong);
-}
-.hab-track i.done{background:var(--hc,var(--tx-secondary));border-color:var(--hc,var(--tx-secondary))}
-.hab-track i.off{background:transparent;border:1.5px dashed var(--br-default)}
-.hab-track i.today{border-color:var(--tx-primary)}
-.hab-track i.today.done{background:var(--hc,var(--tx-primary));border-color:var(--tx-primary)}
-.hab-dot{display:inline-block;width:7px;height:7px;margin-right:9px;border-radius:50%;background:var(--hc);vertical-align:1px}
 .hab-wkn .pbar-fill{background:var(--tx-primary)}
-.hab-track i.pre{visibility:hidden}
 .hab-foot{display:flex;align-items:center;gap:18px;padding:14px 0 16px;border-top:1px solid var(--br-subtle);font:400 12px/1 var(--font-ui);color:var(--tx-muted)}
 .hab-legend{display:inline-flex;align-items:center;gap:7px}
 .hab-legend i{width:12px;height:12px;border-radius:3px;box-sizing:border-box;border:1.5px solid var(--br-strong)}
 .hab-legend i.done{background:var(--tx-secondary);border-color:var(--tx-secondary)}
 .hab-legend i.off{border:1.5px dashed var(--br-default)}
-.hab-legend i.today{border-color:var(--tx-primary)}
 .hab-hint{margin-left:auto}
-@media (max-width:820px){
-  .hab-row{--hab-cols:minmax(0,1fr) 56px 72px}
-  .hab-head{display:none}
-  .hab-item .hab-weeks{grid-column:1/-1;grid-row:2;margin-top:10px}
-}
 
 /* ---------- Projekte ---------- */
 .proj-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
@@ -613,3 +565,7 @@ select.input{
 /* Dialog: Checkbox-Zeilen als normaler Text statt Versalien-Label */
 .dlg-body label.lbl{display:flex;align-items:center;gap:8px;font:400 13px/1.3 var(--font-ui);letter-spacing:0;text-transform:none;color:var(--tx-primary)}
 .dlg-body input[type="checkbox"]{accent-color:var(--tx-secondary)}
+
+/* Einstellung „Bewegung reduzieren“ */
+:root[data-motion="reduce"]{--dur:0ms}
+:root[data-motion="reduce"] *{animation-duration:0ms!important;transition-duration:0ms!important}

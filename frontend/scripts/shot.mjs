@@ -3,7 +3,7 @@
 //   pnpm shot --view day --theme light --size 1280x800
 //   pnpm shot --route tasks|habits|projects|review|trash|notes|settings
 //   pnpm shot --view work --time 10:30       (Uhrzeit festsetzen: Jetzt-Linie und Scrollposition des Kalenders)
-// Kalender-Ansichten: week (Mo–So), work (Mo–Fr), day, month. Ergebnis: frontend/.shots/<view|route>-<theme>.png
+// Kalender-Ansichten: week (7 Tage), work (5 Tage), day, month; heute jeweils in der Mitte. Ergebnis: frontend/.shots/<view|route>-<theme>.png
 // Das Backend wird nur für nicht gemockte Pfade gebraucht (z. B. /api/health); die Kalenderdaten stammen aus diesem Skript.
 import { mkdirSync } from 'node:fs'
 import { parseArgs } from 'node:util'
@@ -20,9 +20,10 @@ const { values: o } = parseArgs({
     click: { type: 'string' }, // CSS-Selektor, der vor dem Screenshot angeklickt wird (z. B. '.task-row .row-title')
     time: { type: 'string' }, // HH:MM: setzt die Uhrzeit fest (z. B. 10:30), damit Bilder zu jeder Tageszeit gleich aussehen
     out: { type: 'string' },
+    store: { type: 'string' }, // weitere localStorage-Werte, z. B. kairo-accent=violet,kairo-week-start=0
   },
 })
-const VIEWS = { week: 'timeGridWeek', work: 'work', day: 'timeGridDay', month: 'dayGridMonth' }
+const VIEWS = { week: 'timeGrid7', work: 'timeGrid5', day: 'timeGridDay', month: 'dayGridMonth' }
 if (!VIEWS[o.view]) throw new Error(`--view: ${Object.keys(VIEWS).join(' | ')}`)
 const [width, height] = o.size.split('x').map(Number)
 const base = process.env.KAIRO_URL ?? 'http://127.0.0.1:5173'
@@ -76,8 +77,26 @@ const times = [ // der letzte Eintrag läuft seit 23 Minuten
 // --- Mock-Daten für Gewohnheiten, Rückblick und Papierkorb
 const iso = (d, hm = '12:00') => at(d, hm)
 const habits = [['h1', 'lernen', 'DAILY', {}], ['h2', 'Lesen · 20 min', 'DAILY', {}], ['h3', 'sport', 'SPECIFIC_WEEKDAYS', { weekdays: ['MO', 'TH'] }], ['h4', 'Wochenrückblick', 'WEEKLY', { weekday: 'SU' }]]
-  .map(([id, name, frequency_type, frequency_config]) => ({ id, name, description: '', frequency_type, frequency_config, active: true, start_date: day(-40) }))
-const completions = (id) => Array.from({ length: 28 }, (_, i) => i).filter((i) => (Number(id.slice(1)) * 7 + i) % 5 !== 0).map((i) => ({ date: day(-i) }))
+  .map(([id, name, frequency_type, frequency_config]) => ({ id, name, description: '', frequency_type, frequency_config, active: true, start_date: day(-40), end_date: null, target_value: null, unit: '', duration_minutes: 30, preferred_time: null }))
+Object.assign(habits[0], { preferred_time: '19:00', duration_minutes: 60, start_date: day(-400) })
+Object.assign(habits[1], { start_date: day(-200) })
+Object.assign(habits[2], { preferred_time: '17:00', duration_minutes: 45, target_value: 5, unit: 'km' })
+const WD = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
+// Fällige Gewohnheiten je Tag für den Kalender (vereinfachte Regel ohne X-mal pro Woche).
+const habitsDue = (q) => {
+  const out = []
+  for (let d = new Date(`${q.get('from')}T12:00:00`); d <= new Date(`${q.get('to')}T12:00:00`); d.setDate(d.getDate() + 1)) {
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    for (const h of habits) {
+      const c = h.frequency_config
+      if (h.frequency_type === 'SPECIFIC_WEEKDAYS' ? c.weekdays.includes(WD[d.getDay()]) : h.frequency_type === 'WEEKLY' ? c.weekday === WD[d.getDay()] : true) {
+        out.push({ habit_id: h.id, name: h.name, date, done: date < day(todayIdx) && date.charCodeAt(9) % 3 !== 0, preferred_time: h.preferred_time, duration_minutes: h.duration_minutes })
+      }
+    }
+  }
+  return out
+}
+const completions = (id) => Array.from({ length: 370 }, (_, i) => i).filter((i) => (Number(id.slice(1)) * 7 + i) % 5 !== 0).map((i) => ({ date: day(-i) }))
 const review = (q) => ({
   from: q.get('from'), to: q.get('to'), timezone: 'Europe/Berlin', tracked_minutes: 440, completed_tasks: 4,
   days: [[225, 165], [210, 90], [210, 185], [225, 0], [270, 0], [150, 0], [0, 0]].map(([c, t], i) => ({ date: day(i), calendar_minutes: c, tracked_minutes: t, completed_tasks: i < 3 ? 1 : 0 })),
@@ -127,6 +146,12 @@ const mock = {
   '/api/time-entries': (q) => (q.get('from') ? inWindow(['started_at'], times, q.get('from'), q.get('to')) : times),
   '/api/resources': () => [],
   '/api/habits': () => habits,
+  '/api/habits/due': habitsDue,
+  '/api/github/issues': () => [
+    { title: 'Kalender: Habits per Drag verschieben', url: 'https://github.com/demo/kairo/issues/41', repo: 'demo/kairo', number: 41, labels: ['enhancement'], updated_at: iso(0), task_id: null },
+    { title: 'Absturz beim ICS-Import ohne DTEND', url: 'https://github.com/demo/kairo/issues/38', repo: 'demo/kairo', number: 38, labels: ['bug'], updated_at: iso(-1), task_id: 't4' },
+    { title: 'MQTT-Reconnect nach Standby', url: 'https://github.com/demo/smarthome/issues/7', repo: 'demo/smarthome', number: 7, labels: [], updated_at: iso(-3), task_id: null },
+  ],
   '/api/review': review,
   '/api/trash': trash,
   '/api/notes': () => noteTree,
@@ -145,6 +170,7 @@ const mock = {
   },
 }
 const completionsOf = /^\/api\/habits\/(h\d)\/completions$/
+const projectIssuesOf = /^\/api\/projects\/(p\d)\/github\/issues$/
 
 // --- Browser
 let browser
@@ -155,20 +181,22 @@ try {
 }
 const page = await (await browser.newContext({ viewport: { width, height }, colorScheme: o.theme, locale: 'de-DE' })).newPage()
 if (o.time) await page.clock.setFixedTime(new Date(`${day(todayIdx)}T${o.time}:00`))
-await page.addInitScript(([view, theme, aside, lang]) => {
+await page.addInitScript(([view, theme, aside, lang, extra]) => {
   localStorage.setItem('kairo-cal-view', view)
-  localStorage.setItem('kairo-cal-weekend', '1')
+  localStorage.setItem('kairo-cal-days', view === 'timeGrid5' ? '5' : '7')
   localStorage.setItem('kairo-cal-unplanned', aside === 'open' ? '1' : '0')
   localStorage.setItem('kairo-theme', theme)
   localStorage.setItem('kairo-lang', lang)
   localStorage.setItem('kairo-notes-open', '["uni"]')
   localStorage.setItem('kairo-notes-file', 'uni/Software Engineering.md')
-}, [VIEWS[o.view], o.theme, o.aside, o.lang])
+  for (const kv of extra ? extra.split(',') : []) localStorage.setItem(...kv.split('='))
+}, [VIEWS[o.view], o.theme, o.aside, o.lang, o.store])
 await page.route('**/api/**', (route) => {
   const u = new URL(route.request().url())
   const c = completionsOf.exec(u.pathname)
   const n = noteOf.exec(u.pathname)
-  const f = c ? () => completions(c[1]) : n ? () => ({ path: decodeURIComponent(n[1]), content: noteText, mtime: '1' }) : mock[u.pathname]
+  const gi = projectIssuesOf.exec(u.pathname)
+  const f = gi ? () => (gi[1] === 'p3' ? { repo: 'demo/kairo', issues: mock['/api/github/issues']().filter((i) => i.repo === 'demo/kairo') } : { repo: '', issues: [] }) : c ? () => completions(c[1]) : n ? () => ({ path: decodeURIComponent(n[1]), content: noteText, mtime: '1' }) : mock[u.pathname]
   return f && route.request().method() === 'GET' ? route.fulfill({ json: f(u.searchParams) }) : route.continue()
 })
 try {
@@ -177,7 +205,7 @@ try {
   await browser.close()
   throw new Error(`${base} nicht erreichbar: erst „pnpm dev“ starten (oder KAIRO_URL setzen)`)
 }
-await page.waitForSelector({ calendar: '.fc-view', notes: '.notes' }[o.route] ?? '.view-inner')
+await page.waitForSelector({ calendar: '.fc-view', notes: '.notes', settings: '.st' }[o.route] ?? '.view-inner')
 await page.waitForLoadState('networkidle')
 if (o.click) await page.locator(o.click).first().click()
 await page.waitForTimeout(400)

@@ -15,11 +15,11 @@ import QuickHints from '@/components/QuickHints.vue'
 import { habitColor, projectColor } from '@/lib/projectColor'
 import TaskActions from '@/components/TaskActions.vue'
 import { locale, t } from '@/lib/i18n'
+import { prefs } from '@/lib/prefs'
 import DeleteButton from '@/components/DeleteButton.vue'
 
-// Planungsfenster der Tagesleiste und des Tagesplans.
-const START_H = 7
-const END_H = 22
+// Planungsfenster der Tagesleiste und des Tagesplans (Einstellungen, „Sichtbarer Tagesbereich“).
+const { dayStart: START_H, dayEnd: END_H } = prefs
 const HOUR = 44
 
 const { offer, setDone } = useUndo()

@@ -13,6 +13,7 @@ import { useLiveEvents } from '@/composables/useLiveEvents'
 import { counts, loadSidebar, pins } from '@/composables/useSidebar'
 import { hm } from '@/lib/dates'
 import { store } from '@/lib/storage'
+import { dark, prefs } from '@/lib/prefs'
 import { projectColor } from '@/lib/projectColor'
 
 const { online, version } = useBackendStatus()
@@ -49,14 +50,8 @@ function toggleSidebar() {
   void nextTick(() => window.dispatchEvent(new Event('resize')))
 }
 
-// Theme: gespeicherte Wahl, sonst Systemeinstellung (siehe main.ts).
-const dark = ref(document.documentElement.dataset.theme !== 'light')
-function toggleTheme() {
-  dark.value = !dark.value
-  const t = dark.value ? 'dark' : 'light'
-  document.documentElement.dataset.theme = t
-  store.set('kairo-theme', t)
-}
+// Theme: der Knopf wählt das Gegenteil des aktuellen; „System“ gibt es in den Einstellungen.
+const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
 </script>
 
 <template>
@@ -82,6 +77,8 @@ function toggleTheme() {
     <symbol id="i-md" viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M6 15V9l2.5 3L11 9v6M16.5 9v5.5M14.3 12.8l2.2 2.2 2.2-2.2"/></symbol>
     <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M13.5 2.5H7A1.5 1.5 0 0 0 5.5 4v16A1.5 1.5 0 0 0 7 21.5h10a1.5 1.5 0 0 0 1.5-1.5V7.5z"/><path d="M13.5 2.5V7.5h5"/><rect x="3" y="12.5" width="12" height="6" rx="1.2" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.5" r="1.6"/><path d="m4 17.5 5-5 4 4 2.5-2.5 4.5 4.5"/></symbol>
+    <symbol id="i-folder-up" viewBox="0 0 24 24"><path d="M3.5 7a2 2 0 0 1 2-2H9l2 2.5h7.5a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2zM12 16.5v-6M9.5 13 12 10.5 14.5 13"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="M8.5 7.5 4 12l4.5 4.5M15.5 7.5 20 12l-4.5 4.5"/></symbol>
     <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4.5M7.5 9 12 4.5 16.5 9M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></symbol>
     <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M6 3.5v15l4.2-4 2.8 6.3 2.4-1-2.8-6.2h5.9z"/></symbol>
     <symbol id="i-marker" viewBox="0 0 24 24"><path d="m14.5 3.5 6 6-8.5 8.5H9l-1.5-1.5v-3z"/><path d="m11.5 7.5 5 5M7.5 16.5 4 20h5"/></symbol>
@@ -93,6 +90,7 @@ function toggleTheme() {
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4.5 9.5 9 5"/><path d="M4.5 9.5H15a4.5 4.5 0 0 1 0 9h-3"/></symbol>
     <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 4.5-4.5L15 5"/><path d="M19.5 9.5H9a4.5 4.5 0 0 0 0 9h3"/></symbol>
     <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5 11 13"/><path d="M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></symbol>
     <symbol id="i-split" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M12 4.5v15"/></symbol>
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9.5 6 15.5 12l-6 6"/></symbol>
