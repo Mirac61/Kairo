@@ -11,7 +11,7 @@ import enGbLocale from '@fullcalendar/core/locales/en-gb'
 import type { CalendarOptions, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
 import Message from 'primevue/message'
 import {
-  createEvent, createTask, deleteEvent, errorMessage, getOccurrences, importIcs, isOpen, listProjects, listTasks, listTimeEntries, restoreEvent, skipOccurrence, taskAction, updateEvent, updateTask,
+  completeHabit, createEvent, createTask, deleteEvent, errorMessage, getOccurrences, habitsDue, importIcs, isOpen, listProjects, listTasks, listTimeEntries, restoreEvent, skipOccurrence, taskAction, uncompleteHabit, updateEvent, updateHabit, updateTask,
   type CalendarEvent, type Project, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
@@ -20,8 +20,9 @@ import { useUndo } from '@/composables/useUndo'
 import EventDialog from '@/components/EventDialog.vue'
 import { addDays, hhmm, hm, ymd } from '@/lib/dates'
 import { editForm, isAllDay, newForm, requestOf, type Form } from '@/lib/eventForm'
-import { projectColor } from '@/lib/projectColor'
+import { habitColor, projectColor } from '@/lib/projectColor'
 import { store } from '@/lib/storage'
+import { prefs } from '@/lib/prefs'
 import { lang, locale, t } from '@/lib/i18n'
 
 // Tasks ohne Dauer erscheinen mit dieser Länge im Raster.
@@ -71,7 +72,11 @@ let nextId = '' // Eintrag mit „Als Nächstes“-Ring im Raster
 // Termine und Tasks als Kalendereinträge. Zeiten rechnen in der Zeitzone des Browsers.
 async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
   // Projekte mitladen, damit die Projektfarben für die Einträge feststehen.
-  const [occ, tasks, ps, times] = await Promise.all([getOccurrences(from, to), listTasks(), listProjects(), listTimeEntries(from, to)])
+  // Gewohnheiten nur in Woche und Tag: im Monat verdrängen tägliche Habits sonst die Termine in „+ weitere“.
+  const withHabits = to.getTime() - from.getTime() <= 8 * 86_400_000
+  const [occ, tasks, ps, times, habits] = await Promise.all([
+    getOccurrences(from, to), listTasks(), listProjects(), listTimeEntries(from, to), withHabits ? habitsDue(ymd(from), ymd(addDays(to, -1))) : [],
+  ])
   projects.value = ps
   const names = new Map(ps.map((p) => [p.id, p.name]))
   const proj = (id: string | null) => names.get(id ?? '') ?? ''
@@ -124,10 +129,22 @@ async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
       extendedProps: { kind: 'task', id: t.id, est: t.estimated_minutes, proj: proj(t.project_id), color: t.project_id ? projectColor(t.project_id) : undefined },
     })
   }
-  weekendEntries.value = entries.filter((e) => [0, 6].includes(new Date(String(e.start).length === 10 ? `${e.start}T12:00:00` : String(e.start)).getDay())).length
+  for (const h of habits) {
+    const start = h.preferred_time ? new Date(`${h.date}T${h.preferred_time}:00`) : null
+    entries.push({
+      id: `h:${h.habit_id}:${h.date}`,
+      title: h.name,
+      start: start ?? h.date,
+      end: start ? new Date(start.getTime() + h.duration_minutes * 60_000) : undefined,
+      allDay: !start,
+      classNames: ['kt-task', 'kt-habit', ...(start ? [] : ['kt-allday']), ...(h.done ? ['kt-done'] : [])],
+      extendedProps: { kind: 'habit', id: h.habit_id, day: h.date, done: h.done, dur: h.duration_minutes, time: h.preferred_time, color: habitColor(h.habit_id) },
+    })
+  }
   // Erfasste Zeit als schmale Spur links im Tag (Hintergrund-Eintrag); läuft sie noch, reicht sie bis jetzt.
   for (const te of times) {
     const [s, en] = [new Date(te.started_at), te.ended_at ? new Date(te.ended_at) : new Date()]
+    if (te.ended_at && en.getTime() - s.getTime() < 60_000) continue // versehentliches Start/Stopp: im Raster nur ein Strich ohne Inhalt
     bump(ymd(s), 1, (en.getTime() - s.getTime()) / 60_000)
     const pid = te.project_id ?? tasks.find((t) => t.id === te.task_id)?.project_id
     const min = Math.round((en.getTime() - s.getTime()) / 60_000)
@@ -169,7 +186,18 @@ function moved(info: EventDropArg | EventResizeDoneArg, resized: boolean) {
   const old = info.oldEvent
   if (!start || !old.start) return info.revert()
   const label = t(resized ? '„{title}“ angepasst' : '„{title}“ verschoben', { title: event.title })
-  if (kind === 'task') {
+  if (kind === 'habit') {
+    // Die Uhrzeit gilt für alle Tage; ein anderer Tag ändert den Rhythmus nicht.
+    if (ymd(start) !== ymd(old.start)) return info.revert()
+    const p = event.extendedProps as { dur: number; time: string | null }
+    const before = { preferred_time: p.time ?? '', duration_minutes: p.dur }
+    void guarded(async () => {
+      const body: { preferred_time: string; duration_minutes?: number } = { preferred_time: event.allDay ? '' : hhmm(start) }
+      if (resized && event.end) body.duration_minutes = Math.round((event.end.getTime() - start.getTime()) / 60_000)
+      await updateHabit(id, body)
+      offer(label, () => guarded(() => updateHabit(id, before)))
+    }, info.revert)
+  } else if (kind === 'task') {
     const before: Record<string, unknown> = { planned_date: ymd(old.start), planned_start_at: old.allDay ? '' : old.start.toISOString() }
     if (resized) before.estimated_minutes = est
     void guarded(async () => {
@@ -204,10 +232,11 @@ function save() {
   void guarded(() => ('task' in r ? createTask(r.task) : f.id ? updateEvent(f.id, r.event) : createEvent(r.event)))
 }
 
-// Klick auf einen Termin öffnet den Dialog; ein Klick auf eine Task öffnet sie in der Tasks-Liste.
+// Klick auf einen Termin öffnet den Dialog, auf eine Task die Tasks-Liste; eine Gewohnheit wird abgehakt.
 function clicked(info: EventClickArg) {
-  const p = info.event.extendedProps as { kind: string; id: string; ev: CalendarEvent }
-  if (p.kind === 'task') void router.push({ path: '/tasks', query: { task: p.id } })
+  const p = info.event.extendedProps as { kind: string; id: string; ev: CalendarEvent; day: string; done: boolean }
+  if (p.kind === 'habit') void guarded(() => (p.done ? uncompleteHabit(p.id, p.day) : completeHabit(p.id, p.day)))
+  else if (p.kind === 'task') void router.push({ path: '/tasks', query: { task: p.id } })
   else openEdit(p.ev, ymd(info.event.start!))
 }
 
@@ -231,23 +260,31 @@ function remove(onlyThis: boolean) {
 // Eigene Toolbar steuert FullCalendar über die API.
 const title = ref('')
 const week = ref(0) // Kalenderwoche, nur in der Tagesansicht
-// „Woche“ zeigt Mo–Fr (timeGridWorkWeek); der Schalter „Sa/So“ wechselt zur vollen Woche (timeGridWeek).
-const WORK = 'timeGridWorkWeek'
-const views = [['dayGridMonth', t('Monat'), 'm'], [WORK, t('Woche'), 'w'], ['timeGridDay', t('Tag'), 'd']] as const
-const fullWeek = ref(store.get('kairo-cal-weekend') === '1')
-const weekView = () => (fullWeek.value ? 'timeGridWeek' : WORK)
+// „Woche“ zeigt 5 oder 7 Tage am Stück (timeGrid5/timeGrid7) mit heute in der Mitte, nicht Mo–So.
+const SPAN = 'timeGridSpan' // Platzhalter in der Ansichtsauswahl, steht für timeGrid5 bzw. timeGrid7
+const views = [['dayGridMonth', t('Monat'), 'm'], [SPAN, t('Woche'), 'w'], ['timeGridDay', t('Tag'), 'd']] as const
+const spanView = () => `timeGrid${prefs.calDays}`
+// Erster sichtbarer Tag, damit heute in der Mitte steht (2 bzw. 3 Tage davor).
+const spanStart = () => addDays(new Date(), -Math.floor(prefs.calDays / 2))
 const storedView = store.get('kairo-cal-view')
-const view = ref<string>(storedView === 'dayGridMonth' || storedView === 'timeGridDay' ? storedView : weekView())
-const isWeek = computed(() => view.value === WORK || view.value === 'timeGridWeek')
+const view = ref<string>(storedView === 'dayGridMonth' || storedView === 'timeGridDay' ? storedView : spanView())
+const isWeek = computed(() => view.value === 'timeGrid5' || view.value === 'timeGrid7')
 const isDay = computed(() => view.value === 'timeGridDay')
-const goView = (v: string) => cal.value?.getApi().changeView(v === WORK ? weekView() : v)
-function toggleWeekend() {
-  fullWeek.value = !fullWeek.value
-  store.set('kairo-cal-weekend', fullWeek.value ? '1' : '0')
-  goView(WORK)
+function goView(v: string) {
+  const api = cal.value?.getApi()
+  if (v === SPAN) api?.changeView(spanView(), spanStart())
+  else api?.changeView(v)
 }
-// Einträge auf Sa/So, die in der Woche Mo–Fr verborgen sind: der Schalter zeigt ihre Zahl.
-const weekendEntries = ref(0)
+// „Heute“: in der Woche wieder mittig, sonst wie FullCalendar.
+function goToday() {
+  const api = cal.value?.getApi()
+  if (isWeek.value) api?.gotoDate(spanStart())
+  else api?.today()
+}
+function setDays(n: 5 | 7) {
+  prefs.calDays = n
+  goView(SPAN)
+}
 
 // „Ungeplant“ lässt sich einklappen, damit die Woche die volle Breite bekommt.
 const upOpen = ref(store.get('kairo-cal-unplanned') !== '0')
@@ -315,7 +352,7 @@ useShortcuts((e) => {
   const api = cal.value?.getApi()
   const v = views.find(([, , k]) => k === e.key)
   if (!api) return
-  if (e.key === 't') api.today()
+  if (e.key === 't') goToday()
   else if (e.key === 'ArrowLeft') api.prev()
   else if (e.key === 'ArrowRight') api.next()
   else if (v) goView(v[0])
@@ -326,7 +363,8 @@ useShortcuts((e) => {
 
 // Das Zeitraster beginnt ein bis anderthalb Stunden vor jetzt, nie vor dem ersten Slot.
 // Der Start liegt auf :30, weil das Label einer vollen Stunde am oberen Rand sonst halb abgeschnitten wird.
-const SLOT_MIN_HOUR = 7
+// Sichtbarer Bereich und Wochenbeginn kommen aus den Einstellungen.
+const { dayStart: SLOT_MIN_HOUR, dayEnd: SLOT_MAX_HOUR } = prefs
 const scrollStart = () => {
   const h = new Date().getHours() - 1
   return h <= SLOT_MIN_HOUR ? `${String(SLOT_MIN_HOUR).padStart(2, '0')}:00:00` : `${String(h - 1).padStart(2, '0')}:30:00`
@@ -336,17 +374,18 @@ const options: CalendarOptions = {
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
   locales: [deLocale, enGbLocale],
   locale: lang.value === 'de' ? 'de' : 'en-gb',
-  firstDay: 1,
+  firstDay: prefs.weekStart,
   allDayText: t('Ganztag'),
   initialView: view.value,
-  views: { [WORK]: { type: 'timeGrid', duration: { weeks: 1 }, hiddenDays: [0, 6] }, dayGridMonth: { eventDisplay: 'block', dayMaxEvents: 3 } },
+  initialDate: isWeek.value ? spanStart() : undefined,
+  views: { timeGrid5: { type: 'timeGrid', duration: { days: 5 } }, timeGrid7: { type: 'timeGrid', duration: { days: 7 } }, dayGridMonth: { eventDisplay: 'block', dayMaxEvents: 3 } },
   moreLinkContent: (a) => `+ ${a.num} weitere`,
   headerToolbar: false,
   height: '100%',
   nowIndicator: true,
   slotEventOverlap: false, // gleichzeitige Einträge nebeneinander statt gestapelt
-  slotMinTime: `${String(SLOT_MIN_HOUR).padStart(2, '0')}:00:00`, // bis 22 Uhr, damit Abendtermine nicht verschwinden
-  slotMaxTime: '22:00:00',
+  slotMinTime: `${String(SLOT_MIN_HOUR).padStart(2, '0')}:00:00`,
+  slotMaxTime: `${String(SLOT_MAX_HOUR).padStart(2, '0')}:00:00`,
   scrollTime: scrollStart(),
   eventClassNames: (a) => (a.event.id === nextId ? ['kt-next'] : []),
   datesSet: (a) => {
@@ -395,10 +434,10 @@ const options: CalendarOptions = {
     const time = el('span', 'kt-time', timed ? hhmm(start) : '')
     if (timed && end && !month) time.append(el('span', 'kt-end', `–${hhmm(end)}`))
     const title = el('span', 'kt-title', event.title)
-    const mark = el('i', p.kind === 'task' ? 'kt-ring' : 'kt-dot')
+    const mark = el('i', p.kind === 'event' ? 'kt-dot' : 'kt-ring')
     const meta = [p.proj, p.place].filter(Boolean).join(' · ')
     const root = el('div', 'kt-in')
-    if (month) root.append(...(p.kind === 'task' ? [mark] : []), ...(timed ? [time] : []), title)
+    if (month) root.append(...(p.kind === 'event' ? [] : [mark]), ...(timed ? [time] : []), title)
     else {
       const head = el('div', 'kt-head')
       head.append(mark, title)
@@ -428,7 +467,9 @@ const options: CalendarOptions = {
   eventDidMount: (a) => {
     const color = a.event.extendedProps.color as string | undefined
     if (color) a.el.style.setProperty('--acc', color) // Projektfarbe
-    a.el.title = `${a.timeText ? `${a.timeText} ` : ''}${a.event.title}` // voller Titel bei Hover
+    const x = a.event.extendedProps as { kind: string; title?: string; label?: string }
+    a.el.title = x.kind === 'track' ? `${t('Erfasst')}: ${x.title} · ${x.label}` : `${a.timeText ? `${a.timeText} ` : ''}${a.event.title}` // voller Titel bei Hover
+    if (x.kind === 'habit') a.el.title += ` · ${t('Klick hakt ab, Verschieben ändert die Uhrzeit an allen Tagen')}`
   },
   droppable: true,
   drop: (a) => {
@@ -465,7 +506,7 @@ useLiveEvents(() => {
           <button class="icon-btn" :aria-label="$t('Zurück')" :title="$t('Zurück (←)')" @click="cal?.getApi().prev()"><svg class="ic"><use href="#i-left" /></svg></button>
           <button class="icon-btn" :aria-label="$t('Weiter')" :title="$t('Weiter (→)')" @click="cal?.getApi().next()"><svg class="ic"><use href="#i-right" /></svg></button>
         </div>
-        <button class="btn btn-ghost" :title="$t('Heute (t)')" aria-keyshortcuts="t" @click="cal?.getApi().today()">{{ $t('Heute') }}</button>
+        <button class="btn btn-ghost" :title="$t('Heute (t)')" aria-keyshortcuts="t" @click="goToday">{{ $t('Heute') }}</button>
         <h2 class="cal-title">{{ title }}</h2>
         <span v-if="week" class="cal-kw">{{ $t('KW') }} {{ week }}</span>
         <span class="spacer" />
@@ -473,9 +514,11 @@ useLiveEvents(() => {
           <span><i class="lg-termin" />{{ $t('Termin') }}</span><span><i class="lg-task" />{{ $t('Aufgabe') }}</span><span><i class="lg-track" />{{ $t('Erfasst') }}</span>
         </div>
         <div class="seg">
-          <button v-for="[v, l, k] in views" :key="v" :aria-pressed="view === v || (v === WORK && view === 'timeGridWeek')" :title="`${l} (${k})`" :aria-keyshortcuts="k" @click="goView(v)">{{ l }}</button>
+          <button v-for="[v, l, k] in views" :key="v" :aria-pressed="view === v || (v === SPAN && isWeek)" :title="`${l} (${k})`" :aria-keyshortcuts="k" @click="goView(v)">{{ l }}</button>
         </div>
-        <button v-if="isWeek" class="btn btn-ghost" :aria-pressed="fullWeek" :title="$t('Samstag und Sonntag anzeigen')" @click="toggleWeekend">{{ $t('Sa/So') }}<span v-if="!fullWeek && weekendEntries" class="up-count"> {{ weekendEntries }}</span></button>
+        <div v-if="isWeek" class="seg" role="group" :aria-label="$t('Tage in der Wochenansicht')">
+          <button v-for="n in ([5, 7] as const)" :key="n" type="button" :aria-pressed="prefs.calDays === n" @click="setDays(n)">{{ $t('{n} Tage', { n }) }}</button>
+        </div>
         <input ref="fileInput" type="file" accept=".ics,text/calendar" hidden @change="importFile" />
         <button class="btn btn-secondary" @click="fileInput?.click()">{{ $t('ICS importieren') }}</button>
         <button class="btn btn-primary" :title="$t('Neuer Eintrag (n)')" aria-keyshortcuts="n" @click="openNew"><svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neuer Eintrag') }}</button>

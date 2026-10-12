@@ -54,6 +54,7 @@ type CreateHabitInput struct {
 	TargetValue     *int
 	Unit            string
 	PreferredTime   *string
+	DurationMinutes int // 0 = Standard (30)
 	StartDate       *string
 	EndDate         *string
 	Active          *bool
@@ -70,6 +71,7 @@ type UpdateHabitInput struct {
 	TargetValue     *int
 	Unit            *string
 	PreferredTime   *string
+	DurationMinutes *int
 	StartDate       *string
 	EndDate         *string
 	Active          *bool
@@ -93,17 +95,21 @@ func (s *HabitService) today() string { return s.now().In(s.loc).Format("2006-01
 
 func (s *HabitService) Create(ctx context.Context, in CreateHabitInput) (domain.Habit, error) {
 	h := domain.Habit{
-		ID:            domain.NewID(),
-		Name:          strings.TrimSpace(in.Name),
-		Description:   in.Description,
-		FrequencyType: in.FrequencyType,
-		TargetValue:   in.TargetValue,
-		Unit:          strings.TrimSpace(in.Unit),
-		PreferredTime: trimOrNil(in.PreferredTime),
-		StartDate:     s.today(),
-		EndDate:       trimOrNil(in.EndDate),
-		Active:        true,
-		CreatedAt:     s.now().UTC(),
+		ID:              domain.NewID(),
+		Name:            strings.TrimSpace(in.Name),
+		Description:     in.Description,
+		FrequencyType:   in.FrequencyType,
+		TargetValue:     in.TargetValue,
+		Unit:            strings.TrimSpace(in.Unit),
+		PreferredTime:   trimOrNil(in.PreferredTime),
+		DurationMinutes: in.DurationMinutes,
+		StartDate:       s.today(),
+		EndDate:         trimOrNil(in.EndDate),
+		Active:          true,
+		CreatedAt:       s.now().UTC(),
+	}
+	if h.DurationMinutes == 0 {
+		h.DurationMinutes = 30
 	}
 	if sd := trimOrNil(in.StartDate); sd != nil {
 		h.StartDate = *sd
@@ -158,6 +164,9 @@ func (s *HabitService) Update(ctx context.Context, id string, in UpdateHabitInpu
 	}
 	if in.PreferredTime != nil {
 		h.PreferredTime = trimOrNil(in.PreferredTime)
+	}
+	if in.DurationMinutes != nil {
+		h.DurationMinutes = *in.DurationMinutes
 	}
 	if in.StartDate != nil {
 		h.StartDate = strings.TrimSpace(*in.StartDate)
@@ -282,10 +291,30 @@ func (s *HabitService) Completions(ctx context.Context, habitID, from, to string
 // DueOn liefert alle Habits, die am Tag date fällig sind, mit berechneter
 // Occurrence (Done, Wochenfortschritt), nach Name sortiert.
 func (s *HabitService) DueOn(ctx context.Context, date string) ([]HabitDay, error) {
-	monday, sunday, err := domain.WeekRange(date)
+	return s.DueBetween(ctx, date, date)
+}
+
+// maxDueDays begrenzt den Bereich von DueBetween (sechs Wochen Monatsansicht).
+const maxDueDays = 42
+
+// DueBetween liefert die fälligen Habits für jeden Tag von from bis to
+// (inklusive), nach Tag und innerhalb eines Tages nach Name sortiert.
+func (s *HabitService) DueBetween(ctx context.Context, from, to string) ([]HabitDay, error) {
+	start, err := domain.ParseDate(from)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: from muss YYYY-MM-DD sein", domain.ErrInvalid)
 	}
+	end, err := domain.ParseDate(to)
+	if err != nil {
+		return nil, fmt.Errorf("%w: to muss YYYY-MM-DD sein", domain.ErrInvalid)
+	}
+	days := int(end.Sub(start).Hours()/24) + 1
+	if days < 1 || days > maxDueDays {
+		return nil, fmt.Errorf("%w: Bereich muss 1 bis %d Tage umfassen", domain.ErrInvalid, maxDueDays)
+	}
+	// TIMES_PER_WEEK braucht die ganzen Wochen am Rand.
+	monday, _, _ := domain.WeekRange(from)
+	_, sunday, _ := domain.WeekRange(to)
 	habits, err := s.store.List(ctx)
 	if err != nil {
 		return nil, err
@@ -302,9 +331,12 @@ func (s *HabitService) DueOn(ctx context.Context, date string) ([]HabitDay, erro
 		done[c.HabitID][c.Date] = true
 	}
 	out := []HabitDay{}
-	for _, h := range habits {
-		if occ, due := h.OccurrenceOn(date, done[h.ID]); due {
-			out = append(out, HabitDay{Habit: h, Occurrence: occ})
+	for i := 0; i < days; i++ {
+		date := start.AddDate(0, 0, i).Format("2006-01-02")
+		for _, h := range habits {
+			if occ, due := h.OccurrenceOn(date, done[h.ID]); due {
+				out = append(out, HabitDay{Habit: h, Occurrence: occ})
+			}
 		}
 	}
 	return out, nil
@@ -317,6 +349,8 @@ func normalizeHabit(h *domain.Habit, cfg domain.FrequencyConfig) error {
 		return fmt.Errorf("%w: name darf nicht leer sein", domain.ErrInvalid)
 	case h.TargetValue != nil && *h.TargetValue < 1:
 		return fmt.Errorf("%w: target_value muss mindestens 1 sein", domain.ErrInvalid)
+	case h.DurationMinutes < 1 || h.DurationMinutes > 24*60:
+		return fmt.Errorf("%w: duration_minutes muss zwischen 1 und 1440 liegen", domain.ErrInvalid)
 	}
 	if err := validateDate("start_date", h.StartDate); err != nil {
 		return err

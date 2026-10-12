@@ -23,7 +23,7 @@ func newHabitRepo(t *testing.T) *HabitRepository {
 
 func newHabit(id string) domain.Habit {
 	return domain.Habit{ID: id, Name: id, FrequencyType: domain.FreqDaily, StartDate: "2026-10-05",
-		Active: true, CreatedAt: time.Date(2026, 10, 5, 8, 0, 0, 0, time.UTC)}
+		DurationMinutes: 30, Active: true, CreatedAt: time.Date(2026, 10, 5, 8, 0, 0, 0, time.UTC)}
 }
 
 func TestHabitRepositoryRoundTrip(t *testing.T) {
@@ -33,7 +33,7 @@ func TestHabitRepositoryRoundTrip(t *testing.T) {
 	h := newHabit("h1")
 	h.FrequencyType = domain.FreqSpecificWeekdays
 	h.FrequencyConfig = domain.FrequencyConfig{Weekdays: []string{"MO", "WE"}}
-	h.TargetValue, h.Unit, h.PreferredTime, h.EndDate = ptr(30), "min", ptr("07:30"), ptr("2026-12-31")
+	h.TargetValue, h.Unit, h.PreferredTime, h.EndDate, h.DurationMinutes = ptr(30), "min", ptr("07:30"), ptr("2026-12-31"), 45
 	if err := r.Create(ctx, h); err != nil {
 		t.Fatal(err)
 	}

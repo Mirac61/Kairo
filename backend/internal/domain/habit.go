@@ -143,6 +143,7 @@ type Habit struct {
 	TargetValue     *int
 	Unit            string
 	PreferredTime   *string // lokale Uhrzeit HH:MM
+	DurationMinutes int     // Länge des Kalenderblocks
 	StartDate       string  // lokaler Tag
 	EndDate         *string // lokaler Tag, inklusive
 	Active          bool

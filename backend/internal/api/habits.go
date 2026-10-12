@@ -22,6 +22,7 @@ type HabitService interface {
 	Complete(ctx context.Context, habitID string, in service.CompleteHabitInput) (domain.HabitCompletion, error)
 	Uncomplete(ctx context.Context, habitID, date string) error
 	Completions(ctx context.Context, habitID, from, to string) ([]domain.HabitCompletion, error)
+	DueBetween(ctx context.Context, from, to string) ([]service.HabitDay, error)
 }
 
 type habitDTO struct {
@@ -33,6 +34,7 @@ type habitDTO struct {
 	TargetValue     *int                   `json:"target_value"`
 	Unit            string                 `json:"unit"`
 	PreferredTime   *string                `json:"preferred_time"`
+	DurationMinutes int                    `json:"duration_minutes"`
 	StartDate       string                 `json:"start_date"`
 	EndDate         *string                `json:"end_date"`
 	Active          bool                   `json:"active"`
@@ -50,6 +52,7 @@ func toHabitDTO(h domain.Habit) habitDTO {
 		TargetValue:     h.TargetValue,
 		Unit:            h.Unit,
 		PreferredTime:   h.PreferredTime,
+		DurationMinutes: h.DurationMinutes,
 		StartDate:       h.StartDate,
 		EndDate:         h.EndDate,
 		Active:          h.Active,
@@ -82,6 +85,7 @@ type habitHandlers struct{ svc HabitService }
 
 func (h habitHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/habits", h.list)
+	mux.HandleFunc("GET /api/habits/due", h.due)
 	mux.HandleFunc("POST /api/habits", h.create)
 	mux.HandleFunc("GET /api/habits/{id}", h.get)
 	mux.HandleFunc("PATCH /api/habits/{id}", h.update)
@@ -111,6 +115,7 @@ func (h habitHandlers) create(w http.ResponseWriter, r *http.Request) {
 		TargetValue     *int                   `json:"target_value"`
 		Unit            string                 `json:"unit"`
 		PreferredTime   *string                `json:"preferred_time"`
+		DurationMinutes int                    `json:"duration_minutes"`
 		StartDate       *string                `json:"start_date"`
 		EndDate         *string                `json:"end_date"`
 		Active          *bool                  `json:"active"`
@@ -126,6 +131,7 @@ func (h habitHandlers) create(w http.ResponseWriter, r *http.Request) {
 		TargetValue:     in.TargetValue,
 		Unit:            in.Unit,
 		PreferredTime:   in.PreferredTime,
+		DurationMinutes: in.DurationMinutes,
 		StartDate:       in.StartDate,
 		EndDate:         in.EndDate,
 		Active:          in.Active,
@@ -158,6 +164,7 @@ func (h habitHandlers) update(w http.ResponseWriter, r *http.Request) {
 		TargetValue     *int                    `json:"target_value"`
 		Unit            *string                 `json:"unit"`
 		PreferredTime   *string                 `json:"preferred_time"`
+		DurationMinutes *int                    `json:"duration_minutes"`
 		StartDate       *string                 `json:"start_date"`
 		EndDate         *string                 `json:"end_date"`
 		Active          *bool                   `json:"active"`
@@ -172,6 +179,7 @@ func (h habitHandlers) update(w http.ResponseWriter, r *http.Request) {
 		TargetValue:     in.TargetValue,
 		Unit:            in.Unit,
 		PreferredTime:   in.PreferredTime,
+		DurationMinutes: in.DurationMinutes,
 		StartDate:       in.StartDate,
 		EndDate:         in.EndDate,
 		Active:          in.Active,
@@ -225,4 +233,33 @@ func (h habitHandlers) uncomplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type habitDueDTO struct {
+	HabitID         string  `json:"habit_id"`
+	Name            string  `json:"name"`
+	Date            string  `json:"date"`
+	Done            bool    `json:"done"`
+	PreferredTime   *string `json:"preferred_time"`
+	DurationMinutes int     `json:"duration_minutes"`
+}
+
+// due liefert die fälligen Habits je Tag für ?from= bis ?to= (YYYY-MM-DD, inklusive, max. 42 Tage).
+func (h habitHandlers) due(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	ds, err := h.svc.DueBetween(r.Context(), q.Get("from"), q.Get("to"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeList(w, ds, func(d service.HabitDay) habitDueDTO {
+		return habitDueDTO{
+			HabitID:         d.Habit.ID,
+			Name:            d.Habit.Name,
+			Date:            d.Occurrence.Date,
+			Done:            d.Occurrence.Done,
+			PreferredTime:   d.Habit.PreferredTime,
+			DurationMinutes: d.Habit.DurationMinutes,
+		}
+	})
 }
