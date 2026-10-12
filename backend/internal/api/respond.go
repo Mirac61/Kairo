@@ -37,6 +37,8 @@ func writeError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, domain.ErrInvalid):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	case errors.Is(err, domain.ErrUnavailable):
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 	default:
 		slog.Error("interner Fehler", "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "interner Fehler"})

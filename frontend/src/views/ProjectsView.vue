@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   api, createProject, deleteProject, listProjects, listResources, listTasks,
   isOpen, updateProject, type Project, type Resource, type Task, type TimeEntry,
@@ -12,6 +13,7 @@ import { locale, t } from '@/lib/i18n'
 import { daysAgo, dur, entryMinutes, hm, weekStart, ymd } from '@/lib/dates'
 import { store } from '@/lib/storage'
 import DeleteButton from '@/components/DeleteButton.vue'
+import GitHubIssues from '@/components/GitHubIssues.vue'
 import ResourceList from '@/components/ResourceList.vue'
 import SearchField from '@/components/SearchField.vue'
 import TaskActions from '@/components/TaskActions.vue'
@@ -21,6 +23,7 @@ const RES_ICON = { URL: 'i-link', FILE: 'i-file', FOLDER: 'i-file' } as const
 
 interface Progress { project_id: string | null; done_tasks: number; total_tasks: number; tracked_minutes: number }
 
+const router = useRouter()
 const projects = ref<Project[]>([])
 const resources = ref<Resource[]>([])
 const tasks = ref<Task[]>([])
@@ -114,7 +117,17 @@ const inCode = (p: Project) => { window.location.href = `vscodium://kairo-local.
 // Datei und Ordner öffnet der Browser nicht; nur URLs sind echte Links.
 const href = (r: Resource) => (r.type === 'URL' ? r.target : undefined)
 
-onMounted(load)
+// Offene GitHub-Issues je Projekt (Repo aus git remote), damit die Zahl schon auf der zugeklappten Karte steht.
+// Nur beim Öffnen der Seite: jede Abfrage ruft git und die GitHub-API auf. Ohne gh bleibt es still.
+const issueCount = ref<Record<string, number>>({})
+const loadIssueCounts = () => Promise.all(projects.value.filter((p) => p.local_path).map(async (p) => {
+  try {
+    const r = await api<{ repo: string; issues: unknown[] }>(`/projects/${p.id}/github/issues`)
+    if (r.repo) issueCount.value[p.id] = r.issues.length
+  } catch { /* kein gh oder GitHub nicht erreichbar */ }
+}))
+
+onMounted(() => void load().then(loadIssueCounts))
 useLiveEvents(load)
 </script>
 
@@ -156,6 +169,9 @@ useLiveEvents(load)
         </div>
         <div class="proj-desc" :class="{ none: !p.description }">{{ p.description || $t('Keine Beschreibung') }}</div>
         <div class="proj-meta mono">{{ p.local_path ?? '' }}</div>
+        <button v-if="issueCount[p.id] !== undefined" type="button" class="proj-issues" :aria-expanded="openId === p.id" @click="openId = openId === p.id ? null : p.id">
+          <b class="mono">{{ issueCount[p.id] }}</b> {{ $t('offene GitHub-Issues') }} <svg class="ic" aria-hidden="true"><use href="#i-chev" /></svg>
+        </button>
         <div v-if="resOf(p.id).length" class="proj-res">
           <component :is="href(r) ? 'a' : 'span'" v-for="r in resOf(p.id)" :key="r.id" class="res" :href="href(r)" target="_blank" rel="noopener">
             <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>{{ r.label || r.target }}
@@ -184,6 +200,7 @@ useLiveEvents(load)
             </div>
           </div>
           <div v-else class="proj-meta">{{ $t('Keine offenen Aufgaben.') }}</div>
+          <GitHubIssues v-if="p.local_path" :project-id="p.id" @open="(id) => router.push({ path: '/tasks', query: { task: id } })" @changed="load" />
         </div>
       </article>
     </div>
@@ -228,6 +245,12 @@ useLiveEvents(load)
 </template>
 
 <style scoped>
+.proj-issues { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; border: 0; padding: 0; background: none;
+  font: 400 12px/1.3 var(--font-ui); color: var(--tx-secondary); cursor: pointer; }
+.proj-issues b { font-weight: 600; color: var(--tx-primary); }
+.proj-issues:hover { color: var(--tx-primary); }
+.proj-issues .ic { width: 12px; height: 12px; transition: transform var(--dur) ease-out; }
+.proj-issues[aria-expanded="true"] .ic { transform: rotate(180deg); }
 .spacer { flex: 1; }
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
 .swatch { position: relative; display: inline-flex; cursor: pointer; }

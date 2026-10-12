@@ -22,6 +22,8 @@ type Services struct {
 	Review    ReviewService
 	Notes     *notes.Store
 	Settings  *Settings
+	// GitHub liefert Issues; zusammen mit Projects, Tasks und Resources gibt es /api/github.
+	GitHub IssueSource
 	// Hub speist /ws mit Ereignissen. Ohne Hub gibt es keinen WebSocket.
 	Hub *realtime.Hub
 }
@@ -59,6 +61,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	}
 	if svc.Notes != nil {
 		noteHandlers{svc.Notes}.register(mux)
+	}
+	if svc.GitHub != nil && svc.Projects != nil && svc.Tasks != nil && svc.Resources != nil {
+		githubHandlers{svc.GitHub, svc.Projects, svc.Tasks, svc.Resources}.register(mux)
 	}
 	if svc.Settings != nil {
 		settingsHandlers{svc.Settings}.register(mux)

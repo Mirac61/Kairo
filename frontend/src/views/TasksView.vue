@@ -11,8 +11,10 @@ import { useShortcuts } from '@/composables/useShortcuts'
 import { useUndo } from '@/composables/useUndo'
 import { addDays, dayLabel, daysAgo, dm, hhmm, hm, shortDay, weekStart, ymd } from '@/lib/dates'
 import { store } from '@/lib/storage'
+import { vDialog } from '@/lib/dialog'
 import { projectColor } from '@/lib/projectColor'
 import { parseQuickAdd, taskBody } from '@/lib/quickAdd'
+import GitHubIssues from '@/components/GitHubIssues.vue'
 import QuickHints from '@/components/QuickHints.vue'
 import ResourceList from '@/components/ResourceList.vue'
 import SearchField from '@/components/SearchField.vue'
@@ -41,6 +43,13 @@ const VIEW_KEY = 'kairo-tasks-view' // Sortierung und Gruppierung merkt sich der
 
 const tasks = ref<Task[]>([])
 const projects = ref<Project[]>([])
+const github = ref(false)
+const closeGitHub = () => (github.value = false)
+// Aus der Issue-Liste: Dialog schließen, neu laden (die Task kann gerade erst angelegt sein) und die Task öffnen.
+const openImported = (id: string) => {
+  github.value = false
+  void load().then(() => focusTask(id))
+}
 const resources = ref<Resource[]>([])
 const filter = ref('alle')
 const projectId = ref('alle')
@@ -228,8 +237,9 @@ useShortcuts((e) => {
 })
 
 // Aus dem Kalender: /tasks?task=ID öffnet die Task, auch wenn sie erledigt oder abgebrochen ist.
-function focusFromRoute() {
-  const t = tasks.value.find((x) => x.id === route.query.task)
+const focusFromRoute = () => focusTask(route.query.task)
+function focusTask(id: unknown) {
+  const t = tasks.value.find((x) => x.id === id)
   if (!t) return
   filter.value = t.status === 'COMPLETED' ? 'erledigt' : t.status === 'CANCELLED' ? 'abgebrochen' : 'alle'
   projectId.value = 'alle'
@@ -263,6 +273,8 @@ useLiveEvents(load)
           <span :class="{ od: stats.overdue }"><b>{{ stats.overdue }}</b> {{ $t('überfällig') }}</span><span><b>{{ stats.planned }}</b> {{ $t('eingeplant') }}</span>
         </div>
       </div>
+      <span class="spacer"></span>
+      <button class="btn" type="button" @click="github = true">{{ $t('GitHub-Issues') }}</button>
       <button class="btn btn-primary" type="button" aria-keyshortcuts="n" @click="quickEl?.focus()"><svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neue Aufgabe') }}<kbd class="key" aria-hidden="true">N</kbd></button>
     </div>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
@@ -372,10 +384,20 @@ useLiveEvents(load)
       <span><kbd class="key">s</kbd>{{ $t('Start/Pause') }}</span>
       <span><kbd class="key">t</kbd>{{ $t('Heute') }}</span>
     </div>
+    <div v-if="github" v-dialog="closeGitHub" class="overlay open" @mousedown.self="closeGitHub">
+      <div class="dialog gh-dlg" role="dialog" :aria-label="$t('GitHub-Issues')">
+        <div class="dlg-head">
+          <h3>{{ $t('GitHub-Issues') }}</h3>
+          <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="closeGitHub"><svg class="ic"><use href="#i-x" /></svg></button>
+        </div>
+        <GitHubIssues class="dlg-body" :projects="projects" @open="openImported" @changed="load" />
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.gh-dlg { width: 680px; }
 .keys { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 16px; font: 400 12px/1 var(--font-ui); color: var(--tx-secondary); }
 .keys span { display: inline-flex; align-items: center; gap: 6px; }
 .keys .key { min-width: 20px; text-align: center; color: var(--tx-secondary); }

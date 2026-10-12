@@ -18,6 +18,7 @@ import (
 	"kairo/internal/api"
 	"kairo/internal/autostart"
 	"kairo/internal/config"
+	"kairo/internal/github"
 	"kairo/internal/notes"
 	"kairo/internal/realtime"
 	"kairo/internal/repository"
@@ -156,6 +157,7 @@ func run() error {
 		Notes:     notesStore,
 		Settings:  &api.Settings{Running: cfg, Getenv: os.Getenv, Restart: func() { restart.Store(true); stop() }},
 		Hub:       hub,
+		GitHub:    github.New(),
 	}
 
 	srv := &http.Server{

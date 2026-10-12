@@ -178,6 +178,15 @@ Dashboard für:
 Der Review-Bereich soll Erkenntnisse liefern und kein weiteres
 Managementsystem werden.
 
+Danach gebaut:
+
+-   Gewohnheiten: Dialog zum Anlegen und Bearbeiten mit allen Feldern
+    (Rhythmus, Uhrzeit, Dauer, Ziel, Zeitraum), Anzeige in Kalender-Woche
+    und -Tag mit Abhaken per Klick (siehe `01_PRODUCT_REQUIREMENTS.md`,
+    3. Habits).
+-   GitHub-Issues: offene Issues (gesamt und je Projekt über `git remote`)
+    als Task anlegen, über die gh-CLI (siehe 2. Tasks).
+
 ------------------------------------------------------------------------
 
 # Phase 8 — Future
