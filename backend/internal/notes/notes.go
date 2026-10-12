@@ -202,9 +202,9 @@ func (s *Store) Move(from, to string) error {
 	return mapErr(s.root.Rename(from, to))
 }
 
-// Open öffnet ein PDF, Bild oder Code zum Ausliefern.
+// Open öffnet ein PDF, Bild, Code oder eine Zeichnung zum Ausliefern.
 func (s *Store) Open(p string) (*os.File, fs.FileInfo, error) {
-	p, err := checkPath(p, "pdf", "image", "code")
+	p, err := checkPath(p, "pdf", "image", "code", "excalidraw")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -223,10 +223,10 @@ func (s *Store) Open(p string) (*os.File, fs.FileInfo, error) {
 	return f, fi, nil
 }
 
-// Upload legt ein PDF, Bild oder Code an; existiert es schon: domain.ErrConflict.
+// Upload legt ein PDF, Bild, Code oder eine Zeichnung an; existiert es schon: domain.ErrConflict.
 // Bricht das Schreiben ab, wird die halbe Datei wieder gelöscht.
 func (s *Store) Upload(p string, r io.Reader) error {
-	p, err := checkPath(p, "pdf", "image", "code")
+	p, err := checkPath(p, "pdf", "image", "code", "excalidraw")
 	if err != nil {
 		return err
 	}
@@ -245,11 +245,11 @@ func (s *Store) Upload(p string, r io.Reader) error {
 	return nil
 }
 
-// Replace ersetzt ein PDF oder Bild (nach dem Bearbeiten in Kairo). Die alte Fassung
+// Replace ersetzt ein PDF, Bild oder eine Zeichnung (nach dem Bearbeiten in Kairo). Die alte Fassung
 // landet in .trash/, damit sich Zeichnungen rückgängig machen lassen. Wie bei Save gibt
 // es domain.ErrConflict, wenn sich die Datei seit dem Laden geändert hat, außer bei force.
 func (s *Store) Replace(p string, r io.Reader, version string, force bool) (string, error) {
-	p, err := checkPath(p, "pdf", "image")
+	p, err := checkPath(p, "pdf", "image", "excalidraw")
 	if err != nil {
 		return "", err
 	}
@@ -341,8 +341,8 @@ func checkPath(p string, kinds ...string) (string, error) {
 }
 
 // Kind ist der Dateityp, den Kairo im Notizordner zeigt: "md", "pdf", "image",
-// "code" (C/C++ und Makefiles aus Vorlesungen, nur zum Ansehen) oder "" (alles
-// andere bleibt unsichtbar). SVG fehlt, weil es Skript enthalten kann.
+// "code" (C/C++ und Makefiles aus Vorlesungen, nur zum Ansehen), "excalidraw"
+// (Zeichnung als JSON wie bei excalidraw.com) oder "" (alles andere bleibt unsichtbar). SVG fehlt, weil es Skript enthalten kann.
 func Kind(p string) string {
 	switch strings.ToLower(path.Ext(p)) {
 	case ".md":
@@ -351,6 +351,8 @@ func Kind(p string) string {
 		return "pdf"
 	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
 		return "image"
+	case ".excalidraw":
+		return "excalidraw"
 	case ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx":
 		return "code"
 	}

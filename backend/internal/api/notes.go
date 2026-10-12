@@ -115,7 +115,7 @@ func (h noteHandlers) delete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"trash": dest})
 }
 
-// file liefert ein PDF, Bild oder Code aus dem Notizordner (für <img>, den PDF-Viewer und den Code-Viewer).
+// file liefert ein PDF, Bild, Code oder eine Zeichnung aus dem Notizordner (für <img>, den PDF-Viewer, den Code-Viewer und den Zeichen-Editor).
 func (h noteHandlers) file(w http.ResponseWriter, r *http.Request) {
 	f, fi, err := h.store.Open(r.PathValue("path"))
 	if err != nil {
@@ -126,8 +126,11 @@ func (h noteHandlers) file(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-cache") // nach dem Bearbeiten nie die alte Fassung aus dem Cache
 	w.Header().Set("X-Kairo-Mtime", notes.Version(fi))
-	if notes.Kind(fi.Name()) == "code" {
+	switch notes.Kind(fi.Name()) {
+	case "code":
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8") // .h oder Makefile.Others kennt mime nicht
+	case "excalidraw":
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	}
 	http.ServeContent(w, r, fi.Name(), fi.ModTime(), f)
 }
@@ -148,7 +151,7 @@ func (h noteHandlers) upload(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]string{"path": p})
 }
 
-// replace speichert ein bearbeitetes PDF oder Bild: ?mtime=<Version beim Laden>, ?force=1 überschreibt trotzdem.
+// replace speichert ein bearbeitetes PDF, Bild oder eine Zeichnung: ?mtime=<Version beim Laden>, ?force=1 überschreibt trotzdem.
 func (h noteHandlers) replace(w http.ResponseWriter, r *http.Request) {
 	p := r.PathValue("path")
 	body, ok := checkedBody(w, r, p)
@@ -169,9 +172,9 @@ func (h noteHandlers) replace(w http.ResponseWriter, r *http.Request) {
 func checkedBody(w http.ResponseWriter, r *http.Request, p string) (*bufio.Reader, bool) {
 	body := bufio.NewReader(http.MaxBytesReader(w, r.Body, maxUploadBytes))
 	head, _ := body.Peek(512)
-	want := map[string]string{"pdf": "application/pdf", "image": "image/", "code": "text/plain"}[notes.Kind(p)]
+	want := map[string]string{"pdf": "application/pdf", "image": "image/", "code": "text/plain", "excalidraw": "text/plain"}[notes.Kind(p)]
 	if want == "" || !strings.HasPrefix(http.DetectContentType(head), want) {
-		writeError(w, fmt.Errorf("%w: Inhalt passt nicht zu %q (erlaubt: PDF, Bilder, C/C++ und Makefiles)", domain.ErrInvalid, p))
+		writeError(w, fmt.Errorf("%w: Inhalt passt nicht zu %q (erlaubt: PDF, Bilder, C/C++, Makefiles und Zeichnungen)", domain.ErrInvalid, p))
 		return nil, false
 	}
 	return body, true
