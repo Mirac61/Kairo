@@ -11,4 +11,6 @@ var (
 	ErrConflict = errors.New("Konflikt")
 	// ErrInvalid: die Eingabe verletzt eine Regel. Die Fehlermeldung nennt den Grund.
 	ErrInvalid = errors.New("ungültige Eingabe")
+	// ErrUnavailable: ein externer Dienst (z. B. GitHub, gh-CLI) fehlt oder antwortet nicht.
+	ErrUnavailable = errors.New("nicht verfügbar")
 )
