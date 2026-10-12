@@ -21,6 +21,7 @@
     "@codemirror/language": "6.13.1",
     "@codemirror/state": "6.7.6",
     "@codemirror/view": "6.43.14",
+    "@excalidraw/excalidraw": "0.18.1",
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource/cormorant-garamond": "^5.3.0",
@@ -36,11 +37,15 @@
     "pdfjs-dist": "6.3.289",
     "primelocale": "^2.5.0",
     "primevue": "^4.5.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "vue": "^3.5.43",
     "vue-router": "^5.3.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-vue": "^6.0.9",
     "@vue/tsconfig": "^0.9.1",
     "playwright": "^1.63.0",

@@ -5,13 +5,13 @@ import type { NoteNode } from '@/api/client'
 export interface TreeCtx {
   isActive(path: string): boolean // offen und sichtbar (geteilt: Notiz und Dokument)
   open: Set<string>
-  adding: { parent: string; dir: boolean } | null
+  adding: { parent: string; dir: boolean; drawing?: boolean } | null
   renaming: string | null
   dragging: string | null
   dropTarget: string | null // Ordner unter dem Mauszeiger, '' = Wurzelordner
   select(path: string): void
   toggle(path: string): void
-  startAdd(parent: string, dir: boolean): void
+  startAdd(parent: string, dir: boolean, drawing?: boolean): void
   submitAdd(name: string): void
   cancelAdd(): void
   startRename(path: string, dir: boolean): void
@@ -53,7 +53,7 @@ const indent = () => ({ paddingLeft: `${8 + props.depth * 14}px` })
 // Dateien ohne Endung; den Typ zeigt das Icon.
 // Code behält die Endung, sonst sähen tree.cpp und tree.hpp gleich aus.
 const label = (n: NoteNode) => (n.dir || fileKind(n.path) === 'code' ? n.name : n.name.replace(/\.[^.]+$/, ''))
-const ICONS = { md: '#i-md', pdf: '#i-pdf', image: '#i-image', code: '#i-code', '': '#i-file' }
+const ICONS = { md: '#i-md', pdf: '#i-pdf', image: '#i-image', code: '#i-code', excalidraw: '#i-draw', '': '#i-file' }
 const icon = (n: NoteNode) => (n.dir ? '#i-proj' : ICONS[fileKind(n.path)])
 // Auf einer Datei abgelegt heißt: in ihren Ordner.
 const dirOf = (n: NoteNode) => (n.dir ? n.path : props.parent)
@@ -111,6 +111,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
         <span class="nt-act">
           <template v-if="n.dir">
             <button type="button" class="icon-btn" :aria-label="$t('Neue Notiz in {name}', { name: n.name })" :data-tip="$t('Neue Notiz')" @click="ctx.startAdd(n.path, false)"><svg class="ic"><use href="#i-plus" /></svg></button>
+            <button type="button" class="icon-btn" :aria-label="$t('Neue Zeichnung in {name}', { name: n.name })" :data-tip="$t('Neue Zeichnung')" @click="ctx.startAdd(n.path, false, true)"><svg class="ic"><use href="#i-draw" /></svg></button>
             <button type="button" class="icon-btn" :aria-label="$t('Neuer Ordner in {name}', { name: n.name })" :data-tip="$t('Neuer Ordner')" @click="ctx.startAdd(n.path, true)"><svg class="ic"><use href="#i-proj" /></svg></button>
           </template>
           <button type="button" class="icon-btn" :aria-label="`${label(n)} umbenennen`" :data-tip="$t('Umbenennen (F2)')" @click="startRename(n)"><svg class="ic"><use href="#i-pen" /></svg></button>
@@ -120,10 +121,11 @@ function dragOver(e: DragEvent, n: NoteNode) {
       <NoteTree v-if="n.dir && ctx.open.has(n.path)" :nodes="n.children ?? []" :ctx="ctx" :parent="n.path" :depth="depth + 1" />
     </li>
     <li v-if="ctx.adding?.parent === parent" role="none" class="nt-new" :style="indent()">
-      <svg class="ic nt-ic" aria-hidden="true"><use :href="ctx.adding.dir ? '#i-proj' : '#i-md'" /></svg>
+      <svg class="ic nt-ic" aria-hidden="true"><use :href="ctx.adding.dir ? '#i-proj' : ctx.adding.drawing ? '#i-draw' : '#i-md'" /></svg>
       <input
-        v-model="name" v-start="ctx.adding.dir ? '' : `${ymd(new Date())} `" class="input nt-input" :placeholder="ctx.adding.dir ? $t('Ordnername') : $t('Name der Notiz')"
-        :aria-label="ctx.adding.dir ? $t('Name des neuen Ordners') : $t('Name der neuen Notiz')"
+        v-model="name" v-start="ctx.adding.dir || ctx.adding.drawing ? '' : `${ymd(new Date())} `" class="input nt-input"
+        :placeholder="ctx.adding.dir ? $t('Ordnername') : ctx.adding.drawing ? $t('Name der Zeichnung') : $t('Name der Notiz')"
+        :aria-label="ctx.adding.dir ? $t('Name des neuen Ordners') : ctx.adding.drawing ? $t('Name der neuen Zeichnung') : $t('Name der neuen Notiz')"
         @keydown.enter.prevent="submit(ctx.submitAdd, ctx.cancelAdd)" @keydown.esc.prevent="ctx.cancelAdd()" @blur="ctx.cancelAdd()"
       />
     </li>

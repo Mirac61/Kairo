@@ -9,18 +9,20 @@ config({
 </script>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ApiError, createNote, errorMessage, uploadFile } from '@/api/client'
-import { assetName, join, previewImages } from '@/lib/noteFiles'
+import { assetName, drawingsIn, join, previewImages } from '@/lib/noteFiles'
+import { drawingSrc, renderDrawing } from '@/lib/drawingPreview'
 import { parentOf } from '@/components/NoteTree.vue'
 
 // Markdown-Editor der Notizen. Mermaid, KaTeX, Prettier und Highlight lädt md-editor-v3 vom CDN; sie sind abgeschaltet
 // (Kairo läuft lokal). Bilder landen über uploadImages neben der Notiz.
-const props = defineProps<{ path: string }>()
+// drawingRev: NotesView erhöht ihn nach dem Speichern einer Zeichnung und alle 5 s; eingebettete Zeichnungen prüfen dann ihre mtime.
+const props = defineProps<{ path: string; drawingRev?: number }>()
 const text = defineModel<string>({ required: true })
-const emit = defineEmits<{ uploaded: []; error: [string] }>()
+const emit = defineEmits<{ uploaded: []; error: [string]; open: [string] }>()
 
 const TOOLBAR: ToolbarNames[] = [
   'bold', 'italic', 'strikeThrough', 'title', '-', 'quote', 'unorderedList', 'orderedList', 'task', '-',
@@ -47,12 +49,28 @@ async function uploadImages(files: File[], done: (urls: string[]) => void) {
     emit('error', errorMessage(e))
   }
 }
-const sanitize = (html: string) => previewImages(html, props.path)
+// Eingebettete Zeichnungen (![](x.excalidraw)): sanitize ist synchron und nimmt fertige Bilder aus dem Cache. Fehlt eins,
+// rendert drawingPreview es nach; rendered++ gibt sanitize eine neue Identität, und md-editor rendert die Vorschau neu.
+const rendered = ref(0)
+let drawings: string[] = []
+const redraw = (ps: string[]) =>
+  void Promise.all(ps.map((p) => renderDrawing(p).catch(() => false))).then((r) => { if (r.includes(true)) rendered.value++ })
+const sanitize = computed(() => {
+  void rendered.value
+  return (html: string) => {
+    const out = previewImages(html, props.path, drawingSrc)
+    drawings = drawingsIn(out)
+    redraw(drawings.filter((p) => !drawingSrc(p)))
+    return out
+  }
+})
+watch(() => props.drawingRev, () => redraw(drawings))
 
-// Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab.
+// Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab, Zeichnungen links in Kairo.
 function openPreviewImage(e: MouseEvent) {
   const img = (e.target as HTMLElement).closest<HTMLImageElement>('.md-editor-preview img')
-  if (img) window.open(img.src, '_blank')
+  if (img?.dataset.drawing) emit('open', img.dataset.drawing)
+  else if (img) window.open(img.src, '_blank')
 }
 
 // md-editor-v3 bekommt das Theme als Prop; Kairo schaltet es über data-theme an <html>.
@@ -75,6 +93,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
 <style scoped>
 .nd { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .nd :deep(.md-editor-preview img) { cursor: zoom-in; }
+.nd :deep(.md-editor-preview img[data-drawing]) { cursor: pointer; }
 
 /* md-editor-v3 an die Kairo-Tokens anpassen (gilt für Dark und Light, weil die Tokens mitwechseln). */
 .nd :deep(.md-editor) {
@@ -121,4 +140,10 @@ onBeforeUnmount(() => themeObserver.disconnect())
   font: 400 15px/1.6 var(--font-ui);
   word-break: normal; overflow-wrap: anywhere; /* Standard ist break-all: bricht mitten im Wort */
 }
+</style>
+
+<style>
+/* Zeichnungen sind hell gezeichnet; im Dunkeln invertieren wie Excalidraw selbst. Ungescoped, weil :global() in
+   scoped CSS den Rest des Selektors verwirft und dann die ganze Seite träfe. */
+[data-theme='dark'] .nd .md-editor-preview img[data-drawing] { filter: invert(93%) hue-rotate(180deg); }
 </style>

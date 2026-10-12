@@ -78,6 +78,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
     <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M13.5 2.5H7A1.5 1.5 0 0 0 5.5 4v16A1.5 1.5 0 0 0 7 21.5h10a1.5 1.5 0 0 0 1.5-1.5V7.5z"/><path d="M13.5 2.5V7.5h5"/><rect x="3" y="12.5" width="12" height="6" rx="1.2" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.5" r="1.6"/><path d="m4 17.5 5-5 4 4 2.5-2.5 4.5 4.5"/></symbol>
     <symbol id="i-folder-up" viewBox="0 0 24 24"><path d="M3.5 7a2 2 0 0 1 2-2H9l2 2.5h7.5a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2zM12 16.5v-6M9.5 13 12 10.5 14.5 13"/></symbol>
+    <symbol id="i-draw" viewBox="0 0 24 24"><path d="m15 4.5 4.5 4.5-9 9H6v-4.5z"/><path d="M3.5 20.5c2-.8 3.5-.8 5 0s3 .8 4.5 0 3-.8 4.5 0"/></symbol>
     <symbol id="i-code" viewBox="0 0 24 24"><path d="M8.5 7.5 4 12l4.5 4.5M15.5 7.5 20 12l-4.5 4.5"/></symbol>
     <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4.5M7.5 9 12 4.5 16.5 9M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></symbol>
     <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M6 3.5v15l4.2-4 2.8 6.3 2.4-1-2.8-6.2h5.9z"/></symbol>

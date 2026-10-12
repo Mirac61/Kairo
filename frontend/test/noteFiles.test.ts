@@ -1,6 +1,6 @@
 // Prüfung der Notizdateien: node test/noteFiles.test.ts
 import assert from 'node:assert/strict'
-import { assetName, fileKind, fillTemplate, join, previewImages, under, withExt } from '../src/lib/noteFiles.ts'
+import { assetName, drawingsIn, fileKind, fillTemplate, join, previewImages, under, withExt } from '../src/lib/noteFiles.ts'
 
 assert.equal(fileKind('Uni/a.MD'), 'md')
 assert.equal(fileKind('skript.pdf'), 'pdf')
@@ -12,6 +12,7 @@ assert.equal(fileKind('baeume/Makefile.Others'), 'code')
 assert.equal(fileKind('Makefile'), 'code')
 assert.equal(fileKind('Makefile.md'), 'md')
 assert.equal(fileKind('mymakefile'), '')
+assert.equal(fileKind('Uni/Skizze.Excalidraw'), 'excalidraw')
 
 const note = 'Uni/Computerarchitektur/VL 1.md'
 assert.equal(previewImages('<p><img src="VL%201-1.png" alt=""></p>', note), '<p><img src="/api/files/Uni/Computerarchitektur/VL%201-1.png" alt=""></p>')
@@ -20,6 +21,13 @@ assert.equal(previewImages('<img src="a.png">', 'oben.md'), '<img src="/api/file
 for (const src of ['https://x.de/a.png', 'data:image/png;base64,AA', '/logo.png']) {
   assert.equal(previewImages(`<img src="${src}">`, note), `<img src="${src}">`)
 }
+
+// Zeichnungen: data-drawing mit dem Pfad im Notizordner, src aus dem Cache, sonst ein leeres Platzhalterbild.
+const cached = (p: string) => (p === 'Uni/bilder/a b.excalidraw' ? 'blob:x' : undefined)
+assert.equal(previewImages('<img src="../bilder/a%20b.excalidraw" alt="">', note, cached), '<img class="not-zoom" data-drawing="Uni/bilder/a b.excalidraw" src="blob:x" alt="">')
+assert.equal(previewImages('<img src="a.excalidraw" class="md-zoom">', 'n.md'), `<img data-drawing="a.excalidraw" src="${previewImages('<img src="x.excalidraw">', 'n.md').match(/src="([^"]*)"/)![1]}" class="not-zoom md-zoom">`)
+assert.match(previewImages('<img src="neu.excalidraw">', note, cached), /^<img class="not-zoom" data-drawing="Uni\/Computerarchitektur\/neu.excalidraw" src="data:image\/svg\+xml,/)
+assert.deepEqual(drawingsIn('<img data-drawing="a.excalidraw" src=""><img data-drawing="b &amp; c.excalidraw" src="">'), ['a.excalidraw', 'b & c.excalidraw'])
 
 const fri = new Date(2026, 9, 9, 14, 5) // Freitag
 assert.equal(
