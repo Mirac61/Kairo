@@ -182,6 +182,25 @@ func TestNoteFiles(t *testing.T) {
 		t.Errorf("Code ersetzt: %d", rec.Code)
 	}
 
+	// Zeichnungen (Excalidraw-JSON): hochladen, lesen und nach dem Zeichnen ersetzen.
+	scene := `{"type":"excalidraw","version":2,"elements":[]}`
+	if rec := call(h, "POST", "/api/files/s.excalidraw", scene); rec.Code != http.StatusCreated {
+		t.Fatalf("POST s.excalidraw: %d %s", rec.Code, rec.Body)
+	}
+	if rec := call(h, "POST", "/api/files/x.excalidraw", "<html><script>"); rec.Code != http.StatusBadRequest {
+		t.Errorf("HTML als Zeichnung hochgeladen: %d", rec.Code)
+	}
+	rec = call(h, "GET", "/api/files/s.excalidraw", ``)
+	if rec.Code != http.StatusOK || rec.Body.String() != scene || rec.Header().Get("Content-Type") != "application/json; charset=utf-8" {
+		t.Fatalf("GET s.excalidraw: %d %q %v", rec.Code, rec.Body, rec.Header())
+	}
+	if rec := call(h, "PUT", "/api/files/s.excalidraw?mtime=alt", scene); rec.Code != http.StatusConflict {
+		t.Errorf("Zeichnung mit veralteter Version: %d", rec.Code)
+	}
+	if rec := call(h, "PUT", "/api/files/s.excalidraw?mtime="+rec.Header().Get("X-Kairo-Mtime"), scene+" "); rec.Code != http.StatusOK {
+		t.Errorf("Zeichnung ersetzen: %d %s", rec.Code, rec.Body)
+	}
+
 	// Bearbeitet speichern: passende Version ersetzt, die alte Fassung liegt danach in .trash/.
 	v := call(h, "GET", "/api/files/a.png", ``).Header().Get("X-Kairo-Mtime")
 	png2 := png + "neu"
@@ -226,7 +245,7 @@ func TestNoteFiles(t *testing.T) {
 	for _, n := range tree {
 		names = append(names, n.Name)
 	}
-	if strings.Join(names, ",") != "a.png,Folien.pdf,Makefile.Others,Skript 1.pdf,tree.hpp" {
+	if strings.Join(names, ",") != "a.png,Folien.pdf,Makefile.Others,s.excalidraw,Skript 1.pdf,tree.hpp" {
 		t.Fatalf("Baum: %v", names)
 	}
 }
