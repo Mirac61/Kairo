@@ -18,7 +18,7 @@ export interface TreeCtx {
   submitRename(name: string): void
   cancelRename(): void
   remove(node: NoteNode, anchor: HTMLElement): void
-  drop(dir: string, files?: FileList): void // files: aus dem Finder gezogen
+  drop(dir: string, dt?: DataTransfer | null): void // dt.items: Dateien/Ordner aus dem Finder
 }
 
 export const parentOf = (path: string) => path.slice(0, Math.max(path.lastIndexOf('/'), 0))
@@ -51,8 +51,9 @@ const vStart = {
 }
 const indent = () => ({ paddingLeft: `${8 + props.depth * 14}px` })
 // Dateien ohne Endung; den Typ zeigt das Icon.
-const label = (n: NoteNode) => (n.dir ? n.name : n.name.replace(/\.[^.]+$/, ''))
-const ICONS = { md: '#i-md', pdf: '#i-pdf', image: '#i-image', '': '#i-file' }
+// Code behält die Endung, sonst sähen tree.cpp und tree.hpp gleich aus.
+const label = (n: NoteNode) => (n.dir || fileKind(n.path) === 'code' ? n.name : n.name.replace(/\.[^.]+$/, ''))
+const ICONS = { md: '#i-md', pdf: '#i-pdf', image: '#i-image', code: '#i-code', '': '#i-file' }
 const icon = (n: NoteNode) => (n.dir ? '#i-proj' : ICONS[fileKind(n.path)])
 // Auf einer Datei abgelegt heißt: in ihren Ordner.
 const dirOf = (n: NoteNode) => (n.dir ? n.path : props.parent)
@@ -94,7 +95,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
         v-else class="nt-row" draggable="true"
         :class="{ active: !n.dir && ctx.isActive(n.path), drop: n.dir && ctx.dropTarget === n.path, dragging: ctx.dragging === n.path }"
         @dragstart="dragStart($event, n)" @dragend="ctx.dragging = ctx.dropTarget = null"
-        @dragover="dragOver($event, n)" @drop.prevent.stop="ctx.drop(dirOf(n), $event.dataTransfer?.files)"
+        @dragover="dragOver($event, n)" @drop.prevent.stop="ctx.drop(dirOf(n), $event.dataTransfer)"
       >
         <button
           type="button" class="nt-main" role="treeitem" :style="indent()"

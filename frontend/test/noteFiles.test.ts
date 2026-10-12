@@ -7,6 +7,11 @@ assert.equal(fileKind('skript.pdf'), 'pdf')
 assert.equal(fileKind('x.jpeg'), 'image')
 assert.equal(fileKind('film.mp4'), '')
 assert.equal(fileKind('bild.svg'), '')
+assert.equal(fileKind('baeume/tree.HPP'), 'code')
+assert.equal(fileKind('baeume/Makefile.Others'), 'code')
+assert.equal(fileKind('Makefile'), 'code')
+assert.equal(fileKind('Makefile.md'), 'md')
+assert.equal(fileKind('mymakefile'), '')
 
 const note = 'Uni/Computerarchitektur/VL 1.md'
 assert.equal(previewImages('<p><img src="VL%201-1.png" alt=""></p>', note), '<p><img src="/api/files/Uni/Computerarchitektur/VL%201-1.png" alt=""></p>')

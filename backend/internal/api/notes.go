@@ -115,7 +115,7 @@ func (h noteHandlers) delete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"trash": dest})
 }
 
-// file liefert ein PDF oder Bild aus dem Notizordner (für <img> und den PDF-Viewer).
+// file liefert ein PDF, Bild oder Code aus dem Notizordner (für <img>, den PDF-Viewer und den Code-Viewer).
 func (h noteHandlers) file(w http.ResponseWriter, r *http.Request) {
 	f, fi, err := h.store.Open(r.PathValue("path"))
 	if err != nil {
@@ -126,12 +126,15 @@ func (h noteHandlers) file(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-cache") // nach dem Bearbeiten nie die alte Fassung aus dem Cache
 	w.Header().Set("X-Kairo-Mtime", notes.Version(fi))
+	if notes.Kind(fi.Name()) == "code" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8") // .h oder Makefile.Others kennt mime nicht
+	}
 	http.ServeContent(w, r, fi.Name(), fi.ModTime(), f)
 }
 
 const maxUploadBytes = 200 << 20 // Vorlesungsskripte können groß sein
 
-// upload legt ein PDF oder Bild an (Rohbytes im Body, z. B. ein eingefügter Screenshot); 409, wenn es schon existiert.
+// upload legt ein PDF, Bild oder Code an (Rohbytes im Body, z. B. ein eingefügter Screenshot); 409, wenn es schon existiert.
 func (h noteHandlers) upload(w http.ResponseWriter, r *http.Request) {
 	p := r.PathValue("path")
 	body, ok := checkedBody(w, r, p)
@@ -166,9 +169,9 @@ func (h noteHandlers) replace(w http.ResponseWriter, r *http.Request) {
 func checkedBody(w http.ResponseWriter, r *http.Request, p string) (*bufio.Reader, bool) {
 	body := bufio.NewReader(http.MaxBytesReader(w, r.Body, maxUploadBytes))
 	head, _ := body.Peek(512)
-	want := map[string]string{"pdf": "application/pdf", "image": "image/"}[notes.Kind(p)]
+	want := map[string]string{"pdf": "application/pdf", "image": "image/", "code": "text/plain"}[notes.Kind(p)]
 	if want == "" || !strings.HasPrefix(http.DetectContentType(head), want) {
-		writeError(w, fmt.Errorf("%w: Inhalt passt nicht zu %q (erlaubt: PDF und Bilder)", domain.ErrInvalid, p))
+		writeError(w, fmt.Errorf("%w: Inhalt passt nicht zu %q (erlaubt: PDF, Bilder, C/C++ und Makefiles)", domain.ErrInvalid, p))
 		return nil, false
 	}
 	return body, true

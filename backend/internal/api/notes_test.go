@@ -166,6 +166,22 @@ func TestNoteFiles(t *testing.T) {
 		}
 	}
 
+	// Code aus Vorlesungen: hochladen und ansehen, aber nicht ersetzen.
+	for p, body := range map[string]string{"/api/files/Makefile.Others": "all:\n\tg++ x.cpp\n", "/api/files/tree.hpp": "#include <vector>\n"} {
+		if rec := call(h, "POST", p, body); rec.Code != http.StatusCreated {
+			t.Errorf("POST %s: %d %s", p, rec.Code, rec.Body)
+		}
+	}
+	if rec := call(h, "POST", "/api/files/x.cpp", "<html><script>"); rec.Code != http.StatusBadRequest {
+		t.Errorf("HTML als Code hochgeladen: %d", rec.Code)
+	}
+	if rec := call(h, "GET", "/api/files/Makefile.Others", ``); rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Errorf("GET Makefile.Others: %d %v", rec.Code, rec.Header())
+	}
+	if rec := call(h, "PUT", "/api/files/tree.hpp?force=1", "#x\n"); rec.Code != http.StatusBadRequest {
+		t.Errorf("Code ersetzt: %d", rec.Code)
+	}
+
 	// Bearbeitet speichern: passende Version ersetzt, die alte Fassung liegt danach in .trash/.
 	v := call(h, "GET", "/api/files/a.png", ``).Header().Get("X-Kairo-Mtime")
 	png2 := png + "neu"
@@ -210,7 +226,7 @@ func TestNoteFiles(t *testing.T) {
 	for _, n := range tree {
 		names = append(names, n.Name)
 	}
-	if strings.Join(names, ",") != "a.png,Folien.pdf,Skript 1.pdf" {
+	if strings.Join(names, ",") != "a.png,Folien.pdf,Makefile.Others,Skript 1.pdf,tree.hpp" {
 		t.Fatalf("Baum: %v", names)
 	}
 }

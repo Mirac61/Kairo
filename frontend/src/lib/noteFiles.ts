@@ -1,11 +1,12 @@
-// Dateien im Notizordner: Markdown, PDF, Bilder (wie Kind in backend/internal/notes).
+// Dateien im Notizordner: Markdown, PDF, Bilder, C/C++ und Makefiles (wie Kind in backend/internal/notes).
 // Reine Funktionen ohne Imports, damit noteFiles.test.ts sie direkt mit Node prüfen kann.
-export type FileKind = 'md' | 'pdf' | 'image' | ''
+export type FileKind = 'md' | 'pdf' | 'image' | 'code' | ''
 
 export function fileKind(path: string): FileKind {
   if (/\.md$/i.test(path)) return 'md'
   if (/\.pdf$/i.test(path)) return 'pdf'
-  return /\.(png|jpe?g|gif|webp)$/i.test(path) ? 'image' : ''
+  if (/\.(png|jpe?g|gif|webp)$/i.test(path)) return 'image'
+  return /\.(c|h|cc|cpp|cxx|hh|hpp|hxx)$|(^|\/)makefile(\.[^/]*)?$/i.test(path) ? 'code' : ''
 }
 
 export const filesUrl = (path: string) => `/api/files/${path.split('/').map(encodeURIComponent).join('/')}`

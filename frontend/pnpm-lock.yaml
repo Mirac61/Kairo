@@ -166,6 +166,18 @@ importers:
 
   .:
     dependencies:
+      '@codemirror/lang-cpp':
+        specifier: 6.0.3
+        version: 6.0.3
+      '@codemirror/language':
+        specifier: 6.13.1
+        version: 6.13.1
+      '@codemirror/state':
+        specifier: 6.7.6
+        version: 6.7.6
+      '@codemirror/view':
+        specifier: 6.43.14
+        version: 6.43.14
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
@@ -190,6 +202,9 @@ importers:
       '@fullcalendar/vue3':
         specifier: ^6.1.21
         version: 6.1.21(@fullcalendar/core@6.1.21)(vue@3.5.43(typescript@5.9.3))
+      '@lezer/highlight':
+        specifier: 1.2.5
+        version: 1.2.5
       '@primeuix/themes':
         specifier: ^2.0.3
         version: 2.0.3

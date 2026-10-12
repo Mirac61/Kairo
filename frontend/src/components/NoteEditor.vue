@@ -1,3 +1,13 @@
+<script lang="ts">
+import { EditorView } from '@codemirror/view'
+import { config } from 'md-editor-v3'
+
+// Rechtschreibprüfung des Browsers bzw. von macOS (rote Wellenlinie, Vorschläge per Rechtsklick); CodeMirror schaltet sie sonst ab.
+config({
+  codeMirrorExtensions: (exts) => [...exts, { type: 'spellcheck', extension: EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }) }],
+})
+</script>
+
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
 import { MdEditor, type ToolbarNames } from 'md-editor-v3'
