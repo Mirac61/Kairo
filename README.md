@@ -52,7 +52,7 @@ Optional: install `kairo-*.vsix` from the same release in VSCodium or VS Code (E
 | **Tasks** | Quick-add syntax, keyboard shortcuts, subtasks, priorities |
 | **Habits** | Daily or weekly habits with a 28-day grid |
 | **Projects** | Colors, links and files, time per project |
-| **Notes** | Markdown, PDFs and images. Draw on PDFs, split view, templates |
+| **Notes** | Markdown, PDFs, images and code. Draw on PDFs, sketch with Excalidraw drawings embedded in notes, split view, templates |
 | **Week** | A short review of your week |
 | **Trash** | Everything you delete can be restored |
 
@@ -102,4 +102,4 @@ The Go backend is the only place that stores data. The web UI is built into the 
 - [`docs/`](docs/): vision, architecture and roadmap (in German)
 - Releases are built from tags with `.goreleaser.yaml`
 
-MIT licensed.
+MIT licensed. Licenses of bundled third-party software (Excalidraw, React, fonts) are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
