@@ -14,6 +14,7 @@ Anweisungen für Coding-Agenten in diesem Repository.
 - Backend + SQLite sind die Source of Truth.
 - Schemaänderungen nur über Migrationen.
 - Zeittracking nur mit echten Zeitstempeln.
+- Arbeitspläne liegen in `docs/plans/` (per `.git/info/exclude` lokal ausgeschlossen) und werden nicht committet.
 - Kein automatischer Timer, nur weil ein Workspace geöffnet wurde.
 - Arbeite in kleinen vertikalen Schritten.
 - Neue Texte in der WebUI auf Deutsch über `t('…')`/`$t('…')` und mit englischer Übersetzung in `frontend/src/lib/en.ts` (siehe `frontend/README.md`).

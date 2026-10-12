@@ -7,10 +7,12 @@ MVP.
 Wochenrückblick in der WebUI, ICS-Import, Papierkorb mit Rückgängig-Toast,
 Projektfarben, Statusleiste, Befehle und URI-Handler in der Extension, das
 SwiftBar-Plugin (`tools/menubar/`), Backups, die Einstellungsseite
-(`config.json`), Notizen mit PDFs, Bildern, Vorlagen und
-Zeichenwerkzeug, Englisch/Deutsch, Playwright-Smoke-Tests und Releases
-mit fertigen Binaries für macOS, Linux und Windows. In Phase 8 steht nur noch, was fehlt, unter „Pflege“ der Stand
-der Aufräumarbeiten.
+(`config.json`), Notizen mit PDFs, Bildern, Vorlagen, Code-Viewer und
+Zeichenwerkzeug, Zeichnungen (Excalidraw) in Notizen, Gewohnheiten mit
+Dauer, GitHub-Issues in der Aufgaben-Ansicht, Englisch/Deutsch,
+Playwright-Smoke-Tests und Releases mit fertigen Binaries für macOS,
+Linux und Windows. In Phase 8 steht nur noch, was fehlt, unter „Pflege“
+der Stand der Aufräumarbeiten.
 
 Innerhalb jeder Phase wird jede Funktion als vertikale Scheibe gebaut
 (siehe `03_AGENT_GUIDELINES.md`, Entwicklungsstil).
@@ -244,13 +246,28 @@ Technische Schulden und Aufräumarbeiten, keine neuen Funktionen.
     `docs/screenshots/` zeigen nur Mock-Daten aus
     `frontend/scripts/shot.mjs`.
 
+-   **Zeichnungen und Lizenzen:** `.excalidraw`-Dateien lassen sich im
+    Notizordner anlegen, mit Autosave bearbeiten und per
+    `![](skizze.excalidraw)` in Notizen einbetten. Excalidraw und die
+    Schriften laufen lokal (kein CDN). `THIRD_PARTY_NOTICES.md` liegt im
+    Release-Archiv und ist in den Einstellungen verlinkt.
+-   **Pläne:** Arbeitspläne liegen in `docs/plans/` und sind per
+    `.git/info/exclude` lokal ausgeschlossen, nicht im Repo.
+
 ## Offen
 
 -   Die Extension und die Fehlermeldungen des Backends sind nur
     deutsch. Die Extension könnte `vscode.env.language` folgen.
 -   Unter Windows ist das Backend nur cross-kompiliert und in der CI
     getestet, noch nicht von Hand ausprobiert.
-
+-   Das Frontend ist 14 MB groß; allein Excalidraw macht gut 3 MB aus.
+    Eingebettete Dateien könnten gzip oder brotli ausliefern, und der
+    Excalidraw-Chunk lässt sich auf unnötige Teile prüfen.
+-   Die e2e-Tests decken Gewohnheiten, GitHub-Issues, Ordner-Upload und
+    den Code-Viewer kaum ab. ESLint und Prettier fehlen im Frontend.
+-   Der Autosave einer Zeichnung schreibt jede Sekunde die ganze Datei;
+    zu prüfen ist, wie stark `.trash` dadurch wächst (Limit oder
+    Zusammenfassen alter Fassungen).
 -   `CalendarView.vue` und `FileEditor.vue` haben noch knapp 600 Zeilen,
     `NotesView.vue` gut 500. Der Rest hängt eng an FullCalendar, am
     Zeiger-Handling der Zeichenfläche bzw. am Dateibaum; weiter teilen,
