@@ -1,22 +1,37 @@
-// Dateien im Notizordner: Markdown, PDF, Bilder, C/C++ und Makefiles (wie Kind in backend/internal/notes).
+// Dateien im Notizordner: Markdown, PDF, Bilder, C/C++, Makefiles und Zeichnungen (wie Kind in backend/internal/notes).
 // Reine Funktionen ohne Imports, damit noteFiles.test.ts sie direkt mit Node prüfen kann.
-export type FileKind = 'md' | 'pdf' | 'image' | 'code' | ''
+export type FileKind = 'md' | 'pdf' | 'image' | 'code' | 'excalidraw' | ''
 
 export function fileKind(path: string): FileKind {
   if (/\.md$/i.test(path)) return 'md'
   if (/\.pdf$/i.test(path)) return 'pdf'
   if (/\.(png|jpe?g|gif|webp)$/i.test(path)) return 'image'
+  if (/\.excalidraw$/i.test(path)) return 'excalidraw'
   return /\.(c|h|cc|cpp|cxx|hh|hpp|hxx)$|(^|\/)makefile(\.[^/]*)?$/i.test(path) ? 'code' : ''
 }
 
 export const filesUrl = (path: string) => `/api/files/${path.split('/').map(encodeURIComponent).join('/')}`
 
 // Vorschau: relative <img src> (neben der Notiz, auch „../bilder/x.png“) zeigen auf /api/files.
-// Absolute URLs, data: und /pfad bleiben, wie sie sind.
-export const previewImages = (html: string, notePath: string) =>
-  html.replace(/(<img\b[^>]*?\ssrc=")([^"]*)"/g, (_, pre: string, src: string) =>
-    /^([a-z][a-z\d+.-]*:|\/)/i.test(src) ? `${pre}${src}"` : `${pre}${new URL(src, `http://x${filesUrl(notePath)}`).pathname}"`,
-  )
+// Absolute URLs, data: und /pfad bleiben, wie sie sind. Zeichnungen (.excalidraw) bekommen data-drawing mit ihrem Pfad
+// und als src das fertige Bild aus drawing(pfad), solange es fehlt ein leeres Platzhalterbild.
+const PENDING = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="120"/>')}`
+const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+export const previewImages = (html: string, notePath: string, drawing: (path: string) => string | undefined = () => undefined) =>
+  html.replace(/<img\b[^>]*>/g, (tag) => {
+    const src = /\ssrc="([^"]*)"/.exec(tag)?.[1]
+    if (src === undefined || /^([a-z][a-z\d+.-]*:|\/)/i.test(src)) return tag
+    const url = new URL(src, `http://x${filesUrl(notePath)}`).pathname
+    if (fileKind(url) !== 'excalidraw') return tag.replace(/\ssrc="[^"]*"/, () => ` src="${url}"`)
+    const p = decodeURIComponent(url.slice('/api/files/'.length))
+    tag = tag.replace(/\ssrc="[^"]*"/, () => ` data-drawing="${attr(p)}" src="${drawing(p) ?? PENDING}"`)
+    // not-zoom: md-editor legt sonst seinen Bild-Zoom darüber; ein Klick öffnet die Zeichnung.
+    return /\sclass="/.test(tag) ? tag.replace(/\sclass="/, ' class="not-zoom ') : tag.replace(/^<img/, '<img class="not-zoom"')
+  })
+
+// Pfade aller Zeichnungen in einer mit previewImages bearbeiteten Vorschau.
+export const drawingsIn = (html: string) =>
+  [...html.matchAll(/data-drawing="([^"]*)"/g)].map((m) => m[1]!.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&amp;/g, '&'))
 
 // Vorlagen: {{titel}} {{ordner}} {{datum}} {{wochentag}} {{uhrzeit}}; Unbekanntes bleibt stehen.
 // {{titel}} ist der Name ohne Datum vorn („2026-10-09 VL 3“ → „VL 3“), das steht schon in {{datum}}.

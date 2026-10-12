@@ -184,6 +184,34 @@ test('Ordner hinzufügen', async () => {
   await page.locator('.cv .cm-content', { hasText: 'g++ -o baum baum.cpp' }).waitFor()
 })
 
+// Zeichnung anlegen, Autosave abwarten, in einer Notiz einbetten und per Klick öffnen.
+test('Zeichnung', async () => {
+  await page.goto(`${base}/notes`)
+  await page.getByRole('button', { name: 'Neue Zeichnung', exact: true }).click()
+  await page.getByLabel('Name der neuen Zeichnung').fill('Skizze')
+  await page.keyboard.press('Enter')
+  const canvas = page.locator('.dw canvas.interactive')
+  await canvas.waitFor()
+  const box = await canvas.boundingBox()
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+  await page.keyboard.press('r')
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 160, box.y + box.height / 2 + 100, { steps: 5 })
+  await page.mouse.up()
+  await page.waitForResponse((r) => r.url().includes('/api/files/Skizze.excalidraw') && r.request().method() === 'PUT')
+  assert.match(readFileSync(join(env.KAIRO_NOTES_DIR, 'Skizze.excalidraw'), 'utf8'), /"type": "rectangle"/)
+
+  writeFileSync(join(env.KAIRO_NOTES_DIR, 'Mit Zeichnung.md'), '# Plan\n\n![](Skizze.excalidraw)\n')
+  await page.goto(`${base}/notes`)
+  await page.getByRole('treeitem', { name: 'Mit Zeichnung', exact: true }).click()
+  const img = page.locator('img[data-drawing="Skizze.excalidraw"][src^="blob:"]')
+  await img.click()
+  await page.locator('.ed-doc .dw canvas.interactive').waitFor()
+  await page.locator('.ed-note .md-editor-preview').waitFor() // geteilt: rechts bleibt die Notiz sichtbar
+  assert.equal(await page.locator('.medium-zoom-overlay').count(), 0, 'kein Bild-Zoom über der Zeichnung')
+})
+
 test('Sprache umschalten', async () => {
   await page.goto(`${base}/settings`)
   await page.getByRole('button', { name: 'English' }).click()

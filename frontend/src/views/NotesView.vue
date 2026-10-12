@@ -4,6 +4,7 @@ import { onBeforeRouteLeave } from 'vue-router'
 import { useConfirm } from 'primevue/useconfirm'
 import { ApiError, createNote, deleteNote, errorMessage, listNotes, moveNote, readNote, saveNote, uploadFile, type NoteNode } from '@/api/client'
 import CodeViewer from '@/components/CodeViewer.vue'
+import DrawingEditor from '@/components/DrawingEditor.vue'
 import FileEditor from '@/components/FileEditor.vue'
 import NoteEditor from '@/components/NoteEditor.vue'
 import NoteTree, { canDrop, canDropHere, parentOf, type TreeCtx } from '@/components/NoteTree.vue'
@@ -16,7 +17,7 @@ import { useSplitRatio } from '@/composables/useSplitRatio'
 const DISCARD = t('Ungespeicherte Änderungen verwerfen?')
 const POLL_MS = 5000
 
-// Zwei Plätze: links („doc“) eine Notiz, ein PDF oder ein Bild, rechts („note“) eine Notiz. Einzeln ist einer sichtbar,
+// Zwei Plätze: links („doc“) eine Notiz, ein PDF, ein Bild oder eine Zeichnung, rechts („note“) eine Notiz. Einzeln ist einer sichtbar,
 // geteilt beide. Beide bleiben geladen, damit ein Wechsel Scrollposition, Zoom und Ungespeichertes behält.
 type Pane = 'doc' | 'note'
 const PANES: Pane[] = ['doc', 'note']
@@ -38,6 +39,7 @@ const docKind = computed(() => (paths.doc ? fileKind(paths.doc) : ''))
 const docEd = ref<InstanceType<typeof FileEditor> | null>(null)
 const setDocEd = (el: unknown) => (docEd.value = el as InstanceType<typeof FileEditor> | null) // Funktions-Ref: im v-for wäre ref="…" ein Array
 const docDirtyFlag = ref(false)
+const drawingRev = ref(0) // nach jedem Speichern einer Zeichnung und alle 5 s: eingebettete Zeichnungen in Notizen prüfen
 watch(() => paths.doc, () => (docDirtyFlag.value = false))
 const isDirty = (p: Pane) => (isMd(p) ? bufs[p].text !== bufs[p].saved : p === 'doc' && docDirtyFlag.value)
 const dirty = computed(() => isDirty('doc') || isDirty('note'))
@@ -81,10 +83,10 @@ const ctx: TreeCtx = reactive({
     if (!ctx.open.delete(p)) ctx.open.add(p)
     saveOpen()
   },
-  startAdd(parent: string, dir: boolean) {
+  startAdd(parent: string, dir: boolean, drawing = false) {
     if (parent) ctx.open.add(parent)
     ctx.renaming = null
-    ctx.adding = { parent, dir }
+    ctx.adding = { parent, dir, drawing }
   },
   submitAdd: (name: string) => void add(name),
   cancelAdd() { ctx.adding = null },
@@ -170,7 +172,7 @@ const parents = (p: string) => p.split('/').slice(0, -1).map((_, i, a) => a.slic
 async function addFiles(dir: string, uploads: Upload[]) {
   uploads = uploads.filter((u) => !u.path.split('/').some((s) => s.startsWith('.')))
   const bad = uploads.find((u) => !fileKind(u.path))
-  if (bad) error.value = t('„{name}“: Kairo nimmt nur Markdown, PDFs, Bilder (png, jpg, gif, webp), C/C++ und Makefiles.', { name: bad.path })
+  if (bad) error.value = t('„{name}“: Kairo nimmt nur Markdown, PDFs, Bilder (png, jpg, gif, webp), C/C++, Makefiles und Zeichnungen.', { name: bad.path })
   uploads = uploads.filter((u) => fileKind(u.path))
   if (!uploads.length) return
   let last = ''
@@ -264,14 +266,21 @@ async function openFile(p: string) {
   shown.value = focus.value = pane
 }
 
+// Klick auf eine eingebettete Zeichnung: geteilt öffnen, links zeichnen, rechts die Notiz live.
+function openDrawing(p: string) {
+  split.value = true
+  void openFile(p)
+}
+
 async function add(name: string) {
   const target = ctx.adding
   ctx.adding = null
   if (!target) return
   if (badName(name)) return
-  const p = join(target.parent, target.dir ? name : withExt(name))
+  const p = join(target.parent, target.dir ? name : withExt(name, target.drawing ? '.excalidraw' : '.md'))
   try {
-    await createNote(p, target.dir)
+    if (target.drawing) await uploadFile(p, new Blob([EMPTY_DRAWING], { type: 'application/json' }))
+    else await createNote(p, target.dir)
     if (target.dir) ctx.toggle(p)
     tree.value = await listNotes()
     if (!target.dir) await openFile(p)
@@ -280,6 +289,8 @@ async function add(name: string) {
     error.value = errorMessage(e)
   }
 }
+
+const EMPTY_DRAWING = JSON.stringify({ type: 'excalidraw', version: 2, source: 'kairo', elements: [], appState: {}, files: {} })
 
 async function uploaded() {
   try {
@@ -310,8 +321,10 @@ async function save(force = false, pane: Pane = current.value) {
   if (!paths[pane] || saving.value || (!isDirty(pane) && !force)) return
   saving.value = true
   try {
-    if (!isMd(pane)) await docEd.value?.save(force)
-    else {
+    if (!isMd(pane)) {
+      await docEd.value?.save(force)
+      if (docKind.value === 'excalidraw') drawingRev.value++
+    } else {
       const [p, content] = [paths[pane]!, bufs[pane].text]
       const r = await saveNote(p, content, bufs[pane].mtime, force)
       if (paths[pane] === p) Object.assign(bufs[pane], { saved: content, mtime: r.mtime, external: false })
@@ -341,6 +354,7 @@ async function reload(pane: Pane) {
 // Änderungen aus VSCodium holen: ohne eigene Änderungen still neu laden, sonst nur Hinweis (Speichern fragt dann nach).
 async function refresh() {
   if (document.visibilityState !== 'visible' || saving.value) return
+  drawingRev.value++ // auch Änderungen aus VSCodium; neu gerendert wird nur bei neuer mtime
   try {
     tree.value = await listNotes()
     for (const pn of PANES) {
@@ -411,6 +425,7 @@ onBeforeUnmount(() => {
         <span class="lbl">{{ $t('Notizen') }}</span>
         <span class="nt-head-act">
           <button type="button" class="icon-btn" :aria-label="$t('Neue Notiz')" :data-tip="$t('Neue Notiz')" @click="ctx.startAdd('', false)"><svg class="ic"><use href="#i-plus" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Neue Zeichnung')" :data-tip="$t('Neue Zeichnung')" @click="ctx.startAdd('', false, true)"><svg class="ic"><use href="#i-draw" /></svg></button>
           <button type="button" class="icon-btn" :aria-label="$t('Neuer Ordner')" :data-tip="$t('Neuer Ordner')" @click="ctx.startAdd('', true)"><svg class="ic"><use href="#i-proj" /></svg></button>
           <button type="button" class="icon-btn" :aria-label="$t('Datei hinzufügen')" :data-tip="$t('PDF, Bild oder Notiz hinzufügen')" @click="filePick?.click()"><svg class="ic"><use href="#i-upload" /></svg></button>
           <input ref="filePick" type="file" multiple hidden @change="pick" />
@@ -465,11 +480,15 @@ onBeforeUnmount(() => {
             <span>{{ $t('Vorlage') }}</span>
             <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t, pn)">{{ t.name.replace(/\.md$/i, '') }}</button>
           </div>
-          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" @uploaded="uploaded" @error="error = $event" />
+          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" :drawing-rev="drawingRev" @uploaded="uploaded" @error="error = $event" @open="openDrawing" />
         </template>
         <FileEditor
           v-else-if="pn === 'doc' && paths.doc && (docKind === 'pdf' || docKind === 'image')" :ref="setDocEd" :key="paths.doc" :path="paths.doc" :kind="docKind"
           :active="visible('doc') && (!split || focus === 'doc')" @dirty="docDirtyFlag = $event"
+        />
+        <DrawingEditor
+          v-else-if="pn === 'doc' && paths.doc && docKind === 'excalidraw'" :ref="setDocEd" :key="paths.doc" :path="paths.doc"
+          @dirty="docDirtyFlag = $event" @autosave="save(false, 'doc')"
         />
         <CodeViewer v-else-if="pn === 'doc' && paths.doc && docKind === 'code'" :key="paths.doc" :path="paths.doc" />
         <div v-else class="ed-empty">{{ pn === 'doc' ? $t('Klick hier hinein und wähle im Baum eine Notiz, ein PDF oder ein Bild.') : $t('Wähle links eine Notiz oder lege eine neue an.') }}</div>

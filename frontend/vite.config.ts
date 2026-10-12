@@ -1,5 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
 import type { ClientRequest, IncomingMessage } from 'node:http'
 import { defineConfig, type Plugin, type ProxyOptions } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -37,8 +37,21 @@ function restoreGitkeep(): Plugin {
   }
 }
 
+// Excalidraw-Schriften liegen neben der WebUI (window.EXCALIDRAW_ASSET_PATH = '/excalidraw/'), damit Kairo offline zeichnet.
+// ponytail: ohne Xiaolai (12 MB, nur chinesische Schrift); fehlt sie, nimmt Excalidraw das CDN bzw. eine Systemschrift.
+function excalidrawFonts(): Plugin {
+  const src = fileURLToPath(new URL('./node_modules/@excalidraw/excalidraw/dist/prod/fonts', import.meta.url))
+  return {
+    name: 'kairo-excalidraw-fonts',
+    apply: 'build',
+    closeBundle() {
+      cpSync(src, `${outDir}/excalidraw/fonts`, { recursive: true, filter: (f) => !f.includes('Xiaolai') })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [vue(), restoreGitkeep()],
+  plugins: [vue(), restoreGitkeep(), excalidrawFonts()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
     host: '127.0.0.1',
@@ -48,5 +61,10 @@ export default defineConfig({
       '/ws': { ...backendProxy, ws: true },
     },
   },
-  build: { outDir, emptyOutDir: true },
+  build: {
+    outDir,
+    emptyOutDir: true,
+    // Excalidraws React-Teile tragen "use client"; das ist nur für Server-Rendering wichtig.
+    rollupOptions: { onwarn: (w, warn) => void (w.code !== 'MODULE_LEVEL_DIRECTIVE' && warn(w)) },
+  },
 })
