@@ -12,10 +12,10 @@ import './styles.css'
 import './design.css'
 import { store } from './lib/storage'
 import { lang, t, tn, type Lang } from './lib/i18n'
+import { applyPrefs } from './lib/prefs'
 
-// Vor dem Mounten setzen, damit nichts aufblitzt: gespeichertes Theme, sonst System.
-document.documentElement.dataset.theme =
-  store.get('kairo-theme') ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+// Vor dem Mounten setzen, damit nichts aufblitzt: Theme, Akzentfarbe, Bewegung.
+applyPrefs()
 
 // Sprache: gespeicherte Wahl, sonst die des Browsers.
 lang.value = (store.get('kairo-lang') as Lang | null) ?? (navigator.language.startsWith('de') ? 'de' : 'en')

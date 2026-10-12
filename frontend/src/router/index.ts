@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { prefs } from '@/lib/prefs'
 
 export const navItems = [
   { path: '/today', name: 'today', label: 'Start', icon: 'today', component: () => import('@/views/TodayView.vue') },
@@ -14,7 +15,7 @@ export const navItems = [
 export default createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', redirect: '/today' },
+    { path: '/', redirect: () => (navItems.some((n) => n.path === prefs.start) ? prefs.start : '/today') },
     ...navItems.map(({ path, name, component }) => ({ path, name, component })),
     { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/today' },
