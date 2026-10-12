@@ -202,9 +202,9 @@ func (s *Store) Move(from, to string) error {
 	return mapErr(s.root.Rename(from, to))
 }
 
-// Open öffnet ein PDF oder Bild zum Ausliefern.
+// Open öffnet ein PDF, Bild oder Code zum Ausliefern.
 func (s *Store) Open(p string) (*os.File, fs.FileInfo, error) {
-	p, err := checkPath(p, "pdf", "image")
+	p, err := checkPath(p, "pdf", "image", "code")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -223,10 +223,10 @@ func (s *Store) Open(p string) (*os.File, fs.FileInfo, error) {
 	return f, fi, nil
 }
 
-// Upload legt ein PDF oder Bild an; existiert es schon: domain.ErrConflict.
+// Upload legt ein PDF, Bild oder Code an; existiert es schon: domain.ErrConflict.
 // Bricht das Schreiben ab, wird die halbe Datei wieder gelöscht.
 func (s *Store) Upload(p string, r io.Reader) error {
-	p, err := checkPath(p, "pdf", "image")
+	p, err := checkPath(p, "pdf", "image", "code")
 	if err != nil {
 		return err
 	}
@@ -340,8 +340,9 @@ func checkPath(p string, kinds ...string) (string, error) {
 	return p, nil
 }
 
-// Kind ist der Dateityp, den Kairo im Notizordner zeigt: "md", "pdf", "image"
-// oder "" (alles andere bleibt unsichtbar). SVG fehlt, weil es Skript enthalten kann.
+// Kind ist der Dateityp, den Kairo im Notizordner zeigt: "md", "pdf", "image",
+// "code" (C/C++ und Makefiles aus Vorlesungen, nur zum Ansehen) oder "" (alles
+// andere bleibt unsichtbar). SVG fehlt, weil es Skript enthalten kann.
 func Kind(p string) string {
 	switch strings.ToLower(path.Ext(p)) {
 	case ".md":
@@ -350,6 +351,11 @@ func Kind(p string) string {
 		return "pdf"
 	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
 		return "image"
+	case ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx":
+		return "code"
+	}
+	if base := strings.ToLower(path.Base(p)); base == "makefile" || strings.HasPrefix(base, "makefile.") {
+		return "code"
 	}
 	return ""
 }

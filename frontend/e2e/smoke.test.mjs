@@ -2,7 +2,7 @@
 // Voraussetzung: `make build` (das Binary enthält die WebUI). Starten: `pnpm e2e`.
 // KAIRO_BIN zeigt auf ein anderes Binary, KAIRO_E2E_PORT wählt den Port (Standard 8813).
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -96,6 +96,33 @@ test('Termin verschieben', async () => {
   assert.ok(new Date(moved) > new Date(ev.start_at), `verschoben: ${ev.start_at} → ${moved}`)
 })
 
+test('Gewohnheit mit Uhrzeit im Kalender abhaken', async () => {
+  const day = new Date().toLocaleDateString('sv')
+  const idx = (new Date().getDay() + 6) % 7
+  await page.goto(`${base}/habits`)
+  await page.getByRole('button', { name: 'Neue Gewohnheit' }).click()
+  await page.getByLabel('Name').fill('Smoke-Gewohnheit')
+  await page.getByRole('button', { name: 'Bestimmte Tage' }).click()
+  // Montag ist vorausgewählt; heute dazunehmen, damit sie im Tageskalender erscheint.
+  if (idx > 0) await page.getByRole('group', { name: 'Wochentage' }).getByRole('button').nth(idx).click()
+  await page.getByLabel('Uhrzeit').fill('10:00')
+  await page.getByRole('button', { name: 'Anlegen' }).click()
+  await page.locator('.hk-name', { hasText: 'Smoke-Gewohnheit' }).waitFor()
+  const h = (await api('/habits')).find((x) => x.name === 'Smoke-Gewohnheit')
+  assert.equal(h.frequency_type, 'SPECIFIC_WEEKDAYS')
+  assert.equal(h.preferred_time, '10:00')
+
+  // Die Tagesansicht ist aus „Termin verschieben“ noch gespeichert.
+  await page.goto(`${base}/calendar`)
+  await page.waitForLoadState('networkidle')
+  const block = page.locator('.fc-event.kt-habit', { hasText: 'Smoke-Gewohnheit' })
+  await block.scrollIntoViewIfNeeded()
+  await block.click()
+  await page.waitForResponse((r) => r.url().includes(`/habits/${h.id}/completions`) && r.request().method() === 'POST')
+  const done = await api(`/habits/${h.id}/completions?from=${day}&to=${day}`)
+  assert.equal(done.length, 1)
+})
+
 test('Notiz speichern', async () => {
   await page.goto(`${base}/notes`)
   await page.getByRole('button', { name: 'Neue Notiz', exact: true }).click()
@@ -138,11 +165,30 @@ test('PDF und Bild bezeichnen', async () => {
   }
 })
 
+// Ordner samt Unterordner hochladen; versteckte und fremde Dateien bleiben draußen, Code lässt sich ansehen.
+test('Ordner hinzufügen', async () => {
+  const src = join(mkdtempSync(join(tmpdir(), 'kairo-e2e-up-')), 'Mappe')
+  mkdirSync(join(src, 'Unter'), { recursive: true })
+  writeFileSync(join(src, 'Liste.md'), '# Liste')
+  writeFileSync(join(src, 'Unter', 'Tief.md'), '# Tief')
+  writeFileSync(join(src, '.DS_Store'), '')
+  writeFileSync(join(src, 'Text.txt'), '')
+  writeFileSync(join(src, 'Unter', 'Makefile.Others'), 'all: baum\n\tg++ -o baum baum.cpp\n')
+  await page.goto(`${base}/notes`)
+  await page.locator('input[webkitdirectory]').setInputFiles(src)
+  await page.getByRole('treeitem', { name: 'Tief', exact: true }).waitFor()
+  assert.equal(readFileSync(join(env.KAIRO_NOTES_DIR, 'Mappe', 'Unter', 'Tief.md'), 'utf8'), '# Tief')
+  assert.equal(readFileSync(join(env.KAIRO_NOTES_DIR, 'Mappe', 'Liste.md'), 'utf8'), '# Liste')
+  assert.ok(!existsSync(join(env.KAIRO_NOTES_DIR, 'Mappe', 'Text.txt')))
+  await page.getByRole('treeitem', { name: 'Makefile.Others', exact: true }).click()
+  await page.locator('.cv .cm-content', { hasText: 'g++ -o baum baum.cpp' }).waitFor()
+})
+
 test('Sprache umschalten', async () => {
   await page.goto(`${base}/settings`)
-  await page.getByLabel('Sprache').selectOption('en')
+  await page.getByRole('button', { name: 'English' }).click()
   await page.getByRole('link', { name: 'Tasks' }).waitFor()
   assert.equal(await page.locator('html').getAttribute('lang'), 'en')
-  await page.getByLabel('Language').selectOption('de')
+  await page.getByRole('button', { name: 'Deutsch' }).click()
   await page.getByRole('link', { name: 'Aufgaben' }).waitFor()
 })

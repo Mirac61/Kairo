@@ -126,6 +126,21 @@ an deren Subtasks) Zeiteinträge hängen, lässt sich nicht endgültig löschen
 abgebrochen (`CANCELLED`). Die erfasste Zeit einer Task im Papierkorb zählt
 in den Summen weiter. Projekte werden weiterhin hart gelöscht.
 
+**GitHub-Issues:** Die Aufgaben-Ansicht listet unter „GitHub-Issues“ alle
+offenen Issues aus allen Repos, an denen der Nutzer beteiligt ist
+(`GET /api/github/issues`, GitHub-Suche `is:open is:issue involves:@me`,
+höchstens 100). Ein aufgeklapptes Projekt zeigt alle offenen Issues seines
+Repos (`GET /api/projects/{id}/github/issues`). Das Repo liest Kairo aus dem
+Remote `origin` des Projektordners (`local_path`); ohne GitHub-Remote
+erscheint dort nichts. „Als Aufgabe“ legt eine Task an, im Projekt direkt
+diesem zugeordnet, in der Gesamtliste optional einem gewählten Projekt
+(`POST /api/github/issues/import`), und hängt die Issue-URL als
+URL-Ressource an. Über diese Ressource erkennt Kairo, dass ein Issue schon
+importiert ist (zweiter Import → 409). Das Token kommt aus `GH_TOKEN` bzw.
+`GITHUB_TOKEN` oder von `gh auth token`; Kairo speichert keins. Fehlt `gh`
+oder ist es nicht angemeldet, antwortet die API mit 503 und einem Hinweis.
+Es gibt keinen Rück-Sync: Eine erledigte Task schließt das Issue nicht.
+
 ------------------------------------------------------------------------
 
 # 3. Habits
@@ -166,6 +181,7 @@ frequency_config
 target_value?
 unit?
 preferred_time?
+duration_minutes
 start_date
 end_date?
 active
@@ -176,7 +192,30 @@ created_at
 `TIMES_PER_WEEK`. `frequency_config` enthält die Details (z. B.
 Wochentage oder Anzahl) als JSON (siehe `02_ARCHITECTURE.md`).
 
-`preferred_time` ist eine optionale lokale Uhrzeit (`HH:MM`).
+`preferred_time` ist eine optionale lokale Uhrzeit (`HH:MM`),
+`duration_minutes` (Standard 30) die Länge des Blocks im Kalender.
+
+Der Dialog in der WebUI legt an und bearbeitet. Er bietet als Rhythmus
+„Täglich“, „Bestimmte Tage“ (z. B. Mo und Do) und „X-mal pro Woche“,
+dazu Beschreibung, Uhrzeit und Dauer, Ziel mit Einheit sowie Start- und
+Enddatum. `WEEKLY` bleibt im Backend gültig; der Dialog zeigt ein solches
+Habit als „Bestimmte Tage“ mit einem Tag und speichert es so.
+
+Die Seite „Gewohnheiten“ zeigt oben Kennzahlen (heute, diese Woche,
+längste Serie, Quote der letzten 30 Tage) und hat drei Ansichten:
+
+-   **Tag:** Wochenstreifen mit einem Fortschrittsring je Tag (erledigt
+    von fällig), darunter die am gewählten Tag fälligen Habits als Karten,
+    nach Tageszeit gruppiert (morgens, mittags ab 12 Uhr, abends ab 17 Uhr,
+    jederzeit ohne Uhrzeit). Ein Klick auf die Karte hakt ab oder nimmt
+    zurück; zukünftige Tage lassen sich nur ansehen.
+-   **Monat:** je Habit ein Monatskalender, erledigte Tage in der Farbe des
+    Habits, bis zu zwölf Monate zurück.
+-   **Jahr:** je Habit ein Jahresraster wie der GitHub-Beitragsgraph
+    (53 Wochen, Montag oben) mit Serie, Quote und Abhaken für heute.
+
+In Monat und Jahr trägt ein Klick auf einen Tag nach. Die gewählte
+Ansicht merkt sich der Browser.
 
 Aus der Regel ergeben sich Habit Occurrences (berechnet, siehe Regeln).
 Wenn der Nutzer ein Habit abhakt, wird eine HabitCompletion gespeichert.
@@ -204,6 +243,13 @@ Task manuell anzulegen.
     bis Sonntag.
 -   Habits mit `preferred_time` erscheinen in der Zeitleiste der Today
     View, Habits ohne Uhrzeit in einer Liste „Heute noch offen“.
+-   Im Kalender (Woche und Tag) erscheint jedes fällige Habit, mit
+    Uhrzeit als Block, ohne als Ganztags-Eintrag
+    (`GET /api/habits/due?from=&to=`, höchstens 42 Tage). Ein Klick hakt
+    ab oder nimmt zurück. Verschieben am selben Tag ändert
+    `preferred_time` für alle Tage, Ziehen in „Ganztag“ entfernt sie, die
+    Größe ändert `duration_minutes`. Die Monatsansicht zeigt keine
+    Habits, weil tägliche Habits dort die Termine verdrängen würden.
 
 ------------------------------------------------------------------------
 
@@ -502,16 +548,23 @@ dieselben Dateien parallel in VSCodium bearbeitet werden können.
     landet in `.trash/` im Notizordner. Eine neue Notiz beginnt mit dem
     heutigen Datum im Namen.
 -   PDFs, Bilder und Markdown lassen sich aus dem Finder in den Baum
-    ziehen. Eingefügte Bilder landen in `assets/` neben der Notiz und
+    ziehen, auch ganze Ordner samt Unterordnern (oder über „Ordner
+    hinzufügen“). Andere Dateitypen und versteckte Dateien bleiben
+    draußen. C/C++-Dateien (`.c`, `.h`, `.cpp`, `.hpp` usw.) und
+    Makefiles (`Makefile`, `Makefile.*`) aus Vorlesungen zeigt Kairo nur
+    an, mit Zeilennummern und Hervorhebung; bearbeitet wird in VSCodium.
+    Eingefügte Bilder landen in `assets/` neben der Notiz und
     werden relativ verlinkt, damit VSCodium sie genauso zeigt.
 -   Vorlagen sind Notizen im Ordner `Vorlagen`; eine leere Notiz bietet
     sie an. Platzhalter: `{{titel}}`, `{{ordner}}`, `{{datum}}`,
     `{{wochentag}}`, `{{uhrzeit}}`.
 -   PDFs und Bilder lassen sich beschriften (Stift, Textmarker, Linie,
     Pfeil, Rechteck, Ellipse, Text); gespeichert wird in die Datei.
--   Geteilte Ansicht: PDF oder Bild links, Notiz rechts, Breite
-    verschiebbar. Beide bleiben geladen, ein Wechsel behält Scrollposition
-    und Ungespeichertes.
+-   Geteilte Ansicht: links eine Notiz, ein PDF oder ein Bild, rechts
+    eine Notiz, Breite verschiebbar. Notizen aus dem Baum öffnen im
+    zuletzt angeklickten Platz. Beide bleiben geladen, ein Wechsel behält
+    Scrollposition und Ungespeichertes.
+-   Der Editor nutzt die Rechtschreibprüfung des Browsers bzw. von macOS.
 -   Ändert sich eine Datei außerhalb von Kairo, lädt die WebUI sie still
     neu, wenn nichts ungespeichert ist; sonst fragt sie beim Speichern
     (Überschreiben oder Verwerfen).
@@ -527,6 +580,16 @@ dieselben Dateien parallel in VSCodium bearbeitet werden können.
 -   Die WebUI gibt es auf Deutsch und Englisch; die Wahl gilt sofort und
     je Browser. Die Schnelleingabe versteht beide (`@morgen`/`@tomorrow`,
     `!hoch`/`!high`).
+-   Ebenfalls sofort und je Browser gelten: Startseite, Theme
+    (Dunkel, Hell, System), Akzentfarbe, „Bewegung reduzieren“,
+    Wochenbeginn (Montag oder Sonntag), sichtbarer Tagesbereich in
+    Kalender und Tagesplan (Standard 7 bis 22 Uhr) und ob die
+    Wochenansicht 5 oder 7 Tage zeigt. Heute steht dort immer in der
+    Mitte (2 bzw. 3 Tage davor und danach); „Heute“ zentriert wieder.
+-   Die Seite ist aufgebaut wie die Notizen: links die Abschnitte
+    Allgemein, Darstellung, Zeit & Kalender, Notizen und System, rechts
+    der gewählte Abschnitt. Unter System stehen Version, Pfad der
+    `config.json`, der Neustart und Hinweise zu Backups.
 
 ------------------------------------------------------------------------
 

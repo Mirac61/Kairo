@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { useConfirm } from 'primevue/useconfirm'
 import { ApiError, createNote, deleteNote, errorMessage, listNotes, moveNote, readNote, saveNote, uploadFile, type NoteNode } from '@/api/client'
+import CodeViewer from '@/components/CodeViewer.vue'
 import FileEditor from '@/components/FileEditor.vue'
 import NoteEditor from '@/components/NoteEditor.vue'
 import NoteTree, { canDrop, canDropHere, parentOf, type TreeCtx } from '@/components/NoteTree.vue'
@@ -15,32 +16,32 @@ import { useSplitRatio } from '@/composables/useSplitRatio'
 const DISCARD = t('Ungespeicherte Änderungen verwerfen?')
 const POLL_MS = 5000
 
-// Zwei Plätze: eine Notiz (Markdown) und ein Dokument (PDF oder Bild). Einzeln ist einer sichtbar, geteilt beide
-// (Dokument links, Notiz rechts). Beide bleiben geladen, damit ein Wechsel Scrollposition, Zoom und Ungespeichertes behält.
+// Zwei Plätze: links („doc“) eine Notiz, ein PDF oder ein Bild, rechts („note“) eine Notiz. Einzeln ist einer sichtbar,
+// geteilt beide. Beide bleiben geladen, damit ein Wechsel Scrollposition, Zoom und Ungespeichertes behält.
 type Pane = 'doc' | 'note'
 const PANES: Pane[] = ['doc', 'note']
 const tree = ref<NoteNode[]>([])
-const notePath = ref<string | null>(null)
-const docPath = ref<string | null>(null)
+const paths = reactive<Record<Pane, string | null>>({ doc: null, note: null })
 const shown = ref<Pane>('note') // einzeln: der sichtbare Platz
 const split = ref(store.get('kairo-notes-split') === '1')
-const focus = ref<Pane>('note') // zuletzt benutzt; dorthin gehen ⌘S und „Datei hinzufügen“
+const focus = ref<Pane>('note') // zuletzt benutzt; dorthin gehen ⌘S, „Datei hinzufügen“ und (geteilt) Notizen aus dem Baum
 const visible = (p: Pane) => split.value || shown.value === p
 const current = computed<Pane>(() => (split.value ? focus.value : shown.value))
-const pathOf = (p: Pane) => (p === 'doc' ? docPath.value : notePath.value)
+const isMd = (p: Pane) => !!paths[p] && fileKind(paths[p]!) === 'md'
 
-const text = ref('') // Inhalt im Editor
-const saved = ref('') // Inhalt laut Platte (beim Laden oder letzten Speichern)
-const mtime = ref('') // Version beim Laden; das Backend prüft sie beim Speichern
-const external = ref(false) // auf der Platte geändert, während hier Ungespeichertes liegt
-const docKind = computed(() => (docPath.value ? fileKind(docPath.value) : ''))
+// Notiz je Platz: text im Editor, saved laut Platte, mtime als Version beim Laden (das Backend prüft sie beim Speichern),
+// external = auf der Platte geändert, während hier Ungespeichertes liegt.
+type Buf = { text: string; saved: string; mtime: string; external: boolean }
+const blank = (): Buf => ({ text: '', saved: '', mtime: '', external: false })
+const bufs = reactive<Record<Pane, Buf>>({ doc: blank(), note: blank() })
+const docKind = computed(() => (paths.doc ? fileKind(paths.doc) : ''))
 const docEd = ref<InstanceType<typeof FileEditor> | null>(null)
 const setDocEd = (el: unknown) => (docEd.value = el as InstanceType<typeof FileEditor> | null) // Funktions-Ref: im v-for wäre ref="…" ein Array
 const docDirtyFlag = ref(false)
-watch(docPath, () => (docDirtyFlag.value = false))
-const isDirty = (p: Pane) => (p === 'doc' ? docDirtyFlag.value : notePath.value !== null && text.value !== saved.value)
+watch(() => paths.doc, () => (docDirtyFlag.value = false))
+const isDirty = (p: Pane) => (isMd(p) ? bufs[p].text !== bufs[p].saved : p === 'doc' && docDirtyFlag.value)
 const dirty = computed(() => isDirty('doc') || isDirty('note'))
-const canSave = (p: Pane) => (p === 'doc' ? !!docPath.value && !/\.gif$/i.test(docPath.value) : notePath.value !== null)
+const canSave = (p: Pane) => !!paths[p] && !/\.gif$/i.test(paths[p]!) && fileKind(paths[p]!) !== 'code'
 const conflict = ref<Pane | null>(null)
 const saving = ref(false)
 const error = ref('')
@@ -53,14 +54,14 @@ function toggleTree() {
   store.set('kairo-notes-tree', treeOpen.value ? '1' : '0')
 }
 
-// Geteilte Ansicht: Breite des Dokuments als Anteil, per Trenner verschiebbar.
+// Geteilte Ansicht: Breite des linken Platzes als Anteil, per Trenner verschiebbar.
 const { ratio, startResize, nudge } = useSplitRatio('kairo-notes-ratio')
 function toggleSplit() {
   split.value = !split.value
-  if (!split.value && !pathOf(shown.value)) shown.value = docPath.value ? 'doc' : 'note'
+  if (!split.value) shown.value = paths[focus.value] ? focus.value : paths.doc ? 'doc' : 'note'
 }
 
-const crumbsOf = (p: string) => p.replace(/\.[^./]+$/, '').split('/')
+const crumbsOf = (p: string) => (fileKind(p) === 'code' ? p : p.replace(/\.[^./]+$/, '')).split('/')
 
 function readOpen(): string[] {
   try { return JSON.parse(store.get('kairo-notes-open') ?? '[]') } catch { return [] }
@@ -69,7 +70,7 @@ const saveOpen = () => store.set('kairo-notes-open', JSON.stringify([...ctx.open
 const confirmPopup = useConfirm()
 let renamingDir = false // Ordner bekommen beim Umbenennen kein .md
 const ctx: TreeCtx = reactive({
-  isActive: (p: string) => (visible('note') && p === notePath.value) || (visible('doc') && p === docPath.value),
+  isActive: (p: string) => PANES.some((pn) => visible(pn) && paths[pn] === p),
   open: new Set(readOpen()),
   adding: null as TreeCtx['adding'],
   renaming: null as string | null,
@@ -95,7 +96,7 @@ const ctx: TreeCtx = reactive({
   submitRename: (name: string) => void rename(name),
   cancelRename() { ctx.renaming = null },
   remove: (n: NoteNode, anchor: HTMLElement) => remove(n, anchor),
-  drop: (dir: string, files?: FileList) => void drop(dir, files),
+  drop: (dir: string, dt?: DataTransfer | null) => void drop(dir, dt),
 })
 
 // Pfade baut der Baum selbst; ein Name ist nur ein Teil (der Browser würde „..“ in der URL sonst auflösen).
@@ -108,8 +109,7 @@ function badName(name: string) {
 // Nach Umbenennen oder Verschieben: offene Dateien und aufgeklappte Ordner mitnehmen.
 function remap(from: string, to: string) {
   const re = (p: string) => (under(p, from) ? to + p.slice(from.length) : p)
-  if (notePath.value) notePath.value = re(notePath.value)
-  if (docPath.value) docPath.value = re(docPath.value)
+  for (const pn of PANES) if (paths[pn]) paths[pn] = re(paths[pn]!)
   ctx.open = new Set([...ctx.open].map(re))
   saveOpen()
 }
@@ -130,36 +130,64 @@ async function rename(name: string) {
   const from = ctx.renaming
   ctx.renaming = null
   if (!from || badName(name)) return
-  await move(from, join(parentOf(from), renamingDir ? name : withExt(name, from.slice(from.lastIndexOf('.')))))
+  const keep = renamingDir || fileKind(from) === 'code' // Code zeigt den vollen Namen (auch „Makefile“ ohne Endung)
+  await move(from, join(parentOf(from), keep ? name : withExt(name, from.slice(from.lastIndexOf('.')))))
 }
 
-async function drop(dir: string, files?: FileList) {
+async function drop(dir: string, dt?: DataTransfer | null) {
   const from = ctx.dragging
   ctx.dragging = ctx.dropTarget = null
-  if (files?.length) return addFiles(dir, [...files])
+  // Einträge sofort holen: nach dem ersten await ist dataTransfer leer.
+  const entries = [...(dt?.items ?? [])].filter((i) => i.kind === 'file').map((i) => i.webkitGetAsEntry()).filter((e) => e !== null)
+  if (entries.length) return addFiles(dir, (await Promise.all(entries.map(readEntry))).flat())
   if (!from || !canDrop(from, dir)) return
   if (dir) ctx.open.add(dir)
   await move(from, join(dir, from.slice(from.lastIndexOf('/') + 1)))
 }
 
-// Dateien aus dem Finder oder über „Datei hinzufügen“: PDFs und Bilder unverändert, Markdown als neue Notiz.
-async function addFiles(dir: string, files: File[]) {
-  const bad = files.find((f) => !fileKind(f.name))
-  if (bad) {
-    error.value = t('„{name}“: Kairo nimmt nur Markdown, PDFs und Bilder (png, jpg, gif, webp).', { name: bad.name })
-    return
+type Upload = { path: string; file: File } // path relativ zum Zielordner, bei Ordnern mit Unterordnern
+
+// Aus dem Finder gezogene Ordner rekursiv auslesen; readEntries liefert in Häppchen, bis es leer ist.
+async function readEntry(e: FileSystemEntry): Promise<Upload[]> {
+  if (e.isFile) {
+    const file = await new Promise<File>((ok, fail) => (e as FileSystemFileEntry).file(ok, fail))
+    return [{ path: e.fullPath.slice(1), file }]
   }
+  const reader = (e as FileSystemDirectoryEntry).createReader()
+  const out: Upload[] = []
+  for (;;) {
+    const batch = await new Promise<FileSystemEntry[]>((ok, fail) => reader.readEntries(ok, fail))
+    if (!batch.length) return out
+    for (const c of batch) out.push(...(await readEntry(c)))
+  }
+}
+
+const parents = (p: string) => p.split('/').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('/'))
+
+// Dateien und Ordner aus dem Finder oder über „Datei/Ordner hinzufügen“: PDFs und Bilder unverändert,
+// Markdown als neue Notiz, Unterordner werden angelegt. Versteckte Dateien (.DS_Store) bleiben weg,
+// andere Dateitypen werden übersprungen und gemeldet.
+async function addFiles(dir: string, uploads: Upload[]) {
+  uploads = uploads.filter((u) => !u.path.split('/').some((s) => s.startsWith('.')))
+  const bad = uploads.find((u) => !fileKind(u.path))
+  if (bad) error.value = t('„{name}“: Kairo nimmt nur Markdown, PDFs, Bilder (png, jpg, gif, webp), C/C++ und Makefiles.', { name: bad.path })
+  uploads = uploads.filter((u) => fileKind(u.path))
+  if (!uploads.length) return
   let last = ''
   try {
-    for (const f of files) {
-      const p = join(dir, f.name)
+    for (const d of new Set(uploads.flatMap((u) => parents(u.path).map((d) => join(dir, d))))) {
+      await createNote(d, true).catch((e) => { if (!(e instanceof ApiError && e.status === 409)) throw e })
+      ctx.open.add(d)
+    }
+    for (const { path, file } of uploads) {
+      const p = join(dir, path)
       if (fileKind(p) === 'md') {
         const { mtime } = await createNote(p)
-        await saveNote(p, await f.text(), mtime ?? '')
-      } else await uploadFile(p, f)
+        await saveNote(p, await file.text(), mtime ?? '')
+      } else await uploadFile(p, file)
       last = p
     }
-    error.value = ''
+    if (!bad) error.value = ''
   } catch (e) {
     error.value = e instanceof ApiError && e.status === 409 ? t('Eine Datei mit diesem Namen gibt es dort schon.') : errorMessage(e)
   }
@@ -171,14 +199,15 @@ async function addFiles(dir: string, files: File[]) {
   if (last) await openFile(last)
 }
 
-// „Datei hinzufügen“ legt in den Ordner der zuletzt benutzten Datei.
+// „Datei/Ordner hinzufügen“ legt in den Ordner der zuletzt benutzten Datei.
 const filePick = ref<HTMLInputElement>()
+const dirPick = ref<HTMLInputElement>()
 function pick(e: Event) {
   const input = e.target as HTMLInputElement
-  const files = [...(input.files ?? [])]
+  const uploads = [...(input.files ?? [])].map((file) => ({ path: file.webkitRelativePath || file.name, file }))
   input.value = ''
-  const p = pathOf(current.value) ?? notePath.value ?? docPath.value
-  void addFiles(p ? parentOf(p) : '', files)
+  const p = paths[current.value] ?? paths.note ?? paths.doc
+  void addFiles(p ? parentOf(p) : '', uploads)
 }
 
 function remove(n: NoteNode, anchor: HTMLElement) {
@@ -195,12 +224,12 @@ function remove(n: NoteNode, anchor: HTMLElement) {
     accept: async () => {
       try {
         await deleteNote(n.path)
-        if (notePath.value && under(notePath.value, n.path)) {
-          notePath.value = null
-          text.value = saved.value = ''
+        for (const pn of PANES) {
+          if (!paths[pn] || !under(paths[pn]!, n.path)) continue
+          paths[pn] = null
+          Object.assign(bufs[pn], blank())
         }
-        if (docPath.value && under(docPath.value, n.path)) docPath.value = null
-        if (!pathOf(shown.value)) shown.value = docPath.value ? 'doc' : 'note'
+        if (!paths[shown.value]) shown.value = paths.doc ? 'doc' : 'note'
         tree.value = await listNotes()
         error.value = ''
       } catch (e) {
@@ -210,26 +239,26 @@ function remove(n: NoteNode, anchor: HTMLElement) {
   })
 }
 
-function show(n: { content: string; mtime: string }) {
-  text.value = saved.value = n.content
-  mtime.value = n.mtime
-  external.value = false
+function show(pane: Pane, n: { content: string; mtime: string }) {
+  Object.assign(bufs[pane], { text: n.content, saved: n.content, mtime: n.mtime, external: false })
 }
 
-// Notizen gehen in den Notiz-Platz, PDFs und Bilder in den Dokument-Platz; der andere Platz bleibt, wie er ist.
+// PDFs und Bilder gehen in den linken Platz, Notizen in den rechten, geteilt in den zuletzt benutzten. Eine schon offene
+// Datei wird nur gezeigt; zwei Kopien derselben Notiz würden sich beim Speichern gegenseitig überschreiben.
 async function openFile(p: string) {
-  const pane: Pane = fileKind(p) === 'md' ? 'note' : 'doc'
-  if (p !== pathOf(pane)) {
+  const md = fileKind(p) === 'md'
+  const pane: Pane = PANES.find((pn) => paths[pn] === p) ?? (!md || (split.value && focus.value === 'doc') ? 'doc' : 'note')
+  if (p !== paths[pane]) {
     if (isDirty(pane) && !confirm(DISCARD)) return
-    if (pane === 'note') {
+    if (md) {
       try {
-        show(await readNote(p))
+        show(pane, await readNote(p))
       } catch (e) {
         error.value = errorMessage(e)
         return
       }
-      notePath.value = p
-    } else docPath.value = p
+    }
+    paths[pane] = p
     error.value = ''
   }
   shown.value = focus.value = pane
@@ -264,13 +293,13 @@ async function uploaded() {
 // Vorlagen sind Notizen im Ordner „Vorlagen“; eine leere Notiz bietet sie an.
 const TEMPLATES = 'Vorlagen'
 const templates = computed(() => tree.value.find((n) => n.dir && n.name === TEMPLATES)?.children?.filter((n) => fileKind(n.path) === 'md') ?? [])
-const offerTemplates = computed(() => !!notePath.value && !text.value.trim() && templates.value.length > 0 && !under(notePath.value, TEMPLATES))
+const offerTemplates = (pn: Pane) => isMd(pn) && !bufs[pn].text.trim() && templates.value.length > 0 && !under(paths[pn]!, TEMPLATES)
 
-async function useTemplate(t: NoteNode) {
-  const p = notePath.value
+async function useTemplate(t: NoteNode, pn: Pane) {
+  const p = paths[pn]
   try {
     const { content } = await readNote(t.path)
-    if (p && notePath.value === p && !text.value.trim()) text.value = fillTemplate(content, p)
+    if (p && paths[pn] === p && !bufs[pn].text.trim()) bufs[pn].text = fillTemplate(content, p)
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -278,18 +307,14 @@ async function useTemplate(t: NoteNode) {
 
 // force überschreibt auch eine extern geänderte Datei (nach Rückfrage im Dialog).
 async function save(force = false, pane: Pane = current.value) {
-  if (!pathOf(pane) || saving.value || (!isDirty(pane) && !force)) return
+  if (!paths[pane] || saving.value || (!isDirty(pane) && !force)) return
   saving.value = true
   try {
-    if (pane === 'doc') await docEd.value?.save(force)
+    if (!isMd(pane)) await docEd.value?.save(force)
     else {
-      const [p, content] = [notePath.value!, text.value]
-      const r = await saveNote(p, content, mtime.value, force)
-      if (notePath.value === p) {
-        saved.value = content
-        mtime.value = r.mtime
-        external.value = false
-      }
+      const [p, content] = [paths[pane]!, bufs[pane].text]
+      const r = await saveNote(p, content, bufs[pane].mtime, force)
+      if (paths[pane] === p) Object.assign(bufs[pane], { saved: content, mtime: r.mtime, external: false })
     }
     conflict.value = null
     error.value = ''
@@ -304,10 +329,10 @@ async function save(force = false, pane: Pane = current.value) {
 
 async function reload(pane: Pane) {
   conflict.value = null
-  if (pane === 'doc') return docEd.value?.reload()
-  if (!notePath.value) return
+  if (!paths[pane]) return
+  if (!isMd(pane)) return docEd.value?.reload()
   try {
-    show(await readNote(notePath.value))
+    show(pane, await readNote(paths[pane]!))
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -318,12 +343,14 @@ async function refresh() {
   if (document.visibilityState !== 'visible' || saving.value) return
   try {
     tree.value = await listNotes()
-    const [p, m] = [notePath.value, mtime.value]
-    if (!p) return
-    const n = await readNote(p)
-    if (n.mtime === m || notePath.value !== p || mtime.value !== m || saving.value) return // inzwischen gespeichert oder gewechselt
-    if (isDirty('note')) external.value = true
-    else show(n)
+    for (const pn of PANES) {
+      const [p, m] = [paths[pn], bufs[pn].mtime]
+      if (!p || !isMd(pn)) continue
+      const n = await readNote(p)
+      if (n.mtime === m || paths[pn] !== p || bufs[pn].mtime !== m || saving.value) continue // inzwischen gespeichert oder gewechselt
+      if (isDirty(pn)) bufs[pn].external = true
+      else show(pn, n)
+    }
   } catch { /* Backend kurz weg oder Datei gelöscht: nächste Runde */ }
 }
 
@@ -338,9 +365,9 @@ function onUnload(e: BeforeUnloadEvent) {
 onBeforeRouteLeave(() => !dirty.value || confirm(DISCARD))
 
 // Stand für den nächsten Besuch: offene Dateien, sichtbarer Platz, geteilt oder nicht.
-watch([notePath, docPath, shown, split], () => {
-  store.set('kairo-notes-file', notePath.value ?? '')
-  store.set('kairo-notes-doc', docPath.value ?? '')
+watch([() => paths.note, () => paths.doc, shown, split], () => {
+  store.set('kairo-notes-file', paths.note ?? '')
+  store.set('kairo-notes-doc', paths.doc ?? '')
   store.set('kairo-notes-shown', shown.value)
   store.set('kairo-notes-split', split.value ? '1' : '0')
 })
@@ -356,18 +383,18 @@ onMounted(async () => {
   } catch (e) {
     error.value = errorMessage(e)
   }
-  // Früher stand in kairo-notes-file auch eine PDF; die wandert in den Dokument-Platz.
+  // Früher stand in kairo-notes-file auch eine PDF; die wandert in den linken Platz.
   const files = new Set<string>()
   const walk = (ns: NoteNode[]) => ns.forEach((n) => (n.dir ? walk(n.children ?? []) : files.add(n.path)))
   walk(tree.value)
   const [lastNote, lastDoc] = [store.get('kairo-notes-file') ?? '', store.get('kairo-notes-doc') ?? '']
-  const doc = [lastDoc, lastNote].find((p) => p && fileKind(p) !== 'md' && files.has(p))
-  if (doc) docPath.value = doc
+  const load = (pn: Pane, p: string) => void readNote(p).then((n) => { if (!paths[pn]) { paths[pn] = p; show(pn, n) } }, () => {})
+  const doc = [lastDoc, lastNote].find((p) => p && files.has(p) && (p === lastDoc || fileKind(p) !== 'md'))
+  if (doc && fileKind(doc) === 'md') load('doc', doc)
+  else if (doc) paths.doc = doc
   shown.value = store.get('kairo-notes-shown') === 'doc' && doc ? 'doc' : 'note'
   focus.value = shown.value
-  if (lastNote && fileKind(lastNote) === 'md' && files.has(lastNote)) {
-    void readNote(lastNote).then((n) => { if (!notePath.value) { notePath.value = lastNote; show(n) } }, () => {})
-  }
+  if (lastNote && lastNote !== doc && fileKind(lastNote) === 'md' && files.has(lastNote)) load('note', lastNote)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey, true)
@@ -386,13 +413,15 @@ onBeforeUnmount(() => {
           <button type="button" class="icon-btn" :aria-label="$t('Neue Notiz')" :data-tip="$t('Neue Notiz')" @click="ctx.startAdd('', false)"><svg class="ic"><use href="#i-plus" /></svg></button>
           <button type="button" class="icon-btn" :aria-label="$t('Neuer Ordner')" :data-tip="$t('Neuer Ordner')" @click="ctx.startAdd('', true)"><svg class="ic"><use href="#i-proj" /></svg></button>
           <button type="button" class="icon-btn" :aria-label="$t('Datei hinzufügen')" :data-tip="$t('PDF, Bild oder Notiz hinzufügen')" @click="filePick?.click()"><svg class="ic"><use href="#i-upload" /></svg></button>
-          <input ref="filePick" type="file" multiple hidden accept=".md,.pdf,.png,.jpg,.jpeg,.gif,.webp" @change="pick" />
+          <input ref="filePick" type="file" multiple hidden @change="pick" />
+          <button type="button" class="icon-btn" :aria-label="$t('Ordner hinzufügen')" :data-tip="$t('Ordner mit Notizen, PDFs und Bildern hinzufügen')" @click="dirPick?.click()"><svg class="ic"><use href="#i-folder-up" /></svg></button>
+          <input ref="dirPick" type="file" webkitdirectory hidden @change="pick" />
         </span>
       </div>
       <div
         class="nt-scroll" :class="{ drop: ctx.dropTarget === '' }"
         @dragover="canDropHere($event, ctx.dragging, '') && ($event.preventDefault(), ctx.dropTarget = '')"
-        @dragleave.self="ctx.dropTarget = null" @drop.prevent="ctx.drop('', $event.dataTransfer?.files)"
+        @dragleave.self="ctx.dropTarget = null" @drop.prevent="ctx.drop('', $event.dataTransfer)"
       >
         <NoteTree :nodes="tree" :ctx="ctx" />
         <p v-if="!tree.length && !ctx.adding" class="nt-empty">{{ $t('Noch keine Notizen. Lege oben eine an oder zieh PDFs und Bilder hierher.') }}</p>
@@ -401,7 +430,7 @@ onBeforeUnmount(() => {
 
     <div class="eds" :class="{ split }" :style="split ? { gridTemplateColumns: `minmax(0, ${ratio}fr) minmax(0, ${1 - ratio}fr)` } : undefined">
       <section
-        v-for="pn in PANES" v-show="visible(pn)" :key="pn" class="ed" :class="`ed-${pn}`"
+        v-for="pn in PANES" v-show="visible(pn)" :key="pn" class="ed" :class="[`ed-${pn}`, { on: split && focus === pn }]"
         @pointerdown.capture="focus = pn" @focusin="focus = pn"
       >
         <header class="ed-head">
@@ -411,10 +440,10 @@ onBeforeUnmount(() => {
             @click="toggleTree"
           ><svg class="ic"><use :href="treeOpen ? '#i-left' : '#i-right'" /></svg></button>
           <div class="ed-path">
-            <template v-if="pathOf(pn)">
-              <span v-for="(c, i) in crumbsOf(pathOf(pn)!)" :key="i" :class="{ last: i === crumbsOf(pathOf(pn)!).length - 1 }">{{ c }}</span>
+            <template v-if="paths[pn]">
+              <span v-for="(c, i) in crumbsOf(paths[pn]!)" :key="i" :class="{ last: i === crumbsOf(paths[pn]!).length - 1 }">{{ c }}</span>
             </template>
-            <span v-else class="last">{{ pn === 'doc' ? $t('Kein PDF geöffnet') : $t('Keine Notiz geöffnet') }}</span>
+            <span v-else class="last">{{ pn === 'doc' ? $t('Keine Datei geöffnet') : $t('Keine Notiz geöffnet') }}</span>
           </div>
           <span v-if="isDirty(pn)" class="ed-dirty" role="status"><i></i>{{ $t('Ungespeichert') }}</span>
           <button v-if="canSave(pn)" type="button" class="btn btn-secondary ed-save" :disabled="!isDirty(pn) || saving" aria-keyshortcuts="Meta+S Control+S" @click="save(false, pn)">
@@ -422,30 +451,28 @@ onBeforeUnmount(() => {
           </button>
           <button
             v-if="pn === (split ? 'note' : shown)" type="button" class="icon-btn" :class="{ on: split }" :aria-pressed="split"
-            :aria-label="$t('Geteilte Ansicht')" :data-tip="split ? $t('Nur eine Datei zeigen') : $t('Geteilt: PDF links, Notiz rechts')" @click="toggleSplit"
+            :aria-label="$t('Geteilte Ansicht')" :data-tip="split ? $t('Nur eine Datei zeigen') : $t('Geteilt: zwei Dateien nebeneinander')" @click="toggleSplit"
           ><svg class="ic"><use href="#i-split" /></svg></button>
         </header>
         <div v-if="error && pn === errorPane" class="ed-bar" role="alert">{{ error }}</div>
 
-        <template v-if="pn === 'note'">
-          <div v-if="external" class="ed-bar" role="alert">
+        <template v-if="isMd(pn)">
+          <div v-if="bufs[pn].external" class="ed-bar" role="alert">
             {{ $t('Die Datei wurde außerhalb von Kairo geändert. Beim Speichern fragt Kairo nach.') }}
-            <button type="button" class="btn btn-ghost" @click="reload('note')">{{ $t('Verwerfen und neu laden') }}</button>
+            <button type="button" class="btn btn-ghost" @click="reload(pn)">{{ $t('Verwerfen und neu laden') }}</button>
           </div>
-          <div v-if="offerTemplates" class="ed-tpl">
+          <div v-if="offerTemplates(pn)" class="ed-tpl">
             <span>{{ $t('Vorlage') }}</span>
-            <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t)">{{ t.name.replace(/\.md$/i, '') }}</button>
+            <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t, pn)">{{ t.name.replace(/\.md$/i, '') }}</button>
           </div>
-          <NoteEditor v-if="notePath" v-model="text" :path="notePath" @uploaded="uploaded" @error="error = $event" />
-          <div v-else class="ed-empty">{{ $t('Wähle links eine Notiz oder lege eine neue an.') }}</div>
+          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" @uploaded="uploaded" @error="error = $event" />
         </template>
-        <template v-else>
-          <FileEditor
-            v-if="docPath && (docKind === 'pdf' || docKind === 'image')" :ref="setDocEd" :key="docPath" :path="docPath" :kind="docKind"
-            :active="visible('doc') && (!split || focus === 'doc')" @dirty="docDirtyFlag = $event"
-          />
-          <div v-else class="ed-empty">{{ $t('Wähle im Baum ein PDF oder ein Bild.') }}</div>
-        </template>
+        <FileEditor
+          v-else-if="pn === 'doc' && paths.doc && (docKind === 'pdf' || docKind === 'image')" :ref="setDocEd" :key="paths.doc" :path="paths.doc" :kind="docKind"
+          :active="visible('doc') && (!split || focus === 'doc')" @dirty="docDirtyFlag = $event"
+        />
+        <CodeViewer v-else-if="pn === 'doc' && paths.doc && docKind === 'code'" :key="paths.doc" :path="paths.doc" />
+        <div v-else class="ed-empty">{{ pn === 'doc' ? $t('Klick hier hinein und wähle im Baum eine Notiz, ein PDF oder ein Bild.') : $t('Wähle links eine Notiz oder lege eine neue an.') }}</div>
       </section>
       <div
         v-if="split" class="ed-split" role="separator" aria-orientation="vertical" :aria-label="$t('Breite der Hälften')" tabindex="0"
@@ -461,7 +488,7 @@ onBeforeUnmount(() => {
           <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="conflict = null"><svg class="ic"><use href="#i-x" /></svg></button>
         </div>
         <div class="dlg-body">
-          <p class="ed-msg">{{ $t('„{name}“ wurde seit dem Laden außerhalb von Kairo geändert, zum Beispiel in VSCodium. Überschreiben ersetzt diese Änderungen durch deinen Stand aus Kairo.', { name: pathOf(conflict) ?? '' }) }}</p>
+          <p class="ed-msg">{{ $t('„{name}“ wurde seit dem Laden außerhalb von Kairo geändert, zum Beispiel in VSCodium. Überschreiben ersetzt diese Änderungen durch deinen Stand aus Kairo.', { name: paths[conflict] ?? '' }) }}</p>
         </div>
         <div class="dlg-foot">
           <button class="btn btn-ghost" type="button" @click="conflict = null">{{ $t('Abbrechen') }}</button>
@@ -491,6 +518,7 @@ onBeforeUnmount(() => {
 .ed-split::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; transition: background var(--dur) ease-out; }
 .ed-split:hover::after, .ed-split:active::after, .ed-split:focus-visible::after { background: var(--a-blue-hi); }
 .ed-split:focus-visible { outline: none; }
+.eds.split .ed.on .ed-head { box-shadow: inset 0 -1px 0 var(--a-blue-hi); } /* geteilt: hierhin öffnet der Baum Notizen */
 .ed-head .icon-btn.on { background: var(--bg-selected); color: var(--a-blue-hi); }
 .ed-head { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px 0 12px; border-bottom: 1px solid var(--br-subtle); }
 .ed-path { flex: 1; min-width: 0; display: flex; align-items: center; overflow: hidden; white-space: nowrap; font: 400 13px/1 var(--font-ui); color: var(--tx-muted); }
