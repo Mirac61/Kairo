@@ -2,7 +2,9 @@
 
 **Plan your day in the browser. Do the work in your editor. Kairo keeps both in sync.**
 
-Kairo is a planner for tasks, calendar events, habits and notes. It runs on your own computer (macOS, Windows or Linux): no account, no cloud, no subscription. Your data is one SQLite file you can copy anywhere.
+Kairo is a planner for tasks, calendar events, habits and notes. It runs on your own computer (macOS, Windows, Linux or Raspberry Pi): no cloud, no subscription. Your data is one SQLite file you can copy anywhere.
+
+By default Kairo only listens on `127.0.0.1` and needs no account. When you bind it to another address (for example on a Raspberry Pi with `KAIRO_HOST=<wg-ip>`, reachable only through WireGuard), login is enabled automatically and the first start asks you to create the one account at `/setup`. On your laptop it stays login-free.
 
 ![Kairo start page](docs/screenshots/start.png)
 
@@ -62,7 +64,7 @@ Almost every action can be undone right away.
 
 ## Your data
 
-- Everything stays on your machine. Kairo only listens on `127.0.0.1`.
+- Everything stays on your machine. By default Kairo only listens on `127.0.0.1`.
 - Database: `~/.local/share/kairo/kairo.db` (on Windows inside your user folder). Kairo makes a backup at every start; `kairo backup` makes one on demand.
 - Notes: `~/Kairo` by default. You can change it in the app under settings.
 
@@ -100,6 +102,7 @@ The Go backend is the only place that stores data. The web UI is built into the 
 - [`backend/README.md`](backend/README.md): configuration and environment variables
 - [`frontend/README.md`](frontend/README.md) and [`extension/README.md`](extension/README.md)
 - [`docs/`](docs/): vision, architecture and roadmap (in German)
+- [`docs/PI_DEPLOYMENT.md`](docs/PI_DEPLOYMENT.md): how to run Kairo on a Raspberry Pi behind WireGuard (`./deploy.sh`)
 - Releases are built from tags with `.goreleaser.yaml`
 
 MIT licensed. Licenses of bundled third-party software (Excalidraw, React, fonts) are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
