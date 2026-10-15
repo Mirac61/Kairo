@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import ConfirmPopup from 'primevue/confirmpopup'
 import { usePrimeVue } from 'primevue/config'
 import de from 'primelocale/de.json'
@@ -25,6 +25,8 @@ watchEffect(() => {
   primevue.config.locale = lang.value === 'de' ? de.de : en.en
 })
 const router = useRouter()
+const route = useRoute()
+const hideSidebar = computed(() => route.path === '/login' || route.path === '/setup')
 
 useLiveEvents(loadSidebar)
 const countOf: Record<string, () => string | number> = {
@@ -103,7 +105,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
   </defs>
 </svg>
   <div class="app">
-    <aside class="sidebar" :class="{ mini }">
+    <aside v-if="!hideSidebar" class="sidebar" :class="{ mini }">
       <div class="logo" role="img" :aria-label="$t('Kairo')"><span class="logo-word" aria-hidden="true">K<i class="lw-a"></i>IR<i class="lw-o"></i></span><span class="logo-mark" aria-hidden="true"><i></i></span></div>
       <button type="button" class="sb-new" aria-keyshortcuts="Meta+K Control+K" @click="newEntry">
         <svg class="ic"><use href="#i-plus" /></svg><span class="sb-new-l">{{ $t('Neu …') }}</span><kbd class="key" aria-hidden="true">⌘K</kbd>
@@ -138,7 +140,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
         </div>
       </div>
     </aside>
-    <main class="content"><RouterView /></main>
+    <main class="content" :class="{ 'content-full': hideSidebar }"><RouterView /></main>
     <ConfirmPopup />
     <UndoToast />
   </div>

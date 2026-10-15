@@ -205,7 +205,7 @@ try {
   await browser.close()
   throw new Error(`${base} nicht erreichbar: erst „pnpm dev“ starten (oder KAIRO_URL setzen)`)
 }
-await page.waitForSelector({ calendar: '.fc-view', notes: '.notes', settings: '.st' }[o.route] ?? '.view-inner')
+await page.waitForSelector({ calendar: '.fc-view', notes: '.notes', settings: '.st', login: '.auth-page', setup: '.auth-page' }[o.route] ?? '.view-inner')
 await page.waitForLoadState('networkidle')
 if (o.click) await page.locator(o.click).first().click()
 await page.waitForTimeout(400)

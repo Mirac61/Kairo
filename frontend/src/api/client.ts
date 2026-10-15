@@ -1,5 +1,6 @@
 import { setProjectColors } from '@/lib/projectColor'
 import { t } from '@/lib/i18n'
+import { handleUnauthorized } from '@/composables/useAuth'
 
 export class ApiError extends Error {
   readonly status: number
@@ -13,12 +14,16 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export interface ApiOptions extends RequestInit {
+  skipUnauthorizedHandler?: boolean
+}
+
+export async function api<T>(path: string, init?: ApiOptions): Promise<T> {
   const headers = new Headers(init?.headers)
   if (init?.body !== undefined && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  const res = await fetch(`/api${path}`, { ...init, headers })
+  const res = await fetch(`/api${path}`, { ...init, headers, credentials: 'include' })
   const text = await res.text()
   let body: unknown = undefined
   if (text) {
@@ -28,7 +33,12 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       body = text
     }
   }
-  if (!res.ok) throw new ApiError(res.status, res.statusText, body)
+  if (!res.ok) {
+    if (res.status === 401 && !init?.skipUnauthorizedHandler) {
+      handleUnauthorized()
+    }
+    throw new ApiError(res.status, res.statusText, body)
+  }
   return body as T
 }
 
