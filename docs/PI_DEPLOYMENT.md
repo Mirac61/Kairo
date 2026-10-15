@@ -13,11 +13,16 @@ Laptop/Handy ──WireGuard──▶ Pi wg0 <wg-ip> ──▶ Kairo :8742 (Logi
 ## Voraussetzung: VPN auf dem Pi
 
 `<wireguard-skript>` aus dem Smart-Home-Repository (`<pi-repo>`) richtet
-`wg0` mit `<wg-netz>` ein. Die Firewall muss Kairo auf `wg0` durchlassen:
+`wg0` mit `<wg-netz>` ein (eigenes Gerät = `.2`, weiteres Gerät = `.3`). Die Firewall
+lässt Kairo nur für das eigene Gerät durch, nicht für andere VPN-Teilnehmer:
 
 ```sh
-sudo ufw allow in on wg0 to any port 8742 proto tcp comment 'Kairo ueber VPN'
+sudo ufw allow in on wg0 from <wg-client-ip> to any port 8742 proto tcp comment 'Kairo nur eigenes Geraet'
 ```
+
+WireGuard prüft die Absenderadresse pro Peer (`AllowedIPs`), `.3` kann sich
+also nicht als `.2` ausgeben. Kairo hat genau ein Konto, ein zweiter Nutzer
+bekommt keinen eigenen Bereich.
 
 ## Deployen
 
