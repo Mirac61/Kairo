@@ -74,6 +74,46 @@ func TestSecurity(t *testing.T) {
 	}
 }
 
+func TestSecurityAuthEnabled(t *testing.T) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	h := Security(8742, testToken, true, ok)
+	const host = "<wg-ip>:8742"
+
+	tests := []struct {
+		name    string
+		method  string
+		path    string
+		headers map[string]string
+		want    int
+	}{
+		{"GET ohne Origin", "GET", "/api/x", nil, 204},
+		{"POST eigener Origin", "POST", "/api/x", map[string]string{"Origin": "http://" + host}, 204},
+		{"POST anderer Port gleiche IP", "POST", "/api/x", map[string]string{"Origin": "http://<wg-ip>:8080"}, 403},
+		{"POST fremder Origin", "POST", "/api/x", map[string]string{"Origin": "http://evil.example"}, 403},
+		{"POST ohne Origin", "POST", "/api/x", nil, 403},
+		{"DELETE fremder Origin", "DELETE", "/api/x", map[string]string{"Origin": "http://<wg-ip>:8080"}, 403},
+		{"POST Token fremder Origin", "POST", "/api/x", map[string]string{"Origin": "http://evil.example", "Authorization": "Bearer " + testToken}, 204},
+		{"POST falsches Token", "POST", "/api/x", map[string]string{"Authorization": "Bearer nope"}, 401},
+		{"WS eigener Origin", "GET", "/ws", map[string]string{"Upgrade": "websocket", "Origin": "http://" + host}, 204},
+		{"WS anderer Port gleiche IP", "GET", "/ws", map[string]string{"Upgrade": "websocket", "Origin": "http://<wg-ip>:8080"}, 403},
+		{"Login eigener Origin", "POST", "/api/auth/login", map[string]string{"Origin": "http://" + host}, 204},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			req.Host = host
+			for k, v := range tt.headers {
+				req.Header.Set(k, v)
+			}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != tt.want {
+				t.Errorf("Status = %d, want %d", rec.Code, tt.want)
+			}
+		})
+	}
+}
+
 func TestHealth(t *testing.T) {
 	h := NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{})
 	req := httptest.NewRequest("GET", "/api/health", nil)
