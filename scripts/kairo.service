@@ -13,7 +13,7 @@ Restart=always
 # Heimnetz, und verlangt dort Anmeldung (Login ist bei Nicht-localhost-Bind
 # automatisch aktiv). Für Zugriff aus dem ganzen Heimnetz stattdessen
 # Environment="KAIRO_HOST=0.0.0.0" setzen.
-Environment="KAIRO_HOST=10.8.50.1"
+Environment="KAIRO_HOST=PI_VPN"
 Environment="KAIRO_NOTES_DIR=PI_ZIEL/notes"
 Environment="KAIRO_DB_PATH=PI_ZIEL/data/kairo.db"
 

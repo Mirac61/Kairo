@@ -4,7 +4,7 @@
 
 Kairo is a planner for tasks, calendar events, habits and notes. It runs on your own computer (macOS, Windows, Linux or Raspberry Pi): no cloud, no subscription. Your data is one SQLite file you can copy anywhere.
 
-By default Kairo only listens on `127.0.0.1` and needs no account. When you bind it to another address (for example on a Raspberry Pi with `KAIRO_HOST=10.8.50.1`, reachable only through WireGuard), login is enabled automatically and the first start asks you to create the one account at `/setup`. On your laptop it stays login-free.
+By default Kairo only listens on `127.0.0.1` and needs no account. When you bind it to another address (for example on a Raspberry Pi with `KAIRO_HOST=<wg-ip>`, reachable only through WireGuard), login is enabled automatically and the first start asks you to create the one account at `/setup`. On your laptop it stays login-free.
 
 ![Kairo start page](docs/screenshots/start.png)
 

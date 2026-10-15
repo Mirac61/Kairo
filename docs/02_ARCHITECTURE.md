@@ -676,7 +676,7 @@ ebenfalls 127.0.0.1 ansprechen können. Deshalb:
     in `~/.config/kairo/token` mit Dateirechten `0600` erzeugt.
 
 Auf einem Server (Raspberry Pi, siehe `docs/PI_DEPLOYMENT.md`) bindet
-Kairo mit `KAIRO_HOST=10.8.50.1` nur an die WireGuard-Adresse. Bei jedem
+Kairo mit `KAIRO_HOST=<wg-ip>` nur an die WireGuard-Adresse. Bei jedem
 Bind außer 127.0.0.1 ist Login aktiv:
 
 -   Der Host-Check entfällt; stattdessen braucht jede `/api`-
