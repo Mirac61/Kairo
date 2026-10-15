@@ -29,7 +29,7 @@ const router = createRouter({
   ],
 })
 
-let authInitialized = false
+let authReady: Promise<void> | null = null
 
 setUnauthorizedHandler(() => {
   // Auf /setup laufen schon Sidebar-Requests mit 401; nicht von dort wegspringen.
@@ -39,32 +39,15 @@ setUnauthorizedHandler(() => {
 })
 
 router.beforeEach(async (to) => {
-  if (!authInitialized) {
-    authInitialized = true
-    await initAuth()
-    if (useAuth().authEnabled.value && (await setupRequired())) {
-      if (to.path !== '/setup') return '/setup'
-      return
-    }
-  }
-
+  // Gemeinsames Promise: parallele Navigationen (z. B. 401-Umleitung beim Start) warten mit.
+  await (authReady ??= initAuth())
   const { isAuthenticated, authEnabled } = useAuth()
-
-  if (!authEnabled.value) return
-
-  if (to.path === '/setup') {
-    if (isAuthenticated.value) return '/'
-    return
+  if (!authEnabled.value || isAuthenticated.value) {
+    return publicRoutes.includes(to.path) && authEnabled.value ? '/' : undefined
   }
-
-  if (to.path === '/login') {
-    if (isAuthenticated.value) return '/'
-    return
-  }
-
-  if (!isAuthenticated.value && !publicRoutes.includes(to.path)) {
-    return '/login'
-  }
+  // Nicht angemeldet: Ohne Konto geht es nur zum Setup, sonst nur zum Login.
+  const target = (await setupRequired()) ? '/setup' : '/login'
+  if (to.path !== target) return target
 })
 
 export default router
