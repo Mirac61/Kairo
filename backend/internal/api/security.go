@@ -10,8 +10,10 @@ import (
 // Security schützt den Server (siehe docs/02_ARCHITECTURE.md,
 // "Lokale Sicherheit"). Es werden nie CORS-Header gesendet.
 // Wenn authEnabled true ist, wird der Host-Check aufgehoben; API/WS-Requests
-// ohne Bearer-Token werden durchgelassen, damit die Auth-Middleware das
-// Session-Cookie prüfen kann.
+// ohne Bearer-Token werden durchgelassen, wenn ihr Origin zum Host passt, damit
+// die Auth-Middleware das Session-Cookie prüfen kann. SameSite ignoriert den
+// Port, ohne Origin-Check könnte also ein anderer Dienst auf derselben IP
+// Anfragen mit dem Cookie schicken.
 func Security(port int, token string, authEnabled bool, next http.Handler) http.Handler {
 	p := strconv.Itoa(port)
 	hosts := map[string]bool{"127.0.0.1:" + p: true, "localhost:" + p: true}
@@ -33,7 +35,7 @@ func Security(port int, token string, authEnabled bool, next http.Handler) http.
 					http.Error(w, "invalid token", http.StatusUnauthorized)
 					return
 				}
-			} else if authEnabled && underAPIOrWS(r.URL.Path) {
+			} else if authEnabled && underAPIOrWS(r.URL.Path) && sameOrigin(r) {
 				// API/WS dürfen bei aktiviertem Auth auch per Session-Cookie
 				// authentifiziert werden; das prüft die Auth-Middleware.
 			} else {
@@ -43,6 +45,12 @@ func Security(port int, token string, authEnabled bool, next http.Handler) http.
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// sameOrigin sagt, ob der Origin-Header genau auf den angefragten Host zeigt.
+func sameOrigin(r *http.Request) bool {
+	o := r.Header.Get("Origin")
+	return o == "http://"+r.Host || o == "https://"+r.Host
 }
 
 func needsOriginOrToken(r *http.Request) bool {

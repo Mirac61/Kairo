@@ -679,9 +679,12 @@ Auf einem Server (Raspberry Pi, siehe `docs/PI_DEPLOYMENT.md`) bindet
 Kairo mit `KAIRO_HOST=10.8.50.1` nur an die WireGuard-Adresse. Bei jedem
 Bind außer 127.0.0.1 ist Login aktiv:
 
--   Host- und Origin-Check entfallen; stattdessen braucht jede `/api`-
+-   Der Host-Check entfällt; stattdessen braucht jede `/api`-
     und `/ws`-Anfrage ein Session-Cookie (`HttpOnly`, `SameSite=Lax`)
-    oder den API-Token. Offen bleiben nur `/api/health` und die
+    oder den API-Token. Schreibende Anfragen und WebSockets mit Cookie
+    brauchen zusätzlich einen `Origin`, der genau zum `Host` passt.
+    SameSite ignoriert den Port, sonst könnte ein anderer Dienst auf
+    derselben IP (z. B. `:8080`) Anfragen mit dem Cookie auslösen. Offen bleiben nur `/api/health` und die
     Auth-Endpunkte.
 -   `/api/auth/register` legt nur das erste Konto an, danach `403`.
 -   `KAIRO_AUTH=true` erzwingt Login auch beim Bind an 127.0.0.1, z. B.
