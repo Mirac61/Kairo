@@ -81,6 +81,25 @@ const en: Record<string, string> = {
   'API-Fehler': 'API error',
   'Backend nicht erreichbar.': 'Backend not reachable.',
 
+  // Auth
+  'Bei Kairo anmelden': 'Sign in to Kairo',
+  'E-Mail': 'Email',
+  'Passwort': 'Password',
+  'E-Mail oder Passwort ist falsch.': 'Email or password is incorrect.',
+  'Anmeldung fehlgeschlagen.': 'Sign in failed.',
+  'Wird angemeldet …': 'Signing in …',
+  'Anmelden': 'Sign in',
+  'Kairo einrichten': 'Set up Kairo',
+  'Lege das erste Benutzerkonto an, um Kairo zu nutzen.': 'Create the first user account to use Kairo.',
+  'Passwort wiederholen': 'Repeat password',
+  'Passwörter stimmen nicht überein.': 'Passwords do not match.',
+  'Kairo ist schon eingerichtet. Bitte anmelden.': 'Kairo is already set up. Please sign in.',
+  'Das Passwort braucht mindestens 8 Zeichen.': 'The password needs at least 8 characters.',
+  'Registrierung fehlgeschlagen.': 'Registration failed.',
+  'Wird eingerichtet …': 'Setting up …',
+  'Konto anlegen': 'Create account',
+  'name@beispiel.de': 'name@example.com',
+
   // Datum und Zeit
   'Heute': 'Today',
   'heute': 'today',
