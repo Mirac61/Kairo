@@ -12,31 +12,33 @@ Laptop/Handy ──WireGuard──▶ Pi wg0 <wg-ip> ──▶ Kairo :8742 (Logi
 
 ## Voraussetzung: VPN auf dem Pi
 
-`<wireguard-skript>` aus dem Smart-Home-Repository (`<pi-repo>`) richtet
-`wg0` mit `<wg-netz>` ein (eigenes Gerät = `.2`, weiteres Gerät = `.3`). Die Firewall
-lässt Kairo nur für das eigene Gerät durch, nicht für andere VPN-Teilnehmer:
+Richte `wg0` mit deinem WireGuard-Setup ein (z. B. ein `<wireguard-skript>`-
+Skript aus deinem Netzwerk-Repository). Die Firewall lässt Kairo nur für
+das eigene Gerät durch, nicht für andere VPN-Teilnehmer – `<wg-client-ip>`
+ist die Adresse deines Notebooks im VPN:
 
 ```sh
 sudo ufw allow in on wg0 from <wg-client-ip> to any port 8742 proto tcp comment 'Kairo nur eigenes Geraet'
 ```
 
-WireGuard prüft die Absenderadresse pro Peer (`AllowedIPs`), `.3` kann sich
-also nicht als `.2` ausgeben. Kairo hat genau ein Konto, ein zweiter Nutzer
-bekommt keinen eigenen Bereich.
+WireGuard prüft die Absenderadresse pro Peer (`AllowedIPs`), andere Geräte
+können sich also nicht als Adresse eines anderen Peers ausgeben. Kairo hat
+genau ein Konto, ein zweiter Nutzer bekommt keinen eigenen Bereich.
 
 ## Deployen
 
 Vom Laptop aus, im Repository:
 
 ```sh
-PI=user@<pi-host> ./deploy.sh
+PI=<benutzer>@<pi-host> ./deploy.sh
 ```
 
 Das Skript prüft die Architektur des Pi (`armv6l`, `armv7l`, `aarch64`)
-und ob `wg0` die `<wg-ip>` hat. Danach baut es WebUI und Binary,
-kopiert alles nach `~/kairo` und installiert `scripts/kairo.service`
-als systemweiten Dienst. Daten liegen in `~/kairo/data`, Notizen in
-`~/kairo/notes`. Bei jedem Start legt Kairo ein Backup an.
+und liest die WireGuard-Adresse von `wg0` auf dem Pi aus. Danach baut es
+WebUI und Binary, kopiert alles nach `~/kairo` und installiert
+`scripts/kairo.service` als systemweiten Dienst. Daten liegen in
+`~/kairo/data`, Notizen in `~/kairo/notes`. Bei jedem Start legt Kairo
+ein Backup an.
 
 ## Erstes Konto
 
@@ -52,8 +54,8 @@ Beide melden sich mit dem API-Token aus `~/.config/kairo/token` an, nicht
 Laptop, dann funktionieren beide Instanzen ohne Umstellen:
 
 ```sh
-scp ~/.config/kairo/token user@<pi-host>:.config/kairo/token
-ssh -t user@<pi-host> sudo systemctl restart kairo
+scp ~/.config/kairo/token <benutzer>@<pi-host>:.config/kairo/token
+ssh -t <benutzer>@<pi-host> sudo systemctl restart kairo
 ```
 
 - Extension: Einstellung `kairo.backendUrl` auf `http://<wg-ip>:8742`.
@@ -71,10 +73,10 @@ ssh -t user@<pi-host> sudo systemctl restart kairo
 ## Fehlersuche
 
 ```sh
-ssh user@<pi-host>
+ssh <benutzer>@<pi-host>
 systemctl status kairo
 journalctl -u kairo -n 50
-ip -4 addr show wg0        # muss <wg-ip> zeigen
+ip -4 addr show wg0        # muss die WireGuard-Adresse zeigen
 sudo ufw status | grep 8742
 ```
 
@@ -87,5 +89,4 @@ sudo ufw status | grep 8742
 ## Dashboard
 
 Die Link-Seite (Kairo, Smart Home, Status) läuft nicht auf dem Pi,
-sondern als lokale HTML-Datei: `~/code/personal/pi-dashboard/index.html`.
-Auf dem Pi ist dafür kein Port offen.
+sondern als lokale HTML-Datei. Auf dem Pi ist dafür kein Port offen.
