@@ -22,7 +22,7 @@ func newProjectsRouter(t *testing.T) http.Handler {
 	}
 	t.Cleanup(func() { db.Close() })
 	svc := service.NewProjectService(repository.NewProjectRepository(db), nil)
-	return NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{Projects: svc})
+	return NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{Projects: svc})
 }
 
 func call(h http.Handler, method, path, body string) *httptest.ResponseRecorder {

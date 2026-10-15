@@ -25,7 +25,7 @@ func TestReviewEndpoint(t *testing.T) {
 	cal := service.NewCalendarService(repository.NewCalendarRepository(db), time.UTC, clock)
 	habits := service.NewHabitService(repository.NewHabitRepository(db), time.UTC, clock)
 	timeSvc := service.NewTimeTrackingService(repository.NewTimeEntryRepository(db), clock)
-	h := NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
+	h := NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
 		Projects: projects, Tasks: tasks.WithTimerStopper(timeSvc), Calendar: cal, Habits: habits, Time: timeSvc,
 		Review: service.NewReviewService(tasks, projects, habits, cal, timeSvc, time.UTC, clock),
 	})

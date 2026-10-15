@@ -41,7 +41,7 @@ func TestGitHubImport(t *testing.T) {
 	}
 	t.Cleanup(func() { db.Close() })
 	url := "https://github.com/me/kairo/issues/7"
-	h := NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
+	h := NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
 		Projects:  service.NewProjectService(repository.NewProjectRepository(db), nil),
 		Tasks:     service.NewTaskService(repository.NewTaskRepository(db), nil),
 		Resources: service.NewResourceService(repository.NewResourceRepository(db), nil),

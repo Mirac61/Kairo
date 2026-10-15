@@ -12,9 +12,14 @@ import (
 
 const testToken = "s3cret"
 
+// NewTestRouter erzeugt einen Router ohne Authentifizierung für Tests.
+func NewTestRouter(port int, token, version string, webUI http.Handler, svc Services) http.Handler {
+	return NewRouter(port, token, version, webUI, svc, nil, nil, false)
+}
+
 func TestSecurity(t *testing.T) {
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	h := Security(8742, testToken, ok)
+	h := Security(8742, testToken, false, ok)
 
 	tests := []struct {
 		name    string
@@ -70,7 +75,7 @@ func TestSecurity(t *testing.T) {
 }
 
 func TestHealth(t *testing.T) {
-	h := NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{})
+	h := NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{})
 	req := httptest.NewRequest("GET", "/api/health", nil)
 	req.Host = "127.0.0.1:8742"
 	rec := httptest.NewRecorder()

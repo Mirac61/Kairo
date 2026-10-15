@@ -19,7 +19,7 @@ func TestSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	restarted := false
-	h := NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
+	h := NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
 		Settings: &Settings{Running: running, Getenv: getenv, Restart: func() { restarted = true }},
 	})
 

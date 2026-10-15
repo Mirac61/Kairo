@@ -19,7 +19,7 @@ func newTimeRouter(t *testing.T) http.Handler {
 	}
 	t.Cleanup(func() { db.Close() })
 	timeSvc := service.NewTimeTrackingService(repository.NewTimeEntryRepository(db), nil)
-	return NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
+	return NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
 		Projects: service.NewProjectService(repository.NewProjectRepository(db), nil),
 		Tasks:    service.NewTaskService(repository.NewTaskRepository(db), nil).WithTimerStopper(timeSvc),
 		Time:     timeSvc,

@@ -7,27 +7,35 @@ import (
 	"strings"
 )
 
-// Security schützt den lokalen Server (siehe docs/02_ARCHITECTURE.md,
+// Security schützt den Server (siehe docs/02_ARCHITECTURE.md,
 // "Lokale Sicherheit"). Es werden nie CORS-Header gesendet.
-func Security(port int, token string, next http.Handler) http.Handler {
+// Wenn authEnabled true ist, wird der Host-Check aufgehoben; API/WS-Requests
+// ohne Bearer-Token werden durchgelassen, damit die Auth-Middleware das
+// Session-Cookie prüfen kann.
+func Security(port int, token string, authEnabled bool, next http.Handler) http.Handler {
 	p := strconv.Itoa(port)
 	hosts := map[string]bool{"127.0.0.1:" + p: true, "localhost:" + p: true}
 	origins := map[string]bool{"http://127.0.0.1:" + p: true, "http://localhost:" + p: true}
 	tokenBytes := []byte(token)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !hosts[r.Host] {
-			http.Error(w, "forbidden host", http.StatusForbidden)
-			return
+		if !authEnabled {
+			if !hosts[r.Host] {
+				http.Error(w, "forbidden host", http.StatusForbidden)
+				return
+			}
 		}
-		if needsOriginOrToken(r) {
-			if origin := r.Header.Get("Origin"); origins[origin] {
+		if needsOriginOrToken(r) && !isPublicAuthRoute(r.URL.Path) {
+			if !authEnabled && origins[r.Header.Get("Origin")] {
 				// eigener Origin
 			} else if got, ok := bearer(r); ok {
 				if subtle.ConstantTimeCompare([]byte(got), tokenBytes) != 1 {
 					http.Error(w, "invalid token", http.StatusUnauthorized)
 					return
 				}
+			} else if authEnabled && underAPIOrWS(r.URL.Path) {
+				// API/WS dürfen bei aktiviertem Auth auch per Session-Cookie
+				// authentifiziert werden; das prüft die Auth-Middleware.
 			} else {
 				http.Error(w, "forbidden origin", http.StatusForbidden)
 				return

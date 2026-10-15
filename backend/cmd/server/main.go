@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"kairo/internal/api"
+	"kairo/internal/auth"
 	"kairo/internal/autostart"
 	"kairo/internal/config"
 	"kairo/internal/github"
@@ -124,11 +125,30 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
 	db, err := repository.OpenWithBackup(ctx, cfg.DBPath, backupDir(cfg))
 	if err != nil {
 		return err
 	}
 	defer db.Close()
+
+	var authH *auth.Handler
+	var authMW func(http.Handler) http.Handler
+	if cfg.RequireAuth() {
+		authRepo := auth.NewSQLiteRepository(db)
+		authSessions := auth.NewSQLiteSessionStore(db)
+		hashConcurrency, err := auth.HashConcurrencyFromEnv()
+		if err != nil {
+			return err
+		}
+		hasher, err := auth.NewHasher(hashConcurrency)
+		if err != nil {
+			return err
+		}
+		authService := auth.NewServiceWithSessionTTL(authRepo, authSessions, cfg.SessionTTL, hasher)
+		authH = auth.NewHandler(authService, cfg.CookieSecure)
+		authMW = api.AuthMiddleware(true, token, authSessions, cfg.SessionTTL, cfg.CookieSecure)
+	}
 
 	notesStore, err := notes.Open(cfg.NotesDir)
 	if err != nil {
@@ -162,7 +182,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr(),
-		Handler:           api.NewRouter(cfg.Port, token, version, web.Handler(), services),
+		Handler:           api.NewRouter(cfg.Port, token, version, web.Handler(), services, authH, authMW, cfg.RequireAuth()),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -171,8 +191,8 @@ func run() error {
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
-	log.Info("Kairo gestartet", "url", "http://"+config.BindHost+":"+strconv.Itoa(cfg.Port),
-		"version", version, "db", cfg.DBPath, "notes", cfg.NotesDir, "timezone", cfg.Location.String())
+	log.Info("Kairo gestartet", "url", "http://"+cfg.Host+":"+strconv.Itoa(cfg.Port),
+		"version", version, "auth", cfg.RequireAuth(), "db", cfg.DBPath, "notes", cfg.NotesDir, "timezone", cfg.Location.String())
 
 	select {
 	case err := <-errCh:

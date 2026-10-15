@@ -71,6 +71,22 @@ func TestLoadInvalid(t *testing.T) {
 	}
 }
 
+func TestLoadAuth(t *testing.T) {
+	if cfg, err := Load(env(nil)); err != nil || cfg.AuthEnabled || cfg.CookieSecure {
+		t.Errorf("localhost-Default ohne Auth erwartet: %+v, %v", cfg, err)
+	}
+	if cfg, err := Load(env(map[string]string{"KAIRO_HOST": "0.0.0.0"})); err != nil || !cfg.AuthEnabled {
+		t.Errorf("Auth bei 0.0.0.0 erwartet: %+v, %v", cfg, err)
+	}
+	cfg, err := Load(env(map[string]string{"KAIRO_AUTH": "true"}))
+	if err != nil || !cfg.AuthEnabled || !cfg.IsLocalhost() {
+		t.Errorf("KAIRO_AUTH=true muss auch bei localhost-Bind funktionieren: %+v, %v", cfg, err)
+	}
+	if _, err := Load(env(map[string]string{"KAIRO_AUTH": "nope"})); err == nil {
+		t.Error("KAIRO_AUTH=nope sollte ungültig sein")
+	}
+}
+
 func TestLoadWorkWindow(t *testing.T) {
 	cfg, err := Load(env(nil))
 	if err != nil || cfg.WorkStart != 540 || cfg.WorkEnd != 1020 {
