@@ -675,6 +675,19 @@ ebenfalls 127.0.0.1 ansprechen können. Deshalb:
     Token (`Authorization: Bearer …`). Das Token wird beim ersten Start
     in `~/.config/kairo/token` mit Dateirechten `0600` erzeugt.
 
+Auf einem Server (Raspberry Pi, siehe `docs/PI_DEPLOYMENT.md`) bindet
+Kairo mit `KAIRO_HOST=10.8.50.1` nur an die WireGuard-Adresse. Bei jedem
+Bind außer 127.0.0.1 ist Login aktiv:
+
+-   Host- und Origin-Check entfallen; stattdessen braucht jede `/api`-
+    und `/ws`-Anfrage ein Session-Cookie (`HttpOnly`, `SameSite=Lax`)
+    oder den API-Token. Offen bleiben nur `/api/health` und die
+    Auth-Endpunkte.
+-   `/api/auth/register` legt nur das erste Konto an, danach `403`.
+-   `KAIRO_AUTH=true` erzwingt Login auch beim Bind an 127.0.0.1, z. B.
+    hinter einem Port-Forward, der fremde Anfragen als localhost
+    durchreicht.
+
 ------------------------------------------------------------------------
 
 # Betrieb

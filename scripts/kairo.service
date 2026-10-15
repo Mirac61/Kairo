@@ -1,0 +1,21 @@
+[Unit]
+Description=Kairo Personal OS
+After=network-online.target wg-quick@wg0.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=PI_USER
+WorkingDirectory=PI_ZIEL
+ExecStart=PI_ZIEL/kairo
+Restart=always
+# Bind an die WireGuard-Adresse: Kairo ist nur per VPN erreichbar, nicht im
+# Heimnetz, und verlangt dort Anmeldung (Login ist bei Nicht-localhost-Bind
+# automatisch aktiv). Für Zugriff aus dem ganzen Heimnetz stattdessen
+# Environment="KAIRO_HOST=0.0.0.0" setzen.
+Environment="KAIRO_HOST=10.8.50.1"
+Environment="KAIRO_NOTES_DIR=PI_ZIEL/notes"
+Environment="KAIRO_DB_PATH=PI_ZIEL/data/kairo.db"
+
+[Install]
+WantedBy=multi-user.target
