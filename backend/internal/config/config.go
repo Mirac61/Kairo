@@ -14,12 +14,13 @@ import (
 	"time"
 )
 
-// BindHost ist die einzige erlaubte Bind-Adresse.
-const BindHost = "127.0.0.1"
+// DefaultHost ist die Standard-Bind-Adresse.
+const DefaultHost = "127.0.0.1"
 
 // Config enthält alle Laufzeiteinstellungen.
 type Config struct {
 	Port      int
+	Host      string
 	DBPath    string
 	TokenPath string
 	// ConfigPath ist die Datei mit den Einstellungen aus der WebUI.
@@ -31,10 +32,26 @@ type Config struct {
 	// WorkStart und WorkEnd begrenzen die Arbeitszeit eines Tages in Minuten
 	// seit Mitternacht (Ortszeit); immer WorkStart < WorkEnd.
 	WorkStart, WorkEnd int
+	// AuthEnabled schaltet Login/Session-Cookies ein. Wird automatisch aktiviert,
+	// wenn Host nicht 127.0.0.1 ist. KAIRO_AUTH=true erzwingt sie auch bei
+	// localhost-Bind, z. B. wenn ein VPN-Port-Forward Anfragen als localhost
+	// durchreicht und die Anmeldung trotzdem verlangt werden soll.
+	AuthEnabled bool
+	// CookieSecure steuert das Secure-Flag des Session-Cookies. Default false,
+	// weil Kairo selbst nur HTTP spricht; true nur hinter einem HTTPS-Proxy.
+	CookieSecure bool
+	// SessionTTL ist die Lebensdauer einer Session.
+	SessionTTL time.Duration
 }
 
-// Addr liefert die Listen-Adresse (immer localhost).
-func (c Config) Addr() string { return fmt.Sprintf("%s:%d", BindHost, c.Port) }
+// Addr liefert die Listen-Adresse.
+func (c Config) Addr() string { return fmt.Sprintf("%s:%d", c.Host, c.Port) }
+
+// RequireAuth sagt, ob Authentifizierung erzwungen werden muss.
+func (c Config) RequireAuth() bool { return c.AuthEnabled }
+
+// IsLocalhost sagt, ob Kairo nur an localhost bindet.
+func (c Config) IsLocalhost() bool { return c.Host == DefaultHost || c.Host == "localhost" }
 
 // Error beschreibt einen ungültigen Konfigurationswert.
 type Error struct {
@@ -154,6 +171,11 @@ func resolve(getenv func(string) string) (Config, error) {
 	var cfg Config
 	var errs []error
 
+	cfg.Host = DefaultHost
+	if v := getenv("KAIRO_HOST"); v != "" {
+		cfg.Host = v
+	}
+
 	cfg.Port = 8742
 	if v := getenv("KAIRO_PORT"); v != "" {
 		p, err := strconv.Atoi(v)
@@ -161,6 +183,35 @@ func resolve(getenv func(string) string) (Config, error) {
 			errs = append(errs, &Error{"KAIRO_PORT", v, "erwartet Zahl 1-65535"})
 		} else {
 			cfg.Port = p
+		}
+	}
+
+	cfg.AuthEnabled = !cfg.IsLocalhost()
+	if v := getenv("KAIRO_AUTH"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			errs = append(errs, &Error{"KAIRO_AUTH", v, "erwartet true|false"})
+		} else {
+			cfg.AuthEnabled = enabled
+		}
+	}
+
+	if v := getenv("KAIRO_COOKIE_SECURE"); v != "" {
+		secure, err := strconv.ParseBool(v)
+		if err != nil {
+			errs = append(errs, &Error{"KAIRO_COOKIE_SECURE", v, "erwartet true|false"})
+		} else {
+			cfg.CookieSecure = secure
+		}
+	}
+
+	cfg.SessionTTL = 30 * 24 * time.Hour
+	if v := getenv("KAIRO_SESSION_TTL"); v != "" {
+		ttl, err := time.ParseDuration(v)
+		if err != nil || ttl <= 0 {
+			errs = append(errs, &Error{"KAIRO_SESSION_TTL", v, "erwartet positive Dauer"})
+		} else {
+			cfg.SessionTTL = ttl
 		}
 	}
 

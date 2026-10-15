@@ -19,7 +19,7 @@ func newHabitsRouter(t *testing.T) http.Handler {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
+	return NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
 		Habits: service.NewHabitService(repository.NewHabitRepository(db), time.UTC, nil),
 	})
 }

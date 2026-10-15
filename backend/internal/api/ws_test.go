@@ -33,7 +33,7 @@ func newWSServer(t *testing.T) (*httptest.Server, http.Handler) {
 	for _, p := range []interface{ SetPublisher(service.Publisher) }{timeSvc, tasks, projects} {
 		p.SetPublisher(hub)
 	}
-	h := NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
+	h := NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
 		Projects: projects, Tasks: tasks.WithTimerStopper(timeSvc), Time: timeSvc, Hub: hub,
 	})
 	srv := httptest.NewServer(h)

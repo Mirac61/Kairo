@@ -19,7 +19,7 @@ func TestNotes(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	h := NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{Notes: store})
+	h := NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{Notes: store})
 
 	expect := func(rec interface{ Result() *http.Response }, want int) map[string]string {
 		t.Helper()
@@ -122,7 +122,7 @@ func TestNoteFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	h := NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{Notes: store})
+	h := NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{Notes: store})
 	png := "\x89PNG\r\n\x1a\n" + strings.Repeat("\x00", 16)
 	_ = os.WriteFile(filepath.Join(dir, "skript.pdf"), []byte("%PDF-1.4"), 0o644)
 	_ = os.WriteFile(filepath.Join(dir, "film.mp4"), []byte("x"), 0o644)

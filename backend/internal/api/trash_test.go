@@ -32,7 +32,7 @@ func newTrashRouter(t *testing.T, now *time.Time) http.Handler {
 	cal := service.NewCalendarService(repository.NewCalendarRepository(db), time.UTC, clock)
 	habits := service.NewHabitService(repository.NewHabitRepository(db), time.UTC, clock)
 	timeSvc := service.NewTimeTrackingService(repository.NewTimeEntryRepository(db), clock)
-	return NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
+	return NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
 		Tasks:    tasks.WithTimerStopper(timeSvc),
 		Calendar: cal,
 		Habits:   habits,

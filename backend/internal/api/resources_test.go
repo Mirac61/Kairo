@@ -19,7 +19,7 @@ func newResourcesRouter(t *testing.T) http.Handler {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return NewRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
+	return NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
 		Projects:  service.NewProjectService(repository.NewProjectRepository(db), nil),
 		Tasks:     service.NewTaskService(repository.NewTaskRepository(db), nil),
 		Resources: service.NewResourceService(repository.NewResourceRepository(db), nil),

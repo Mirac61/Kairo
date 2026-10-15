@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"kairo/internal/auth"
 	"kairo/internal/notes"
 	"kairo/internal/realtime"
 )
@@ -29,9 +30,16 @@ type Services struct {
 }
 
 // NewRouter baut den HTTP-Handler. Die Security-Middleware läuft vor dem Routing.
-func NewRouter(port int, token, version string, webUI http.Handler, svc Services) http.Handler {
+func NewRouter(port int, token, version string, webUI http.Handler, svc Services, authH *auth.Handler, authMW func(http.Handler) http.Handler, authEnabled bool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", health(version))
+	if authH != nil {
+		mux.HandleFunc("GET /api/auth/setup-required", authH.SetupRequiredHandler)
+		mux.HandleFunc("POST /api/auth/register", authH.RegisterHandler)
+		mux.HandleFunc("POST /api/auth/login", authH.LoginHandler)
+		mux.HandleFunc("POST /api/auth/logout", authH.LogoutHandler)
+		mux.HandleFunc("GET /api/auth/me", authH.MeHandler)
+	}
 	if svc.Projects != nil {
 		projectHandlers{svc.Projects}.register(mux)
 	}
@@ -72,7 +80,12 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 		mux.HandleFunc("GET /ws", handleWebSocket(svc.Hub))
 	}
 	mux.Handle("/", webUI)
-	return Security(port, token, mux)
+
+	handler := http.Handler(mux)
+	if authMW != nil {
+		handler = authMW(handler)
+	}
+	return Security(port, token, authEnabled, handler)
 }
 
 func health(version string) http.HandlerFunc {
