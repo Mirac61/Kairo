@@ -210,6 +210,10 @@ useLiveEvents(load)
 .rv-bars { display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 120px; width: 100%; }
 .rv-bars i { width: min(22px, 40%); border-radius: 4px 4px 0 0; box-sizing: border-box; }
 .rv-bars .k-soon { border-bottom: 0; }
+@media (max-width: 640px) {
+  .rv-days { gap: 2px; }
+  .rv-day .rv-n { font-size: 10px; white-space: normal; text-align: center; }
+}
 .rv-big small { font-size: 15px; font-weight: 500; color: var(--tx-muted); }
 .rv-ck { display: grid; place-items: center; flex: none; width: 16px; height: 16px; border-radius: 50%; }
 .rv-ck svg { width: 9px; height: 9px; fill: none; stroke: var(--bg-0); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

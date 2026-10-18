@@ -267,7 +267,9 @@ const spanView = () => `timeGrid${prefs.calDays}`
 // Erster sichtbarer Tag, damit heute in der Mitte steht (2 bzw. 3 Tage davor).
 const spanStart = () => addDays(new Date(), -Math.floor(prefs.calDays / 2))
 const storedView = store.get('kairo-cal-view')
-const view = ref<string>(storedView === 'dayGridMonth' || storedView === 'timeGridDay' ? storedView : spanView())
+// Handy: Tag statt Wochenraster (schmaler als 760px passt keine Woche), „Ungeplant“ zunächst zu.
+const narrow = matchMedia('(max-width:760px)').matches
+const view = ref<string>(storedView === 'dayGridMonth' ? storedView : narrow || storedView === 'timeGridDay' ? 'timeGridDay' : spanView())
 const isWeek = computed(() => view.value === 'timeGrid5' || view.value === 'timeGrid7')
 const isDay = computed(() => view.value === 'timeGridDay')
 function goView(v: string) {
@@ -287,7 +289,7 @@ function setDays(n: 5 | 7) {
 }
 
 // „Ungeplant“ lässt sich einklappen, damit die Woche die volle Breite bekommt.
-const upOpen = ref(store.get('kairo-cal-unplanned') !== '0')
+const upOpen = ref((store.get('kairo-cal-unplanned') ?? (narrow ? '0' : '1')) !== '0')
 function toggleUp() {
   upOpen.value = !upOpen.value
   store.set('kairo-cal-unplanned', upOpen.value ? '1' : '0')
@@ -601,6 +603,15 @@ useLiveEvents(() => {
   .unplanned { width: auto; max-height: 180px; order: 2; }
 }
 .cal-fc { flex: 1; min-height: 0; }
+@media (max-width: 760px) {
+  .cal-toolbar .btn-secondary { display: none; } /* ICS-Import gibt es nur am Rechner */
+  .cal-title { flex: 1 1 auto; font-size: 18px; }
+  .cal-toolbar .spacer { display: none; }
+  .unplanned.shut { width: auto; flex-direction: row; padding: 4px 8px 4px 16px; }
+  .unplanned.shut .up-head { flex-direction: row; flex: 1; }
+  .unplanned.shut .up-lbl { display: inline; }
+  .unplanned.shut .up-count { margin-left: 6px; }
+}
 .cal-kw { font: 400 13px/1 var(--font-ui); color: var(--tx-muted); }
 .cal-stats { display: flex; gap: 16px; padding: 0 10px 12px 56px; font: 400 13px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-muted); }
 .cal-stats b { margin-left: 4px; font-weight: 600; color: var(--tx-primary); }

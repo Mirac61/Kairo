@@ -429,6 +429,7 @@ useLiveEvents(load)
 .tk-stats b { font-weight: 500; color: var(--tx-primary); font-variant-numeric: tabular-nums; }
 .tk-stats .od, .tk-stats .od b { color: var(--a-red); }
 .qa-syntax { display: inline-flex; gap: 6px; }
+@media (max-width: 640px) { .qa-syntax, .btn-primary .key { display: none; } }
 .btn-primary .key { margin-left: 6px; background: transparent; color: inherit; border-color: currentColor; opacity: .6; }
 .tgroup > .lbl.od { color: var(--a-red); }
 .g-sum { margin-left: auto; font: 400 13px/1 var(--font-ui); color: var(--tx-muted); }

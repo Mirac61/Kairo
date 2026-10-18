@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import ConfirmPopup from 'primevue/confirmpopup'
 import { usePrimeVue } from 'primevue/config'
@@ -51,6 +51,15 @@ function toggleSidebar() {
   // Der Kalender misst sich nur bei Fenster-Resize neu.
   void nextTick(() => window.dispatchEvent(new Event('resize')))
 }
+
+// Handy: vier Tabs für den Alltag, der Rest (und Einstellungen) im „Mehr“-Blatt. Die Seitenleiste blendet design.css unter 760px aus.
+const tabPaths = ['/today', '/tasks', '/habits', '/calendar']
+const tabs = tabPaths.map((p) => navItems.find((n) => n.path === p)!)
+const more = navItems.filter((n) => !tabPaths.includes(n.path))
+const moreOpen = ref(false)
+const showFab = computed(() => route.path === '/today' || route.path === '/tasks') // sonst verdeckt er Zeilenaktionen
+const inMore = computed(() => !tabPaths.includes(route.path))
+watch(() => route.path, () => { moreOpen.value = false })
 
 // Theme: der Knopf wählt das Gegenteil des aktuellen; „System“ gibt es in den Einstellungen.
 const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
@@ -141,6 +150,30 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
       </div>
     </aside>
     <main class="content" :class="{ 'content-full': hideSidebar }"><RouterView /></main>
+    <template v-if="!hideSidebar">
+      <button v-if="moreOpen" type="button" class="sheet-scrim" :aria-label="$t('Schließen')" @click="moreOpen = false"></button>
+      <div v-if="moreOpen" class="more-sheet" role="dialog" :aria-label="$t('Mehr')">
+        <RouterLink v-for="item in more" :key="item.path" :to="item.path" class="nav-item">
+          <svg class="ic"><use :href="`#i-${item.icon}`" /></svg><span class="nav-l">{{ $t(item.label) }}</span>
+          <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
+        </RouterLink>
+        <RouterLink to="/settings" class="nav-item"><svg class="ic"><use href="#i-gear" /></svg><span class="nav-l">{{ $t('Einstellungen') }}</span></RouterLink>
+        <button type="button" class="nav-item" @click="toggleTheme"><svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg><span class="nav-l">{{ $t('Theme wechseln') }}</span></button>
+        <div class="status" :class="{ off: !online }">
+          <span class="status-dot" />
+          <span>{{ online ? `${$t('Verbunden')}${version ? ` (${version})` : ''}` : $t('Getrennt') }}</span>
+        </div>
+      </div>
+      <nav class="tabbar" :aria-label="$t('Hauptnavigation')">
+        <RouterLink v-for="item in tabs" :key="item.path" :to="item.path" class="tab">
+          <svg class="ic"><use :href="`#i-${item.icon}`" /></svg><span>{{ $t(item.label) }}</span>
+        </RouterLink>
+        <button type="button" class="tab" :class="{ on: inMore || moreOpen }" :aria-expanded="moreOpen" @click="moreOpen = !moreOpen">
+          <svg class="ic"><use href="#i-list" /></svg><span>{{ $t('Mehr') }}</span>
+        </button>
+      </nav>
+      <button v-if="showFab" type="button" class="fab" :aria-label="$t('Neu …')" @click="newEntry"><svg class="ic"><use href="#i-plus" /></svg></button>
+    </template>
     <ConfirmPopup />
     <UndoToast />
   </div>

@@ -116,6 +116,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
 }
 .nd :deep(.md-editor .md-editor-toolbar-wrapper) { padding: 4px 16px; border-bottom-color: var(--br-subtle); }
 .nd :deep(.md-editor .md-editor-toolbar-item) { color: var(--tx-secondary); }
+@media (max-width: 760px) { .nd :deep(.md-editor .md-editor-toolbar-wrapper) { padding: 4px 8px; overflow-x: auto; } }
 .nd :deep(.md-editor .cm-editor) { font-family: var(--font-mono); font-size: 13px; }
 .nd :deep(.md-editor .cm-scroller) { padding: 0 8px; }
 .nd :deep(.md-editor .md-editor-preview) {

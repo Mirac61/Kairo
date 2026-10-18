@@ -264,6 +264,7 @@ async function openFile(p: string) {
     error.value = ''
   }
   shown.value = focus.value = pane
+  if (matchMedia('(max-width:760px)').matches) treeOpen.value = false // Handy: Baum und Notiz nacheinander, nicht nebeneinander
 }
 
 // Klick auf eine eingebettete Zeichnung: geteilt öffnen, links zeichnen, rechts die Notiz live.
@@ -522,6 +523,12 @@ onBeforeUnmount(() => {
 <style scoped>
 .notes { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 100%; }
 .notes.shut { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 760px) {
+  .notes { grid-template-columns: minmax(0, 1fr); }
+  .notes:not(.shut) .eds { display: none; }
+  .nt-pane { border-right: 0; }
+  .ed-head { padding-right: 8px; }
+}
 .nt-pane { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--br-subtle); background: var(--bg-1); }
 .nt-head { display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--br-subtle); }
 .nt-head-act { display: flex; gap: 2px; }

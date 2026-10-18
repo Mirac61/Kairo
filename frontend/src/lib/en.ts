@@ -12,6 +12,7 @@ const en: Record<string, string> = {
   'Papierkorb': 'Trash',
   'Einstellungen': 'Settings',
   'Hauptnavigation': 'Main navigation',
+  'Mehr': 'More',
   'Kairo': 'Kairo',
   'Neu': 'New',
   'Neu …': 'New …',
