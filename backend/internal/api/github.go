@@ -95,8 +95,8 @@ func (h githubHandlers) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// projectIssues: alle offenen Issues des Repos hinter local_path (git remote origin).
-// Ohne GitHub-Repo ist repo leer und die Liste leer.
+// projectIssues: alle offenen Issues aus github_repo, sonst aus dem Repo hinter local_path
+// (git remote origin, geht nur, wenn der Server den Ordner sieht). Ohne Repo ist die Liste leer.
 func (h githubHandlers) projectIssues(w http.ResponseWriter, r *http.Request) {
 	p, err := h.projects.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
@@ -107,7 +107,9 @@ func (h githubHandlers) projectIssues(w http.ResponseWriter, r *http.Request) {
 		Repo   string     `json:"repo"`
 		Issues []issueDTO `json:"issues"`
 	}{Issues: []issueDTO{}}
-	if p.LocalPath != nil {
+	if p.GitHubRepo != nil {
+		resp.Repo = *p.GitHubRepo
+	} else if p.LocalPath != nil {
 		resp.Repo = h.issues.RepoOf(r.Context(), *p.LocalPath)
 	}
 	if resp.Repo != "" {

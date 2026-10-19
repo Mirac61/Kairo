@@ -287,8 +287,9 @@ Ein Projekt kann besitzen:
 -   URLs
 -   Dokumentreferenzen
 
-`local_path` muss ein absoluter Pfad (oder `~/…`) sein und existieren; das
-Backend prüft das beim Anlegen und beim Ändern des Pfads. Jedes Projekt hat
+`local_path` muss ein absoluter Pfad (oder `~/…`) sein. Ob der Ordner
+existiert, prüft erst der Client (die Extension beim Öffnen), weil Server und
+Ordner auf verschiedenen Rechnern liegen können. Jedes Projekt hat
 eine Farbe aus einer festen Palette (`color`); die WebUI zeigt sie überall
 und bietet sie im Projektdialog zur Auswahl an, ein neues Projekt bekommt die
 am wenigsten benutzte.

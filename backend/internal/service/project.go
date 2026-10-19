@@ -3,15 +3,14 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"kairo/internal/domain"
+	"kairo/internal/github"
 )
 
 // ProjectStore ist der Speicher, den der ProjectService braucht.
@@ -44,16 +43,18 @@ type CreateProjectInput struct {
 	Name        string
 	Description string
 	LocalPath   *string
+	GitHubRepo  *string
 	Status      domain.ProjectStatus
 	Color       string
 }
 
 // UpdateProjectInput ändert nur die gesetzten (non-nil) Felder.
-// Ein leerer LocalPath entfernt die Verknüpfung zum Ordner.
+// Ein leerer LocalPath oder GitHubRepo entfernt die Verknüpfung.
 type UpdateProjectInput struct {
 	Name        *string
 	Description *string
 	LocalPath   *string
+	GitHubRepo  *string
 	Status      *domain.ProjectStatus
 	Color       *string
 }
@@ -68,6 +69,7 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (dom
 		Name:        strings.TrimSpace(in.Name),
 		Description: in.Description,
 		LocalPath:   trimOrNil(in.LocalPath),
+		GitHubRepo:  trimOrNil(in.GitHubRepo),
 		Status:      in.Status,
 		Color:       in.Color,
 		CreatedAt:   now,
@@ -86,6 +88,9 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (dom
 		if err := checkLocalPath(*p.LocalPath); err != nil {
 			return domain.Project{}, err
 		}
+	}
+	if err := normalizeRepo(p.GitHubRepo); err != nil {
+		return domain.Project{}, err
 	}
 	if err := s.store.Create(ctx, p); err != nil {
 		return domain.Project{}, err
@@ -114,13 +119,17 @@ func (s *ProjectService) Update(ctx context.Context, id string, in UpdateProject
 		p.Description = *in.Description
 	}
 	if in.LocalPath != nil {
-		old := p.LocalPath
 		p.LocalPath = trimOrNil(in.LocalPath)
-		// Nur Änderungen prüfen: ein inzwischen verschwundener Ordner soll das Bearbeiten nicht sperren.
-		if p.LocalPath != nil && (old == nil || *old != *p.LocalPath) {
+		if p.LocalPath != nil {
 			if err := checkLocalPath(*p.LocalPath); err != nil {
 				return domain.Project{}, err
 			}
+		}
+	}
+	if in.GitHubRepo != nil {
+		p.GitHubRepo = trimOrNil(in.GitHubRepo)
+		if err := normalizeRepo(p.GitHubRepo); err != nil {
+			return domain.Project{}, err
 		}
 	}
 	if in.Status != nil {
@@ -167,24 +176,29 @@ func (s *ProjectService) nextColor(ctx context.Context) (string, error) {
 	return best, nil
 }
 
-// checkLocalPath prüft, dass der Pfad absolut ist (oder mit ~ beginnt) und existiert. Gespeichert
-// wird er so, wie er eingegeben wurde; die Extension löst ~ selbst auf.
+// checkLocalPath prüft nur die Form: absolut oder mit ~ beginnend. Ob der Ordner existiert, weiß nur
+// der Client (Server z. B. auf dem Pi, Ordner auf dem Mac); die Extension löst ~ selbst auf.
+// "/" gilt auf jedem System, wie bei Ressourcen.
 func checkLocalPath(p string) error {
-	full := p
-	if p == "~" || strings.HasPrefix(p, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("%w: local_path: Home-Verzeichnis unbekannt", domain.ErrInvalid)
-		}
-		full = filepath.Join(home, p[1:])
+	if p == "~" || strings.HasPrefix(p, "~/") || strings.HasPrefix(p, "/") || filepath.IsAbs(p) {
+		return nil
 	}
-	if !filepath.IsAbs(full) {
-		return fmt.Errorf("%w: local_path muss ein absoluter Pfad sein (oder mit ~ beginnen)", domain.ErrInvalid)
+	return fmt.Errorf("%w: local_path muss ein absoluter Pfad sein (oder mit ~ beginnen)", domain.ErrInvalid)
+}
+
+var repoName = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+
+// normalizeRepo kürzt eine GitHub-URL (https://…, git@…) auf „owner/name“ und prüft die Form.
+func normalizeRepo(r *string) error {
+	if r == nil {
+		return nil
 	}
-	if _, err := os.Stat(full); errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("%w: local_path: %q gibt es nicht", domain.ErrInvalid, p)
-	} else if err != nil {
-		return fmt.Errorf("%w: local_path: %q nicht lesbar: %v", domain.ErrInvalid, p, err)
+	if short := github.RepoFromRemote(*r); short != "" {
+		*r = short
+	}
+	*r = strings.TrimSuffix(*r, ".git")
+	if !repoName.MatchString(*r) {
+		return fmt.Errorf("%w: github_repo muss „owner/name“ oder eine GitHub-URL sein", domain.ErrInvalid)
 	}
 	return nil
 }

@@ -3,8 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -89,36 +87,25 @@ func TestProjectUpdateIsPartial(t *testing.T) {
 	}
 }
 
-func TestProjectLocalPathMustExist(t *testing.T) {
+// Der Pfad liegt beim Client (Mac), der Server (Pi) prüft nur die Form.
+func TestProjectLocalPathFormat(t *testing.T) {
 	svc, _ := newSvc()
 	ctx := context.Background()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home) // os.UserHomeDir unter Windows
-	if err := os.Mkdir(filepath.Join(home, "proj"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	for name, path := range map[string]string{"relativ": "proj", "fehlt": filepath.Join(home, "gibt-es-nicht"), "~ fehlt": "~/gibt-es-nicht"} {
+	for _, path := range []string{"proj", "./proj", "~user/proj", "C:proj"} {
 		if _, err := svc.Create(ctx, CreateProjectInput{Name: "x", LocalPath: ptr(path)}); !errors.Is(err, domain.ErrInvalid) {
-			t.Errorf("%s: err = %v", name, err)
+			t.Errorf("%q: err = %v", path, err)
 		}
 	}
-	// ~ wird für die Prüfung aufgelöst, gespeichert wird die Eingabe.
-	p, err := svc.Create(ctx, CreateProjectInput{Name: "x", LocalPath: ptr(" ~/proj ")})
-	if err != nil || p.LocalPath == nil || *p.LocalPath != "~/proj" {
+	// Gespeichert wird die Eingabe ohne Leerraum, ~ bleibt ~.
+	p, err := svc.Create(ctx, CreateProjectInput{Name: "x", LocalPath: ptr(" ~/gibt-es-hier-nicht ")})
+	if err != nil || p.LocalPath == nil || *p.LocalPath != "~/gibt-es-hier-nicht" {
 		t.Fatalf("Create mit ~ = %+v, %v", p, err)
 	}
-
-	// Geprüft wird nur eine Änderung: ein verschwundener Ordner sperrt das Bearbeiten nicht.
-	if err := os.Remove(filepath.Join(home, "proj")); err != nil {
-		t.Fatal(err)
+	if _, err := svc.Update(ctx, p.ID, UpdateProjectInput{LocalPath: ptr("/Users/test/code/x")}); err != nil {
+		t.Errorf("fehlender absoluter Pfad: %v", err)
 	}
-	if _, err := svc.Update(ctx, p.ID, UpdateProjectInput{Name: ptr("y"), LocalPath: ptr("~/proj")}); err != nil {
-		t.Errorf("unveränderter Pfad: %v", err)
-	}
-	if _, err := svc.Update(ctx, p.ID, UpdateProjectInput{LocalPath: ptr("~/anders")}); !errors.Is(err, domain.ErrInvalid) {
-		t.Errorf("geänderter, fehlender Pfad: %v", err)
+	if _, err := svc.Update(ctx, p.ID, UpdateProjectInput{LocalPath: ptr("anders")}); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("relativer Pfad: %v", err)
 	}
 }
 

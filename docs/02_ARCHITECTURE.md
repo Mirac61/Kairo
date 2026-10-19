@@ -307,9 +307,9 @@ created_at
 updated_at
 ```
 
-`local_path` muss ein absoluter Pfad (oder mit `~` beginnend) sein und
-existieren; das Backend prüft das beim Anlegen und beim Ändern des
-Pfads, gespeichert wird die Eingabe (die Extension löst `~` selbst
+`local_path` muss ein absoluter Pfad (oder mit `~` beginnend) sein; das
+Backend prüft nur diese Form, nicht ob der Ordner existiert (er liegt
+auf dem Client, der Server läuft z. B. auf dem Pi). Gespeichert wird die Eingabe (die Extension löst `~` selbst
 auf). `color` ist ein Name aus der Palette `violet`, `blue`, `orange`,
 `aqua`, `pink`, `yellow`, `green`, `red`; ein neues Projekt ohne Angabe
 bekommt die am wenigsten benutzte Farbe.

@@ -138,6 +138,7 @@ export interface Project {
   name: string
   description: string
   local_path: string | null
+  github_repo?: string | null
   status: string
   color: string
 }

@@ -38,6 +38,7 @@ type Project struct {
 	Name        string
 	Description string
 	LocalPath   *string
+	GitHubRepo  *string // „owner/name“
 	Status      ProjectStatus
 	Color       string // aus ProjectColors
 	CreatedAt   time.Time

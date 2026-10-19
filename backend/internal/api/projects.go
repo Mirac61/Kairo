@@ -23,6 +23,7 @@ type projectDTO struct {
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
 	LocalPath   *string `json:"local_path"`
+	GitHubRepo  *string `json:"github_repo"`
 	Status      string  `json:"status"`
 	Color       string  `json:"color"`
 	CreatedAt   string  `json:"created_at"`
@@ -35,6 +36,7 @@ func toProjectDTO(p domain.Project) projectDTO {
 		Name:        p.Name,
 		Description: p.Description,
 		LocalPath:   p.LocalPath,
+		GitHubRepo:  p.GitHubRepo,
 		Status:      string(p.Status),
 		Color:       p.Color,
 		CreatedAt:   p.CreatedAt.UTC().Format(time.RFC3339),
@@ -66,6 +68,7 @@ func (h projectHandlers) create(w http.ResponseWriter, r *http.Request) {
 		Name        string  `json:"name"`
 		Description string  `json:"description"`
 		LocalPath   *string `json:"local_path"`
+		GitHubRepo  *string `json:"github_repo"`
 		Status      string  `json:"status"`
 		Color       string  `json:"color"`
 	}
@@ -76,6 +79,7 @@ func (h projectHandlers) create(w http.ResponseWriter, r *http.Request) {
 		Name:        in.Name,
 		Description: in.Description,
 		LocalPath:   in.LocalPath,
+		GitHubRepo:  in.GitHubRepo,
 		Status:      domain.ProjectStatus(in.Status),
 		Color:       in.Color,
 	})
@@ -96,19 +100,20 @@ func (h projectHandlers) get(w http.ResponseWriter, r *http.Request) {
 }
 
 // update: nicht gesendete Felder (oder null) bleiben unverändert;
-// local_path "" entfernt die Ordner-Verknüpfung.
+// local_path bzw. github_repo "" entfernt die Verknüpfung.
 func (h projectHandlers) update(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Name        *string `json:"name"`
 		Description *string `json:"description"`
 		LocalPath   *string `json:"local_path"`
+		GitHubRepo  *string `json:"github_repo"`
 		Status      *string `json:"status"`
 		Color       *string `json:"color"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
 	}
-	upd := service.UpdateProjectInput{Name: in.Name, Description: in.Description, LocalPath: in.LocalPath, Color: in.Color}
+	upd := service.UpdateProjectInput{Name: in.Name, Description: in.Description, LocalPath: in.LocalPath, GitHubRepo: in.GitHubRepo, Color: in.Color}
 	if in.Status != nil {
 		s := domain.ProjectStatus(*in.Status)
 		upd.Status = &s

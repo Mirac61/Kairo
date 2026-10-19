@@ -32,7 +32,7 @@ const openId = ref<string | null>(null)
 const progress = ref<Record<string, Progress>>({})
 const dialog = ref(false)
 const editId = ref<string | null>(null)
-const form = ref({ name: '', description: '', local_path: '', status: 'ACTIVE', color: '' }) // color '' = automatisch (neues Projekt)
+const form = ref({ name: '', description: '', local_path: '', github_repo: '', status: 'ACTIVE', color: '' }) // color '' = automatisch (neues Projekt)
 
 const editing = computed(() => projects.value.find((p) => p.id === editId.value))
 const resOf = (id: string) => resources.value.filter((r) => r.project_id === id)
@@ -68,7 +68,7 @@ const { error, load, run } = useLoader(async () => {
 
 function openDialog(p?: Project) {
   editId.value = p?.id ?? null
-  form.value = { name: p?.name ?? '', description: p?.description ?? '', local_path: p?.local_path ?? '', status: p?.status ?? 'ACTIVE', color: p?.color ?? '' }
+  form.value = { name: p?.name ?? '', description: p?.description ?? '', local_path: p?.local_path ?? '', github_repo: p?.github_repo ?? '', status: p?.status ?? 'ACTIVE', color: p?.color ?? '' }
   error.value = ''
   dialog.value = true
 }
@@ -79,8 +79,8 @@ async function save() {
   if (!name) return
   const ok = await run(() =>
     editId.value
-      ? updateProject(editId.value, { name, description: f.description.trim(), local_path: f.local_path.trim(), status: f.status, color: f.color })
-      : createProject({ name, description: f.description.trim(), local_path: f.local_path.trim() || null, color: f.color || undefined }),
+      ? updateProject(editId.value, { name, description: f.description.trim(), local_path: f.local_path.trim(), github_repo: f.github_repo.trim(), status: f.status, color: f.color })
+      : createProject({ name, description: f.description.trim(), local_path: f.local_path.trim() || null, github_repo: f.github_repo.trim() || null, color: f.color || undefined }),
   )
   if (ok) dialog.value = false
 }
@@ -200,7 +200,7 @@ useLiveEvents(load)
             </div>
           </div>
           <div v-else class="proj-meta">{{ $t('Keine offenen Aufgaben.') }}</div>
-          <GitHubIssues v-if="p.local_path" :project-id="p.id" @open="(id) => router.push({ path: '/tasks', query: { task: id } })" @changed="load" />
+          <GitHubIssues v-if="p.local_path || p.github_repo" :project-id="p.id" @open="(id) => router.push({ path: '/tasks', query: { task: id } })" @changed="load" />
         </div>
       </article>
     </div>
@@ -216,7 +216,8 @@ useLiveEvents(load)
             <div class="field"><label for="p-name">{{ $t('Name') }}</label><input id="p-name" v-model="form.name" class="input" :placeholder="$t('Projektname')" /></div>
             <div class="field"><label for="p-desc">{{ $t('Beschreibung') }}</label><input id="p-desc" v-model="form.description" class="input" /></div>
             <div v-if="error" class="badge" role="alert">{{ error }}</div>
-            <div class="field"><label for="p-path">{{ $t('Ordner') }}</label><input id="p-path" v-model="form.local_path" class="input" :placeholder="$t('Absoluter Pfad oder ~/…, muss existieren (optional)')" /></div>
+            <div class="field"><label for="p-path">{{ $t('Ordner') }}</label><input id="p-path" v-model="form.local_path" class="input" :placeholder="$t('Absoluter Pfad oder ~/… auf deinem Rechner (optional)')" /></div>
+            <div class="field"><label for="p-repo">{{ $t('GitHub-Repo') }}</label><input id="p-repo" v-model="form.github_repo" class="input" :placeholder="$t('owner/name, sonst aus dem Ordner (optional)')" /></div>
             <div class="field">
               <label id="p-color-l">{{ $t('Farbe') }}</label>
               <div class="swatches" role="radiogroup" aria-labelledby="p-color-l">

@@ -98,4 +98,23 @@ func TestGitHubImport(t *testing.T) {
 			t.Errorf("Projekt %s = %d %s", path, rec.Code, rec.Body)
 		}
 	}
+
+	// github_repo gewinnt gegen git remote (Pi sieht den Ordner nicht); URLs werden gekürzt.
+	var p projectDTO
+	_ = json.Unmarshal(call(h, "POST", "/api/projects", `{"name":"pi","local_path":"/gibt/es/hier/nicht","github_repo":" https://github.com/me/kairo.git "}`).Body.Bytes(), &p)
+	if p.GitHubRepo == nil || *p.GitHubRepo != "me/kairo" {
+		t.Fatalf("github_repo = %v", p.GitHubRepo)
+	}
+	rec = call(h, "GET", "/api/projects/"+p.ID+"/github/issues", "")
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if rec.Code != 200 || resp.Repo != "me/kairo" || len(resp.Issues) != 1 {
+		t.Errorf("mit github_repo = %d %s", rec.Code, rec.Body)
+	}
+	if rec := call(h, "PATCH", "/api/projects/"+p.ID, `{"github_repo":"kein repo"}`); rec.Code != 400 {
+		t.Errorf("ungültiges github_repo = %d", rec.Code)
+	}
+	_ = json.Unmarshal(call(h, "PATCH", "/api/projects/"+p.ID, `{"github_repo":""}`).Body.Bytes(), &p)
+	if p.GitHubRepo != nil {
+		t.Errorf("leeres github_repo entfernt nicht: %v", *p.GitHubRepo)
+	}
 }

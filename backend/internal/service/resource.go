@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -100,22 +100,15 @@ func validateResource(r domain.Resource) error {
 	return nil
 }
 
-// inferResourceType: http(s)-Präfix = URL; sonst Ordner, wenn der Pfad (~ = Home,
-// nur zum Prüfen) ein vorhandenes Verzeichnis ist, sonst Datei. Eine nicht
-// vorhandene Datei ist kein Fehler, Clients prüfen den Pfad beim Öffnen.
+// inferResourceType: http(s)-Präfix = URL; sonst Datei, wenn der letzte Pfadteil eine
+// Endung hat (".config" zählt nicht), sonst Ordner. Der Pfad liegt beim Client, der
+// Server kann ihn nicht prüfen; wer es genau weiß, schickt type mit.
 func inferResourceType(target string) domain.ResourceType {
 	if l := strings.ToLower(target); strings.HasPrefix(l, "http://") || strings.HasPrefix(l, "https://") {
 		return domain.ResourceURL
 	}
-	path := target
-	if home, err := os.UserHomeDir(); err == nil {
-		if target == "~" {
-			path = home
-		} else if rest, ok := strings.CutPrefix(target, "~/"); ok {
-			path = filepath.Join(home, rest)
-		}
-	}
-	if fi, err := os.Stat(path); err == nil && fi.IsDir() {
+	p := strings.ReplaceAll(target, `\`, "/")
+	if strings.HasSuffix(p, "/") || strings.LastIndex(path.Base(p), ".") <= 0 {
 		return domain.ResourceFolder
 	}
 	return domain.ResourceFile

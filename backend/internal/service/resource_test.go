@@ -3,8 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -60,7 +58,7 @@ func TestResourceCreateValidation(t *testing.T) {
 		}
 	}
 	for name, in := range map[string]CreateResourceInput{
-		"absolute Datei": {TaskID: ptr("t"), Type: domain.ResourceFile, Target: "/Users/x/a.pdf"},
+		"absolute Datei": {TaskID: ptr("t"), Type: domain.ResourceFile, Target: "/Users/test/a.pdf"},
 		"Home":           {ProjectID: ptr("p"), Type: domain.ResourceFolder, Target: "~"},
 		"Home-Ordner":    {ProjectID: ptr("p"), Type: domain.ResourceFolder, Target: "~/code"},
 		"http-URL":       {TaskID: ptr("t"), Type: domain.ResourceURL, Target: "http://localhost:3000/x?y=1"},
@@ -78,27 +76,15 @@ func TestResourceListRejectsUnknownType(t *testing.T) {
 }
 
 func TestResourceTypeInferred(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home) // os.UserHomeDir unter Windows
-	dir := filepath.Join(home, "Uni")
-	file := filepath.Join(dir, "skript.pdf")
-	if err := os.Mkdir(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	svc := newResourceSvc()
 	for target, want := range map[string]domain.ResourceType{
 		"https://moodle.example.org/kurs?id=1": domain.ResourceURL,
 		"HTTP://localhost:3000":                domain.ResourceURL,
-		dir:                                    domain.ResourceFolder,
-		"~/Uni":                                domain.ResourceFolder,
+		"/Users/test/Uni":                      domain.ResourceFolder, // muss auf dem Server nicht existieren
+		"~/Uni/":                               domain.ResourceFolder,
+		"~/.config":                            domain.ResourceFolder,
 		"~":                                    domain.ResourceFolder,
-		file:                                   domain.ResourceFile,
 		"~/Uni/skript.pdf":                     domain.ResourceFile,
-		"~/Uni/gibt-es-nicht.pdf":              domain.ResourceFile, // Tippfehler ist kein Fehler
 	} {
 		r, err := svc.Create(context.Background(), CreateResourceInput{ProjectID: ptr("p"), Target: target})
 		if err != nil || r.Type != want {
@@ -108,7 +94,7 @@ func TestResourceTypeInferred(t *testing.T) {
 		}
 	}
 	// Ein gesetzter Typ gewinnt, auch gegen die Ableitung.
-	r, err := svc.Create(context.Background(), CreateResourceInput{ProjectID: ptr("p"), Type: domain.ResourceFile, Target: dir})
+	r, err := svc.Create(context.Background(), CreateResourceInput{ProjectID: ptr("p"), Type: domain.ResourceFile, Target: "~/Uni"})
 	if err != nil || r.Type != domain.ResourceFile {
 		t.Errorf("expliziter Typ: %q, %v", r.Type, err)
 	}

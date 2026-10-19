@@ -139,7 +139,6 @@ func TestProjectsColorsAndPath(t *testing.T) {
 	for name, c := range map[string]struct{ method, path, body string }{
 		"Farbe unbekannt":    {"PATCH", "/api/projects/" + first.ID, `{"color":"magenta"}`},
 		"Farbe beim Anlegen": {"POST", "/api/projects", `{"name":"x","color":"magenta"}`},
-		"Pfad fehlt":         {"POST", "/api/projects", `{"name":"x","local_path":"/gibt/es/nicht"}`},
 		"Pfad relativ":       {"PATCH", "/api/projects/" + first.ID, `{"local_path":"ordner"}`},
 	} {
 		if rec := call(h, c.method, c.path, c.body); rec.Code != 400 {
