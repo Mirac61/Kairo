@@ -8,6 +8,7 @@ import en from 'primelocale/en.json'
 import { lang } from '@/lib/i18n'
 import { navItems } from '@/router'
 import UndoToast from '@/components/UndoToast.vue'
+import SearchPalette from '@/components/SearchPalette.vue'
 import { useBackendStatus } from '@/composables/useBackendStatus'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { counts, loadSidebar, pins } from '@/composables/useSidebar'
@@ -33,12 +34,14 @@ const countOf: Record<string, () => string | number> = {
   tasks: () => counts.value.tasks, habits: () => counts.value.habits, proj: () => counts.value.projects, trash: () => counts.value.trash,
 }
 
-// „Neu …“ und ⌘K: Schnelleingabe der Aufgabenliste (die Ansicht fokussiert das Feld).
+// „+“ (Handy): Schnelleingabe der Aufgabenliste (die Ansicht fokussiert das Feld).
 const newEntry = () => router.push({ path: '/tasks', query: { new: String(Date.now()) } })
+// ⌘K und „Suchen …“: Suche über alles; ohne Treffer legt sie eine Aufgabe an.
+const searchOpen = ref(false)
 function onKey(e: KeyboardEvent) {
-  if (!(e.metaKey || e.ctrlKey) || e.key !== 'k') return
+  if (!(e.metaKey || e.ctrlKey) || e.key !== 'k' || hideSidebar.value) return
   e.preventDefault()
-  void newEntry()
+  searchOpen.value = !searchOpen.value
 }
 onMounted(() => { window.addEventListener('keydown', onKey); void loadSidebar() })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
@@ -77,6 +80,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
     <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
     <symbol id="i-list" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
     <symbol id="i-left" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></symbol>
     <symbol id="i-right" viewBox="0 0 24 24"><path d="M9.5 5.5 16 12l-6.5 6.5"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19"/></symbol>
@@ -116,8 +120,8 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
   <div class="app">
     <aside v-if="!hideSidebar" class="sidebar" :class="{ mini }">
       <div class="logo" role="img" :aria-label="$t('Kairo')"><span class="logo-word" aria-hidden="true">K<i class="lw-a"></i>IR<i class="lw-o"></i></span><span class="logo-mark" aria-hidden="true"><i></i></span></div>
-      <button type="button" class="sb-new" aria-keyshortcuts="Meta+K Control+K" @click="newEntry">
-        <svg class="ic"><use href="#i-plus" /></svg><span class="sb-new-l">{{ $t('Neu …') }}</span><kbd class="key" aria-hidden="true">⌘K</kbd>
+      <button type="button" class="sb-new" aria-keyshortcuts="Meta+K Control+K" @click="searchOpen = true">
+        <svg class="ic"><use href="#i-search" /></svg><span class="sb-new-l">{{ $t('Suchen oder neu …') }}</span><kbd class="key" aria-hidden="true">⌘K</kbd>
       </button>
       <nav :aria-label="$t('Hauptnavigation')">
         <RouterLink v-for="item in navItems" :key="item.path" :to="item.path" class="nav-item" :aria-label="mini ? $t(item.label) : undefined" :data-tip="mini ? $t(item.label) : undefined">
@@ -153,6 +157,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
     <template v-if="!hideSidebar">
       <button v-if="moreOpen" type="button" class="sheet-scrim" :aria-label="$t('Schließen')" @click="moreOpen = false"></button>
       <div v-if="moreOpen" class="more-sheet" role="dialog" :aria-label="$t('Mehr')">
+        <button type="button" class="nav-item" @click="moreOpen = false; searchOpen = true"><svg class="ic"><use href="#i-search" /></svg><span class="nav-l">{{ $t('Suche') }}</span></button>
         <RouterLink v-for="item in more" :key="item.path" :to="item.path" class="nav-item">
           <svg class="ic"><use :href="`#i-${item.icon}`" /></svg><span class="nav-l">{{ $t(item.label) }}</span>
           <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
@@ -174,6 +179,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
       </nav>
       <button v-if="showFab" type="button" class="fab" :aria-label="$t('Neu …')" @click="newEntry"><svg class="ic"><use href="#i-plus" /></svg></button>
     </template>
+    <SearchPalette v-if="searchOpen" @close="searchOpen = false" />
     <ConfirmPopup />
     <UndoToast />
   </div>

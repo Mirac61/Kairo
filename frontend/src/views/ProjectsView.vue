@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   api, createProject, deleteProject, listProjects, listResources, listTasks,
   isOpen, updateProject, type Project, type Resource, type Task,
@@ -19,11 +19,12 @@ import SearchField from '@/components/SearchField.vue'
 import TaskActions from '@/components/TaskActions.vue'
 
 const STATUS: Record<string, string> = { ACTIVE: t('Aktiv'), PAUSED: t('Pausiert'), COMPLETED: t('Abgeschlossen'), ARCHIVED: t('Archiviert') }
-const RES_ICON = { URL: 'i-link', FILE: 'i-file', FOLDER: 'i-file' } as const
+const RES_ICON = { URL: 'i-link', FILE: 'i-file', FOLDER: 'i-file', NOTE: 'i-file' } as const
 
 interface Progress { project_id: string | null; done_tasks: number; total_tasks: number; tracked_minutes: number }
 
 const router = useRouter()
+const route = useRoute()
 const projects = ref<Project[]>([])
 const resources = ref<Resource[]>([])
 const tasks = ref<Task[]>([])
@@ -103,7 +104,8 @@ const frac = (id: string) => { const p = progress.value[id]; return p?.total_tas
 // Die Extension öffnet den Workspace des Projekts.
 const inCode = (p: Project) => { window.location.href = `vscodium://kairo-local.kairo/open?project=${p.id}` }
 // Datei und Ordner öffnet der Browser nicht; nur URLs sind echte Links.
-const href = (r: Resource) => (r.type === 'URL' ? r.target : undefined)
+// Notizen öffnen in Kairo selbst (gleicher Tab), URLs in einem neuen.
+const href = (r: Resource) => (r.type === 'URL' ? r.target : r.type === 'NOTE' ? `/notes?open=${encodeURIComponent(r.target)}` : undefined)
 
 // Offene GitHub-Issues je Projekt (Repo aus git remote), damit die Zahl schon auf der zugeklappten Karte steht.
 // Nur beim Öffnen der Seite: jede Abfrage ruft git und die GitHub-API auf. Ohne gh bleibt es still.
@@ -115,7 +117,17 @@ const loadIssueCounts = () => Promise.all(projects.value.filter((p) => p.local_p
   } catch { /* kein gh oder GitHub nicht erreichbar */ }
 }))
 
-onMounted(() => void load().then(loadIssueCounts))
+// Aus der Suche: /projects?project=ID klappt die Karte auf (auch im passenden Status-Reiter).
+function focusFromRoute() {
+  const p = projects.value.find((x) => x.id === route.query.project)
+  if (!p) return
+  tab.value = p.status
+  search.value = ''
+  openId.value = p.id
+  void nextTick(() => document.querySelector(`[data-project="${p.id}"]`)?.scrollIntoView({ block: 'center' }))
+}
+watch(() => route.query.project, focusFromRoute)
+onMounted(() => void load().then(() => { focusFromRoute(); return loadIssueCounts() }))
 useLiveEvents(load)
 </script>
 
@@ -146,7 +158,7 @@ useLiveEvents(load)
     <div v-if="!projects.length" class="v-sub">{{ $t('Keine Projekte.') }}</div>
     <div v-else-if="!list.length" class="v-sub">{{ search ? $t('Keine Projekte für „{q}“ in „{tab}“.', { q: search, tab: STATUS[tab] ?? '' }) : $t('Keine Projekte in „{tab}“.', { tab: STATUS[tab] ?? '' }) }}</div>
     <div v-else class="proj-list" :class="layout">
-      <article v-for="p in list" :key="p.id" class="proj-card" :class="{ open: openId === p.id }" :style="{ '--pc': projectColor(p.id) }">
+      <article v-for="p in list" :key="p.id" :data-project="p.id" class="proj-card" :class="{ open: openId === p.id }" :style="{ '--pc': projectColor(p.id) }">
         <div class="proj-head">
           <span class="cdot"></span>
           <button type="button" class="proj-name proj-toggle" :aria-expanded="openId === p.id" @click="openId = openId === p.id ? null : p.id">{{ p.name }}</button>
@@ -161,7 +173,7 @@ useLiveEvents(load)
           <b class="mono">{{ issueCount[p.id] }}</b> {{ $t('offene GitHub-Issues') }} <svg class="ic" aria-hidden="true"><use href="#i-chev" /></svg>
         </button>
         <div v-if="resOf(p.id).length" class="proj-res">
-          <component :is="href(r) ? 'a' : 'span'" v-for="r in resOf(p.id)" :key="r.id" class="res" :href="href(r)" target="_blank" rel="noopener">
+          <component :is="href(r) ? 'a' : 'span'" v-for="r in resOf(p.id)" :key="r.id" class="res" :href="href(r)" :target="r.type === 'URL' ? '_blank' : undefined" rel="noopener">
             <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>{{ r.label || r.target }}
           </component>
         </div>
@@ -181,10 +193,10 @@ useLiveEvents(load)
           <div v-if="openTasks(p.id).length" class="card tasklist">
             <div v-for="t in openTasks(p.id)" :key="t.id" class="task-row">
               <span class="t">{{ t.title }}</span>
-              <component :is="href(r) ? 'a' : 'span'" v-for="r in taskRes(t.id)" :key="r.id" class="res" :href="href(r)" target="_blank" rel="noopener">
+              <component :is="href(r) ? 'a' : 'span'" v-for="r in taskRes(t.id)" :key="r.id" class="res" :href="href(r)" :target="r.type === 'URL' ? '_blank' : undefined" rel="noopener">
                 <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>{{ r.label || r.target }}
               </component>
-              <TaskActions class="row-act" :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
+              <TaskActions class="row-act" :task="t" :running="t.status === 'IN_PROGRESS'" :note="taskRes(t.id).find((r) => r.type === 'NOTE')?.target" @run="run" />
             </div>
           </div>
           <div v-else class="proj-meta">{{ $t('Keine offenen Aufgaben.') }}</div>

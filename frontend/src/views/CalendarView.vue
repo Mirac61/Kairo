@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import '@/calendar.css'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -58,6 +58,7 @@ function paintDay(th: HTMLElement) {
 }
 
 const router = useRouter()
+const route = useRoute()
 const { offer, setDone } = useUndo()
 const cal = ref<InstanceType<typeof FullCalendar>>()
 const error = ref('')
@@ -339,8 +340,17 @@ const loadProjects = () => listProjects().then((ps) => (projects.value = ps), ()
 const unplannedEl = ref<HTMLElement>()
 const fileInput = ref<HTMLInputElement>()
 let draggable: Draggable | undefined
+// Aus der Suche: /calendar?date=YYYY-MM-DD zeigt diesen Tag (in der Woche mittig wie bei „Heute“).
+function gotoFromRoute() {
+  const d = route.query.date
+  if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return
+  const day = new Date(`${d}T12:00:00`)
+  cal.value?.getApi().gotoDate(isWeek.value ? addDays(day, -Math.floor(prefs.calDays / 2)) : day)
+}
+watch(() => route.query.date, gotoFromRoute)
 onMounted(() => {
   void loadProjects()
+  void nextTick(gotoFromRoute)
   draggable = new Draggable(unplannedEl.value!, {
     itemSelector: '.up-item',
     eventData: (el) => ({ create: false, duration: { minutes: Number(el.dataset.min) || DEFAULT_TASK_MINUTES } }),

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { useConfirm } from 'primevue/useconfirm'
 import { ApiError, createNote, deleteNote, errorMessage, listNotes, moveNote, readNote, saveNote, uploadFile, type NoteNode } from '@/api/client'
 import CodeViewer from '@/components/CodeViewer.vue'
@@ -409,6 +409,7 @@ watch([() => paths.note, () => paths.doc, shown, split], () => {
   store.set('kairo-notes-split', split.value ? '1' : '0')
 })
 
+const route = useRoute()
 let timer = 0
 onMounted(async () => {
   window.addEventListener('keydown', onKey, true)
@@ -430,7 +431,14 @@ onMounted(async () => {
   shown.value = store.get('kairo-notes-shown') === 'doc' && doc ? 'doc' : 'note'
   focus.value = shown.value
   if (lastNote && lastNote !== doc && fileKind(lastNote) === 'md' && files.has(lastNote)) load('note', lastNote)
+  // ?open=Pfad: aus einer Aufgabe verknüpfte Notiz oder ein Treffer der Suche
+  openFromRoute()
 })
+function openFromRoute() {
+  const want = route.query.open
+  if (typeof want === 'string' && allFiles.value.includes(want)) void openFile(want)
+}
+watch(() => route.query.open, openFromRoute) // Suche, während die Notizen schon offen sind
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey, true)
   window.removeEventListener('beforeunload', onUnload)
