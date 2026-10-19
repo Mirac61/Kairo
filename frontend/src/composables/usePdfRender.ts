@@ -2,7 +2,9 @@ import type { Ref } from 'vue'
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist'
 import type { Page } from '@/lib/annotate'
 
-const MAX_PIXELS = 16e6 // größte Canvas-Fläche, die Safari noch zeichnet
+const MAX_PIXELS = 8e6 // je Seite (A4 bei 200 % und Pixeldichte 1,5 passt knapp)
+const BUDGET = 24e6 // Summe über alle gerenderten Seiten, ca. 96 MB Bitmaps
+const MAX_DPR = 1.5 // Retina (2) kostet fast doppelt so viel Speicher bei kaum sichtbarem Unterschied
 
 async function loadPdfjs() {
   const [pdfjs, worker] = await Promise.all([import('pdfjs-dist'), import('pdfjs-dist/build/pdf.worker.min.mjs?url')])
@@ -10,7 +12,7 @@ async function loadPdfjs() {
   return pdfjs
 }
 
-// PDF-Seiten rendern: nur sichtbare (±1 Bildschirm), scharf für Zoom × Pixeldichte.
+// PDF-Seiten rendern: nur sichtbare (±½ Bildschirm), scharf für Zoom × Pixeldichte, innerhalb eines Pixelbudgets.
 // Die Seiten im scroller tragen die Klasse .fe-page und data-i; ihre Canvas meldet setCanvas(i).
 export function usePdfRender(zoom: Ref<number>, pages: Ref<Page[]>, scroller: Ref<HTMLElement | undefined>) {
   let pdf: PDFDocumentProxy | null = null
@@ -52,7 +54,7 @@ export function usePdfRender(zoom: Ref<number>, pages: Ref<Page[]>, scroller: Re
         }
       }
       scheduleRender(0)
-    }, { root: scroller.value, rootMargin: '100% 0px' })
+    }, { root: scroller.value, rootMargin: '50% 0px' })
     scroller.value.querySelectorAll('.fe-page').forEach((el) => observer!.observe(el))
   }
 
@@ -64,7 +66,9 @@ export function usePdfRender(zoom: Ref<number>, pages: Ref<Page[]>, scroller: Re
   async function renderPage(i: number) {
     const [page, canvas, pg] = [pdfPages[i], canvases[i], pages.value[i]]
     if (!page || !canvas || !pg) return
-    const scale = Math.min(zoom.value * window.devicePixelRatio, Math.sqrt(MAX_PIXELS / (pg.w * pg.h)))
+    // Budget gleichmäßig auf alle Seiten im Puffer verteilen, damit starker Zoom nicht über 1 GB geht.
+    const area = [...visible].reduce((a, j) => a + (pages.value[j] ? pages.value[j].w * pages.value[j].h : 0), 0) || pg.w * pg.h
+    const scale = Math.min(zoom.value * Math.min(window.devicePixelRatio, MAX_DPR), Math.sqrt(MAX_PIXELS / (pg.w * pg.h)), Math.sqrt(BUDGET / area))
     if (Math.abs((rendered.get(i) ?? 0) - scale) < 1e-3) return
     cancel(i)
     // Erst offscreen rendern, dann umkopieren: beim Zoomen bleibt das alte Bild stehen, statt weiß zu blitzen.
@@ -75,14 +79,16 @@ export function usePdfRender(zoom: Ref<number>, pages: Ref<Page[]>, scroller: Re
     tasks.set(i, task)
     try {
       await task.promise
+      if (tasks.get(i) !== task) return
+      tasks.delete(i)
+      ;[canvas.width, canvas.height] = [off.width, off.height]
+      canvas.getContext('2d')!.drawImage(off, 0, 0)
+      rendered.set(i, scale)
     } catch {
-      return // abgebrochen
+      // abgebrochen
+    } finally {
+      off.width = off.height = 0 // Safari gibt Canvas-Speicher sonst erst spät frei
     }
-    if (tasks.get(i) !== task) return
-    tasks.delete(i)
-    ;[canvas.width, canvas.height] = [off.width, off.height]
-    canvas.getContext('2d')!.drawImage(off, 0, 0)
-    rendered.set(i, scale)
   }
 
   function cancel(i: number) {
@@ -91,6 +97,7 @@ export function usePdfRender(zoom: Ref<number>, pages: Ref<Page[]>, scroller: Re
   }
   function free(i: number) {
     cancel(i)
+    pdfPages[i]?.cleanup() // Zeichenbefehle der Seite freigeben; nach cancel, sonst bricht es den Render ab
     const c = canvases[i]
     if (c) c.width = c.height = 0
     rendered.delete(i)
