@@ -75,8 +75,10 @@ let nextId = '' // Eintrag mit „Als Nächstes“-Ring im Raster
 // Termine und Tasks als Kalendereinträge. Zeiten rechnen in der Zeitzone des Browsers.
 async function loadEntries(from: Date, to: Date): Promise<EventInput[]> {
   // Projekte mitladen, damit die Projektfarben für die Einträge feststehen.
-  // Gewohnheiten nur in Woche und Tag: im Monat verdrängen tägliche Habits sonst die Termine in „+ weitere“.
-  const withHabits = to.getTime() - from.getTime() <= 8 * 86_400_000
+  // Gewohnheiten im Tag, in der Woche nur auf Wunsch: im Monat verdrängen tägliche Habits sonst die Termine in „+ weitere“,
+  // in der Woche füllen sie den Ganztags-Streifen.
+  const span = to.getTime() - from.getTime()
+  const withHabits = span <= 86_400_000 * 1.1 || (prefs.calHabits && span <= 8 * 86_400_000)
   const [occ, tasks, ps, times, habits] = await Promise.all([
     getOccurrences(from, to), listTasks(), listProjects(), listTimeEntries(from, to), withHabits ? habitsDue(ymd(from), ymd(addDays(to, -1))) : [],
   ])
@@ -292,7 +294,8 @@ function setDays(n: 5 | 7) {
 }
 
 // „Ungeplant“ lässt sich einklappen, damit die Woche die volle Breite bekommt.
-const upOpen = ref((store.get('kairo-cal-unplanned') ?? (narrow ? '0' : '1')) !== '0')
+// Unter 1280px ist sie zunächst zu, sonst bleibt für sieben Tage zu wenig Breite.
+const upOpen = ref((store.get('kairo-cal-unplanned') ?? (innerWidth < 1280 ? '0' : '1')) !== '0')
 function toggleUp() {
   upOpen.value = !upOpen.value
   store.set('kairo-cal-unplanned', upOpen.value ? '1' : '0')
@@ -595,7 +598,8 @@ useLiveEvents(() => {
 .unplanned.shut .up-head { flex-direction: column; }
 .unplanned.shut .up-lbl { display: none; }
 .unplanned h3 { margin: 0; font: 600 14px/1.3 var(--font-ui); color: var(--tx-primary); }
-.up-count { font: 400 12px/1 var(--font-mono); color: var(--tx-muted); }
+.up-count { margin-left: 6px; font: 400 12px/1 var(--font-mono); color: var(--tx-muted); }
+.unplanned.shut .up-count { margin-left: 0; }
 .up-list { margin-top: 10px; }
 .up-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
 .up-hint { flex: 1; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); text-align: right; }
@@ -617,7 +621,7 @@ useLiveEvents(() => {
 .next-dot { width: 7px; height: 7px; border-radius: 50%; }
 @media (max-width: 900px) {
   .cal-wrap { flex-direction: column; }
-  .unplanned { width: auto; max-height: 180px; order: 2; }
+  .unplanned, .unplanned.wide:not(.shut) { width: auto; max-height: 180px; order: 2; }
 }
 .cal-fc { flex: 1; min-height: 0; }
 @media (max-width: 760px) {
@@ -628,6 +632,10 @@ useLiveEvents(() => {
   .unplanned.shut .up-head { flex-direction: row; flex: 1; }
   .unplanned.shut .up-lbl { display: inline; }
   .unplanned.shut .up-count { margin-left: 6px; }
+  /* Handy: Raster mit fester Höhe, „Als Nächstes“ und „Ungeplant“ darunter per Scrollen statt eingequetscht. */
+  .page { height: auto; padding-bottom: 16px; }
+  .cal-fc { flex: none; height: 70dvh; }
+  .unplanned, .unplanned.wide:not(.shut) { max-height: none; } /* kein „Neu“-Knopf im Kalender, der Platz gehört dem Raster */
 }
 .cal-kw { font: 400 13px/1 var(--font-ui); color: var(--tx-muted); }
 .cal-stats { display: flex; gap: 16px; padding: 0 10px 12px 56px; font: 400 13px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-muted); }

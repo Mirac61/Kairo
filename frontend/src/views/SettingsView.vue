@@ -174,6 +174,10 @@ onMounted(() => {
                   <button v-for="n in ([5, 7] as const)" :key="n" type="button" :aria-pressed="prefs.calDays === n" @click="prefs.calDays = n">{{ $t('{n} Tage', { n }) }}</button>
                 </div>
               </div>
+              <div class="st-row">
+                <div class="st-text"><label class="st-t" for="s-cal-habits">{{ $t('Gewohnheiten in der Woche') }}</label><div class="st-h">{{ $t('In der Tagesansicht stehen sie immer, in der Woche füllen sie sonst den Ganztags-Streifen.') }}</div></div>
+                <input id="s-cal-habits" v-model="prefs.calHabits" type="checkbox" role="switch" class="st-switch" />
+              </div>
             </div>
 
             <div v-if="data" class="st-group">

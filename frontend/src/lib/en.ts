@@ -309,6 +309,8 @@ const en: Record<string, string> = {
   'Täglich': 'Daily',
   'Wöchentlich': 'Weekly',
   'Monatlich': 'Monthly',
+  'Gewohnheiten in der Woche': 'Habits in the week view',
+  'In der Tagesansicht stehen sie immer, in der Woche füllen sie sonst den Ganztags-Streifen.': 'The day view always shows them; in the week view they would fill the all-day row.',
   'Jährlich': 'Yearly',
   'Am Monatsletzten': 'On the last day of the month',
   'Bestimmte Wochentage': 'Specific weekdays',

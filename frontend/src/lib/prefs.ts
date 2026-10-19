@@ -10,6 +10,7 @@ export type Accent = keyof typeof ACCENTS
 const KEYS = {
   theme: 'kairo-theme', accent: 'kairo-accent', motion: 'kairo-motion', start: 'kairo-start',
   weekStart: 'kairo-week-start', dayStart: 'kairo-day-start', dayEnd: 'kairo-day-end', calDays: 'kairo-cal-days',
+  calHabits: 'kairo-cal-habits',
 } as const
 
 const hour = (key: string, def: number) => {
@@ -27,6 +28,8 @@ export const prefs = reactive({
   dayEnd: hour(KEYS.dayEnd, 22),
   // Tage der Wochenansicht, heute in der Mitte. Früher ein Schalter „Wochenende“ (kairo-cal-weekend).
   calDays: (store.get(KEYS.calDays) ?? (store.get('kairo-cal-weekend') === '1' ? '7' : '5')) === '7' ? 7 : 5,
+  // Gewohnheiten auch in der Wochenansicht (in der Tagesansicht immer); sonst füllen sie den Ganztags-Streifen.
+  calHabits: store.get(KEYS.calHabits) === '1',
 })
 if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
 
