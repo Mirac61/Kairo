@@ -3,7 +3,7 @@
   "displayName": "Kairo",
   "description": "Kairo: Planen in der WebUI, Arbeiten in VSCodium.",
   "publisher": "kairo-local",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "license": "MIT",
   "repository": {
