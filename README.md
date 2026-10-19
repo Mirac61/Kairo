@@ -38,10 +38,10 @@ Optional: install `kairo-*.vsix` from the same release in VSCodium or VS Code (E
 
 **Start Kairo automatically at login.** Put the program in a fixed place and run `kairo install` from there. Remove it with `kairo uninstall`.
 
-| System | How it starts | Log |
-|---|---|---|
-| macOS | LaunchAgent | `~/Library/Logs/kairo.log` |
-| Linux | systemd user service | `journalctl --user -u kairo` |
+| System  | How it starts                             | Log                              |
+| ------- | ----------------------------------------- | -------------------------------- |
+| macOS   | LaunchAgent                               | `~/Library/Logs/kairo.log`       |
+| Linux   | systemd user service                      | `journalctl --user -u kairo`     |
 | Windows | script in your Startup folder (no window) | `%LOCALAPPDATA%\kairo\kairo.log` |
 
 ## What's inside
@@ -49,9 +49,10 @@ Optional: install `kairo-*.vsix` from the same release in VSCodium or VS Code (E
 ![Calendar](docs/screenshots/kalender.png)
 *Demo data, not a real account.*
 
-| View | What it does |
-|---|---|
+| View      | What it does                                                |
+| --------- | ----------------------------------------------------------- |
 | **Start** | Running timer, what's next, today's plan with drag and drop |
+
 | **Calendar** | Events and planned tasks in one week, next to the time you tracked. Imports `.ics` files |
 | **Tasks** | Quick-add syntax, keyboard shortcuts, subtasks, priorities |
 | **Habits** | Daily or weekly habits with a 28-day grid |
