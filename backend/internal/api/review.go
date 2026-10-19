@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"kairo/internal/service"
 )
@@ -10,6 +11,7 @@ import (
 // ReviewService ist die Geschäftslogik, die der Review-Handler braucht.
 type ReviewService interface {
 	Get(ctx context.Context, from, to string) (service.Review, error)
+	ProjectStats(ctx context.Context) ([]service.ProjectStat, error)
 }
 
 type reviewDayDTO struct {
@@ -71,6 +73,29 @@ type reviewHandlers struct{ svc ReviewService }
 
 func (h reviewHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/review", h.get)
+	mux.HandleFunc("GET /api/projects/stats", h.projectStats)
+}
+
+type projectStatDTO struct {
+	ProjectID    string `json:"project_id"`
+	WeekMinutes  int    `json:"week_minutes"`
+	TotalMinutes int    `json:"total_minutes"`
+	LastActiveAt string `json:"last_active_at"`
+}
+
+// projectStats: erfasste Minuten je Projekt (diese Woche, gesamt) und letzte Aktivität,
+// damit die Projektansicht nicht alle Zeiteinträge laden muss.
+func (h reviewHandlers) projectStats(w http.ResponseWriter, r *http.Request) {
+	ps, err := h.svc.ProjectStats(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	out := make([]projectStatDTO, len(ps))
+	for i, p := range ps {
+		out[i] = projectStatDTO{p.ProjectID, p.WeekMinutes, p.TotalMinutes, p.LastActive.UTC().Format(time.RFC3339)}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // get wertet ?from=YYYY-MM-DD&to=YYYY-MM-DD aus (beide inklusive; Standard: letzte 7 Tage).

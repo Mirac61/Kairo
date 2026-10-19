@@ -143,6 +143,12 @@ const mock = {
   '/api/projects': () => projects,
   '/api/tasks': () => tasks,
   '/api/calendar/occurrences': (q) => events.filter((e) => e.occurrence_end > q.get('from') && e.occurrence_start < q.get('to')),
+  '/api/projects/stats': () => projects.map(({ id }) => {
+    const es = times.filter((e) => e.project_id === id)
+    const end = (e) => (e.ended_at ? Date.parse(e.ended_at) : Date.now())
+    const sum = (xs) => xs.reduce((a, e) => a + Math.floor((end(e) - Date.parse(e.started_at)) / 60_000), 0)
+    return { project_id: id, week_minutes: sum(es.filter((e) => e.started_at >= mon.toISOString())), total_minutes: sum(es), last_active_at: new Date(Math.max(0, ...es.map(end))).toISOString() }
+  }).filter((s) => s.total_minutes),
   '/api/time-entries': (q) => (q.get('from') ? inWindow(['started_at'], times, q.get('from'), q.get('to')) : times),
   '/api/resources': () => [],
   '/api/habits': () => habits,

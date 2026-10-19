@@ -219,3 +219,55 @@ func (s *ReviewService) Get(ctx context.Context, from, to string) (Review, error
 	})
 	return r, nil
 }
+
+// ProjectStat ist die erfasste Zeit eines Projekts: diese Woche (ab Montag) und gesamt.
+type ProjectStat struct {
+	ProjectID    string
+	WeekMinutes  int
+	TotalMinutes int
+	LastActive   time.Time // Ende des letzten Eintrags, bei laufendem Timer jetzt
+}
+
+// ProjectStats summiert alle Zeiteinträge je Projekt; Einträge ohne Projekt zählen nicht.
+// shortcut: liest alle Einträge in den Speicher; bei sehr vielen ein GROUP BY im Repository.
+func (s *ReviewService) ProjectStats(ctx context.Context) ([]ProjectStat, error) {
+	now := s.now()
+	d := now.In(s.loc)
+	monday := time.Date(d.Year(), d.Month(), d.Day()-(int(d.Weekday())+6)%7, 0, 0, 0, 0, s.loc)
+	entries, err := s.times.List(ctx, domain.TimeEntryFilter{})
+	if err != nil {
+		return nil, fmt.Errorf("Zeiteinträge: %w", err)
+	}
+	byProject := map[string]*ProjectStat{}
+	for _, e := range entries {
+		if e.ProjectID == nil {
+			continue
+		}
+		p := byProject[*e.ProjectID]
+		if p == nil {
+			p = &ProjectStat{ProjectID: *e.ProjectID}
+			byProject[*e.ProjectID] = p
+		}
+		finish := now
+		if e.EndedAt != nil {
+			finish = *e.EndedAt
+		}
+		if finish.After(p.LastActive) {
+			p.LastActive = finish
+		}
+		if !finish.After(e.StartedAt) {
+			continue
+		}
+		m := int(finish.Sub(e.StartedAt) / time.Minute)
+		p.TotalMinutes += m
+		if !e.StartedAt.Before(monday) {
+			p.WeekMinutes += m
+		}
+	}
+	out := make([]ProjectStat, 0, len(byProject))
+	for _, p := range byProject {
+		out = append(out, *p)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ProjectID < out[j].ProjectID })
+	return out, nil
+}

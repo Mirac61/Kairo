@@ -3,14 +3,14 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   api, createProject, deleteProject, listProjects, listResources, listTasks,
-  isOpen, updateProject, type Project, type Resource, type Task, type TimeEntry,
+  isOpen, updateProject, type Project, type Resource, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import { vDialog } from '@/lib/dialog'
 import { PROJECT_COLORS, projectColor } from '@/lib/projectColor'
 import { locale, t } from '@/lib/i18n'
-import { daysAgo, dur, entryMinutes, hm, weekStart, ymd } from '@/lib/dates'
+import { daysAgo, dur, hm, ymd } from '@/lib/dates'
 import { store } from '@/lib/storage'
 import DeleteButton from '@/components/DeleteButton.vue'
 import GitHubIssues from '@/components/GitHubIssues.vue'
@@ -39,30 +39,18 @@ const resOf = (id: string) => resources.value.filter((r) => r.project_id === id)
 const taskRes = (id: string) => resources.value.filter((r) => r.task_id === id)
 const openTasks = (id: string) => tasks.value.filter((t) => t.project_id === id && isOpen(t))
 
-// Erfasste Zeit je Projekt aus allen Zeiteinträgen (ein laufender Eintrag zählt bis jetzt).
-function sumMinutes(es: TimeEntry[]) {
-  const monday = weekStart().getTime()
-  const out: Record<string, { week: number; total: number; last: number }> = {}
-  for (const e of es) {
-    if (!e.project_id) continue
-    const m = entryMinutes(e)
-    const k = (out[e.project_id] ??= { week: 0, total: 0, last: 0 })
-    k.total += m
-    k.last = Math.max(k.last, e.ended_at ? Date.parse(e.ended_at) : Date.now())
-    if (Date.parse(e.started_at) >= monday) k.week += m
-  }
-  return out
-}
+// Erfasste Zeit je Projekt, vom Server summiert (ein laufender Eintrag zählt bis jetzt).
+interface ProjectStat { project_id: string; week_minutes: number; total_minutes: number; last_active_at: string }
 
 const { error, load, run } = useLoader(async () => {
   const t = ymd(new Date())
   const [ps, rs, rv, ts, es] = await Promise.all([
-    listProjects(), listResources(), api<{ projects: Progress[] }>(`/review?from=${t}&to=${t}`), listTasks(), api<TimeEntry[]>('/time-entries'),
+    listProjects(), listResources(), api<{ projects: Progress[] }>(`/review?from=${t}&to=${t}`), listTasks(), api<ProjectStat[]>('/projects/stats'),
   ])
   projects.value = ps
   resources.value = rs
   tasks.value = ts
-  minutes.value = sumMinutes(es)
+  minutes.value = Object.fromEntries(es.map((s) => [s.project_id, { week: s.week_minutes, total: s.total_minutes, last: Date.parse(s.last_active_at) }]))
   progress.value = Object.fromEntries(rv.projects.filter((p) => p.project_id).map((p) => [p.project_id!, p]))
 })
 

@@ -60,6 +60,14 @@ func TestReviewEndpoint(t *testing.T) {
 	if len(got.Habits) != 1 || got.Habits[0].Done != 1 || got.Habits[0].Streak != 1 {
 		t.Errorf("Habits = %+v", got.Habits)
 	}
+
+	// Vorwoche (Montag ist der 5.10.) zählt nur in total_minutes.
+	call(h, "POST", "/api/time-entries", `{"project_id":"`+p.ID+`","started_at":"2026-10-02T09:00:00Z","ended_at":"2026-10-02T10:30:00Z"}`)
+	var stats []projectStatDTO
+	_ = json.Unmarshal(call(h, "GET", "/api/projects/stats", "").Body.Bytes(), &stats)
+	if len(stats) != 1 || stats[0].ProjectID != p.ID || stats[0].WeekMinutes != 45 || stats[0].TotalMinutes != 135 || stats[0].LastActiveAt != "2026-10-07T12:45:00Z" {
+		t.Errorf("stats = %+v", stats)
+	}
 	if rec := call(h, "GET", "/api/review?from=2026-10-09&to=2026-10-07", ""); rec.Code != 400 {
 		t.Errorf("umgekehrter Bereich = %d, want 400", rec.Code)
 	}
