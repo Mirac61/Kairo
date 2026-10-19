@@ -12,8 +12,8 @@ Laptop/Handy ──WireGuard──▶ Pi wg0 <wg-ip> ──▶ Kairo :8742 (Logi
 
 ## Voraussetzung: VPN auf dem Pi
 
-Richte `wg0` mit deinem WireGuard-Setup ein (z. B. ein `<wireguard-skript>`-
-Skript aus deinem Netzwerk-Repository). Die Firewall lässt Kairo nur für
+Richte `wg0` mit deinem WireGuard-Setup ein (z. B. mit einem
+WireGuard-Skript aus deinem Netzwerk-Repository). Die Firewall lässt Kairo nur für
 das eigene Gerät durch, nicht für andere VPN-Teilnehmer – `<wg-client-ip>`
 ist die Adresse deines Notebooks im VPN:
 
@@ -60,6 +60,33 @@ ssh -t <benutzer>@<pi-host> sudo systemctl restart kairo
 
 - Extension: Einstellung `kairo.backendUrl` auf `http://<wg-ip>:8742`.
 - Menüleiste: `KAIRO_URL=http://<wg-ip>:8742`.
+
+## Backup auf den Mac
+
+Kairo sichert die Datenbank beim Start nach `~/kairo/data/backups`, also
+auf dieselbe SD-Karte. `scripts/pi-backup.sh` holt Datenbank und Notizen
+auf den Mac nach `~/Backups/kairo-pi` (Time Machine sichert das mit):
+
+```sh
+PI=<benutzer>@<pi-host> ./scripts/pi-backup.sh           # einmal
+PI=<benutzer>@<pi-host> ./scripts/pi-backup.sh install   # täglich 12:00 (launchd)
+./scripts/pi-backup.sh uninstall
+```
+
+Die Datenbank kommt als konsistente Kopie (`kairo backup`, geht auch bei
+laufendem Dienst) nach `db/`, die neuesten 30 bleiben. Notizen werden nach
+`notes/` kopiert, ohne Löschen: was auf dem Pi verschwindet, bleibt hier.
+ssh zum Pi muss ohne Abfrage gehen (Schlüssel mit `ssh-add --apple-use-keychain`);
+Fehler stehen in `~/Library/Logs/kairo-pi-backup.log`.
+
+Wiederherstellen: Dienst stoppen, Datei zurückkopieren, starten.
+
+```sh
+ssh -t <benutzer>@<pi-host> sudo systemctl stop kairo
+ssh <benutzer>@<pi-host> rm -f kairo/data/kairo.db-wal kairo/data/kairo.db-shm   # alte WAL-Reste passen nicht zur Kopie
+scp ~/Backups/kairo-pi/db/kairo-<datum>.db <benutzer>@<pi-host>:kairo/data/kairo.db
+ssh -t <benutzer>@<pi-host> sudo systemctl start kairo
+```
 
 ## Einstellungen
 
