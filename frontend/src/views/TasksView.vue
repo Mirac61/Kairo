@@ -171,6 +171,13 @@ const slotDay = computed(() => {
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes() }
 const { hint: slotHint } = useFreeSlot(() => slotDay.value, () => quickParsed.value.minutes, todayStr, nowMin)
 const takeSlot = (time: string) => { quick.value = `${quick.value.trimEnd()} @${time.padStart(5, '0')}`; quickEl.value?.focus() }
+// Zeitvorschlag im Bearbeiten-Dialog: freier Platz am Datum der geöffneten Aufgabe (solange sie keine Uhrzeit hat).
+const editSlotDay = computed(() => {
+  const t = open.value
+  return t && t.planned_date && !t.planned_start_at ? t.planned_date : null
+})
+const { hint: editSlotHint } = useFreeSlot(() => editSlotDay.value, () => open.value?.estimated_minutes ?? 0, todayStr, nowMin)
+const takeEditSlot = (time: string) => { if (open.value) setTime(open.value, time) }
 function add() {
   const q = quickParsed.value
   if (!q.title) return
@@ -389,6 +396,10 @@ useLiveEvents(load)
             <label class="field"><span>{{ $t('Datum') }}</span><input class="input" type="date" :value="t.planned_date ?? ''" @change="(e) => setDate(t, valueOf(e))" /></label>
             <label class="field"><span>{{ $t('Uhrzeit') }}</span><input class="input" type="time" :value="startTime(t)" :disabled="!t.planned_date" @change="(e) => setTime(t, valueOf(e))" /></label>
             <label class="field"><span>{{ $t('Minuten') }}</span><input class="input" type="number" min="0" :value="t.estimated_minutes" @change="(e) => setEstimate(t, valueOf(e))" /></label>
+            <div v-if="editSlotHint && !t.planned_start_at" class="field wide">
+              <button v-if="editSlotHint.time" type="button" class="btn btn-secondary" @click="takeEditSlot(editSlotHint.time)">{{ editSlotHint.text }}</button>
+              <span v-else class="qa-hint">{{ editSlotHint.text }}</span>
+            </div>
             <button v-if="t.planned_date !== todayStr()" type="button" class="btn btn-secondary" @click="setDate(t, todayStr())">{{ $t('Heute') }}</button>
             <TaskActions :task="t" :running="t.status === 'IN_PROGRESS'" :note="resOf(t.id).find((r) => r.type === 'NOTE')?.target" @run="run" />
           </template>
