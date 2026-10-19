@@ -259,10 +259,14 @@ onMounted(() => {
                 <code class="st-val">kairo restore &lt;datei&gt;</code>
               </div>
               <div class="st-row">
-                <div class="st-text"><div class="st-t">{{ $t('Export') }}</div><div class="st-h">{{ $t('Alle Daten als JSON, Termine und Aufgaben mit Frist als ICS, Aufgaben als CSV. Notizen liegen schon als Dateien im Notizordner.') }}</div></div>
+                <div class="st-text"><div class="st-t">{{ $t('Export') }}</div><div class="st-h">{{ $t('Alle Daten als JSON, Termine und Aufgaben mit Frist als ICS, Aufgaben als CSV, Notizen als ZIP.') }}</div></div>
                 <span class="row">
-                  <a v-for="f in ['json', 'ics', 'csv']" :key="f" class="btn btn-secondary st-link" :href="`/api/export.${f}`" download>{{ f.toUpperCase() }}</a>
+                  <a v-for="f in ['json', 'ics', 'csv', 'zip']" :key="f" class="btn btn-secondary st-link" :href="`/api/export.${f}`" download>{{ f.toUpperCase() }}</a>
                 </span>
+              </div>
+              <div class="st-row">
+                <div class="st-text"><div class="st-t">{{ $t('Export einspielen') }}</div><div class="st-h">{{ $t('Eine exportierte JSON-Datei wiederherstellen (im Terminal bei gestopptem Kairo).') }}</div></div>
+                <code class="st-val">kairo import &lt;datei&gt;</code>
               </div>
             </div>
           </template>
