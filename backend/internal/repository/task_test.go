@@ -165,3 +165,32 @@ func TestDueTasksWindow(t *testing.T) {
 		t.Fatalf("DueTasks = %v", got)
 	}
 }
+
+// Scheitert das Anlegen der Wiederholung, bleibt auch die erledigte Task unverändert.
+func TestUpdateAndCreateRollsBack(t *testing.T) {
+	ctx := context.Background()
+	tasks, _ := newTaskRepos(t)
+	a, b := newTask("a"), newTask("b")
+	for _, x := range []domain.Task{a, b} {
+		if err := tasks.Create(ctx, x); err != nil {
+			t.Fatal(err)
+		}
+	}
+	done := a
+	done.Status = domain.TaskCompleted
+	if err := tasks.UpdateAndCreate(ctx, done, newTask("b")); err == nil { // b gibt es schon
+		t.Fatal("doppelte ID angelegt")
+	}
+	if got, _ := tasks.Get(ctx, "a"); got.Status != domain.TaskBacklog {
+		t.Fatalf("a = %s, erwartet unverändert", got.Status)
+	}
+	if err := tasks.UpdateAndCreate(ctx, done, newTask("c")); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := tasks.Get(ctx, "a"); got.Status != domain.TaskCompleted {
+		t.Fatalf("a = %s", got.Status)
+	}
+	if _, err := tasks.Get(ctx, "c"); err != nil {
+		t.Fatal(err)
+	}
+}

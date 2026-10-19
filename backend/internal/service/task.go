@@ -17,6 +17,8 @@ type TaskStore interface {
 	Get(ctx context.Context, id string) (domain.Task, error)
 	List(ctx context.Context, f domain.TaskFilter) ([]domain.Task, error)
 	Update(ctx context.Context, t domain.Task) error
+	// UpdateAndCreate schreibt t und legt next an, beides oder nichts (Erledigen einer Wiederholung).
+	UpdateAndCreate(ctx context.Context, t, next domain.Task) error
 	Delete(ctx context.Context, id string) error
 	Trash(ctx context.Context, id string, at time.Time) error
 	Restore(ctx context.Context, id string) (domain.Task, error)
@@ -218,31 +220,25 @@ func (s *TaskService) Update(ctx context.Context, id string, in UpdateTaskInput)
 			return domain.Task{}, err
 		}
 	}
+	var next *domain.Task
 	if completing && t.RecurrenceRule != nil {
-		// Erst die nächste anlegen: Scheitert das, bleibt die Task offen und die Regel geht nicht verloren.
-		if err := s.createNext(ctx, t); err != nil {
+		var err error
+		if next, err = nextRecurrence(t, s.loc, s.now()); err != nil {
 			return domain.Task{}, err
 		}
 		t.RecurrenceRule = nil // sonst entstünde nach Wiedereröffnen und erneutem Erledigen eine zweite
 	}
-	if err := s.store.Update(ctx, t); err != nil {
+	if next != nil {
+		// In einer Transaktion: Scheitert etwas, bleibt die Task offen mit Regel und es gibt keine doppelte Wiederholung.
+		if err := s.store.UpdateAndCreate(ctx, t, *next); err != nil {
+			return domain.Task{}, err
+		}
+		s.emit(domain.Event{Type: domain.EventTaskCreated, ID: next.ID})
+	} else if err := s.store.Update(ctx, t); err != nil {
 		return domain.Task{}, err
 	}
 	s.emit(domain.Event{Type: domain.EventTaskUpdated, ID: t.ID})
 	return t, nil
-}
-
-// createNext legt die nächste Wiederholung von t an (siehe nextRecurrence).
-func (s *TaskService) createNext(ctx context.Context, t domain.Task) error {
-	next, err := nextRecurrence(t, s.loc, s.now())
-	if err != nil || next == nil {
-		return err
-	}
-	if err := s.store.Create(ctx, *next); err != nil {
-		return err
-	}
-	s.emit(domain.Event{Type: domain.EventTaskCreated, ID: next.ID})
-	return nil
 }
 
 // nextRecurrence liefert die nächste Wiederholung von t: gleiche Felder, Tag (und Uhrzeiten) auf den nächsten

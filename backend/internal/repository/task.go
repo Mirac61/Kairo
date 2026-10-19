@@ -165,6 +165,22 @@ func (r *TaskRepository) List(ctx context.Context, f domain.TaskFilter) ([]domai
 	return out, rows.Err()
 }
 
+// UpdateAndCreate schreibt t und legt next in einer Transaktion an.
+func (r *TaskRepository) UpdateAndCreate(ctx context.Context, t, next domain.Task) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("repository: Transaktion: %w", err)
+	}
+	defer tx.Rollback()
+	if err := updateTask(ctx, tx, t); err != nil {
+		return err
+	}
+	if err := createTask(ctx, tx, next); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // Update überschreibt die veränderlichen Felder einer Task.
 func (r *TaskRepository) Update(ctx context.Context, t domain.Task) error {
 	return updateTask(ctx, r.db, t)

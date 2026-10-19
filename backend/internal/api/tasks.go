@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -213,7 +214,8 @@ func (h taskHandlers) bulk(w http.ResponseWriter, r *http.Request) {
 	updated := 0
 	for _, u := range in.Updates {
 		if _, err := h.svc.Update(r.Context(), u.ID, u.input()); err != nil {
-			writeError(w, err)
+			// Keine Transaktion über alle: Die ersten Änderungen bleiben, die Meldung sagt, wie viele.
+			writeError(w, fmt.Errorf("%d von %d geändert, dann: %w", updated, len(in.Updates), err))
 			return
 		}
 		updated++

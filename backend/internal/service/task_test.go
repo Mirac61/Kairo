@@ -21,7 +21,11 @@ func (s *memTasks) Get(_ context.Context, id string) (domain.Task, error) {
 }
 func (s *memTasks) List(context.Context, domain.TaskFilter) ([]domain.Task, error) { return nil, nil }
 func (s *memTasks) Update(_ context.Context, t domain.Task) error                  { s.m[t.ID] = t; return nil }
-func (s *memTasks) Delete(_ context.Context, id string) error                      { delete(s.m, id); return nil }
+func (s *memTasks) UpdateAndCreate(_ context.Context, t, next domain.Task) error {
+	s.m[t.ID], s.m[next.ID] = t, next
+	return nil
+}
+func (s *memTasks) Delete(_ context.Context, id string) error { delete(s.m, id); return nil }
 
 // Papierkorb: gegen echtes SQLite getestet (api/trash_test.go).
 func (s *memTasks) Trash(context.Context, string, time.Time) error       { return nil }

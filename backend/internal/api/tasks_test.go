@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"kairo/internal/repository"
@@ -162,5 +163,10 @@ func TestTasksBulk(t *testing.T) {
 	}
 	if rec := call(h, "POST", "/api/tasks/bulk", `{"updates":[]}`); rec.Code != 400 {
 		t.Errorf("leere updates = %d", rec.Code)
+	}
+	// Bricht es mittendrin ab, sagt die Meldung, wie viele schon geändert sind.
+	rec = call(h, "POST", "/api/tasks/bulk", `{"updates":[{"id":"`+a.ID+`","priority":"LOW"},{"id":"fehlt","priority":"LOW"}]}`)
+	if rec.Code != 404 || !strings.Contains(rec.Body.String(), "1 von 2 geändert") {
+		t.Errorf("teilweise = %d %s", rec.Code, rec.Body)
 	}
 }
