@@ -4,6 +4,7 @@ package web
 import (
 	"embed"
 	"io/fs"
+	"mime"
 	"net/http"
 	"path"
 	"strings"
@@ -13,6 +14,9 @@ import (
 var distFS embed.FS
 
 const notBuilt = "WebUI nicht gebaut — im Ordner frontend/ `npm run build` ausführen.\n"
+
+// Go kennt .webmanifest nicht; als text/plain ignorieren manche Browser das PWA-Manifest.
+func init() { _ = mime.AddExtensionType(".webmanifest", "application/manifest+json") }
 
 // Handler liefert die eingebettete WebUI.
 func Handler() http.Handler {
