@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import {
@@ -12,6 +13,7 @@ import {
   HealthResult,
   readToken,
   taskAction,
+  updateProject,
   updateTask,
 } from "./backendClient";
 import { expandHome, joinUrl, matchProject, Project, Resource, Task, Today, todayList, weekRange } from "./core";
@@ -40,6 +42,7 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
   private view: vscode.WebviewView | undefined;
   state: State | undefined;
   private checking = false;
+  private readonly repoTried = new Set<string>();
   private readonly live = new LiveEvents(backendUrl, readToken, () => void this.refresh());
   private readonly refreshed = new vscode.EventEmitter<void>();
   /** Feuert nach jedem Neuladen des Stands, auch bei verborgener Ansicht. */
@@ -144,6 +147,9 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
         const { from, to } = weekRange(new Date());
         const [projects, today, tasks, review] = await Promise.all([getProjects(), getToday(), getTasks(), getReview(from, to)]);
         const project = this.detectProject(projects);
+        if (project) {
+          this.fillRepo(project);
+        }
         const resources = project ? await getResources({ project_id: project.id }) : [];
         this.state = { health, today, project, projects, tasks, resources, weekMinutes: review.tracked_minutes };
       }
@@ -188,6 +194,25 @@ export class ContextProvider implements vscode.WebviewViewProvider, vscode.Dispo
   dispose(): void {
     this.live.stop();
     this.refreshed.dispose();
+  }
+
+  /**
+   * Trägt das GitHub-Repo aus `git remote` ein, wenn es fehlt: Das Backend (Pi) sieht den Ordner nicht.
+   * Nur wenn das Backend das Feld kennt (Schlüssel vorhanden), sonst lehnt es PATCH mit 400 ab.
+   * Einmal je Projekt und Sitzung, still; das Backend kürzt die URL auf owner/name.
+   * shortcut: ein bewusst geleertes Feld füllt die nächste Sitzung wieder; bei Bedarf ein „nie“-Merker am Projekt.
+   */
+  private fillRepo(p: Project): void {
+    if (!p.local_path || !("github_repo" in p) || p.github_repo || this.repoTried.has(p.id)) {
+      return;
+    }
+    this.repoTried.add(p.id);
+    execFile("git", ["-C", expandHome(p.local_path), "remote", "get-url", "origin"], (err, out) => {
+      const url = out.trim();
+      if (!err && /github\.com[:/]/.test(url)) {
+        updateProject(p.id, { github_repo: url }).then(() => this.refresh(), () => undefined);
+      }
+    });
   }
 
   /** Längster passender local_path über alle Workspace-Ordner. */

@@ -58,6 +58,7 @@ export interface Project {
   description: string;
   status: string;
   local_path: string | null;
+  github_repo?: string | null; // fehlt bei Backends vor Migration 0013
   color?: string;
 }
 
