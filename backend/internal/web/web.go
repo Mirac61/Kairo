@@ -20,7 +20,11 @@ var distFS embed.FS
 const notBuilt = "WebUI nicht gebaut — im Ordner frontend/ `npm run build` ausführen.\n"
 
 // Go kennt .webmanifest nicht; als text/plain ignorieren manche Browser das PWA-Manifest.
-func init() { _ = mime.AddExtensionType(".webmanifest", "application/manifest+json") }
+// .js fest setzen, sonst gewinnt je nach System /etc/mime.types (Linux: application/javascript).
+func init() {
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+	_ = mime.AddExtensionType(".js", "text/javascript; charset=utf-8")
+}
 
 // Handler liefert die eingebettete WebUI.
 func Handler() http.Handler {
