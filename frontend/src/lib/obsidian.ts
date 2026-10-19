@@ -1,5 +1,5 @@
 import { decompressFromBase64 } from 'lz-string'
-import { deleteNote, errorMessage, fetchFile, readNote, uploadFile } from '@/api/client'
+import { ApiError, deleteNote,errorMessage, fetchFile, readNote, uploadFile } from '@/api/client'
 import { t } from '@/lib/i18n'
 import { fileKind, isObsidianDrawing, parseObsidianDrawing, resolveLink } from '@/lib/noteFiles'
 
@@ -22,7 +22,8 @@ export async function convertObsidianDrawings(files: string[]) {
       await convert(p, files)
       done.push(p)
     } catch (e) {
-      skipped.push(`${p}: ${errorMessage(e)}`)
+      // Fehler aus dem Browser (Formel, Bild) nicht als „Backend nicht erreichbar“ verschleiern
+      skipped.push(`${p}: ${e instanceof ApiError || !(e instanceof Error) ? errorMessage(e) : e.message}`)
     }
   }
   return { done, skipped }
