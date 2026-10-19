@@ -114,3 +114,36 @@ func TestBacklinksDisambiguation(t *testing.T) {
 		t.Fatalf("Privat/SE.md: %v, erwartet %v", paths("Privat/SE.md"), want)
 	}
 }
+
+// Nach dem Speichern wird der Index verworfen und neu aufgebaut (kein veralteter Rückverweis).
+func TestBacklinksCacheInvalidation(t *testing.T) {
+	dir := t.TempDir()
+	for p, c := range map[string]string{"a.md": "[[b]]", "b.md": "", "c.md": ""} {
+		full := filepath.Join(dir, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(c), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	if got, _ := s.Backlinks("b.md"); len(got) != 1 || got[0].Path != "a.md" {
+		t.Fatalf("vor dem Speichern: %+v", got)
+	}
+	// a.md verweist jetzt auf c; der Index muss das nach dem Save widerspiegeln.
+	if _, err := s.Save("a.md", "[[c]]", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Backlinks("b.md"); len(got) != 0 {
+		t.Fatalf("b.md nach Save: %+v", got)
+	}
+	if got, _ := s.Backlinks("c.md"); len(got) != 1 || got[0].Path != "a.md" {
+		t.Fatalf("c.md nach Save: %+v", got)
+	}
+}

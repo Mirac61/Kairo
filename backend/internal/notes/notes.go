@@ -26,6 +26,10 @@ import (
 type Store struct {
 	root *os.Root
 	mu   sync.Mutex // macht Prüfen und Schreiben in Save atomar (zwei Tabs speichern gleichzeitig)
+	// idx ist der Rückverweis-Index (idxMu schützt ihn); er wird bei jedem
+	// Schreibzugriff verworfen und beim nächsten Backlinks-Aufruf neu gebaut.
+	idxMu sync.Mutex
+	idx   *backlinkIndex
 }
 
 // Node ist ein Eintrag im Dateibaum. Path ist relativ zum Wurzelordner, mit "/".
@@ -115,6 +119,7 @@ func (s *Store) Save(p, content, version string, force bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer s.invalidate()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	perm := fs.FileMode(0o644)
@@ -147,6 +152,7 @@ func (s *Store) CreateFile(p string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer s.invalidate()
 	f, err := s.root.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return "", mapErr(err)
@@ -195,6 +201,7 @@ func (s *Store) Move(from, to string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	defer s.invalidate()
 	// Rename ersetzt ein vorhandenes Ziel stillschweigend. Ausnahme: das Ziel ist die Quelle selbst
 	// (nur Groß-/Kleinschreibung geändert, auf macOS ohne Unterscheidung der Schreibweise).
 	if ti, err := s.root.Lstat(to); err == nil && !os.SameFile(fi, ti) {
@@ -304,6 +311,7 @@ func (s *Store) Delete(p string) (string, error) {
 	if _, err := s.root.Lstat(p); err != nil {
 		return "", mapErr(err)
 	}
+	defer s.invalidate()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.trash(p)
@@ -353,20 +361,42 @@ func resolveTarget(name, dir string, stems, byBase map[string]string) string {
 	return byBase[path.Base(want)]
 }
 
-// Backlinks sucht alle Notizen, die auf p verweisen. Ein [[Name]] zählt für genau die
-// Notiz, auf die es auflöst (nicht für alle gleichnamigen in anderen Ordnern); ein Pfad
-// im Link ([[Uni/SE]]) zählt nur für diesen Pfad. Das Durchsuchen des ganzen Ordners ist
-// linear; bei einigen tausend Notizen schnell genug.
-func (s *Store) Backlinks(p string) ([]Backlink, error) {
-	p, err := checkPath(p, "md")
+// backlinkIndex ist der aufgelöste Rückverweis-Index: für jede Zielnotiz die Quellen, die per
+// [[…]] auf sie verweisen. stems/byBase dienen der Auflösung von [[Name]].
+type backlinkIndex struct {
+	stems     map[string]string
+	byBase    map[string]string
+	backlinks map[string][]Backlink // Schlüssel: kleiner Pfad ohne .md
+}
+
+// invalidate verwirft den Index (nach dem Speichern, Umbenennen oder Löschen).
+func (s *Store) invalidate() {
+	s.idxMu.Lock()
+	s.idx = nil
+	s.idxMu.Unlock()
+}
+
+// index liefert den Index und baut ihn bei Bedarf. Nicht unter s.mu aufrufen (er liest den
+// ganzen Ordner), damit Schreiben nicht blockiert.
+func (s *Store) index() (*backlinkIndex, error) {
+	s.idxMu.Lock()
+	defer s.idxMu.Unlock()
+	if s.idx != nil {
+		return s.idx, nil
+	}
+	idx, err := s.rebuildIndex()
 	if err != nil {
 		return nil, err
 	}
-	// Erst alle Notizpfade sammeln, damit [[Name]] aufgelöst werden kann.
-	stems := map[string]string{}
-	byBase := map[string]string{}
+	s.idx = idx
+	return idx, nil
+}
+
+// rebuildIndex liest alle Notizen einmal und baut Stämme und Rückverweise auf.
+func (s *Store) rebuildIndex() (*backlinkIndex, error) {
+	idx := &backlinkIndex{stems: map[string]string{}, byBase: map[string]string{}, backlinks: map[string][]Backlink{}}
 	var notes []string
-	err = fs.WalkDir(s.root.FS(), ".", func(q string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(s.root.FS(), ".", func(q string, d fs.DirEntry, err error) error {
 		switch {
 		case err != nil:
 			return err
@@ -379,23 +409,17 @@ func (s *Store) Backlinks(p string) ([]Backlink, error) {
 			return nil
 		}
 		notes = append(notes, q)
-		stem := strings.ToLower(strings.TrimSuffix(q, ".md"))
-		stems[stem] = q
+		idx.stems[strings.ToLower(strings.TrimSuffix(q, ".md"))] = q
 		base := strings.ToLower(strings.TrimSuffix(path.Base(q), path.Ext(q)))
-		if cur, ok := byBase[base]; !ok || len(q) < len(cur) {
-			byBase[base] = q
+		if cur, ok := idx.byBase[base]; !ok || len(q) < len(cur) {
+			idx.byBase[base] = q
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, mapErr(err)
 	}
-
-	out := []Backlink{}
 	for _, q := range notes {
-		if q == p {
-			continue
-		}
 		b, err := s.root.ReadFile(q)
 		if err != nil {
 			continue // unlesbar oder inzwischen gelöscht: kein Rückverweis
@@ -407,8 +431,9 @@ func (s *Store) Backlinks(p string) ([]Backlink, error) {
 		}
 		for _, m := range wikilink.FindAllStringSubmatchIndex(text, -1) {
 			target := strings.TrimSpace(text[m[2]:m[3]])
-			if !strings.EqualFold(resolveTarget(target, dir, stems, byBase), p) {
-				continue
+			resolved := resolveTarget(target, dir, idx.stems, idx.byBase)
+			if resolved == "" || strings.EqualFold(resolved, q) {
+				continue // kein Ziel oder ein Verweis auf sich selbst
 			}
 			start := strings.LastIndexByte(text[:m[0]], '\n') + 1
 			end := len(text)
@@ -419,11 +444,31 @@ func (s *Store) Backlinks(p string) ([]Backlink, error) {
 			if len(snippet) > 160 {
 				snippet = append(snippet[:160], '…')
 			}
-			out = append(out, Backlink{Path: q, Title: strings.TrimSuffix(path.Base(q), path.Ext(q)), Snippet: string(snippet)})
+			key := strings.ToLower(strings.TrimSuffix(resolved, ".md"))
+			idx.backlinks[key] = append(idx.backlinks[key], Backlink{Path: q, Title: strings.TrimSuffix(path.Base(q), path.Ext(q)), Snippet: string(snippet)})
 			break
 		}
 	}
-	slices.SortFunc(out, func(a, b Backlink) int { return strings.Compare(strings.ToLower(a.Path), strings.ToLower(b.Path)) })
+	for k := range idx.backlinks {
+		slices.SortFunc(idx.backlinks[k], func(a, b Backlink) int { return strings.Compare(strings.ToLower(a.Path), strings.ToLower(b.Path)) })
+	}
+	return idx, nil
+}
+
+// Backlinks liefert alle Notizen, die per [[…]] auf p verweisen (aus dem Index).
+func (s *Store) Backlinks(p string) ([]Backlink, error) {
+	p, err := checkPath(p, "md")
+	if err != nil {
+		return nil, err
+	}
+	idx, err := s.index()
+	if err != nil {
+		return nil, err
+	}
+	out := idx.backlinks[strings.ToLower(strings.TrimSuffix(p, ".md"))]
+	if out == nil {
+		out = []Backlink{}
+	}
 	return out, nil
 }
 
