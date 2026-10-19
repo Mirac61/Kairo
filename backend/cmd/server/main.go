@@ -300,8 +300,9 @@ func run() error {
 	taskRepo := repository.NewTaskRepository(db)
 	tasks := service.NewTaskService(taskRepo, nil).WithLocation(cfg.Location)
 	calendar := service.NewCalendarService(repository.NewCalendarRepository(db), cfg.Location, nil)
-	habits := service.NewHabitService(repository.NewHabitRepository(db), cfg.Location, nil)
-	timeTracking := service.NewTimeTrackingService(repository.NewTimeEntryRepository(db), nil).WithLocation(cfg.Location)
+	timeEntries := repository.NewTimeEntryRepository(db)
+	habits := service.NewHabitService(repository.NewHabitRepository(db), cfg.Location, nil).WithTracked(timeEntries)
+	timeTracking := service.NewTimeTrackingService(timeEntries, nil).WithLocation(cfg.Location).WithAfterTrack(habits.SyncTracked)
 	projects := service.NewProjectService(repository.NewProjectRepository(db), nil)
 	for _, p := range []interface{ SetPublisher(service.Publisher) }{projects, tasks, calendar, habits, timeTracking} {
 		p.SetPublisher(hub)

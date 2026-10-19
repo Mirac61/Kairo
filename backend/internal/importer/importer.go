@@ -80,6 +80,7 @@ type habit struct {
 	Unit            string                 `json:"unit"`
 	PreferredTime   *string                `json:"preferred_time"`
 	DurationMinutes int                    `json:"duration_minutes"`
+	ProjectID       *string                `json:"project_id"`
 	StartDate       string                 `json:"start_date"`
 	EndDate         *string                `json:"end_date"`
 	Active          bool                   `json:"active"`
@@ -232,7 +233,7 @@ func Import(ctx context.Context, db *sql.DB, r io.Reader) (Result, error) {
 		if err := habits.Create(ctx, domain.Habit{
 			ID: h.ID, Name: h.Name, Description: h.Description, FrequencyType: domain.FrequencyType(h.FrequencyType),
 			FrequencyConfig: h.FrequencyConfig, TargetValue: h.TargetValue, Unit: h.Unit, PreferredTime: h.PreferredTime,
-			DurationMinutes: h.DurationMinutes, StartDate: h.StartDate, EndDate: h.EndDate, Active: h.Active, CreatedAt: created,
+			DurationMinutes: h.DurationMinutes, ProjectID: h.ProjectID, StartDate: h.StartDate, EndDate: h.EndDate, Active: h.Active, CreatedAt: created,
 		}); err != nil {
 			return out, fmt.Errorf("Habit %s: %w", h.ID, err)
 		}

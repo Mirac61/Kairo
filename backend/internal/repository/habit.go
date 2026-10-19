@@ -18,7 +18,7 @@ type HabitRepository struct{ db *sql.DB }
 func NewHabitRepository(db *sql.DB) *HabitRepository { return &HabitRepository{db: db} }
 
 const habitColumns = `id, name, description, frequency_type, frequency_config, target_value, unit,
-	preferred_time, start_date, end_date, active, created_at, duration_minutes`
+	preferred_time, start_date, end_date, active, created_at, duration_minutes, project_id`
 
 const completionColumns = `id, habit_id, date, value, completed_at, note`
 
@@ -34,15 +34,16 @@ func scanHabit(s scanner, extra ...any) (domain.Habit, error) {
 	var (
 		h                     domain.Habit
 		target                sql.NullInt64
-		preferred, end        sql.NullString
+		preferred, end, proj  sql.NullString
 		freq, config, created string
 		active                int
 	)
 	if err := s.Scan(append([]any{&h.ID, &h.Name, &h.Description, &freq, &config, &target, &h.Unit,
-		&preferred, &h.StartDate, &end, &active, &created, &h.DurationMinutes}, extra...)...); err != nil {
+		&preferred, &h.StartDate, &end, &active, &created, &h.DurationMinutes, &proj}, extra...)...); err != nil {
 		return domain.Habit{}, err
 	}
 	h.FrequencyType = domain.FrequencyType(freq)
+	h.ProjectID = nullStr(proj)
 	if err := json.Unmarshal([]byte(config), &h.FrequencyConfig); err != nil {
 		return domain.Habit{}, fmt.Errorf("frequency_config: %w", err)
 	}
@@ -92,11 +93,11 @@ func (r *HabitRepository) Create(ctx context.Context, h domain.Habit) error {
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO habits (`+habitColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO habits (`+habitColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		h.ID, h.Name, h.Description, string(h.FrequencyType), string(cfg), nullInt(h.TargetValue), h.Unit,
-		h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), formatTime(h.CreatedAt), h.DurationMinutes)
+		h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), formatTime(h.CreatedAt), h.DurationMinutes, h.ProjectID)
 	if err != nil {
-		return fmt.Errorf("repository: Habit anlegen: %w", err)
+		return fmt.Errorf("repository: Habit anlegen: %w", mapFK(err))
 	}
 	return nil
 }
@@ -139,11 +140,12 @@ func (r *HabitRepository) Update(ctx context.Context, h domain.Habit) error {
 	}
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE habits SET name = ?, description = ?, frequency_type = ?, frequency_config = ?, target_value = ?,
-			unit = ?, preferred_time = ?, start_date = ?, end_date = ?, active = ?, duration_minutes = ? WHERE id = ? AND deleted_at IS NULL`,
+			unit = ?, preferred_time = ?, start_date = ?, end_date = ?, active = ?, duration_minutes = ?, project_id = ?
+			WHERE id = ? AND deleted_at IS NULL`,
 		h.Name, h.Description, string(h.FrequencyType), string(cfg), nullInt(h.TargetValue),
-		h.Unit, h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), h.DurationMinutes, h.ID)
+		h.Unit, h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), h.DurationMinutes, h.ProjectID, h.ID)
 	if err != nil {
-		return fmt.Errorf("repository: Habit ändern: %w", err)
+		return fmt.Errorf("repository: Habit ändern: %w", mapFK(err))
 	}
 	return requireAffected(res)
 }

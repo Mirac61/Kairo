@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import {
-  api, completeHabit, createHabit, deleteHabit, getToday, listHabits, restoreHabit, uncompleteHabit, updateHabit,
-  type FrequencyConfig, type Habit, type TodayHabit,
+  api, completeHabit, createHabit, deleteHabit, getToday, listHabits, listProjects, restoreHabit, uncompleteHabit, updateHabit,
+  type FrequencyConfig, type Habit, type Project, type TodayHabit,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
@@ -31,8 +31,9 @@ const streaks = ref<Record<string, number>>({})
 const dialog = ref(false)
 const blank = () => ({
   id: '', name: '', description: '', type: 'DAILY' as Rhythm, weekdays: ['MO'] as string[], times: 3,
-  time: '', duration: 30, target: null as number | null, unit: '', start: ymd(new Date()), end: '',
+  time: '', duration: 30, target: null as number | null, unit: '', start: ymd(new Date()), end: '', project: '',
 })
+const projects = ref<Project[]>([])
 const form = ref(blank())
 
 // Ansicht: Tag (Wochenstreifen und Karten), Monat (Kalender je Gewohnheit) oder Jahr (Beitragsgraph); je Browser gemerkt.
@@ -47,9 +48,10 @@ const gridStart = () => addDays(weekStart(), -7 * (WEEKS - 1))
 const { error, load, run } = useLoader(async () => {
   const t = today()
   const from = ymd(gridStart())
-  const [hs, td, rv] = await Promise.all([
-    listHabits(), getToday(t), api<{ habits: { habit_id: string; streak: number }[] }>(`/review?from=${t}&to=${t}`),
+  const [hs, td, rv, ps] = await Promise.all([
+    listHabits(), getToday(t), api<{ habits: { habit_id: string; streak: number }[] }>(`/review?from=${t}&to=${t}`), listProjects(),
   ])
+  projects.value = ps.filter((p) => p.status !== 'ARCHIVED')
   const comps = await Promise.all(hs.map((h) =>
     api<{ date: string }[]>(`/habits/${h.id}/completions?from=${from}&to=${t}`)))
   habits.value = hs
@@ -87,7 +89,7 @@ function openEdit(h: Habit) {
     type: h.frequency_type === 'WEEKLY' ? 'SPECIFIC_WEEKDAYS' : h.frequency_type,
     weekdays: h.frequency_type === 'WEEKLY' ? [c.weekday ?? 'MO'] : c.weekdays ?? ['MO'], times: c.times ?? 3,
     time: h.preferred_time ?? '', duration: h.duration_minutes, target: h.target_value, unit: h.unit,
-    start: h.start_date, end: h.end_date ?? '',
+    start: h.start_date, end: h.end_date ?? '', project: h.project_id ?? '',
   }
   dialog.value = true
 }
@@ -100,7 +102,7 @@ function save() {
   const body = {
     name, description: f.description.trim(), frequency_type: f.type, frequency_config: config(),
     preferred_time: f.time, duration_minutes: f.duration || 30, target_value: f.target || (f.id ? 0 : null),
-    unit: f.unit, start_date: f.start, end_date: f.end,
+    unit: f.unit, start_date: f.start, end_date: f.end, project_id: f.project || (f.id ? '' : null),
   }
   void run(async () => {
     await (f.id ? updateHabit(f.id, body) : createHabit(body))
@@ -414,9 +416,16 @@ useLiveEvents(load)
           </div>
           <div class="dlg-row">
             <div class="field"><label for="h-time">{{ $t('Uhrzeit') }}</label><input id="h-time" v-model="form.time" class="input" type="time" /></div>
-            <div class="field"><label for="h-dur">{{ $t('Dauer (Min.)') }}</label><input id="h-dur" v-model.number="form.duration" class="input" type="number" min="5" max="1440" step="5" :disabled="!form.time" /></div>
+            <div class="field"><label for="h-dur">{{ $t('Dauer (Min.)') }}</label><input id="h-dur" v-model.number="form.duration" class="input" type="number" min="5" max="1440" step="5" :disabled="!form.time && !form.project" /></div>
           </div>
           <div class="v-sub">{{ $t('Mit Uhrzeit erscheint die Gewohnheit als Block im Kalender.') }}</div>
+          <div class="field"><label for="h-proj">{{ $t('Aus Zeiterfassung') }}</label>
+            <select id="h-proj" v-model="form.project" class="input">
+              <option value="">{{ $t('Nur von Hand abhaken') }}</option>
+              <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+          <div v-if="form.project" class="v-sub">{{ $t('Erledigt sich selbst, sobald an einem Tag so viele Minuten im Projekt erfasst sind wie die Dauer.') }}</div>
           <div class="dlg-row">
             <div class="field"><label for="h-target">{{ $t('Ziel') }}</label><input id="h-target" v-model.number="form.target" class="input" type="number" min="1" :placeholder="$t('optional')" /></div>
             <div class="field"><label for="h-unit">{{ $t('Einheit') }}</label><input id="h-unit" v-model="form.unit" class="input" :placeholder="$t('z. B. Seiten')" /></div>

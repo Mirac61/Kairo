@@ -285,3 +285,62 @@ func TestHabitCompletionsList(t *testing.T) {
 		t.Errorf("unbekanntes Habit: %v", err)
 	}
 }
+
+type fakeTimes struct {
+	entries []domain.TimeEntry
+	got     domain.TimeEntryFilter
+}
+
+func (f *fakeTimes) List(_ context.Context, flt domain.TimeEntryFilter) ([]domain.TimeEntry, error) {
+	f.got = flt
+	var out []domain.TimeEntry
+	for _, e := range f.entries {
+		if e.ProjectID != nil && *e.ProjectID == flt.ProjectID {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+// Eine Gewohnheit mit Projekt hakt sich ab, sobald am Tag genug Zeit im Projekt erfasst ist.
+func TestHabitSyncTracked(t *testing.T) {
+	ctx := context.Background()
+	svc := newHabitSvc(t)
+	times := &fakeTimes{}
+	svc.WithTracked(times)
+	h, err := svc.Create(ctx, CreateHabitInput{Name: "Lernen", FrequencyType: domain.FreqDaily, DurationMinutes: 30, ProjectID: ptr("uni")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, _ := svc.Create(ctx, CreateHabitInput{Name: "Lesen", FrequencyType: domain.FreqDaily})
+	day := svc.now().In(svc.loc)
+	at := func(h, m int) time.Time { return time.Date(day.Year(), day.Month(), day.Day(), h, m, 0, 0, svc.loc) }
+	add := func(from, to time.Time) {
+		times.entries = append(times.entries, domain.TimeEntry{ID: domain.NewID(), ProjectID: ptr("uni"), StartedAt: from, EndedAt: &to})
+	}
+	done := func(id string) bool {
+		due, _ := svc.DueOn(ctx, day.Format("2006-01-02"))
+		for _, d := range due {
+			if d.Habit.ID == id {
+				return d.Occurrence.Done
+			}
+		}
+		return false
+	}
+
+	add(at(8, 0), at(8, 20)) // 20 min: noch nicht genug
+	if err := svc.SyncTracked(ctx, at(8, 0)); err != nil || done(h.ID) {
+		t.Fatalf("nach 20 min: err=%v done=%v", err, done(h.ID))
+	}
+	times.entries = append(times.entries, domain.TimeEntry{ID: "läuft", ProjectID: ptr("uni"), StartedAt: at(8, 30)}) // zählt nicht
+	add(at(8, 40), at(8, 50))                                                                                         // zusammen 30 min
+	if err := svc.SyncTracked(ctx, at(8, 40)); err != nil || !done(h.ID) {
+		t.Fatalf("nach 30 min: err=%v done=%v", err, done(h.ID))
+	}
+	if done(other.ID) {
+		t.Error("Gewohnheit ohne Projekt mit abgehakt")
+	}
+	if err := svc.SyncTracked(ctx, at(9, 0)); err != nil { // schon erledigt: kein Fehler, keine zweite Completion
+		t.Fatal(err)
+	}
+}

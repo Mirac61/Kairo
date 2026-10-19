@@ -188,6 +188,7 @@ export interface Habit {
   unit: string
   preferred_time: string | null // HH:MM
   duration_minutes: number
+  project_id: string | null // gesetzt: erledigt, sobald am Tag duration_minutes im Projekt erfasst sind
   start_date: string
   end_date: string | null
   active: boolean

@@ -185,6 +185,7 @@ target_value?
 unit?
 preferred_time?
 duration_minutes
+project_id?
 start_date
 end_date?
 active
@@ -197,6 +198,9 @@ Wochentage oder Anzahl) als JSON (siehe `02_ARCHITECTURE.md`).
 
 `preferred_time` ist eine optionale lokale Uhrzeit (`HH:MM`),
 `duration_minutes` (Standard 30) die Länge des Blocks im Kalender.
+Mit `project_id` erfüllt sich die Gewohnheit selbst: Sobald an einem Tag
+mindestens `duration_minutes` im Projekt erfasst sind, hakt der Server sie
+ab (Notiz „aus Zeiterfassung“). Später gelöschte Zeit nimmt das nicht zurück.
 
 Der Dialog in der WebUI legt an und bearbeitet. Er bietet als Rhythmus
 „Täglich“, „Bestimmte Tage“ (z. B. Mo und Do) und „X-mal pro Woche“,

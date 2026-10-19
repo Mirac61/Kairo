@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -27,9 +28,71 @@ type HabitStore interface {
 // HabitService enthält die Regeln für Habits und Completions.
 type HabitService struct {
 	publisher
-	store HabitStore
-	loc   *time.Location
-	now   func() time.Time
+	store   HabitStore
+	loc     *time.Location
+	now     func() time.Time
+	tracked TimeLister // für Gewohnheiten mit Projekt; nil = aus
+}
+
+// TimeLister liefert Zeiteinträge (TimeEntryRepository).
+type TimeLister interface {
+	List(ctx context.Context, f domain.TimeEntryFilter) ([]domain.TimeEntry, error)
+}
+
+// WithTracked schaltet ein, dass sich Gewohnheiten mit Projekt aus erfasster Zeit erfüllen (siehe SyncTracked).
+func (s *HabitService) WithTracked(l TimeLister) *HabitService {
+	s.tracked = l
+	return s
+}
+
+// SyncTracked hakt am Tag von at jede aktive, fällige Gewohnheit mit Projekt ab, für die an diesem Tag
+// mindestens DurationMinutes im Projekt erfasst sind. Läuft nach jeder Änderung der Zeiterfassung.
+// shortcut: nimmt nichts zurück, wenn Zeit später gelöscht wird; Abhaken bleibt, bis man es von Hand löst.
+func (s *HabitService) SyncTracked(ctx context.Context, at time.Time) error {
+	if s.tracked == nil {
+		return nil
+	}
+	local := at.In(s.loc)
+	date := local.Format("2006-01-02")
+	if date > s.today() {
+		return nil
+	}
+	due, err := s.DueOn(ctx, date)
+	if err != nil {
+		return err
+	}
+	from := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, s.loc)
+	to := from.AddDate(0, 0, 1)
+	for _, d := range due {
+		h := d.Habit
+		if h.ProjectID == nil || d.Occurrence.Done {
+			continue
+		}
+		entries, err := s.tracked.List(ctx, domain.TimeEntryFilter{ProjectID: *h.ProjectID, From: &from, To: &to})
+		if err != nil {
+			return err
+		}
+		var mins time.Duration
+		for _, e := range entries {
+			if e.EndedAt == nil {
+				continue // läuft noch: zählt beim Stoppen
+			}
+			start, end := e.StartedAt, *e.EndedAt
+			if start.Before(from) {
+				start = from
+			}
+			if end.After(to) {
+				end = to
+			}
+			mins += end.Sub(start)
+		}
+		if mins >= time.Duration(h.DurationMinutes)*time.Minute {
+			if _, err := s.Complete(ctx, h.ID, CompleteHabitInput{Date: date, Note: "aus Zeiterfassung"}); err != nil && !errors.Is(err, domain.ErrConflict) {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // NewHabitService erzeugt einen HabitService. loc ist die Zeitzone für "heute"
@@ -55,6 +118,7 @@ type CreateHabitInput struct {
 	Unit            string
 	PreferredTime   *string
 	DurationMinutes int // 0 = Standard (30)
+	ProjectID       *string
 	StartDate       *string
 	EndDate         *string
 	Active          *bool
@@ -72,6 +136,7 @@ type UpdateHabitInput struct {
 	Unit            *string
 	PreferredTime   *string
 	DurationMinutes *int
+	ProjectID       *string // "" entfernt das Projekt
 	StartDate       *string
 	EndDate         *string
 	Active          *bool
@@ -103,6 +168,7 @@ func (s *HabitService) Create(ctx context.Context, in CreateHabitInput) (domain.
 		Unit:            strings.TrimSpace(in.Unit),
 		PreferredTime:   trimOrNil(in.PreferredTime),
 		DurationMinutes: in.DurationMinutes,
+		ProjectID:       trimOrNil(in.ProjectID),
 		StartDate:       s.today(),
 		EndDate:         trimOrNil(in.EndDate),
 		Active:          true,
@@ -167,6 +233,9 @@ func (s *HabitService) Update(ctx context.Context, id string, in UpdateHabitInpu
 	}
 	if in.DurationMinutes != nil {
 		h.DurationMinutes = *in.DurationMinutes
+	}
+	if in.ProjectID != nil {
+		h.ProjectID = trimOrNil(in.ProjectID)
 	}
 	if in.StartDate != nil {
 		h.StartDate = strings.TrimSpace(*in.StartDate)

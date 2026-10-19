@@ -124,6 +124,7 @@ func TestHabitsErrors(t *testing.T) {
 		"falscher Typ":            {"POST", "/api/habits", `{"name":"x","frequency_type":"MONTHLY"}`, 400},
 		"times fehlt":             {"POST", "/api/habits", `{"name":"x","frequency_type":"TIMES_PER_WEEK"}`, 400},
 		"unbekanntes Feld":        {"POST", "/api/habits", `{"name":"x","frequency_type":"DAILY","foo":1}`, 400},
+		"unbekanntes Projekt":     {"POST", "/api/habits", `{"name":"x","frequency_type":"DAILY","project_id":"nope"}`, 400},
 		"unbekanntes Config-Feld": {"POST", "/api/habits", `{"name":"x","frequency_type":"DAILY","frequency_config":{"foo":1}}`, 400},
 		"GET unbekannt":           {"GET", "/api/habits/nope", "", 404},
 		"PATCH unbekannt":         {"PATCH", "/api/habits/nope", `{}`, 404},

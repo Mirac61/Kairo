@@ -149,3 +149,32 @@ func TestHabitCompletions(t *testing.T) {
 		t.Error("Completion für gelöschtes Habit wurde akzeptiert")
 	}
 }
+
+func TestHabitProject(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "k.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	r, projects := NewHabitRepository(db), NewProjectRepository(db)
+	now := time.Date(2026, 10, 6, 9, 0, 0, 0, time.UTC)
+	if err := projects.Create(ctx, domain.Project{ID: "p1", Name: "P", Status: domain.ProjectActive, CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	h := newHabit("h1")
+	h.ProjectID = ptr("p1")
+	if err := r.Create(ctx, h); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := r.Get(ctx, "h1"); got.ProjectID == nil || *got.ProjectID != "p1" {
+		t.Fatalf("project_id = %v", got.ProjectID)
+	}
+	h.ProjectID = nil
+	if err := r.Update(ctx, h); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := r.Get(ctx, "h1"); got.ProjectID != nil {
+		t.Fatalf("project_id nach Entfernen = %v", *got.ProjectID)
+	}
+}

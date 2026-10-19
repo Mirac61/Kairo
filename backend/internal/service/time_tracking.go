@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -41,6 +42,24 @@ type TimeTrackingService struct {
 	store TimeStore
 	now   func() time.Time
 	loc   *time.Location // Ortszeit für wiederkehrende Tasks
+	// afterTrack läuft, nachdem Zeit dazukam oder sich änderte (at liegt am betroffenen Tag), z. B. für
+	// Gewohnheiten, die sich aus erfasster Zeit erfüllen. Fehler landen nur im Log.
+	afterTrack func(ctx context.Context, at time.Time) error
+}
+
+// WithAfterTrack setzt den Haken, der nach jeder beendeten oder geänderten Zeit läuft.
+func (s *TimeTrackingService) WithAfterTrack(fn func(ctx context.Context, at time.Time) error) *TimeTrackingService {
+	s.afterTrack = fn
+	return s
+}
+
+func (s *TimeTrackingService) tracked(ctx context.Context, at time.Time) {
+	if s.afterTrack == nil {
+		return
+	}
+	if err := s.afterTrack(ctx, at); err != nil {
+		slog.Warn("nach der Zeiterfassung", "err", err)
+	}
 }
 
 // NewTimeTrackingService erzeugt einen TimeTrackingService. now ist die Uhr (nil = time.Now).
@@ -117,6 +136,9 @@ func (s *TimeTrackingService) Start(ctx context.Context, taskID string, source d
 	})
 	if err == nil {
 		s.emit(evs...)
+		if len(evs) > 0 && evs[0].Type == domain.EventTimerStopped {
+			s.tracked(ctx, s.now())
+		}
 	}
 	return res, err
 }
@@ -166,6 +188,7 @@ func (s *TimeTrackingService) Pause(ctx context.Context, taskID string, endedAt 
 		s.emit(
 			domain.Event{Type: domain.EventTimerStopped, ID: res.Entry.ID, TaskID: taskID},
 			domain.Event{Type: domain.EventTaskPaused, ID: taskID})
+		s.tracked(ctx, res.Entry.StartedAt)
 	}
 	return res, err
 }
@@ -225,6 +248,7 @@ func (s *TimeTrackingService) Complete(ctx context.Context, taskID string) (doma
 	if err == nil {
 		if res.Entry != nil {
 			s.emit(domain.Event{Type: domain.EventTimerStopped, ID: res.Entry.ID, TaskID: taskID})
+			s.tracked(ctx, res.Entry.StartedAt)
 		}
 		if completed {
 			s.emit(domain.Event{Type: domain.EventTaskCompleted, ID: taskID})
@@ -253,6 +277,7 @@ func (s *TimeTrackingService) StopTimer(ctx context.Context, taskID string) erro
 	})
 	if err == nil && stopped != nil {
 		s.emit(domain.Event{Type: domain.EventTimerStopped, ID: stopped.ID, TaskID: taskID})
+		s.tracked(ctx, stopped.StartedAt)
 	}
 	return err
 }
@@ -305,6 +330,7 @@ func (s *TimeTrackingService) Create(ctx context.Context, in CreateTimeEntryInpu
 	if err := s.store.Create(ctx, e); err != nil {
 		return domain.TimeEntry{}, err
 	}
+	s.tracked(ctx, e.StartedAt)
 	return e, nil
 }
 
@@ -345,6 +371,7 @@ func (s *TimeTrackingService) Update(ctx context.Context, id string, in UpdateTi
 		return domain.TimeEntry{}, err
 	}
 	s.emit(domain.Event{Type: domain.EventTimeEntryUpdated, ID: id, TaskID: deref(e.TaskID)})
+	s.tracked(ctx, e.StartedAt)
 	return e, nil
 }
 

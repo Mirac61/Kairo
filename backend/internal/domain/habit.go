@@ -144,6 +144,7 @@ type Habit struct {
 	Unit            string
 	PreferredTime   *string // lokale Uhrzeit HH:MM
 	DurationMinutes int     // Länge des Kalenderblocks
+	ProjectID       *string // gesetzt: erledigt, sobald am Tag DurationMinutes im Projekt erfasst sind
 	StartDate       string  // lokaler Tag
 	EndDate         *string // lokaler Tag, inklusive
 	Active          bool

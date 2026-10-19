@@ -35,6 +35,7 @@ type habitDTO struct {
 	Unit            string                 `json:"unit"`
 	PreferredTime   *string                `json:"preferred_time"`
 	DurationMinutes int                    `json:"duration_minutes"`
+	ProjectID       *string                `json:"project_id"`
 	StartDate       string                 `json:"start_date"`
 	EndDate         *string                `json:"end_date"`
 	Active          bool                   `json:"active"`
@@ -53,6 +54,7 @@ func toHabitDTO(h domain.Habit) habitDTO {
 		Unit:            h.Unit,
 		PreferredTime:   h.PreferredTime,
 		DurationMinutes: h.DurationMinutes,
+		ProjectID:       h.ProjectID,
 		StartDate:       h.StartDate,
 		EndDate:         h.EndDate,
 		Active:          h.Active,
@@ -116,6 +118,7 @@ func (h habitHandlers) create(w http.ResponseWriter, r *http.Request) {
 		Unit            string                 `json:"unit"`
 		PreferredTime   *string                `json:"preferred_time"`
 		DurationMinutes int                    `json:"duration_minutes"`
+		ProjectID       *string                `json:"project_id"`
 		StartDate       *string                `json:"start_date"`
 		EndDate         *string                `json:"end_date"`
 		Active          *bool                  `json:"active"`
@@ -132,6 +135,7 @@ func (h habitHandlers) create(w http.ResponseWriter, r *http.Request) {
 		Unit:            in.Unit,
 		PreferredTime:   in.PreferredTime,
 		DurationMinutes: in.DurationMinutes,
+		ProjectID:       in.ProjectID,
 		StartDate:       in.StartDate,
 		EndDate:         in.EndDate,
 		Active:          in.Active,
@@ -165,6 +169,7 @@ func (h habitHandlers) update(w http.ResponseWriter, r *http.Request) {
 		Unit            *string                 `json:"unit"`
 		PreferredTime   *string                 `json:"preferred_time"`
 		DurationMinutes *int                    `json:"duration_minutes"`
+		ProjectID       *string                 `json:"project_id"`
 		StartDate       *string                 `json:"start_date"`
 		EndDate         *string                 `json:"end_date"`
 		Active          *bool                   `json:"active"`
@@ -180,6 +185,7 @@ func (h habitHandlers) update(w http.ResponseWriter, r *http.Request) {
 		Unit:            in.Unit,
 		PreferredTime:   in.PreferredTime,
 		DurationMinutes: in.DurationMinutes,
+		ProjectID:       in.ProjectID,
 		StartDate:       in.StartDate,
 		EndDate:         in.EndDate,
 		Active:          in.Active,
