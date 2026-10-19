@@ -163,7 +163,7 @@ useLiveEvents(load)
           <span class="cdot"></span>
           <button type="button" class="proj-name proj-toggle" :aria-expanded="openId === p.id" @click="openId = openId === p.id ? null : p.id">{{ p.name }}</button>
           <span class="proj-end">
-            <span class="proj-last">{{ lastActive(p.id) }}</span>
+            <span v-if="lastActive(p.id)" class="proj-last">{{ $t('aktiv {when}', { when: lastActive(p.id) }) }}</span>
             <button class="btn btn-ghost proj-act" type="button" @click="openDialog(p)">{{ $t('Bearbeiten') }}</button>
           </span>
         </div>
@@ -179,13 +179,13 @@ useLiveEvents(load)
         </div>
         <div class="proj-prog">
           <div class="pbar" role="progressbar" :aria-label="`Fortschritt ${p.name}`" :aria-valuenow="pct(p.id)" aria-valuemin="0" aria-valuemax="100"><div class="pbar-fill" :style="{ width: pct(p.id) + '%' }"></div></div>
-          <span class="proj-pct">{{ pct(p.id) }} %</span>
+          <span class="proj-pct" :title="`${pct(p.id)} %`">{{ frac(p.id) ? $t('{n} erledigt', { n: frac(p.id) }) : $t('keine Aufgaben') }}</span>
         </div>
         <div class="proj-foot">
           <span class="proj-stat"><b class="mono">{{ openTasks(p.id).length }}</b> {{ $t('offen') }}</span>
           <span class="proj-stat"><b class="mono">{{ hm(minutes[p.id]?.week ?? 0) }}</b> {{ $t('diese Woche') }}</span>
           <span class="spacer"></span>
-          <button v-if="p.local_path" class="btn btn-ghost" type="button" :aria-label="`${$t('In VSCodium öffnen')}: ${p.name}`" @click="inCode(p)">{{ $t('VSCodium ↗') }}</button>
+          <button v-if="p.local_path" class="btn btn-ghost act-code" type="button" :aria-label="`${$t('In VSCodium öffnen')}: ${p.name}`" @click="inCode(p)">{{ $t('VSCodium ↗') }}</button>
         </div>
         <div v-if="openId === p.id" class="proj-more">
           <div class="proj-meta">{{ $t('Erfasst: {week} diese Woche · {total} gesamt', { week: dur(minutes[p.id]?.week), total: dur(minutes[p.id]?.total) }) }}<template v-if="frac(p.id)"> · {{ $t('{n} Aufgaben erledigt', { n: frac(p.id) }) }}</template></div>

@@ -139,7 +139,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
       <div class="sidebar-footer">
         <div class="status" :class="{ off: !online }">
           <span class="status-dot" />
-          <span>{{ online ? `${$t('Verbunden')}${version ? ` (${version})` : ''}` : $t('Getrennt') }}</span>
+          <span :data-tip="online && version ? version : undefined">{{ online ? $t('Verbunden') : $t('Getrennt') }}</span>
         </div>
         <div class="sb-btns">
           <RouterLink to="/settings" class="icon-btn" :aria-label="$t('Einstellungen')" :data-tip="$t('Einstellungen')"><svg class="ic"><use href="#i-gear" /></svg></RouterLink>

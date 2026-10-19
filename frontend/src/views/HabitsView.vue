@@ -492,6 +492,7 @@ useLiveEvents(load)
 .hd-day.sel .hd-ring { background: radial-gradient(closest-side, var(--bg-1) 82%, transparent 84%), conic-gradient(var(--tx-primary) calc(var(--p) * 1turn), var(--bg-3) 0); }
 .hd-ring.full { background: var(--a-green, var(--tx-primary)); }
 .hd-ring.full b { color: var(--bg-0); }
+.hd-day.sel .hd-ring.full b { color: var(--tx-primary); } /* gewählt: Ring mit dunkler Mitte */
 .hd-ring b { font: 600 15px/1 var(--font-ui); color: var(--tx-primary); }
 .hd-cnt { font: 400 11px/1 var(--font-mono); color: var(--tx-muted); }
 .hd-title { margin: 0 0 14px; font: 600 18px/1.2 var(--font-ui); letter-spacing: -0.01em; color: var(--tx-primary); }
@@ -502,7 +503,8 @@ useLiveEvents(load)
 .hd-card:hover { border-color: color-mix(in srgb, var(--hc) 50%, var(--br-default)); }
 .hd-card:focus-visible { outline: 2px solid var(--a-focus); outline-offset: 1px; }
 .hd-card.done { background: color-mix(in srgb, var(--hc) 13%, var(--bg-1)); border-color: color-mix(in srgb, var(--hc) 45%, transparent); }
-.hd-card.done .hk-name { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--tx-primary) 40%, transparent); }
+/* Erledigt: gedimmt statt durchgestrichen, der Haken sagt es schon. */
+.hd-card.done .hk-name, .hd-card.done .hab-sub { opacity: .6; }
 .hd-card.locked { cursor: default; opacity: .6; }
 .hd-streak { display: grid; justify-items: end; gap: 3px; font: 400 11px/1 var(--font-ui); color: var(--tx-muted); }
 .hd-streak b { font: 600 16px/1 var(--font-ui); color: var(--tx-primary); }
@@ -547,5 +549,14 @@ useLiveEvents(load)
   .hk-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hk-chips { display: none; }
   .hd-ring { width: 36px; height: 36px; }
+}
+/* Handy: Kennzahlen als eine schmale Zeile, damit die Liste zum Abhaken oben bleibt. */
+@media (max-width: 640px) {
+  .hk-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 16px; }
+  .hk-stat { gap: 4px; padding: 8px 10px; }
+  .hk-stat .lbl { font-size: 10px; line-height: 1.2; }
+  .hk-stat b { font-size: 18px; }
+  .hk-stat small { font-size: 12px; }
+  .hk-stat .pbar, .hk-note { display: none; }
 }
 </style>

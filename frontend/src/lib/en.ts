@@ -263,6 +263,8 @@ const en: Record<string, string> = {
   '{time} geplant': '{time} planned',
   'Keine Beschreibung': 'No description',
   '{n} erledigt': '{n} done',
+  'keine Aufgaben': 'no tasks',
+  'aktiv {when}': 'active {when}',
   '{n} Aufgabe ohne Schätzung, gerechnet mit 30 Min.': '{n} task without estimate, counted as 30 min.',
   '{n} Aufgaben ohne Schätzung, gerechnet mit 30 Min.': '{n} tasks without estimate, counted as 30 min.',
   'Überplant um {time} h': 'Overplanned by {time} h',
