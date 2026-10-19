@@ -147,3 +147,37 @@ func TestBacklinksCacheInvalidation(t *testing.T) {
 		t.Fatalf("c.md nach Save: %+v", got)
 	}
 }
+
+// Umbenennen zieht [[Links]] in anderen Notizen mit (Name und Pfad, Suffix bleibt).
+func TestMoveRewritesLinks(t *testing.T) {
+	dir := t.TempDir()
+	for p, c := range map[string]string{
+		"a.md":      "Siehe [[SE]], [[Uni/SE]] und [[SE#Ziele|mehr]].\n",
+		"Uni/SE.md": "# SE\n",
+		"b.md":      "[[Andere]] bleibt unberührt.\n",
+	} {
+		full := filepath.Join(dir, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(c), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	if err := s.Move("Uni/SE.md", "Uni/SoftwareEngineering.md"); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "a.md"))
+	if got, want := string(b), "Siehe [[SoftwareEngineering]], [[Uni/SoftwareEngineering]] und [[SoftwareEngineering#Ziele|mehr]].\n"; got != want {
+		t.Fatalf("a.md = %q, erwartet %q", got, want)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "b.md")); string(b) != "[[Andere]] bleibt unberührt.\n" {
+		t.Errorf("b.md wurde verändert: %q", b)
+	}
+}

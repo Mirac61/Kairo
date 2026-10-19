@@ -202,12 +202,68 @@ func (s *Store) Move(from, to string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	defer s.invalidate()
+	// Index vor dem Umbenennen festhalten: er kennt die Verweise auf from, damit andere
+	// Notizen ihre [[Links]] mitziehen können.
+	var old *backlinkIndex
+	if !fi.IsDir() && Kind(from) == "md" {
+		old, _ = s.index()
+	}
 	// Rename ersetzt ein vorhandenes Ziel stillschweigend. Ausnahme: das Ziel ist die Quelle selbst
 	// (nur Groß-/Kleinschreibung geändert, auf macOS ohne Unterscheidung der Schreibweise).
 	if ti, err := s.root.Lstat(to); err == nil && !os.SameFile(fi, ti) {
 		return fmt.Errorf("%w: %s existiert schon", domain.ErrConflict, to)
 	}
-	return mapErr(s.root.Rename(from, to))
+	if err := s.root.Rename(from, to); err != nil {
+		return mapErr(err)
+	}
+	if old == nil {
+		return nil
+	}
+	return s.rewriteLinks(from, to, old)
+}
+
+// rewriteLinks ersetzt in den Notizen, die auf from verweisen, den [[Link]] durch den neuen
+// Namen/Pfad to. Ein Pfad-Link bekommt den neuen Pfad, ein [[Name]] den neuen Basename; das
+// Suffix (#…|…) und ein führendes „!“ bleiben erhalten.
+func (s *Store) rewriteLinks(from, to string, idx *backlinkIndex) error {
+	fromStem := strings.ToLower(strings.TrimSuffix(from, ".md"))
+	toStem := strings.TrimSuffix(to, ".md")
+	newBase := path.Base(toStem)
+	for _, src := range idx.backlinks[fromStem] {
+		q := src.Path
+		b, err := s.root.ReadFile(q)
+		if err != nil {
+			continue
+		}
+		fi, err := s.root.Stat(q)
+		if err != nil {
+			continue
+		}
+		dir := path.Dir(q)
+		if dir == "." {
+			dir = ""
+		}
+		changed := false
+		newText := wikiLinkFull.ReplaceAllStringFunc(string(b), func(match string) string {
+			m := wikiLinkFull.FindStringSubmatch(match)
+			name := strings.TrimSpace(m[2])
+			if !strings.EqualFold(resolveTarget(name, dir, idx.stems, idx.byBase), from) {
+				return match
+			}
+			changed = true
+			newName := newBase
+			if strings.Contains(name, "/") {
+				newName = toStem
+			}
+			return m[1] + "[[" + newName + m[3] + "]]"
+		})
+		if changed {
+			if err := s.root.WriteFile(q, []byte(newText), fi.Mode().Perm()); err != nil {
+				return mapErr(err)
+			}
+		}
+	}
+	return nil
 }
 
 // Open öffnet ein PDF, Bild, Code oder eine Zeichnung zum Ausliefern.
@@ -341,6 +397,10 @@ type Backlink struct {
 
 // wikilink: [[Name]], [[Name|Alias]], [[Name#Überschrift]] (auch als ![[Name]]); Gruppe 1 ist der Name.
 var wikilink = regexp.MustCompile(`\[\[([^\[\]|#\n]+)(?:[#|][^\[\]\n]*)?\]\]`)
+
+// wikiLinkFull erfasst einen ganzen Wikilink samt optionalem „!“ und Suffix (#…|…), damit
+// das Umschreiben beim Umbenennen den Namen austauscht und den Rest behält.
+var wikiLinkFull = regexp.MustCompile(`(!?)\[\[([^\[\]|#\n]+)((?:[#|][^\[\]\n]*)?)\]\]`)
 
 // resolveTarget löst ein [[…]]-Ziel zu einem Notizpfad auf (wie resolveNote im Frontend):
 // ein Pfad (mit „/“) muss exakt passen, ein bloßer Name zuerst neben dir, sonst der kürzeste Pfad.
