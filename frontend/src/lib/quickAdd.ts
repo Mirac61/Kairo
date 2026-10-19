@@ -2,7 +2,8 @@
 //   Dauer:    30m · 30 min · 1h · 1,5h · 1h30        Tag:  @heute · @morgen · @übermorgen · @mo … @sonntag · @12.10.
 //   Uhrzeit:  @14:30 (ohne Tag: heute)               Projekt: #name (ganzer Name oder Anfang, Groß/Klein egal)
 //   Priorität: !dringend · !hoch · !mittel · !niedrig
-//   Wiederholung: @täglich · @werktags · @wöchentlich · @jeden freitag · @jede woche (ohne Tag: erster passender ab heute)
+//   Wiederholung: @täglich · @werktags · @wöchentlich · @monatlich · @jährlich · @jeden freitag · @jeden monat
+//                 (ohne Tag: erster passender ab heute; monatlich/jährlich am Tag des ersten Termins)
 // Englisch geht immer mit: @today · @tomorrow · @mon … @sunday · !urgent · !high · !medium · !low.
 // Reine Funktion ohne Imports, damit quickAdd.test.ts sie direkt mit Node prüfen kann.
 export interface QuickProject { id: string; name: string }
@@ -49,11 +50,14 @@ const RRULE_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
 const WORKDAYS = 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'
 const SIMPLE_RULES: Record<string, string> = {
   täglich: 'FREQ=DAILY', daily: 'FREQ=DAILY', werktags: WORKDAYS, weekdays: WORKDAYS, wöchentlich: 'FREQ=WEEKLY', weekly: 'FREQ=WEEKLY',
+  monatlich: 'FREQ=MONTHLY', monthly: 'FREQ=MONTHLY', jährlich: 'FREQ=YEARLY', yearly: 'FREQ=YEARLY',
 }
-// Wort nach „@jeden“/„@every“: Tag, Woche oder ein Wochentag (ganz oder Anfang ab zwei Buchstaben).
+// Wort nach „@jeden“/„@every“: Tag, Woche, Monat, Jahr oder ein Wochentag (ganz oder Anfang ab zwei Buchstaben).
 function everyRule(word: string): string | null {
   if (['tag', 'day'].includes(word)) return 'FREQ=DAILY'
   if (['woche', 'week'].includes(word)) return 'FREQ=WEEKLY'
+  if (['monat', 'month'].includes(word)) return 'FREQ=MONTHLY'
+  if (['jahr', 'year'].includes(word)) return 'FREQ=YEARLY'
   const wd = word.length < 2 ? -1 : WEEKDAYS.findIndex((names) => names.some((n) => n.startsWith(word)))
   return wd >= 0 ? `FREQ=WEEKLY;BYDAY=${RRULE_DAYS[wd]}` : null
 }
@@ -67,6 +71,7 @@ function firstDay(rule: string, today: string): string {
 // Lesbarer Name einer Regel für Zeile und Auswahl; unbekannte Regeln zeigen sich roh.
 export const RULE_PRESETS: [string, string][] = [
   ['FREQ=DAILY', 'Täglich'], [WORKDAYS, 'Werktags'], ['FREQ=WEEKLY', 'Wöchentlich'], ['FREQ=WEEKLY;INTERVAL=2', 'Alle 2 Wochen'],
+  ['FREQ=MONTHLY', 'Monatlich'], ['FREQ=MONTHLY;BYMONTHDAY=-1', 'Am Monatsletzten'], ['FREQ=YEARLY', 'Jährlich'],
 ]
 const DAY_NAMES = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
 export function ruleLabel(rule: string): { key: string; day?: string } {

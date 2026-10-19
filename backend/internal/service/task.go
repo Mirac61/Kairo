@@ -268,7 +268,15 @@ func nextRecurrence(t domain.Task, loc *time.Location, clock time.Time) (*domain
 		from = today
 	}
 	from = from.AddDate(0, 0, 1)
-	starts := rule.Starts(anchor, from, from.AddDate(0, 0, 7*rule.Interval+7))
+	// Suchfenster bis sicher eine Wiederholung kommt; Monate und Jahre können ausfallen (31., 29.2.).
+	horizon := from.AddDate(0, 0, 7*rule.Interval+7)
+	switch rule.Freq {
+	case domain.Monthly:
+		horizon = from.AddDate(0, 12*rule.Interval, 0)
+	case domain.Yearly:
+		horizon = from.AddDate(8*rule.Interval, 0, 0)
+	}
+	starts := rule.Starts(anchor, from, horizon)
 	if len(starts) == 0 {
 		return nil, nil
 	}

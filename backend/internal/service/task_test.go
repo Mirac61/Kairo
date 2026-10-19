@@ -181,6 +181,17 @@ func TestTaskRecurrence(t *testing.T) {
 	}
 	delete(store.m, next[0].ID)
 
+	// Monatlich am Monatsletzten, geplant 30.9., erledigt am 6.10.: nächste am 31.10.
+	mo, _ := svc.Create(ctx, CreateTaskInput{Title: "Miete", PlannedDate: ptr("2026-09-30"), RecurrenceRule: ptr("FREQ=MONTHLY;BYMONTHDAY=-1")})
+	if _, err := svc.Update(ctx, mo.ID, UpdateTaskInput{Status: &done}); err != nil {
+		t.Fatal(err)
+	}
+	if next := others(mo.ID); len(next) != 1 || *next[0].PlannedDate != "2026-10-31" {
+		t.Fatalf("monatlich: %+v", next)
+	} else {
+		delete(store.m, next[0].ID)
+	}
+
 	// Täglich, überfällig seit Freitag: nächste ist morgen, nicht der Samstag in der Vergangenheit.
 	d, _ := svc.Create(ctx, CreateTaskInput{Title: "Lesen", PlannedDate: ptr("2026-10-02"), RecurrenceRule: ptr("FREQ=DAILY")})
 	if _, err := svc.Update(ctx, d.ID, UpdateTaskInput{Status: &done}); err != nil {
@@ -198,7 +209,7 @@ func TestTaskRecurrence(t *testing.T) {
 	if _, err := svc.Update(ctx, u.ID, UpdateTaskInput{Status: &done}); err != nil || len(others(u.ID)) != 0 {
 		t.Errorf("UNTIL: err=%v, andere=%v", err, others(u.ID))
 	}
-	for _, r := range []string{"FREQ=DAILY;COUNT=3", "FREQ=MONTHLY"} {
+	for _, r := range []string{"FREQ=DAILY;COUNT=3", "FREQ=HOURLY"} {
 		if _, err := svc.Create(ctx, CreateTaskInput{Title: "x", RecurrenceRule: ptr(r)}); !errors.Is(err, domain.ErrInvalid) {
 			t.Errorf("%s: err = %v", r, err)
 		}

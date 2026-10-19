@@ -116,7 +116,7 @@ func TestCalendarErrors(t *testing.T) {
 		"leerer Titel":     {"POST", "/api/calendar/events", `{"title":"",` + times + `}`, 400},
 		"ohne Zeiten":      {"POST", "/api/calendar/events", `{"title":"x"}`, 400},
 		"Ende vor Start":   {"POST", "/api/calendar/events", `{"title":"x","start_at":"2026-10-07T09:00:00Z","end_at":"2026-10-07T08:00:00Z"}`, 400},
-		"falsche Regel":    {"POST", "/api/calendar/events", `{"title":"x",` + times + `,"recurrence_rule":"FREQ=YEARLY"}`, 400},
+		"falsche Regel":    {"POST", "/api/calendar/events", `{"title":"x",` + times + `,"recurrence_rule":"FREQ=HOURLY"}`, 400},
 		"unbekannte Task":  {"POST", "/api/calendar/events", `{"title":"x",` + times + `,"task_id":"nope"}`, 400},
 		"unbekanntes Feld": {"POST", "/api/calendar/events", `{"title":"x",` + times + `,"foo":1}`, 400},
 		"nur from":         {"GET", "/api/calendar/events?from=2026-10-07T00:00:00Z", "", 400},
@@ -153,7 +153,7 @@ const importICS = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" +
 	"BEGIN:VEVENT\r\nUID:w@uni\r\nSUMMARY:Beispielkurs\r\nLOCATION:HS 1\r\nDTSTART:20261007T083000Z\r\nDTEND:20261007T100000Z\r\n" +
 	"RRULE:FREQ=WEEKLY;BYDAY=WE;UNTIL=20261031T000000Z\r\nEXDATE:20261014T083000Z\r\nEND:VEVENT\r\n" +
 	"BEGIN:VEVENT\r\nUID:d@uni\r\nSUMMARY:Ferien\r\nDTSTART;VALUE=DATE:20261224\r\nDTEND;VALUE=DATE:20261227\r\nEND:VEVENT\r\n" +
-	"BEGIN:VEVENT\r\nUID:m@uni\r\nSUMMARY:Monatlich\r\nDTSTART:20261001T080000Z\r\nDTEND:20261001T090000Z\r\nRRULE:FREQ=MONTHLY\r\nEND:VEVENT\r\n" +
+	"BEGIN:VEVENT\r\nUID:m@uni\r\nSUMMARY:Monatlich\r\nDTSTART:20261001T080000Z\r\nDTEND:20261001T090000Z\r\nRRULE:FREQ=MONTHLY;BYDAY=1MO\r\nEND:VEVENT\r\n" +
 	"BEGIN:VEVENT\r\nUID:w@uni\r\nSUMMARY:Beispielkurs verschoben\r\nRECURRENCE-ID:20261021T083000Z\r\nDTSTART:20261022T083000Z\r\nDTEND:20261022T100000Z\r\nEND:VEVENT\r\n" +
 	"END:VCALENDAR\r\n"
 

@@ -19,6 +19,15 @@ test('Serienregel: Dialog -> RRULE -> Dialog', () => {
   assert.deepEqual([back.repeat, back.days, back.until, back.day, back.customRule], [true, ['MO', 'WE'], '2026-12-31', '2026-10-07', null])
 })
 
+test('Monatlich und jährlich: Dialog -> RRULE -> Dialog', () => {
+  const f = newForm(new Date(2026, 9, 7, 10, 0), new Date(2026, 9, 7, 11, 0), false)
+  Object.assign(f, { repeat: true, freq: 'MONTHLY', until: '2027-06-30' })
+  assert.equal(ruleOf(f), 'FREQ=MONTHLY;UNTIL=20270630')
+  const back = editForm(ev({ recurrence_rule: 'FREQ=YEARLY' }), '2026-10-07')
+  assert.deepEqual([back.repeat, back.freq, back.until, back.customRule], [true, 'YEARLY', '', null])
+  assert.equal(ruleOf(back), 'FREQ=YEARLY')
+})
+
 test('Eigene Regeln bleiben unverändert', () => {
   const f = editForm(ev({ recurrence_rule: 'FREQ=MONTHLY;BYMONTHDAY=1' }), '2026-10-07')
   assert.deepEqual([f.repeat, f.customRule], [false, 'FREQ=MONTHLY;BYMONTHDAY=1'])

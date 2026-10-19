@@ -1,10 +1,13 @@
 import type { CalendarEvent, EventBody, Task } from '@/api/client'
 import { addDays, hhmm, ymd } from './dates.ts'
 
-// Wiederholung: wöchentlich an Wochentagen, optional mit Enddatum (RRULE-Teilmenge des Backends).
+// Wiederholung: wöchentlich an Wochentagen, monatlich am Tag des Starts oder jährlich, optional mit Enddatum
+// (RRULE-Teilmenge des Backends).
 export const WEEKDAYS = [['MO', 'Mo'], ['TU', 'Di'], ['WE', 'Mi'], ['TH', 'Do'], ['FR', 'Fr'], ['SA', 'Sa'], ['SU', 'So']] as const
 const CODE_OF_DAY = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] // Index = Date.getDay()
 const WEEKLY_RULE = /^FREQ=WEEKLY;BYDAY=([A-Z,]+)(?:;UNTIL=(\d{4})(\d{2})(\d{2}))?$/
+const MONTH_YEAR_RULE = /^FREQ=(MONTHLY|YEARLY)(?:;UNTIL=(\d{4})(\d{2})(\d{2}))?$/
+export type Freq = 'WEEKLY' | 'MONTHLY' | 'YEARLY'
 
 // Ganztägig = von Mitternacht bis Mitternacht (ab 23 h wegen der Zeitumstellung); das Backend kennt kein eigenes Flag.
 const atMidnight = (d: Date) => d.getHours() === 0 && d.getMinutes() === 0
@@ -27,7 +30,8 @@ export interface Form {
   keepTimes: boolean // mehrtägiger Termin mit Uhrzeit: Zeiten bleiben unverändert (der Dialog kennt nur einen Tag)
   projectId: string // '' = kein Projekt
   repeat: boolean
-  days: string[]
+  freq: Freq
+  days: string[] // nur bei WEEKLY
   until: string
   customRule: string | null // Regel, die der Dialog nicht abbildet; bleibt unverändert
   day: string // Tag der angeklickten Instanz, nur bei Serien gesetzt
@@ -39,7 +43,7 @@ export function newForm(start: Date, end: Date, allDay: boolean): Form {
     id: null, kind: 'event', title: '', location: '', date: ymd(start),
     from: allDay ? '09:00' : hhmm(start), to: allDay ? '10:00' : hhmm(end), allDay,
     endDate: allDay ? lastDay(end) : ymd(start), keepTimes: false, projectId: '',
-    repeat: false, days: [CODE_OF_DAY[start.getDay()]!], until: '', customRule: null, day: '', ask: false,
+    repeat: false, freq: 'WEEKLY', days: [CODE_OF_DAY[start.getDay()]!], until: '', customRule: null, day: '', ask: false,
   }
 }
 
@@ -52,7 +56,9 @@ export function editForm(ev: CalendarEvent, day: string): Form {
   }
   const rule = ev.recurrence_rule
   const m = rule?.match(WEEKLY_RULE)
+  const my = rule?.match(MONTH_YEAR_RULE)
   if (m) Object.assign(f, { repeat: true, days: m[1]!.split(','), until: m[2] ? `${m[2]}-${m[3]}-${m[4]}` : '' })
+  else if (my) Object.assign(f, { repeat: true, freq: my[1], until: my[2] ? `${my[2]}-${my[3]}-${my[4]}` : '' })
   else if (rule) f.customRule = rule
   return f
 }
@@ -60,8 +66,10 @@ export function editForm(ev: CalendarEvent, day: string): Form {
 // RRULE des Dialogs; '' = keine Wiederholung.
 export function ruleOf(f: Form): string {
   if (!f.repeat) return ''
+  const until = f.until ? `;UNTIL=${f.until.replaceAll('-', '')}` : ''
+  if (f.freq !== 'WEEKLY') return `FREQ=${f.freq}${until}` // Tag (und Monat) kommen vom ersten Termin
   const days = f.days.length ? f.days : [CODE_OF_DAY[new Date(`${f.date}T00:00:00`).getDay()]!]
-  return `FREQ=WEEKLY;BYDAY=${days.join(',')}${f.until ? `;UNTIL=${f.until.replaceAll('-', '')}` : ''}`
+  return `FREQ=WEEKLY;BYDAY=${days.join(',')}${until}`
 }
 
 // Was „Speichern“ im Dialog schickt: eine neue Task oder die Felder eines Termins.

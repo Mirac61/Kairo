@@ -83,7 +83,7 @@ func TestEventCreateValidation(t *testing.T) {
 		"Start fehlt":         mod(func(i *CreateEventInput) { i.StartAt = "" }),
 		"Ende vor Start":      mod(func(i *CreateEventInput) { i.EndAt = i.StartAt }),
 		"falsche URL":         mod(func(i *CreateEventInput) { i.URL = "ftp://x" }),
-		"falsche Regel":       mod(func(i *CreateEventInput) { i.RecurrenceRule = ptr("FREQ=YEARLY") }),
+		"falsche Regel":       mod(func(i *CreateEventInput) { i.RecurrenceRule = ptr("FREQ=HOURLY") }),
 		"Ausnahme ohne Regel": mod(func(i *CreateEventInput) { i.RecurrenceExdates = []string{"2026-10-14"} }),
 		"falsche Ausnahme": mod(func(i *CreateEventInput) {
 			i.RecurrenceRule = ptr("FREQ=DAILY")

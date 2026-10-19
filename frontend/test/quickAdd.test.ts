@@ -45,6 +45,9 @@ assert.deepEqual([f('Review @wöchentlich @fr').rule, f('Review @wöchentlich @f
 assert.equal(f('Ich @jeden').title, 'Ich @jeden') // ohne Folgewort kein Token
 assert.equal(f('x @jeden quatsch').title, 'x @jeden quatsch')
 assert.equal(f('x @every monday').rule, 'FREQ=WEEKLY;BYDAY=MO')
+assert.deepEqual([f('Miete @monatlich').title, f('Miete @monatlich').rule], ['Miete', 'FREQ=MONTHLY'])
+assert.equal(f('Steuer @jedes jahr').rule, 'FREQ=YEARLY')
+assert.equal(f('Bericht @jeden monat').rule, 'FREQ=MONTHLY')
 assert.equal(f('#Kairo').title, '') // nur Token: kein Titel, die Ansicht legt nichts an
 console.log('quickAdd: ok')
 

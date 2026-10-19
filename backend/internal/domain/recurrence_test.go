@@ -37,7 +37,8 @@ func equal(a, b []string) bool {
 
 func TestParseRuleErrors(t *testing.T) {
 	for _, s := range []string{
-		"", "FREQ", "FREQ=MONTHLY", "INTERVAL=2", "FREQ=DAILY;INTERVAL=0", "FREQ=DAILY;COUNT=x",
+		"", "FREQ", "FREQ=HOURLY", "INTERVAL=2", "FREQ=MONTHLY;BYMONTHDAY=0", "FREQ=MONTHLY;BYMONTHDAY=-2",
+		"FREQ=WEEKLY;BYMONTHDAY=1", "FREQ=MONTHLY;BYDAY=1MO", "FREQ=DAILY;INTERVAL=0", "FREQ=DAILY;COUNT=x",
 		"FREQ=DAILY;COUNT=2;UNTIL=20261231", "FREQ=DAILY;BYDAY=MO", "FREQ=WEEKLY;BYDAY=1MO",
 		"FREQ=WEEKLY;BYDAY=XX", "FREQ=DAILY;FREQ=DAILY", "FREQ=DAILY;BYMONTH=1", "FREQ=DAILY;UNTIL=morgen",
 	} {
@@ -62,6 +63,36 @@ func TestDailyIntervalAndCount(t *testing.T) {
 	got = days(r.Starts(start, start.AddDate(0, 0, 2), start.AddDate(0, 1, 0)), loc)
 	if want := []string{"2026-10-07", "2026-10-09"}; !equal(got, want) {
 		t.Errorf("Fenster: got %v, want %v", got, want)
+	}
+}
+
+func TestMonthlyAndYearly(t *testing.T) {
+	loc := time.UTC
+	jan31 := time.Date(2026, 1, 31, 9, 0, 0, 0, loc)
+	for rule, want := range map[string][]string{
+		// Den 31. gibt es im Februar und April nicht: Diese Monate fallen aus.
+		"FREQ=MONTHLY":                         {"2026-01-31", "2026-03-31", "2026-05-31"},
+		"FREQ=MONTHLY;BYMONTHDAY=-1":           {"2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30", "2026-05-31"},
+		"FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=1": {"2026-03-01", "2026-05-01"}, // der 1.1. liegt vor dem Start
+		"FREQ=MONTHLY;COUNT=2":                 {"2026-01-31", "2026-03-31"},
+	} {
+		r, err := ParseRule(rule, loc)
+		if err != nil {
+			t.Fatal(rule, err)
+		}
+		if got := days(r.Starts(jan31, jan31, time.Date(2026, 6, 1, 0, 0, 0, 0, loc)), loc); !equal(got, want) {
+			t.Errorf("%s: got %v, want %v", rule, got, want)
+		}
+	}
+	// Ein Fenster weit nach dem Start springt vor und liefert trotzdem den richtigen Monat.
+	r, _ := ParseRule("FREQ=MONTHLY;BYMONTHDAY=15", loc)
+	if got := days(r.Starts(jan31, time.Date(2030, 7, 1, 0, 0, 0, 0, loc), time.Date(2030, 8, 1, 0, 0, 0, 0, loc)), loc); !equal(got, []string{"2030-07-15"}) {
+		t.Errorf("weit später: %v", got)
+	}
+	leap := time.Date(2028, 2, 29, 0, 0, 0, 0, loc)
+	r, _ = ParseRule("FREQ=YEARLY", loc)
+	if got := days(r.Starts(leap, leap, time.Date(2034, 1, 1, 0, 0, 0, 0, loc)), loc); !equal(got, []string{"2028-02-29", "2032-02-29"}) {
+		t.Errorf("29.2. jährlich: %v", got)
 	}
 }
 

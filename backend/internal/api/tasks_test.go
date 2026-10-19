@@ -134,7 +134,7 @@ func TestTasksRecurrence(t *testing.T) {
 	if len(list) != 1 || list[0].ID == task.ID || list[0].RecurrenceRule == nil || *list[0].PlannedDate <= "2026-10-09" {
 		t.Errorf("nächste = %+v", list)
 	}
-	if rec := call(h, "PATCH", "/api/tasks/"+task.ID, `{"recurrence_rule":"FREQ=YEARLY"}`); rec.Code != 400 {
+	if rec := call(h, "PATCH", "/api/tasks/"+task.ID, `{"recurrence_rule":"FREQ=HOURLY"}`); rec.Code != 400 {
 		t.Errorf("ungültige Regel = %d", rec.Code)
 	}
 }

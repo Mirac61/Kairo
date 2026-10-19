@@ -16,15 +16,28 @@ var weekdayCodes = map[string]time.Weekday{
 	"FR": time.Friday, "SA": time.Saturday, "SU": time.Sunday,
 }
 
+// RuleFreq ist die Grundeinheit einer Regel.
+type RuleFreq int
+
+const (
+	Daily RuleFreq = iota
+	Weekly
+	Monthly
+	Yearly
+)
+
 // Rule ist eine wiederkehrende Regel (RRULE-Teilmenge aus RFC 5545):
-// FREQ=DAILY|WEEKLY, INTERVAL, BYDAY (nur WEEKLY, ohne Zahlenpräfix),
-// COUNT oder UNTIL (nicht beides).
+// FREQ=DAILY|WEEKLY|MONTHLY|YEARLY, INTERVAL, BYDAY (nur WEEKLY, ohne Zahlenpräfix),
+// BYMONTHDAY (nur MONTHLY, ein Wert 1..31 oder -1 für den Monatsletzten),
+// COUNT oder UNTIL (nicht beides). Fehlt ein Tag im Monat (31. im April, 29.2.),
+// fällt die Wiederholung aus und zählt nicht, wie in RFC 5545.
 type Rule struct {
-	Weekly   bool
-	Interval int
-	ByDay    []time.Weekday // aufsteigend ab Montag, leer = Wochentag des Starts
-	Count    int            // 0 = unbegrenzt
-	Until    *time.Time     // inklusive Obergrenze für den Beginn einer Wiederholung
+	Freq       RuleFreq
+	Interval   int
+	ByDay      []time.Weekday // aufsteigend ab Montag, leer = Wochentag des Starts
+	ByMonthDay int            // 0 = Tag des Starts, -1 = Monatsletzter
+	Count      int            // 0 = unbegrenzt
+	Until      *time.Time     // inklusive Obergrenze für den Beginn einer Wiederholung
 }
 
 func invalidRule(format string, args ...any) error {
@@ -53,9 +66,13 @@ func ParseRule(s string, loc *time.Location) (Rule, error) {
 			switch strings.ToUpper(v) {
 			case "DAILY":
 			case "WEEKLY":
-				r.Weekly = true
+				r.Freq = Weekly
+			case "MONTHLY":
+				r.Freq = Monthly
+			case "YEARLY":
+				r.Freq = Yearly
 			default:
-				return Rule{}, invalidRule("FREQ %q wird nicht unterstützt (DAILY, WEEKLY)", v)
+				return Rule{}, invalidRule("FREQ %q wird nicht unterstützt (DAILY, WEEKLY, MONTHLY, YEARLY)", v)
 			}
 			haveFreq = true
 		case "INTERVAL":
@@ -89,6 +106,12 @@ func ParseRule(s string, loc *time.Location) (Rule, error) {
 				r.ByDay = append(r.ByDay, d)
 			}
 			sort.Slice(r.ByDay, func(i, j int) bool { return mondayIndex(r.ByDay[i]) < mondayIndex(r.ByDay[j]) })
+		case "BYMONTHDAY":
+			n, err := strconv.Atoi(v)
+			if err != nil || n == 0 || n < -1 || n > 31 {
+				return Rule{}, invalidRule("BYMONTHDAY muss 1..31 oder -1 sein")
+			}
+			r.ByMonthDay = n
 		default:
 			return Rule{}, invalidRule("%s wird nicht unterstützt", k)
 		}
@@ -98,8 +121,10 @@ func ParseRule(s string, loc *time.Location) (Rule, error) {
 		return Rule{}, invalidRule("FREQ fehlt")
 	case r.Count > 0 && r.Until != nil:
 		return Rule{}, invalidRule("COUNT und UNTIL schließen sich aus")
-	case len(r.ByDay) > 0 && !r.Weekly:
+	case len(r.ByDay) > 0 && r.Freq != Weekly:
 		return Rule{}, invalidRule("BYDAY geht nur mit FREQ=WEEKLY")
+	case r.ByMonthDay != 0 && r.Freq != Monthly:
+		return Rule{}, invalidRule("BYMONTHDAY geht nur mit FREQ=MONTHLY")
 	}
 	return r, nil
 }
@@ -152,7 +177,37 @@ func (r Rule) Starts(dtstart, from, to time.Time) []time.Time {
 		skipDays = int(from.Sub(dtstart) / (24 * time.Hour))
 	}
 
-	if !r.Weekly {
+	if r.Freq == Monthly || r.Freq == Yearly {
+		step := r.Interval
+		if r.Freq == Yearly {
+			step *= 12
+		}
+		day := d
+		if r.ByMonthDay != 0 {
+			day = r.ByMonthDay
+		}
+		for k := max(0, skipDays/(31*step)-1); k < maxPeriods; k++ {
+			first := time.Date(y, m+time.Month(k*step), 1, h, mi, s, 0, loc)
+			last := first.AddDate(0, 1, -1).Day()
+			dd := day
+			if dd == -1 {
+				dd = last
+			}
+			if dd > last {
+				continue // gibt es in diesem Monat nicht
+			}
+			t := time.Date(first.Year(), first.Month(), dd, h, mi, s, 0, loc)
+			if t.Before(dtstart) {
+				continue // BYMONTHDAY vor dem Starttag im ersten Monat
+			}
+			if !emit(t) {
+				break
+			}
+		}
+		return out
+	}
+
+	if r.Freq == Daily {
 		for k := max(0, skipDays/r.Interval-1); k < maxPeriods; k++ {
 			if !emit(at(k * r.Interval)) {
 				break

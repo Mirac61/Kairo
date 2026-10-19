@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
 import type { Project } from '@/api/client'
-import { WEEKDAYS, type Form } from '@/lib/eventForm'
+import { WEEKDAYS, type Form, type Freq } from '@/lib/eventForm'
 import { vDialog } from '@/lib/dialog'
 
 // Dialog zum Anlegen (Termin oder Task) und Bearbeiten von Terminen; form wird direkt bearbeitet.
@@ -9,6 +9,7 @@ const props = defineProps<{ form: Form; projects: Project[] }>()
 defineEmits<{ save: []; remove: [onlyThis: boolean]; close: [] }>()
 
 const kindOptions = [{ label: 'Termin', value: 'event' }, { label: 'Task', value: 'task' }]
+const FREQS: [Freq, string][] = [['WEEKLY', 'Wöchentlich'], ['MONTHLY', 'Monatlich'], ['YEARLY', 'Jährlich']]
 
 const toggleDay = (code: string) => {
   const f = props.form
@@ -46,9 +47,12 @@ const askDelete = () => {
           <div class="field"><label>{{ $t('Ort') }}</label><input v-model="form.location" class="input" :placeholder="$t('optional')" /></div>
           <span v-if="form.customRule" class="lbl">{{ $t('Serie mit eigener Regel ({rule}); sie bleibt unverändert.', { rule: form.customRule }) }}</span>
           <template v-else>
-            <label class="lbl"><input v-model="form.repeat" type="checkbox" /> {{ $t('Wöchentlich wiederholen') }}</label>
+            <label class="lbl"><input v-model="form.repeat" type="checkbox" /> {{ $t('Als Serie wiederholen') }}</label>
             <template v-if="form.repeat">
-              <div class="seg" role="group" :aria-label="$t('Wochentage')">
+              <div class="seg" role="group" :aria-label="$t('Wiederholung')">
+                <button v-for="[fq, label] in FREQS" :key="fq" type="button" :aria-pressed="form.freq === fq" @click="form.freq = fq">{{ $t(label) }}</button>
+              </div>
+              <div v-if="form.freq === 'WEEKLY'" class="seg" role="group" :aria-label="$t('Wochentage')">
                 <button v-for="[code, label] in WEEKDAYS" :key="code" type="button" :aria-pressed="form.days.includes(code)" @click="toggleDay(code)">{{ label }}</button>
               </div>
               <div class="field"><label>{{ $t('Endet am') }}</label><input v-model="form.until" class="input" type="date" :min="form.date" /></div>
