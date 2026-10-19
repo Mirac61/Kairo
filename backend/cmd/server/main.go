@@ -23,6 +23,7 @@ import (
 	"kairo/internal/config"
 	"kairo/internal/domain"
 	"kairo/internal/github"
+	"kairo/internal/importer"
 	"kairo/internal/notes"
 	"kairo/internal/realtime"
 	"kairo/internal/reminder"
@@ -82,8 +83,10 @@ func dispatch(args []string) error {
 		return backup(args[1:])
 	case "restore":
 		return restore(args[1:])
+	case "import":
+		return importJSON(args[1:])
 	default:
-		return fmt.Errorf("unbekannter Befehl %q (erlaubt: install, uninstall, backup [datei], restore <datei> oder ohne Argument den Server starten)", args[0])
+		return fmt.Errorf("unbekannter Befehl %q (erlaubt: install, uninstall, backup [datei], restore <datei>, import <datei> oder ohne Argument den Server starten)", args[0])
 	}
 }
 
@@ -193,7 +196,40 @@ func backup(args []string) error {
 // backupDir ist das Verzeichnis für Backups: backups/ neben der Datenbank.
 func backupDir(cfg config.Config) string { return filepath.Join(filepath.Dir(cfg.DBPath), "backups") }
 
-// errRestart beendet run, damit dispatch den Prozess neu startet.
+// importJSON stellt eine Export-Datei (GET /api/export.json) wieder her. Für einen leeren
+// Bestand gedacht; läuft der Server noch auf dem konfigurierten Port, bricht es ab.
+func importJSON(args []string) error {
+	if len(args) != 1 {
+		return errors.New("Aufruf: kairo import <datei>")
+	}
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		return err
+	}
+	if ln, err := net.Listen("tcp", cfg.Addr()); err != nil {
+		return fmt.Errorf("%s ist belegt, läuft Kairo noch? Erst stoppen", cfg.Addr())
+	} else {
+		ln.Close()
+	}
+	f, err := os.Open(args[0])
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	ctx := context.Background()
+	db, err := repository.Open(ctx, cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	res, err := importer.Import(ctx, db, f)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Importiert: %d Projekte, %d Aufgaben, %d Gewohnheiten, %d Abhakungen, %d Termine, %d Zeiteinträge, %d Ressourcen\n",
+		res.Projects, res.Tasks, res.Habits, res.HabitCompletions, res.CalendarEvents, res.TimeEntries, res.Resources)
+	return nil
+} // errRestart beendet run, damit dispatch den Prozess neu startet.
 var errRestart = errors.New("Neustart")
 
 // reminderStore verbindet TaskRepository und CalendarService für den Erinnerungs-Scheduler.
