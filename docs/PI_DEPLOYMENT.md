@@ -99,6 +99,27 @@ ssh -t <benutzer>@<pi-host> sudo systemctl start kairo
 | `KAIRO_AUTH` | – | `true` erzwingt Login auch bei `127.0.0.1`, etwa hinter einem Port-Forward |
 | `KAIRO_COOKIE_SECURE` | – | `true` nur hinter einem HTTPS-Reverse-Proxy. Kairo selbst spricht HTTP |
 | `KAIRO_SESSION_TTL` | – | Gültigkeit einer Anmeldung, Standard `720h` |
+| `KAIRO_NTFY_URL` | `http://<wg-ip>:<ntfy-port>` | ntfy-Server (auf dem Pi, nicht ntfy.sh). Mit Topic aktiviert es Erinnerungen |
+| `KAIRO_NTFY_TOPIC` | `kairo` | Topic für die Erinnerungen (Vorlauf `KAIRO_NTFY_LEAD`) |
+| `KAIRO_NTFY_LEAD` | `10m` | Vorlauf, mit dem vor Beginn von Aufgaben/Terminen erinnert wird |
+
+## Erinnerungen (ntfy)
+
+Auf dem Pi läuft ein eigener ntfy-Server. Damit Kairo vor dem Beginn von
+Aufgaben (mit Uhrzeit) und Terminen benachrichtigt, setzt man im
+systemd-Unit des Dienstes:
+
+```sh
+sudo systemctl edit kairo   # Override, dann:
+Environment=KAIRO_NTFY_URL=http://<wg-ip>:<ntfy-port>
+Environment=KAIRO_NTFY_TOPIC=kairo
+Environment=KAIRO_NTFY_LEAD=10m
+sudo systemctl restart kairo
+```
+
+Sind `KAIRO_NTFY_URL` und `KAIRO_NTFY_TOPIC` leer, ist die Erinnerung aus.
+Die Benachrichtigung kommt als ntfy-Post mit dem Titel als `Title` und dem
+Text „Start um HH:MM“ (ggf. plus Ort).
 
 ## Fehlersuche
 

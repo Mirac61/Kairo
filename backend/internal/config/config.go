@@ -43,6 +43,11 @@ type Config struct {
 	CookieSecure bool
 	// SessionTTL ist die Lebensdauer einer Session.
 	SessionTTL time.Duration
+	// NtfyURL und NtfyTopic aktivieren Erinnerungen per ntfy (beide gesetzt = an).
+	// Der Server erinnert vor Beginn von Aufgaben und Terminen (Vorlauf NtfyLead).
+	NtfyURL   string
+	NtfyTopic string
+	NtfyLead  time.Duration
 }
 
 // Addr liefert die Listen-Adresse.
@@ -225,6 +230,17 @@ func resolve(getenv func(string) string) (Config, error) {
 			errs = append(errs, &Error{"KAIRO_SESSION_TTL", v, "erwartet positive Dauer"})
 		} else {
 			cfg.SessionTTL = ttl
+		}
+	}
+
+	cfg.NtfyURL = getenv("KAIRO_NTFY_URL")
+	cfg.NtfyTopic = getenv("KAIRO_NTFY_TOPIC")
+	cfg.NtfyLead = 10 * time.Minute
+	if v := getenv("KAIRO_NTFY_LEAD"); v != "" {
+		if d, err := time.ParseDuration(v); err != nil || d <= 0 {
+			errs = append(errs, &Error{"KAIRO_NTFY_LEAD", v, "erwartet positive Dauer (z. B. 10m)"})
+		} else {
+			cfg.NtfyLead = d
 		}
 	}
 

@@ -170,6 +170,29 @@ func (r *TaskRepository) Update(ctx context.Context, t domain.Task) error {
 	return updateTask(ctx, r.db, t)
 }
 
+// UpcomingTasks liefert offene Tasks mit geplantem Beginn im Fenster (lo, hi]
+// (beide UTC), aufsteigend. Für die Erinnerung: nur Tasks mit Uhrzeit.
+func (r *TaskRepository) UpcomingTasks(ctx context.Context, lo, hi time.Time) ([]domain.Task, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT `+taskColumns+` FROM tasks
+		WHERE deleted_at IS NULL AND planned_start_at IS NOT NULL
+			AND status NOT IN ('COMPLETED', 'CANCELLED')
+			AND planned_start_at > ? AND planned_start_at <= ?
+		ORDER BY planned_start_at, id`, formatTime(lo), formatTime(hi))
+	if err != nil {
+		return nil, fmt.Errorf("repository: kommende Tasks lesen: %w", err)
+	}
+	defer rows.Close()
+	out := []domain.Task{}
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, fmt.Errorf("repository: Task lesen: %w", err)
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 func updateTask(ctx context.Context, q dbtx, t domain.Task) error {
 	res, err := q.ExecContext(ctx,
 		`UPDATE tasks SET project_id = ?, parent_task_id = ?, title = ?, description = ?, status = ?,

@@ -21,9 +21,11 @@ import (
 	"kairo/internal/auth"
 	"kairo/internal/autostart"
 	"kairo/internal/config"
+	"kairo/internal/domain"
 	"kairo/internal/github"
 	"kairo/internal/notes"
 	"kairo/internal/realtime"
+	"kairo/internal/reminder"
 	"kairo/internal/repository"
 	"kairo/internal/service"
 	"kairo/internal/web"
@@ -182,6 +184,20 @@ func backupDir(cfg config.Config) string { return filepath.Join(filepath.Dir(cfg
 // errRestart beendet run, damit dispatch den Prozess neu startet.
 var errRestart = errors.New("Neustart")
 
+// reminderStore verbindet TaskRepository und CalendarService für den Erinnerungs-Scheduler.
+type reminderStore struct {
+	tasks *repository.TaskRepository
+	cal   *service.CalendarService
+}
+
+func (s reminderStore) UpcomingTasks(ctx context.Context, lo, hi time.Time) ([]domain.Task, error) {
+	return s.tasks.UpcomingTasks(ctx, lo, hi)
+}
+
+func (s reminderStore) Occurrences(ctx context.Context, lo, hi time.Time) ([]domain.EventInstance, error) {
+	return s.cal.Occurrences(ctx, lo, hi)
+}
+
 func run() error {
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
@@ -229,7 +245,8 @@ func run() error {
 	defer notesStore.Close()
 
 	hub := realtime.NewHub()
-	tasks := service.NewTaskService(repository.NewTaskRepository(db), nil).WithLocation(cfg.Location)
+	taskRepo := repository.NewTaskRepository(db)
+	tasks := service.NewTaskService(taskRepo, nil).WithLocation(cfg.Location)
 	calendar := service.NewCalendarService(repository.NewCalendarRepository(db), cfg.Location, nil)
 	habits := service.NewHabitService(repository.NewHabitRepository(db), cfg.Location, nil)
 	timeTracking := service.NewTimeTrackingService(repository.NewTimeEntryRepository(db), nil).WithLocation(cfg.Location)
@@ -251,6 +268,15 @@ func run() error {
 		Hub:       hub,
 		Location:  cfg.Location,
 		GitHub:    github.New(),
+	}
+
+	// Erinnerungen per ntfy: nur wenn URL und Topic gesetzt sind.
+	if cfg.NtfyURL != "" && cfg.NtfyTopic != "" {
+		rem := reminder.New(reminderStore{taskRepo, calendar}, cfg.NtfyURL, cfg.NtfyTopic, cfg.NtfyLead, 0, cfg.Location, log)
+		log.Info("Erinnerungen aktiv", "ntfy", cfg.NtfyURL+"/"+cfg.NtfyTopic, "lead", cfg.NtfyLead)
+		go rem.Run(ctx)
+	} else {
+		log.Info("Erinnerungen aus (KAIRO_NTFY_URL und KAIRO_NTFY_TOPIC nicht gesetzt)")
 	}
 
 	srv := &http.Server{
