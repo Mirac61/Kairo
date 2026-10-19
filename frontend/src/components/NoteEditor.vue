@@ -52,7 +52,7 @@ import { parentOf } from '@/components/NoteTree.vue'
 // files: alle Dateien im Notizordner, für ![[Name]] (Suche nach dem Namen wie in Obsidian).
 const props = defineProps<{ path: string; drawingRev?: number; files?: string[] }>()
 const text = defineModel<string>({ required: true })
-const emit = defineEmits<{ uploaded: []; error: [string]; open: [string]; openNote: [string] }>()
+const emit = defineEmits<{ uploaded: []; error: [string]; open: [string]; openNote: [string]; createNote: [string] }>()
 
 const TOOLBAR: ToolbarNames[] = [
   'bold', 'italic', 'strikeThrough', 'title', '-', 'quote', 'unorderedList', 'orderedList', 'task', '-',
@@ -108,12 +108,14 @@ const completions = computed(() => [
   }),
 ])
 
-// Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab, Zeichnungen links in Kairo, [[Links]] die Notiz.
+// Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab, Zeichnungen links in Kairo, [[Links]] die Notiz;
+// ein unaufgelöster Link (md-wiki-unresolved) meldet den Namen, damit die Ansicht die Notiz anlegen kann.
 function openPreviewImage(e: MouseEvent) {
   const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('.md-editor-preview a.md-wikilink')
   if (link) {
     e.preventDefault()
     if (link.dataset.note) emit('openNote', link.dataset.note)
+    else if (link.dataset.name) emit('createNote', link.dataset.name)
     return
   }
   const img = (e.target as HTMLElement).closest<HTMLImageElement>('.md-editor-preview img')

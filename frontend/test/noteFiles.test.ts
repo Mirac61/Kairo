@@ -101,7 +101,7 @@ assert.equal(resolveNote('fehlt', '', notes), '')
 const wl = '<p><a href="#" data-wikilink="se#Ziele|Alias" target="_blank">Alias</a> <a href="#" data-wikilink="fehlt">fehlt</a> <a href="https://x.de">x</a></p>'
 assert.equal(
   previewWikiLinks(wl, (n) => resolveNote(n, '', notes)),
-  '<p><a href="#" class="md-wikilink" data-note="Uni/SE.md">Alias</a> <a href="#" class="md-wikilink md-wiki-unresolved">fehlt</a> <a href="https://x.de">x</a></p>',
+  '<p><a href="#" class="md-wikilink" data-note="Uni/SE.md">Alias</a> <a href="#" class="md-wikilink md-wiki-unresolved" data-name="fehlt">fehlt</a> <a href="https://x.de">x</a></p>',
 )
 
 // Wiki-Link-Autovervollständigung: Kandidaten und Ranking

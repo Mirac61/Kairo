@@ -296,6 +296,21 @@ function openDrawing(p: string) {
   void openFile(p)
 }
 
+// Klick auf einen unaufgelösten [[Link]]: die Notiz neben der aktuellen anlegen (oder öffnen, falls sie inzwischen existiert).
+async function createNoteFromLink(name: string) {
+  const p = join(parentOf(paths[current.value] ?? ''), withExt(name))
+  try {
+    await createNote(p)
+    tree.value = await listNotes()
+  } catch (e) {
+    if (!(e instanceof ApiError && e.status === 409)) {
+      error.value = errorMessage(e)
+      return
+    }
+  }
+  await openFile(p)
+}
+
 async function add(name: string) {
   const target = ctx.adding
   ctx.adding = null
@@ -521,7 +536,7 @@ onBeforeUnmount(() => {
             <span>{{ $t('Vorlage') }}</span>
             <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t, pn)">{{ t.name.replace(/\.md$/i, '') }}</button>
           </div>
-          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" :drawing-rev="drawingRev" :files="allFiles" @uploaded="uploaded" @error="error = $event" @open="openDrawing" @open-note="openFile" />
+          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" :drawing-rev="drawingRev" :files="allFiles" @uploaded="uploaded" @error="error = $event" @open="openDrawing" @open-note="openFile" @create-note="createNoteFromLink" />
           <NoteBacklinks :path="paths[pn]!" :rev="bufs[pn].mtime" @open="openFile" />
         </template>
         <FileEditor

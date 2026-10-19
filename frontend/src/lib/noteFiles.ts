@@ -63,11 +63,13 @@ export function resolveNote(name: string, dir: string, files: string[]) {
   return best
 }
 
-// Vorschau: die <a data-wikilink="…"> aus NoteEditor bekommen data-note mit dem Pfad der Zielnotiz, ohne Treffer die Klasse md-wiki-unresolved.
+// Vorschau: die <a data-wikilink="…"> aus NoteEditor bekommen data-note mit dem Pfad der Zielnotiz, ohne Treffer die Klasse
+// md-wiki-unresolved samt data-name (dem gewünschten Namen, damit ein Klick die Notiz anlegen kann).
 export const previewWikiLinks = (html: string, resolve: (name: string) => string) =>
   html.replace(/<a\b[^>]*?\sdata-wikilink="([^"]*)"[^>]*>/g, (_, v: string) => {
-    const p = resolve(parseWikiLink(unattr(v)).name)
-    return p ? `<a href="#" class="md-wikilink" data-note="${attr(p)}">` : '<a href="#" class="md-wikilink md-wiki-unresolved">'
+    const { name } = parseWikiLink(unattr(v))
+    const p = resolve(name)
+    return p ? `<a href="#" class="md-wikilink" data-note="${attr(p)}">` : `<a href="#" class="md-wikilink md-wiki-unresolved" data-name="${attr(name)}">`
   })
 
 // Pfade aller Zeichnungen in einer mit previewImages bearbeiteten Vorschau.
