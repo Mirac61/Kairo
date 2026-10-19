@@ -67,3 +67,50 @@ func TestBacklinks(t *testing.T) {
 		}
 	}
 }
+
+// Gleichnamige Notizen in verschiedenen Ordnern: [[Name]] zählt für den kürzesten Pfad,
+// [[Ordner/Name]] nur für diesen Pfad.
+func TestBacklinksDisambiguation(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"Uni/SE.md":    "# Uni\n",
+		"Privat/SE.md": "# Privat\n",
+		"x.md":         "[[SE]] und [[Uni/SE]]",
+		"y.md":         "[[Privat/SE]]",
+		"Uni/z.md":     "[[SE]] neben der Uni-Notiz",
+	}
+	for p, c := range files {
+		full := filepath.Join(dir, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(c), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	paths := func(p string) []string {
+		got, err := s.Backlinks(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, b := range got {
+			out = append(out, b.Path)
+		}
+		return out
+	}
+	// [[SE]] (in x.md) löst zum kürzesten Pfad Uni/SE.md; [[Uni/SE]] ebenfalls. Uni/z.md hat [[SE]] neben der Notiz.
+	if want := []string{"Uni/z.md", "x.md"}; !reflect.DeepEqual(paths("Uni/SE.md"), want) {
+		t.Fatalf("Uni/SE.md: %v, erwartet %v", paths("Uni/SE.md"), want)
+	}
+	// Privat/SE.md bekommt nur den expliziten Pfad-Link, nicht das bloße [[SE]].
+	if want := []string{"y.md"}; !reflect.DeepEqual(paths("Privat/SE.md"), want) {
+		t.Fatalf("Privat/SE.md: %v, erwartet %v", paths("Privat/SE.md"), want)
+	}
+}

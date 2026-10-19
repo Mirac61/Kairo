@@ -334,16 +334,38 @@ type Backlink struct {
 // wikilink: [[Name]], [[Name|Alias]], [[Name#Überschrift]] (auch als ![[Name]]); Gruppe 1 ist der Name.
 var wikilink = regexp.MustCompile(`\[\[([^\[\]|#\n]+)(?:[#|][^\[\]\n]*)?\]\]`)
 
-// Backlinks sucht alle Notizen, die auf p verweisen. Wie in Obsidian zählt der Dateiname ohne .md,
-// ohne Unterscheidung der Schreibweise, ein Ordner im Link ("[[Uni/SE]]") wird ignoriert.
-// Das Durchsuchen des ganzen Ordners ist linear; bei einigen tausend Notizen schnell genug.
+// resolveTarget löst ein [[…]]-Ziel zu einem Notizpfad auf (wie resolveNote im Frontend):
+// ein Pfad (mit „/“) muss exakt passen, ein bloßer Name zuerst neben dir, sonst der kürzeste Pfad.
+// "" = kein Treffer. stems: klein geschriebener Pfad ohne .md → Pfad; byBase: kleiner Basename → kürzester Pfad.
+func resolveTarget(name, dir string, stems, byBase map[string]string) string {
+	want := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(name), ".md"))
+	if want == "" {
+		return ""
+	}
+	if v, ok := stems[want]; ok {
+		return v
+	}
+	if dir != "" {
+		if v, ok := stems[path.Join(dir, want)]; ok {
+			return v
+		}
+	}
+	return byBase[path.Base(want)]
+}
+
+// Backlinks sucht alle Notizen, die auf p verweisen. Ein [[Name]] zählt für genau die
+// Notiz, auf die es auflöst (nicht für alle gleichnamigen in anderen Ordnern); ein Pfad
+// im Link ([[Uni/SE]]) zählt nur für diesen Pfad. Das Durchsuchen des ganzen Ordners ist
+// linear; bei einigen tausend Notizen schnell genug.
 func (s *Store) Backlinks(p string) ([]Backlink, error) {
 	p, err := checkPath(p, "md")
 	if err != nil {
 		return nil, err
 	}
-	name := strings.TrimSuffix(path.Base(p), path.Ext(p))
-	out := []Backlink{}
+	// Erst alle Notizpfade sammeln, damit [[Name]] aufgelöst werden kann.
+	stems := map[string]string{}
+	byBase := map[string]string{}
+	var notes []string
 	err = fs.WalkDir(s.root.FS(), ".", func(q string, d fs.DirEntry, err error) error {
 		switch {
 		case err != nil:
@@ -353,18 +375,39 @@ func (s *Store) Backlinks(p string) ([]Backlink, error) {
 				return fs.SkipDir // .trash, .obsidian, …
 			}
 			return nil
-		case d.IsDir() || q == p || Kind(q) != "md":
+		case d.IsDir() || Kind(q) != "md":
 			return nil
+		}
+		notes = append(notes, q)
+		stem := strings.ToLower(strings.TrimSuffix(q, ".md"))
+		stems[stem] = q
+		base := strings.ToLower(strings.TrimSuffix(path.Base(q), path.Ext(q)))
+		if cur, ok := byBase[base]; !ok || len(q) < len(cur) {
+			byBase[base] = q
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, mapErr(err)
+	}
+
+	out := []Backlink{}
+	for _, q := range notes {
+		if q == p {
+			continue
 		}
 		b, err := s.root.ReadFile(q)
 		if err != nil {
-			return nil // unlesbar oder inzwischen gelöscht: kein Rückverweis
+			continue // unlesbar oder inzwischen gelöscht: kein Rückverweis
 		}
 		text := string(b)
+		dir := path.Dir(q)
+		if dir == "." {
+			dir = ""
+		}
 		for _, m := range wikilink.FindAllStringSubmatchIndex(text, -1) {
 			target := strings.TrimSpace(text[m[2]:m[3]])
-			target = strings.TrimSuffix(path.Base(target), ".md")
-			if !strings.EqualFold(target, name) {
+			if !strings.EqualFold(resolveTarget(target, dir, stems, byBase), p) {
 				continue
 			}
 			start := strings.LastIndexByte(text[:m[0]], '\n') + 1
@@ -379,10 +422,6 @@ func (s *Store) Backlinks(p string) ([]Backlink, error) {
 			out = append(out, Backlink{Path: q, Title: strings.TrimSuffix(path.Base(q), path.Ext(q)), Snippet: string(snippet)})
 			break
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, mapErr(err)
 	}
 	slices.SortFunc(out, func(a, b Backlink) int { return strings.Compare(strings.ToLower(a.Path), strings.ToLower(b.Path)) })
 	return out, nil
