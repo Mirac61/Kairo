@@ -26,6 +26,9 @@ if [ -z "$VPN_IP" ]; then
   exit 1
 fi
 
+# Ohne Datenbank gab es noch kein Deploy, also auch kein Konto.
+ERSTES=$(ssh "$PI" "test -e '$ZIEL/data/kairo.db' || echo ja") || true
+
 echo "→ Baue WebUI ..."
 (cd frontend && pnpm build)
 
@@ -51,4 +54,4 @@ ssh -t "$PI" "mv '$ZIEL/kairo.neu' '$ZIEL/kairo' \
 
 echo ""
 echo "fertig: http://$VPN_IP:8742 (nur mit verbundenem VPN)"
-echo "Erstes Konto anlegen: http://$VPN_IP:8742/setup"
+if [ -n "$ERSTES" ]; then echo "Erstes Konto anlegen: http://$VPN_IP:8742/setup"; fi
