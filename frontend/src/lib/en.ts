@@ -559,6 +559,19 @@ const en: Record<string, string> = {
   'Aufgabe „{text}“ anlegen': 'Create task “{text}”',
   'Aufgaben, Projekte, Notizen, Termine …': 'Tasks, projects, notes, events …',
   'Tippe, um zu suchen. Enter ohne Treffer legt eine Aufgabe an.': 'Type to search. Enter without a match creates a task.',
+  // Mehrfachauswahl, Unerledigtes auf morgen
+  'Auswahl': 'Selection',
+  'Auswahl aufheben': 'Clear selection',
+  '{n} gewählt': '{n} selected',
+  'Auf morgen': 'To tomorrow',
+  'Projekt…': 'Project…',
+  'Unerledigtes auf morgen': 'Move open tasks to tomorrow',
+  '{n} Aufgabe auf morgen verschoben': '{n} task moved to tomorrow',
+  '{n} Aufgaben auf morgen verschoben': '{n} tasks moved to tomorrow',
+  '{n} Aufgabe verschoben': '{n} task moved',
+  '{n} Aufgaben verschoben': '{n} tasks moved',
+  '{n} Aufgabe gelöscht': '{n} task deleted',
+  '{n} Aufgaben gelöscht': '{n} tasks deleted',
 }
 
 export default en

@@ -7,11 +7,13 @@ import {
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import { useShortcuts } from '@/composables/useShortcuts'
+import { useTaskSelection } from '@/composables/useTaskSelection'
 import { useUndo } from '@/composables/useUndo'
 import { daysAgo, dur, entryMinutes, hhmm, hm, ymd } from '@/lib/dates'
 import { parseQuickAdd, taskBody } from '@/lib/quickAdd'
 import { columns, doneSeconds, findSlot, minutesOfDay, stopwatch } from '@/lib/dayPlan'
 import QuickHints from '@/components/QuickHints.vue'
+import SelectionBar from '@/components/SelectionBar.vue'
 import { habitColor, projectColor } from '@/lib/projectColor'
 import TaskActions from '@/components/TaskActions.vue'
 import { locale, t } from '@/lib/i18n'
@@ -146,6 +148,12 @@ const dueRows = computed(() => [
   ...(today.value?.overdue ?? []).map((t) => ({ t, od: true })),
   ...openTasks.value.map((t) => ({ t, od: false })),
 ])
+const selection = useTaskSelection(() => dueRows.value.map((r) => r.t), run, () => {
+  const d = new Date(`${today.value!.date}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+})
+const { picked, onClick: pickRow } = selection
 const whenOf = (r: { t: Task; od: boolean }) => (r.od ? daysAgo(r.t.planned_date!, today.value!.date) : r.t.planned_start_at ? fmt(r.t.planned_start_at) : t('Heute'))
 const activeOnly = computed(() => today.value?.active_tasks ?? [])
 const doneCount = computed(() => (today.value?.tasks ?? []).filter((t) => t.status === 'COMPLETED').length)
@@ -340,9 +348,13 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 
       <div class="start-grid">
         <section class="start-col">
-          <div class="col-head"><h2 class="col-title">{{ $t('Heute fällig') }} <span class="count">{{ dueRows.length }}</span></h2><router-link class="col-link" to="/tasks">{{ $t('Alle Aufgaben') }}</router-link></div>
+          <div class="col-head"><h2 class="col-title">{{ $t('Heute fällig') }} <span class="count">{{ dueRows.length }}</span></h2><span class="col-links">
+            <button v-if="dueRows.length" type="button" class="col-link" @click="selection.toTomorrow(dueRows.map((r) => r.t))">{{ $t('Unerledigtes auf morgen') }}</button>
+            <button v-if="dueRows.length" type="button" class="col-link" :aria-pressed="selection.mode.value" @click="selection.mode.value = !selection.mode.value">{{ $t('Auswählen') }}</button>
+            <router-link class="col-link" to="/tasks">{{ $t('Alle Aufgaben') }}</router-link>
+          </span></div>
           <div v-if="dueRows.length" class="tasklist">
-            <div v-for="r in dueRows" :key="r.t.id" class="task-row" draggable="true" @dragstart="dragTask($event, r.t)">
+            <div v-for="r in dueRows" :key="r.t.id" class="task-row" :class="{ picked: picked.includes(r.t.id) }" draggable="true" @dragstart="dragTask($event, r.t)" @click.capture="pickRow($event, r.t.id)">
               <button type="button" class="cb ring" :style="{ '--rc': projectColor(r.t.project_id) }" role="checkbox" aria-checked="false" :aria-label="$t('{title} erledigt', { title: r.t.title })" @click="setDone(r.t, 'COMPLETED', run)"></button>
               <span class="t">{{ r.t.title }}</span>
               <span class="chip st-proj" :style="{ '--chip-c': projectColor(r.t.project_id) }"><template v-if="r.t.project_id"><span class="cdot"></span>{{ projectNames.get(r.t.project_id) }}</template></span>
@@ -447,10 +459,13 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
         </section>
       </div>
     </template>
+    <SelectionBar v-if="picked.length || selection.mode.value" :count="picked.length" :projects="projectList"
+      @tomorrow="selection.toTomorrow()" @project="selection.toProject" @trash="selection.trash" @clear="selection.clear" />
   </div>
 </template>
 
 <style scoped>
+.task-row.picked { background: var(--bg-selected); }
 .day-title { font: 600 28px/1.2 var(--font-ui); letter-spacing: -0.02em; color: var(--tx-primary); }
 .st-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
 .st-allday { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 400 13px/1.3 var(--font-ui); color: var(--tx-secondary); }

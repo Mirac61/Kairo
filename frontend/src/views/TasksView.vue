@@ -8,6 +8,7 @@ import {
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import { useShortcuts } from '@/composables/useShortcuts'
+import { useTaskSelection } from '@/composables/useTaskSelection'
 import { useUndo } from '@/composables/useUndo'
 import { addDays, dayLabel, daysAgo, dm, hhmm, hm, ruleText, shortDay, weekStart, ymd } from '@/lib/dates'
 import { store } from '@/lib/storage'
@@ -16,6 +17,7 @@ import { projectColor } from '@/lib/projectColor'
 import { parseQuickAdd, RULE_PRESETS, taskBody } from '@/lib/quickAdd'
 import GitHubIssues from '@/components/GitHubIssues.vue'
 import QuickHints from '@/components/QuickHints.vue'
+import SelectionBar from '@/components/SelectionBar.vue'
 import ResourceList from '@/components/ResourceList.vue'
 import SearchField from '@/components/SearchField.vue'
 import TaskActions from '@/components/TaskActions.vue'
@@ -155,6 +157,9 @@ const { error, load, run } = useLoader(async () => {
   ;[tasks.value, projects.value, resources.value] = await Promise.all([listTasks(), listProjects(), listResources()])
 })
 
+const selection = useTaskSelection(() => flat.value, run, () => ymd(addDays(new Date(), 1)))
+const { picked, onClick: pickRow } = selection
+
 // Archivierte Projekte sind für #name nicht wählbar.
 const quickParsed = computed(() => parseQuickAdd(quick.value, projects.value.filter((p) => p.status !== 'ARCHIVED'), todayStr()))
 function add() {
@@ -282,6 +287,7 @@ useLiveEvents(load)
         </div>
       </div>
       <span class="spacer"></span>
+      <button class="btn" type="button" :aria-pressed="selection.mode.value" @click="selection.mode.value = !selection.mode.value">{{ $t('Auswählen') }}</button>
       <button class="btn" type="button" @click="github = true">{{ $t('GitHub-Issues') }}</button>
       <button class="btn btn-primary" type="button" aria-keyshortcuts="n" @click="quickEl?.focus()"><svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neue Aufgabe') }}<kbd class="key" aria-hidden="true">N</kbd></button>
     </div>
@@ -321,7 +327,7 @@ useLiveEvents(load)
       <span v-if="g.title" class="lbl" :class="{ od: view.group === 'due' && g.key === '0' }">{{ g.title }}<span class="count">{{ g.rows.length }}</span><span v-if="g.minutes" class="g-sum">{{ $t('{time} geschätzt', { time: hm(g.minutes) }) }}</span></span>
       <div class="tasklist">
       <template v-for="t in g.rows" :key="t.id">
-        <div class="task-row" :class="{ done: !isOpen(t), selected: sel === t.id, running: t.status === 'IN_PROGRESS' }" :data-task="t.id">
+        <div class="task-row" :class="{ done: !isOpen(t), selected: sel === t.id, picked: picked.includes(t.id), running: t.status === 'IN_PROGRESS' }" :data-task="t.id" @click.capture="pickRow($event, t.id)" @mousedown.shift.prevent>
           <button type="button" class="cb ring" :style="{ '--rc': projectColor(t.project_id) }" role="checkbox" :aria-checked="t.status === 'COMPLETED'" :aria-label="$t('{title} erledigt', { title: t.title })" :disabled="t.status === 'CANCELLED'" @click="toggle(t)"></button>
           <button type="button" class="t row-title" :aria-expanded="openId === t.id" @click="openId = openId === t.id ? null : t.id; sel = t.id; subTitle = ''">{{ t.title }}</button>
           <span v-if="t.recurrence_rule" class="rec-i" role="img" :aria-label="$t('Wiederholt sich: {rule}', { rule: ruleText(t.recurrence_rule) })" :data-tip="ruleText(t.recurrence_rule)">↻</span>
@@ -391,6 +397,8 @@ useLiveEvents(load)
     </aside>
     </div>
 
+    <SelectionBar v-if="picked.length || selection.mode.value" :count="picked.length" :projects="projects.filter((p) => p.status !== 'ARCHIVED')"
+      @tomorrow="selection.toTomorrow()" @project="selection.toProject" @trash="selection.trash" @clear="selection.clear" />
     <div class="keys" :aria-label="$t('Tastenkürzel')">
       <span><kbd class="key">n</kbd>{{ $t('Neu') }}</span>
       <span><kbd class="key">j</kbd><kbd class="key">k</kbd>{{ $t('Wählen') }}</span>
@@ -417,6 +425,7 @@ useLiveEvents(load)
 .keys span { display: inline-flex; align-items: center; gap: 6px; }
 .keys .key { min-width: 20px; text-align: center; color: var(--tx-secondary); }
 .rec-i { color: var(--tx-muted); font-size: 13px; line-height: 1; }
+.task-row.picked { background: var(--bg-selected); }
 .task-row.selected { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--br-default); }
 .task-row.running::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--a-run); }
 .task-row:hover:not(.selected) { background: var(--bg-hover); }
