@@ -16,8 +16,10 @@ import {
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useShortcuts } from '@/composables/useShortcuts'
+import { useTaskSelection } from '@/composables/useTaskSelection'
 import { useUndo } from '@/composables/useUndo'
 import EventDialog from '@/components/EventDialog.vue'
+import SelectionBar from '@/components/SelectionBar.vue'
 import { addDays, hhmm, hm, ymd } from '@/lib/dates'
 import { editForm, isAllDay, newForm, requestOf, type Form } from '@/lib/eventForm'
 import { habitColor, projectColor } from '@/lib/projectColor'
@@ -298,6 +300,9 @@ function toggleUp() {
 }
 
 const run = (fn: () => Promise<unknown>) => guarded(fn)
+// Mehrfachauswahl in der Ungeplant-Liste: auf morgen verschieben, Projekt setzen, löschen.
+const selection = useTaskSelection(() => unplanned.value, run, () => ymd(addDays(new Date(), 1)))
+const { picked, onClick: pickRow, onPointerDown, onPointerUp } = selection
 // „Verschieben“ setzt den Eintrag auf morgen, gleiche Uhrzeit.
 function postpone(task: Task) {
   const before = { planned_date: task.planned_date ?? '', planned_start_at: task.planned_start_at ?? '' }
@@ -561,12 +566,13 @@ useLiveEvents(() => {
         <button type="button" class="icon-btn" :aria-expanded="upOpen" :aria-label="upOpen ? 'Ungeplant einklappen' : 'Ungeplant ausklappen'" @click="toggleUp"><svg class="ic"><use :href="upOpen ? '#i-right' : '#i-left'" /></svg></button>
       </div>
       <div v-show="upOpen" ref="unplannedEl" class="up-list">
-        <div v-for="t in unplanned" :key="t.id" class="up-item" :data-id="t.id" :data-min="t.estimated_minutes || ''" :style="{ '--acc': projectColor(t.project_id) }">
+        <div v-for="t in unplanned" :key="t.id" class="up-item" :class="{ picked: picked.includes(t.id) }" :data-id="t.id" :data-min="t.estimated_minutes || ''" :style="{ '--acc': projectColor(t.project_id) }" @click.capture="pickRow($event, t.id)" @pointerdown="onPointerDown($event, t.id)" @pointerup="onPointerUp" @pointercancel="onPointerUp">
           <span class="up-dot" />
           <span class="up-name">{{ t.title }}</span>
           <small v-if="t.estimated_minutes" class="up-min">{{ hm(t.estimated_minutes) }}</small>
         </div>
       </div>
+      <SelectionBar v-if="picked.length || selection.mode.value" :count="picked.length" :projects="projects.filter((p) => p.status !== 'ARCHIVED')" @tomorrow="selection.toTomorrow()" @project="selection.toProject" @trash="selection.trash" @clear="selection.clear" />
     </aside>
     </div>
 
@@ -599,6 +605,7 @@ useLiveEvents(() => {
   font: 400 13px/1.3 var(--font-ui); color: var(--tx-primary);
 }
 .up-item:hover { background: var(--bg-hover); }
+.up-item.picked { background: var(--bg-selected); box-shadow: inset 0 0 0 1px var(--a-blue-hi); }
 .up-dot { flex: none; width: 11px; height: 11px; box-sizing: border-box; border: 1.5px solid var(--acc); border-radius: 50%; }
 .up-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .up-min { flex: none; font: 400 12px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
