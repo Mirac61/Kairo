@@ -158,7 +158,7 @@ const { error, load, run } = useLoader(async () => {
 })
 
 const selection = useTaskSelection(() => flat.value, run, () => ymd(addDays(new Date(), 1)))
-const { picked, onClick: pickRow } = selection
+const { picked, onClick: pickRow, onPointerDown, onPointerUp } = selection
 
 // Archivierte Projekte sind für #name nicht wählbar.
 const quickParsed = computed(() => parseQuickAdd(quick.value, projects.value.filter((p) => p.status !== 'ARCHIVED'), todayStr()))
@@ -327,7 +327,7 @@ useLiveEvents(load)
       <span v-if="g.title" class="lbl" :class="{ od: view.group === 'due' && g.key === '0' }">{{ g.title }}<span class="count">{{ g.rows.length }}</span><span v-if="g.minutes" class="g-sum">{{ $t('{time} geschätzt', { time: hm(g.minutes) }) }}</span></span>
       <div class="tasklist">
       <template v-for="t in g.rows" :key="t.id">
-        <div class="task-row" :class="{ done: !isOpen(t), selected: sel === t.id, picked: picked.includes(t.id), running: t.status === 'IN_PROGRESS' }" :data-task="t.id" @click.capture="pickRow($event, t.id)" @mousedown.shift.prevent>
+        <div class="task-row" :class="{ done: !isOpen(t), selected: sel === t.id, picked: picked.includes(t.id), running: t.status === 'IN_PROGRESS' }" :data-task="t.id" @click.capture="pickRow($event, t.id)" @mousedown.shift.prevent @pointerdown="onPointerDown($event, t.id)" @pointerup="onPointerUp" @pointercancel="onPointerUp">
           <button type="button" class="cb ring" :style="{ '--rc': projectColor(t.project_id) }" role="checkbox" :aria-checked="t.status === 'COMPLETED'" :aria-label="$t('{title} erledigt', { title: t.title })" :disabled="t.status === 'CANCELLED'" @click="toggle(t)"></button>
           <button type="button" class="t row-title" :aria-expanded="openId === t.id" @click="openId = openId === t.id ? null : t.id; sel = t.id; subTitle = ''">{{ t.title }}</button>
           <span v-if="t.recurrence_rule" class="rec-i" role="img" :aria-label="$t('Wiederholt sich: {rule}', { rule: ruleText(t.recurrence_rule) })" :data-tip="ruleText(t.recurrence_rule)">↻</span>

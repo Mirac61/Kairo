@@ -7,10 +7,12 @@ import { pick } from '@/lib/selection'
 
 // Mehrfachauswahl samt Sammelaktionen. order: Aufgaben in Anzeigereihenfolge, run/tomorrow wie in der Ansicht.
 // Shift-/⌘-/Strg-Klick wählt; im Auswahlmodus (Knopf, für Touch) genügt ein Tipp. Esc beendet beides.
+// Long-Press (Touch) schaltet in den Auswahlmodus und wählt die Zeile.
 export function useTaskSelection(order: () => Task[], run: (fn: () => Promise<unknown>) => unknown, tomorrow: () => string) {
   const picked = ref<string[]>([])
   const mode = ref(false)
   let anchor: string | null = null
+  let lpTimer: number | undefined
   const { offer } = useUndo()
 
   function clear() {
@@ -25,6 +27,21 @@ export function useTaskSelection(order: () => Task[], run: (fn: () => Promise<un
     e.stopPropagation()
     picked.value = pick(order().map((x) => x.id), picked.value, anchor, id, e.shiftKey)
     anchor = id
+  }
+  // Long-Press auf Touch: Auswahlmodus einschalten und die Zeile dazunehmen (ohne Tastatur).
+  function onPointerDown(e: PointerEvent, id: string) {
+    if (e.pointerType !== 'touch') return
+    lpTimer = window.setTimeout(() => {
+      mode.value = true
+      if (!picked.value.includes(id)) picked.value = [...picked.value, id]
+      navigator.vibrate?.(15)
+    }, 500)
+  }
+  function onPointerUp() {
+    if (lpTimer !== undefined) {
+      clearTimeout(lpTimer)
+      lpTimer = undefined
+    }
   }
   useShortcuts((e) => e.key === 'Escape' && clear())
 
@@ -64,5 +81,5 @@ export function useTaskSelection(order: () => Task[], run: (fn: () => Promise<un
     })
     clear()
   }
-  return { picked, mode, onClick, clear, toTomorrow, toProject, trash }
+  return { picked, mode, onClick, onPointerDown, onPointerUp, clear, toTomorrow, toProject, trash }
 }

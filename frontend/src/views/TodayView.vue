@@ -155,12 +155,12 @@ const dueRows = computed(() => [
   ...(today.value?.overdue ?? []).map((t) => ({ t, od: true })),
   ...openTasks.value.map((t) => ({ t, od: false })),
 ])
-const selection = useTaskSelection(() => dueRows.value.map((r) => r.t), run, () => {
+const selection = useTaskSelection(() => [...dueRows.value.map((r) => r.t), ...(today.value?.active_tasks ?? [])], run, () => {
   const d = new Date(`${today.value!.date}T12:00:00Z`)
   d.setUTCDate(d.getUTCDate() + 1)
   return d.toISOString().slice(0, 10)
 })
-const { picked, onClick: pickRow } = selection
+const { picked, onClick: pickRow, onPointerDown, onPointerUp } = selection
 const whenOf = (r: { t: Task; od: boolean }) => (r.od ? daysAgo(r.t.planned_date!, today.value!.date) : r.t.planned_start_at ? fmt(r.t.planned_start_at) : t('Heute'))
 const activeOnly = computed(() => today.value?.active_tasks ?? [])
 const doneCount = computed(() => (today.value?.tasks ?? []).filter((t) => t.status === 'COMPLETED').length)
@@ -361,7 +361,7 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
             <router-link class="col-link" to="/tasks">{{ $t('Alle Aufgaben') }}</router-link>
           </span></div>
           <div v-if="dueRows.length" class="tasklist">
-            <div v-for="r in dueRows" :key="r.t.id" class="task-row" :class="{ picked: picked.includes(r.t.id) }" draggable="true" @dragstart="dragTask($event, r.t)" @click.capture="pickRow($event, r.t.id)">
+            <div v-for="r in dueRows" :key="r.t.id" class="task-row" :class="{ picked: picked.includes(r.t.id) }" draggable="true" @dragstart="dragTask($event, r.t)" @click.capture="pickRow($event, r.t.id)" @pointerdown="onPointerDown($event, r.t.id)" @pointerup="onPointerUp" @pointercancel="onPointerUp">
               <button type="button" class="cb ring" :style="{ '--rc': projectColor(r.t.project_id) }" role="checkbox" aria-checked="false" :aria-label="$t('{title} erledigt', { title: r.t.title })" @click="setDone(r.t, 'COMPLETED', run)"></button>
               <span class="t">{{ r.t.title }}</span>
               <span class="chip st-proj" :style="{ '--chip-c': projectColor(r.t.project_id) }"><template v-if="r.t.project_id"><span class="cdot"></span>{{ projectNames.get(r.t.project_id) }}</template></span>
@@ -385,7 +385,7 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
           <template v-if="activeOnly.length">
             <div class="col-head st-gap"><h2 class="col-title">{{ $t('Aktiv, nicht für heute geplant') }} <span class="count">{{ activeOnly.length }}</span></h2></div>
             <div class="tasklist">
-              <div v-for="t in activeOnly" :key="t.id" class="task-row" draggable="true" @dragstart="dragTask($event, t)">
+              <div v-for="t in activeOnly" :key="t.id" class="task-row" :class="{ picked: picked.includes(t.id) }" draggable="true" @dragstart="dragTask($event, t)" @click.capture="pickRow($event, t.id)" @pointerdown="onPointerDown($event, t.id)" @pointerup="onPointerUp" @pointercancel="onPointerUp">
                 <button type="button" class="cb ring" :style="{ '--rc': projectColor(t.project_id) }" role="checkbox" aria-checked="false" :aria-label="$t('{title} erledigt', { title: t.title })" @click="setDone(t, 'COMPLETED', run)"></button>
                 <span class="t">{{ t.title }}</span>
                 <TaskActions class="row-act" :task="t" :running="runningTaskId === t.id" @run="run" />
