@@ -75,7 +75,7 @@ export interface Task {
 
 export interface Resource {
   id: string;
-  type: "FILE" | "FOLDER" | "URL";
+  type: "FILE" | "FOLDER" | "URL" | "NOTE"; // NOTE: Pfad in Kairos Notizordner, öffnet die WebUI
   target: string;
   label: string;
   task_id: string | null;

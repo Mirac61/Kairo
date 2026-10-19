@@ -254,7 +254,7 @@ export async function openProject(p: Project | undefined): Promise<void> {
   await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: true });
 }
 
-/** URLs im Browser, Ordner im Finder, Dateien im Editor oder mit der Standard-App. */
+/** URLs im Browser, Ordner im Finder, Dateien im Editor oder mit der Standard-App, Notizen in Kairo. */
 export async function openResource(r: Resource | undefined): Promise<void> {
   if (!r) {
     return;
@@ -262,6 +262,9 @@ export async function openResource(r: Resource | undefined): Promise<void> {
   if (r.type === "URL") {
     const uri = vscode.Uri.parse(r.target);
     return void (/^https?$/.test(uri.scheme) && vscode.env.openExternal(uri));
+  }
+  if (r.type === "NOTE") {
+    return void openWeb(`notes?open=${encodeURIComponent(r.target)}`);
   }
   const uri = vscode.Uri.file(expandHome(r.target));
   if (r.type === "FOLDER") {
