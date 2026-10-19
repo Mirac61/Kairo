@@ -320,7 +320,7 @@ select.input{
 .overlay{
   position:fixed;inset:0;background:var(--scrim);
   display:none;align-items:flex-start;justify-content:center;
-  padding:12vh 16px 16px;z-index:100;
+  padding:12vh 16px 16px;z-index:100;overflow-y:auto; /* lange Dialoge am Handy bleiben scrollbar */
 }
 .overlay.open{display:flex}
 .dialog{
@@ -574,7 +574,7 @@ select.input{
   .cal{padding:16px 12px 48px}
   .hourcol .hl span{right:4px;font-size:10px}
   .dlg-row{grid-template-columns:1fr}
-  .task-row .due{display:none}
+  .overlay{padding:16px 8px calc(16px + env(safe-area-inset-bottom))}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}

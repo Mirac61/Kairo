@@ -468,6 +468,10 @@ useLiveEvents(load)
   .tasks-layout.with-aside { grid-template-columns: minmax(0, 1fr); }
   .task-aside { position: fixed; inset: auto 0 0 0; z-index: 20; max-height: 65vh; border-radius: var(--r-m) var(--r-m) 0 0; box-shadow: var(--shadow-pop); }
 }
+/* Handy: Sheet über der Tab-Leiste und über dem „Neu“-Knopf (beide z-index 50). */
+@media (max-width: 760px) {
+  .task-aside { bottom: calc(56px + env(safe-area-inset-bottom)); z-index: 55; max-height: calc(100dvh - 56px - env(safe-area-inset-bottom) - 48px); }
+}
 .tk-tabs { flex-wrap: wrap; border-radius: 10px; }
 .tk-tabs button { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; }
 .tk-opts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 20px; }

@@ -220,3 +220,30 @@ test('Sprache umschalten', async () => {
   await page.getByRole('button', { name: 'Deutsch' }).click()
   await page.getByRole('link', { name: 'Aufgaben' }).waitFor()
 })
+
+// Handy (390×844): Tab-Leiste und „Neu“-Knopf liegen fest über dem Inhalt und dürfen nichts verdecken.
+test('Handy: Fälligkeit sichtbar, Aufgabendetails über der Tab-Leiste', async () => {
+  const due = new Date(Date.now() + 2 * 86400e3)
+  await api('/tasks', { method: 'POST', body: JSON.stringify({ title: 'Handy-Aufgabe', due_at: due.toISOString() }) })
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'de-DE' })
+  const m = await ctx.newPage()
+  try {
+    await m.goto(`${base}/tasks`)
+    const row = m.locator('.task-row', { hasText: 'Handy-Aufgabe' })
+    assert.ok(await row.locator('.due').isVisible(), 'Fälligkeit in der Zeile')
+    await row.locator('.row-title').click()
+    const del = m.locator('.task-aside').getByRole('button', { name: 'Löschen' })
+    await del.scrollIntoViewIfNeeded()
+    const box = await del.boundingBox()
+    const tabTop = (await m.locator('.tabbar').boundingBox()).y
+    assert.ok(box.y + box.height <= tabTop, `Löschen endet bei ${box.y + box.height}, Tab-Leiste beginnt bei ${tabTop}`)
+    // Kein anderes Element (z. B. der „Neu“-Knopf) liegt über dem Knopf.
+    const onTop = await del.evaluate((el) => {
+      const r = el.getBoundingClientRect()
+      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
+    })
+    assert.ok(onTop, 'Löschen ist klickbar')
+  } finally {
+    await ctx.close()
+  }
+})
