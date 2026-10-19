@@ -35,7 +35,7 @@ echo "→ Baue WebUI ..."
 echo "→ Baue Kairo für linux/$GOARCH ($ARCH) ..."
 mkdir -p dist
 (cd backend && go vet ./... && go test ./... \
-  && GOOS=linux GOARCH=$GOARCH GOARM=$GOARM CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../dist/kairo ./cmd/server)
+  && GOOS=linux GOARCH=$GOARCH GOARM=$GOARM CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=$(git describe --tags --always --dirty)" -o ../dist/kairo ./cmd/server)
 sed -e "s|PI_USER|$USER_NAME|g" -e "s|PI_ZIEL|$ZIEL|g" -e "s|PI_VPN|$VPN_IP|g" scripts/kairo.service > dist/kairo.service
 
 echo "→ Kopiere auf den Pi ..."

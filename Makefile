@@ -23,7 +23,7 @@ install:
 # Die Reihenfolge ist wichtig: embed greift beim Kompilieren, also muss das Frontend vorher nach backend/internal/web/dist bauen.
 build:
 	cd frontend && pnpm build
-	cd backend && go build -o bin/kairo ./cmd/server
+	cd backend && go build -ldflags="-X main.version=$$(git describe --tags --always --dirty)" -o bin/kairo ./cmd/server
 
 # Baut nur neu, wenn sich Quellen geändert haben.
 $(BIN): $(SRC)
