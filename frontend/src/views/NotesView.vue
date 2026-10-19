@@ -6,6 +6,7 @@ import { ApiError, createNote, deleteNote, errorMessage, listNotes, moveNote, re
 import CodeViewer from '@/components/CodeViewer.vue'
 import DrawingEditor from '@/components/DrawingEditor.vue'
 import FileEditor from '@/components/FileEditor.vue'
+import NoteBacklinks from '@/components/NoteBacklinks.vue'
 import NoteEditor from '@/components/NoteEditor.vue'
 import NoteTree, { canDrop, canDropHere, parentOf, type TreeCtx } from '@/components/NoteTree.vue'
 import { vDialog } from '@/lib/dialog'
@@ -520,7 +521,8 @@ onBeforeUnmount(() => {
             <span>{{ $t('Vorlage') }}</span>
             <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t, pn)">{{ t.name.replace(/\.md$/i, '') }}</button>
           </div>
-          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" :drawing-rev="drawingRev" :files="allFiles" @uploaded="uploaded" @error="error = $event" @open="openDrawing" />
+          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" :drawing-rev="drawingRev" :files="allFiles" @uploaded="uploaded" @error="error = $event" @open="openDrawing" @open-note="openFile" />
+          <NoteBacklinks :path="paths[pn]!" :rev="bufs[pn].mtime" @open="openFile" />
         </template>
         <FileEditor
           v-else-if="pn === 'doc' && paths.doc && (docKind === 'pdf' || docKind === 'image')" :ref="setDocEd" :key="paths.doc" :path="paths.doc" :kind="docKind"

@@ -40,6 +40,36 @@ export const previewImages = (
     return /\sclass="/.test(tag) ? tag.replace(/\sclass="/, ' class="not-zoom ') : tag.replace(/^<img/, '<img class="not-zoom"')
   })
 
+// [[Name]], [[Name|Alias]], [[Name#Überschrift]] wie in Obsidian; ohne Name ([[#Überschrift]]) ist die Notiz selbst gemeint.
+export function parseWikiLink(inner: string) {
+  const [target = '', ...alias] = inner.split('|')
+  const [name = '', ...h] = target.split('#')
+  const [n, heading] = [name.trim(), h.join('#').trim()]
+  return { name: n, heading, label: alias.join('|').trim() || [n, heading].filter(Boolean).join(' > ') || inner.trim() }
+}
+
+// Ziel einer [[…]]-Verknüpfung: Dateiname ohne .md, ohne Unterscheidung der Schreibweise (wie notes.Backlinks im Backend).
+// Erst Pfad ab der Wurzel bzw. neben der Notiz (dir), sonst der kürzeste Pfad mit diesem Namen. "" = nicht gefunden.
+export function resolveNote(name: string, dir: string, files: string[]) {
+  const want = name.replace(/\.md$/i, '').toLowerCase()
+  const base = want.slice(want.lastIndexOf('/') + 1)
+  let best = ''
+  for (const f of files) {
+    if (fileKind(f) !== 'md') continue
+    const stem = f.slice(0, -3).toLowerCase()
+    if (stem === want || stem === join(dir, want).toLowerCase()) return f
+    if (stem.slice(stem.lastIndexOf('/') + 1) === base && (!best || f.length < best.length)) best = f
+  }
+  return best
+}
+
+// Vorschau: die <a data-wikilink="…"> aus NoteEditor bekommen data-note mit dem Pfad der Zielnotiz, ohne Treffer die Klasse md-wiki-unresolved.
+export const previewWikiLinks = (html: string, resolve: (name: string) => string) =>
+  html.replace(/<a\b[^>]*?\sdata-wikilink="([^"]*)"[^>]*>/g, (_, v: string) => {
+    const p = resolve(parseWikiLink(unattr(v)).name)
+    return p ? `<a href="#" class="md-wikilink" data-note="${attr(p)}">` : '<a href="#" class="md-wikilink md-wiki-unresolved">'
+  })
+
 // Pfade aller Zeichnungen in einer mit previewImages bearbeiteten Vorschau.
 export const drawingsIn = (html: string) => [...html.matchAll(/data-drawing="([^"]*)"/g)].map((m) => unattr(m[1]!))
 

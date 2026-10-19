@@ -415,6 +415,7 @@ const en: Record<string, string> = {
   'Datei hinzufügen': 'Add file',
   'PDF, Bild oder Notiz hinzufügen': 'Add PDF, image or note',
   'Vorlage': 'Template',
+  'Rückverweise': 'Backlinks',
   'Ungespeichert': 'Unsaved',
   'Ungespeicherte Änderungen verwerfen?': 'Discard unsaved changes?',
   'Keine Datei geöffnet': 'No file open',

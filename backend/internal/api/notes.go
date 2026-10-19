@@ -18,6 +18,7 @@ type noteHandlers struct{ store *notes.Store }
 func (h noteHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/notes", h.tree)
 	mux.HandleFunc("GET /api/search/notes", h.search)
+	mux.HandleFunc("GET /api/notes/backlinks", h.backlinks) // spezifischer als {path...}, gewinnt
 	mux.HandleFunc("GET /api/notes/{path...}", h.read)
 	mux.HandleFunc("PUT /api/notes/{path...}", h.save)
 	mux.HandleFunc("POST /api/notes/{path...}", h.create)
@@ -48,6 +49,16 @@ func (h noteHandlers) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"path": p, "content": content, "mtime": mtime})
+}
+
+// backlinks: ?path=<Notiz>; Notizen, die per [[…]] darauf verweisen.
+func (h noteHandlers) backlinks(w http.ResponseWriter, r *http.Request) {
+	links, err := h.store.Backlinks(r.URL.Query().Get("path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, links)
 }
 
 // save: mtime ist die Version beim Laden; weicht die Datei davon ab, antwortet es mit 409, außer bei force.

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -321,6 +322,70 @@ func (s *Store) trash(p string) (string, error) {
 		dest = path.Join(Trash, fmt.Sprintf("%s %d %s", time.Now().Format("20060102-150405"), i, path.Base(p)))
 	}
 	return dest, mapErr(s.root.Rename(p, dest))
+}
+
+// Backlink ist eine Notiz, die per [[…]] auf eine andere verweist; Snippet ist die erste Zeile mit dem Verweis.
+type Backlink struct {
+	Path    string `json:"path"`
+	Title   string `json:"title"`
+	Snippet string `json:"snippet"`
+}
+
+// wikilink: [[Name]], [[Name|Alias]], [[Name#Überschrift]] (auch als ![[Name]]); Gruppe 1 ist der Name.
+var wikilink = regexp.MustCompile(`\[\[([^\[\]|#\n]+)(?:[#|][^\[\]\n]*)?\]\]`)
+
+// Backlinks sucht alle Notizen, die auf p verweisen. Wie in Obsidian zählt der Dateiname ohne .md,
+// ohne Unterscheidung der Schreibweise, ein Ordner im Link ("[[Uni/SE]]") wird ignoriert.
+// Das Durchsuchen des ganzen Ordners ist linear; bei einigen tausend Notizen schnell genug.
+func (s *Store) Backlinks(p string) ([]Backlink, error) {
+	p, err := checkPath(p, "md")
+	if err != nil {
+		return nil, err
+	}
+	name := strings.TrimSuffix(path.Base(p), path.Ext(p))
+	out := []Backlink{}
+	err = fs.WalkDir(s.root.FS(), ".", func(q string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return err
+		case q != "." && strings.HasPrefix(d.Name(), "."):
+			if d.IsDir() {
+				return fs.SkipDir // .trash, .obsidian, …
+			}
+			return nil
+		case d.IsDir() || q == p || Kind(q) != "md":
+			return nil
+		}
+		b, err := s.root.ReadFile(q)
+		if err != nil {
+			return nil // unlesbar oder inzwischen gelöscht: kein Rückverweis
+		}
+		text := string(b)
+		for _, m := range wikilink.FindAllStringSubmatchIndex(text, -1) {
+			target := strings.TrimSpace(text[m[2]:m[3]])
+			target = strings.TrimSuffix(path.Base(target), ".md")
+			if !strings.EqualFold(target, name) {
+				continue
+			}
+			start := strings.LastIndexByte(text[:m[0]], '\n') + 1
+			end := len(text)
+			if i := strings.IndexByte(text[m[1]:], '\n'); i >= 0 {
+				end = m[1] + i
+			}
+			snippet := []rune(strings.TrimSpace(text[start:end]))
+			if len(snippet) > 160 {
+				snippet = append(snippet[:160], '…')
+			}
+			out = append(out, Backlink{Path: q, Title: strings.TrimSuffix(path.Base(q), path.Ext(q)), Snippet: string(snippet)})
+			break
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	slices.SortFunc(out, func(a, b Backlink) int { return strings.Compare(strings.ToLower(a.Path), strings.ToLower(b.Path)) })
+	return out, nil
 }
 
 // checkPath lässt nur relative Pfade ohne ".." und ohne versteckte Teile zu;

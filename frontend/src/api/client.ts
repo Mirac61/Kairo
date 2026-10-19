@@ -336,6 +336,15 @@ export const readNote = (path: string) => api<Note>(notePath(path))
 export const saveNote = (path: string, content: string, mtime: string, force = false) =>
   api<{ mtime: string }>(notePath(path), { method: 'PUT', body: JSON.stringify({ content, mtime, force }) })
 
+// Notizen, die per [[…]] auf path verweisen (snippet: die Zeile mit dem Verweis).
+export interface Backlink {
+  path: string
+  title: string
+  snippet: string
+}
+
+export const listBacklinks = (path: string) => api<Backlink[]>(`/notes/backlinks?path=${encodeURIComponent(path)}`)
+
 export const createNote = (path: string, dir = false) =>
   api<{ path: string; mtime?: string }>(notePath(path), { method: 'POST', body: JSON.stringify({ dir }) })
 

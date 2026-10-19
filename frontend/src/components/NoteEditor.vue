@@ -4,6 +4,7 @@ import { config } from 'md-editor-v3'
 
 // Rechtschreibprüfung des Browsers bzw. von macOS (rote Wellenlinie, Vorschläge per Rechtsklick); CodeMirror schaltet sie sonst ab.
 // ![[Name]] und ![[Name|900]] wie in Obsidian: ein <img data-wiki>, das sanitize (previewImages) zum Pfad auflöst.
+// [[Name]], [[Name|Alias]], [[Name#Überschrift]]: ein <a data-wikilink>, das sanitize (previewWikiLinks) zur Notiz auflöst.
 config({
   codeMirrorExtensions: (exts) => [...exts, { type: 'spellcheck', extension: EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }) }],
   markdownItConfig: (md) => {
@@ -20,6 +21,17 @@ config({
       state.pos += m[0].length
       return true
     })
+    md.inline.ruler.before('link', 'wikiLink', (state, silent) => {
+      const m = /^\[\[([^[\]\n]+)\]\]/.exec(state.src.slice(state.pos))
+      if (!m) return false
+      if (!silent) {
+        state.push('link_open', 'a', 1).attrs = [['href', '#'], ['data-wikilink', m[1]!]]
+        state.push('text', '', 0).content = parseWikiLink(m[1]!).label
+        state.push('link_close', 'a', -1)
+      }
+      state.pos += m[0].length
+      return true
+    })
   },
 })
 </script>
@@ -29,7 +41,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ApiError, createNote, errorMessage, uploadFile } from '@/api/client'
-import { assetName, drawingsIn, join, previewImages, resolveLink } from '@/lib/noteFiles'
+import { assetName, drawingsIn, join, parseWikiLink, previewImages, previewWikiLinks, resolveLink, resolveNote } from '@/lib/noteFiles'
 import { drawingSrc, renderDrawing } from '@/lib/drawingPreview'
 import { parentOf } from '@/components/NoteTree.vue'
 
@@ -39,7 +51,7 @@ import { parentOf } from '@/components/NoteTree.vue'
 // files: alle Dateien im Notizordner, für ![[Name]] (Suche nach dem Namen wie in Obsidian).
 const props = defineProps<{ path: string; drawingRev?: number; files?: string[] }>()
 const text = defineModel<string>({ required: true })
-const emit = defineEmits<{ uploaded: []; error: [string]; open: [string] }>()
+const emit = defineEmits<{ uploaded: []; error: [string]; open: [string]; openNote: [string] }>()
 
 const TOOLBAR: ToolbarNames[] = [
   'bold', 'italic', 'strikeThrough', 'title', '-', 'quote', 'unorderedList', 'orderedList', 'task', '-',
@@ -76,7 +88,9 @@ const sanitize = computed(() => {
   void rendered.value
   const files = props.files ?? []
   return (html: string) => {
-    const out = previewImages(html, props.path, drawingSrc, (name) => resolveLink(name, parentOf(props.path), files))
+    const dir = parentOf(props.path)
+    const out = previewWikiLinks(previewImages(html, props.path, drawingSrc, (name) => resolveLink(name, dir, files)), (name) =>
+      name ? resolveNote(name, dir, files) : props.path)
     drawings = drawingsIn(out)
     redraw(drawings.filter((p) => !drawingSrc(p)))
     return out
@@ -84,8 +98,14 @@ const sanitize = computed(() => {
 })
 watch(() => props.drawingRev, () => redraw(drawings))
 
-// Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab, Zeichnungen links in Kairo.
+// Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab, Zeichnungen links in Kairo, [[Links]] die Notiz.
 function openPreviewImage(e: MouseEvent) {
+  const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('.md-editor-preview a.md-wikilink')
+  if (link) {
+    e.preventDefault()
+    if (link.dataset.note) emit('openNote', link.dataset.note)
+    return
+  }
   const img = (e.target as HTMLElement).closest<HTMLImageElement>('.md-editor-preview img')
   if (img?.dataset.drawing) emit('open', img.dataset.drawing)
   else if (img) window.open(img.src, '_blank')
@@ -111,6 +131,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
 <style scoped>
 .nd { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .nd :deep(.md-editor-preview img) { cursor: zoom-in; }
+.nd :deep(.md-editor-preview a.md-wiki-unresolved) { color: var(--tx-muted); text-decoration: underline dotted; cursor: not-allowed; }
 .nd :deep(.md-editor-preview img[data-drawing]) { cursor: pointer; }
 
 /* md-editor-v3 an die Kairo-Tokens anpassen (gilt für Dark und Light, weil die Tokens mitwechseln). */

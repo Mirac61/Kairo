@@ -115,6 +115,32 @@ func TestNotes(t *testing.T) {
 	}
 }
 
+func TestNoteBacklinks(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "Ziel.md"), []byte("x"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "quelle.md"), []byte("siehe [[ziel|Alias]]"), 0o644)
+	store, err := notes.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	h := NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{Notes: store})
+
+	rec := call(h, "GET", "/api/notes/backlinks?path=Ziel.md", ``)
+	var links []notes.Backlink
+	if err := json.NewDecoder(rec.Body).Decode(&links); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("Status %d: %v", rec.Code, err)
+	}
+	if len(links) != 1 || links[0].Path != "quelle.md" || links[0].Title != "quelle" {
+		t.Fatalf("Rückverweise: %+v", links)
+	}
+	for _, p := range []string{"", "..%2Fx.md", "%2Fetc%2Fpasswd", "Ziel.txt"} {
+		if rec := call(h, "GET", "/api/notes/backlinks?path="+p, ``); rec.Code != http.StatusBadRequest {
+			t.Errorf("path=%q: Status %d, erwartet 400", p, rec.Code)
+		}
+	}
+}
+
 func TestNoteFiles(t *testing.T) {
 	dir := t.TempDir()
 	store, err := notes.Open(dir)

@@ -1,7 +1,7 @@
 // Prüfung der Notizdateien: node test/noteFiles.test.ts
 import assert from 'node:assert/strict'
 import lz from 'lz-string'
-import { assetName, drawingsIn, fileKind, fillTemplate, isObsidianDrawing, join, parseObsidianDrawing, previewImages, resolveLink, under, withExt } from '../src/lib/noteFiles.ts'
+import { assetName, drawingsIn, fileKind, fillTemplate, isObsidianDrawing, join, parseObsidianDrawing, parseWikiLink, previewImages, previewWikiLinks, resolveLink, resolveNote, under, withExt } from '../src/lib/noteFiles.ts'
 
 assert.equal(fileKind('Uni/a.MD'), 'md')
 assert.equal(fileKind('skript.pdf'), 'pdf')
@@ -83,3 +83,23 @@ assert.deepEqual([...got.embedded], [
 ])
 assert.deepEqual(parseObsidianDrawing('```json\n{"elements":[]}\n```', lz.decompressFromBase64).scene, { elements: [] })
 assert.throws(() => parseObsidianDrawing('nur Text', lz.decompressFromBase64))
+
+// [[Wikilinks]]
+assert.deepEqual(parseWikiLink('SE'), { name: 'SE', heading: '', label: 'SE' })
+assert.deepEqual(parseWikiLink(' SE | Software Engineering '), { name: 'SE', heading: '', label: 'Software Engineering' })
+assert.deepEqual(parseWikiLink('SE#Ziele'), { name: 'SE', heading: 'Ziele', label: 'SE > Ziele' })
+assert.deepEqual(parseWikiLink('SE#Ziele|Hier'), { name: 'SE', heading: 'Ziele', label: 'Hier' })
+assert.deepEqual(parseWikiLink('#Ziele'), { name: '', heading: 'Ziele', label: 'Ziele' })
+const notes = ['a.md', 'Uni/SE.md', 'Uni/Sub/SE.md', 'Uni/Sub/Deep/Zeug.md', 'bild.png', 'se.png']
+assert.equal(resolveNote('se', 'a', notes), 'Uni/SE.md') // Groß/klein egal, kürzester Pfad
+assert.equal(resolveNote('SE.md', '', notes), 'Uni/SE.md')
+assert.equal(resolveNote('uni/sub/se', '', notes), 'Uni/Sub/SE.md')
+assert.equal(resolveNote('SE', 'Uni/Sub', notes), 'Uni/Sub/SE.md') // neben der Notiz zuerst
+assert.equal(resolveNote('Sub/Deep/Zeug', '', notes), 'Uni/Sub/Deep/Zeug.md') // Ordner im Link ungenau: Dateiname zählt
+assert.equal(resolveNote('bild', '', notes), '') // nur Notizen
+assert.equal(resolveNote('fehlt', '', notes), '')
+const wl = '<p><a href="#" data-wikilink="se#Ziele|Alias" target="_blank">Alias</a> <a href="#" data-wikilink="fehlt">fehlt</a> <a href="https://x.de">x</a></p>'
+assert.equal(
+  previewWikiLinks(wl, (n) => resolveNote(n, '', notes)),
+  '<p><a href="#" class="md-wikilink" data-note="Uni/SE.md">Alias</a> <a href="#" class="md-wikilink md-wiki-unresolved">fehlt</a> <a href="https://x.de">x</a></p>',
+)
