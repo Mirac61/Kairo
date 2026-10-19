@@ -3,7 +3,7 @@
 #   PI=<benutzer>@<pi-host> ./deploy.sh
 #   PI=<benutzer>@<pi-host> ZIEL=/home/<benutzer>/kairo-app ./deploy.sh
 # Voraussetzung auf dem Pi: Der WireGuard-Tunnel läuft als Interface wg0
-# (z. B. eingerichtet durch ein <wireguard-skript>-Skript aus deinem Netzwerk-Repo).
+# (z. B. eingerichtet durch ein WireGuard-Skript aus deinem Netzwerk-Repo).
 set -eu
 cd "$(dirname "$0")"
 
