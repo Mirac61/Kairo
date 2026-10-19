@@ -3,6 +3,7 @@
 package config
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,15 +66,22 @@ func (e *Error) Error() string {
 // File sind die Einstellungen in config.json, die die WebUI ändern darf.
 // Leere Felder bedeuten Standardwert.
 type File struct {
-	NotesDir  string `json:"notesDir,omitempty"`
-	WorkStart string `json:"workStart,omitempty"`
-	WorkEnd   string `json:"workEnd,omitempty"`
+	NotesDir  string `json:"notes_dir,omitempty"`
+	WorkStart string `json:"work_start,omitempty"`
+	WorkEnd   string `json:"work_end,omitempty"`
 	Timezone  string `json:"timezone,omitempty"`
+}
+
+// legacyFile sind die Namen bis Oktober 2026; ReadFile liest sie weiter, damit vorhandene Dateien gelten.
+type legacyFile struct {
+	NotesDir  string `json:"notesDir"`
+	WorkStart string `json:"workStart"`
+	WorkEnd   string `json:"workEnd"`
 }
 
 // FileKeys ordnet jedem Feld von File die Umgebungsvariable zu, die es überschreibt.
 var FileKeys = map[string]string{
-	"notesDir": "KAIRO_NOTES_DIR", "workStart": "KAIRO_WORK_START", "workEnd": "KAIRO_WORK_END", "timezone": "KAIRO_TIMEZONE",
+	"notes_dir": "KAIRO_NOTES_DIR", "work_start": "KAIRO_WORK_START", "work_end": "KAIRO_WORK_END", "timezone": "KAIRO_TIMEZONE",
 }
 
 func (f File) lookup(key string) string {
@@ -92,11 +100,11 @@ func (f File) Validate() error {
 		return nil
 	}
 	if !filepath.IsAbs(f.NotesDir) {
-		return &Error{"notesDir", f.NotesDir, "erwartet absoluten Pfad"}
+		return &Error{"notes_dir", f.NotesDir, "erwartet absoluten Pfad"}
 	}
 	probe, err := os.CreateTemp(f.NotesDir, ".kairo-check-*")
 	if err != nil {
-		return &Error{"notesDir", f.NotesDir, "Ordner fehlt oder ist nicht beschreibbar"}
+		return &Error{"notes_dir", f.NotesDir, "Ordner fehlt oder ist nicht beschreibbar"}
 	}
 	probe.Close()
 	return os.Remove(probe.Name())
@@ -112,9 +120,14 @@ func ReadFile(path string) (File, error) {
 	if err != nil {
 		return f, err
 	}
+	var old legacyFile
 	if err := json.Unmarshal(b, &f); err != nil {
 		return f, fmt.Errorf("config: %s: %w", path, err)
 	}
+	_ = json.Unmarshal(b, &old) // gleiche Datei, Fehler kam schon oben
+	f.NotesDir = cmp.Or(f.NotesDir, old.NotesDir)
+	f.WorkStart = cmp.Or(f.WorkStart, old.WorkStart)
+	f.WorkEnd = cmp.Or(f.WorkEnd, old.WorkEnd)
 	return f, nil
 }
 

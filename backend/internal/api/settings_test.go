@@ -45,14 +45,14 @@ func TestSettings(t *testing.T) {
 	}
 
 	// Ein fehlender Notizordner wird abgelehnt und nichts geschrieben.
-	if rec := call(h, "PUT", "/api/settings", `{"notesDir":`+strconv.Quote(filepath.Join(dir, "fehlt"))+`}`); rec.Code != http.StatusBadRequest {
+	if rec := call(h, "PUT", "/api/settings", `{"notes_dir":`+strconv.Quote(filepath.Join(dir, "fehlt"))+`}`); rec.Code != http.StatusBadRequest {
 		t.Fatalf("PUT fehlender Ordner = %d", rec.Code)
 	}
-	if rec := call(h, "PUT", "/api/settings", `{"workStart":"18:00"}`); rec.Code != http.StatusBadRequest {
+	if rec := call(h, "PUT", "/api/settings", `{"work_start":"18:00"}`); rec.Code != http.StatusBadRequest {
 		t.Fatalf("PUT 18:00 = %d", rec.Code)
 	}
 
-	rec = call(h, "PUT", "/api/settings", `{"notesDir":`+strconv.Quote(dir)+`,"workStart":"08:00","workEnd":"16:30"}`)
+	rec = call(h, "PUT", "/api/settings", `{"notes_dir":`+strconv.Quote(dir)+`,"work_start":"08:00","work_end":"16:30"}`)
 	read(rec.Code, rec.Body.String())
 	if !got.RestartNeeded || got.Settings.NotesDir != dir || got.Settings.WorkEnd != "16:30" || got.Settings.Timezone != "UTC" {
 		t.Fatalf("PUT = %+v", got)

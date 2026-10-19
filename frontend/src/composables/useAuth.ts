@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 export interface User {
   id: string
   email: string
-  createdAt: string
+  created_at: string
 }
 
 const user = ref<User | null>(null)

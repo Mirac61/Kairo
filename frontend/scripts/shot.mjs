@@ -161,7 +161,7 @@ const mock = {
   '/api/review': review,
   '/api/trash': trash,
   '/api/notes': () => noteTree,
-  '/api/settings': () => ({ settings: { notesDir: '/Users/demo/Kairo', workStart: '09:00', workEnd: '17:00' }, env: { timezone: 'KAIRO_TIMEZONE' }, path: '/Users/demo/.config/kairo/config.json', restart_needed: true }),
+  '/api/settings': () => ({ settings: { notes_dir: '/Users/demo/Kairo', work_start: '09:00', work_end: '17:00' }, env: { timezone: 'KAIRO_TIMEZONE' }, path: '/Users/demo/.config/kairo/config.json', restart_needed: true }),
   '/api/today': (q) => {
     const date = q.get('date') ?? day(todayIdx)
     const open = (t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'

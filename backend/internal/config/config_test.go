@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -123,6 +124,18 @@ func TestLoadFileUnderEnv(t *testing.T) {
 	}
 	if got := cfg.File(); got != (File{NotesDir: dir, WorkStart: "07:00", WorkEnd: "17:00", Timezone: "Europe/Berlin"}) {
 		t.Errorf("File() = %+v", got)
+	}
+}
+
+// config.json mit den alten camelCase-Namen gilt weiter.
+func TestReadLegacyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"notesDir":"/tmp/n","workStart":"08:00","work_end":"16:00","timezone":"UTC"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f, err := ReadFile(path)
+	if err != nil || f != (File{NotesDir: "/tmp/n", WorkStart: "08:00", WorkEnd: "16:00", Timezone: "UTC"}) {
+		t.Errorf("ReadFile = %+v, %v", f, err)
 	}
 }
 

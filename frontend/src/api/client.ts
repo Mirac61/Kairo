@@ -364,9 +364,9 @@ export const replaceFile = (path: string, file: Blob, mtime: string, force = fal
   })
 
 export interface SettingsFile {
-  notesDir?: string
-  workStart?: string
-  workEnd?: string
+  notes_dir?: string
+  work_start?: string
+  work_end?: string
   timezone?: string
 }
 

@@ -35,7 +35,7 @@ const version = ref('')
 const restarting = ref(false)
 const zones = Intl.supportedValuesOf('timeZone')
 // Leere Felder im Formular bedeuten Standardwert, wie in config.json.
-const dirty = computed(() => !!data.value && (['notesDir', 'workStart', 'workEnd', 'timezone'] as const).some((k) => (form.value[k] ?? '') !== (data.value!.settings[k] ?? '')))
+const dirty = computed(() => !!data.value && (['notes_dir', 'work_start', 'work_end', 'timezone'] as const).some((k) => (form.value[k] ?? '') !== (data.value!.settings[k] ?? '')))
 
 const { error, load, run } = useLoader(async () => {
   data.value = await getSettings()
@@ -182,12 +182,12 @@ onMounted(() => {
                 <div class="st-text">
                   <div class="st-t">{{ $t('Arbeitszeitfenster') }}</div>
                   <div class="st-h">{{ $t('Daraus berechnet die Startseite die freie Zeit des Tages.') }}</div>
-                  <div v-if="locked('workStart') || locked('workEnd')" class="st-h">{{ $t('Festgelegt durch') }} <code>KAIRO_WORK_START</code>/<code>KAIRO_WORK_END</code></div>
+                  <div v-if="locked('work_start') || locked('work_end')" class="st-h">{{ $t('Festgelegt durch') }} <code>KAIRO_WORK_START</code>/<code>KAIRO_WORK_END</code></div>
                 </div>
                 <div class="st-pair">
-                  <input v-model="form.workStart" type="time" class="input" :aria-label="$t('Arbeitszeit von')" :disabled="!!locked('workStart')" />
+                  <input v-model="form.work_start" type="time" class="input" :aria-label="$t('Arbeitszeit von')" :disabled="!!locked('work_start')" />
                   <span class="st-h">{{ $t('bis') }}</span>
-                  <input v-model="form.workEnd" type="time" class="input" :aria-label="$t('Arbeitszeit bis')" :disabled="!!locked('workEnd')" />
+                  <input v-model="form.work_end" type="time" class="input" :aria-label="$t('Arbeitszeit bis')" :disabled="!!locked('work_end')" />
                 </div>
               </div>
               <div class="st-row">
@@ -210,8 +210,8 @@ onMounted(() => {
                   <label class="st-t" for="s-notes">{{ $t('Notizordner') }}</label>
                   <div class="st-h">{{ $t('Markdown, PDFs und Bilder liegen als normale Dateien hier, VSCodium arbeitet im selben Ordner.') }}</div>
                 </div>
-                <input id="s-notes" v-model="form.notesDir" class="input mono" :disabled="!!locked('notesDir')" :placeholder="$t('Absoluter Pfad oder ~/…, muss existieren')" />
-                <div v-if="locked('notesDir')" class="st-h">{{ $t('Festgelegt durch') }} <code>{{ locked('notesDir') }}</code></div>
+                <input id="s-notes" v-model="form.notes_dir" class="input mono" :disabled="!!locked('notes_dir')" :placeholder="$t('Absoluter Pfad oder ~/…, muss existieren')" />
+                <div v-if="locked('notes_dir')" class="st-h">{{ $t('Festgelegt durch') }} <code>{{ locked('notes_dir') }}</code></div>
               </div>
             </div>
             <div class="st-group">
