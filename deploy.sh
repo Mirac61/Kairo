@@ -2,14 +2,46 @@
 # Kairo auf den Raspberry Pi deployen (nur über WireGuard erreichbar, mit Login).
 #   PI=<benutzer>@<pi-host> ./deploy.sh
 #   PI=<benutzer>@<pi-host> ZIEL=/home/<benutzer>/kairo-app ./deploy.sh
+#   PI=<benutzer>@<pi-host> ./deploy.sh --notes [--dry-run]   # nur den lokalen Vault auf den Pi spiegeln
 # Voraussetzung auf dem Pi: Der WireGuard-Tunnel läuft als Interface wg0
 # (z. B. eingerichtet durch ein WireGuard-Skript aus deinem Netzwerk-Repo).
 set -eu
 cd "$(dirname "$0")"
 
+NOTES=0
+DRY=0
+for arg in "$@"; do
+  case "$arg" in
+    --notes) NOTES=1 ;;
+    --dry-run) DRY=1 ;;
+    *) echo "Unbekanntes Argument: $arg (erlaubt: --notes --dry-run)" >&2; exit 1 ;;
+  esac
+done
+
 PI="${PI:?Benutzer und Adresse angeben, z. B.: PI=<benutzer>@<pi-host> ./deploy.sh}"
 USER_NAME="${PI%@*}"
 ZIEL="${ZIEL:-/home/$USER_NAME/kairo}"
+
+# --notes: nur den lokalen Obsidian-Vault auf den Pi spiegeln, ohne Build und Neustart.
+if [ "$NOTES" = 1 ]; then
+  # Vault auf dem Mac: VAULT= setzen, sonst notes_dir aus config.json, sonst ~/Kairo.
+  if [ -z "${VAULT:-}" ]; then
+    VAULT=$(sed -n 's/.*"notes_dir"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$HOME/.config/kairo/config.json" 2>/dev/null | head -1)
+  fi
+  VAULT="${VAULT:-$HOME/Kairo}"
+  # Einbahn Mac→Pi ohne --delete: Neues und Geändertes geht hoch, Löschen bleibt auf dem Pi
+  # (bewusst, damit am Pi angelegte Notizen nicht verschwinden). assets/ kommt als Unterordner mit.
+  RSYNC_OPTS="-avz --exclude .trash/ --exclude .DS_Store"
+  if [ "$DRY" = 1 ]; then
+    echo "→ Vorschau: $VAULT → $PI:$ZIEL/notes/"
+    rsync $RSYNC_OPTS -n "$VAULT/" "$PI:$ZIEL/notes/"
+    exit 0
+  fi
+  echo "→ Spiegle $VAULT → $PI:$ZIEL/notes/"
+  rsync $RSYNC_OPTS "$VAULT/" "$PI:$ZIEL/notes/"
+  echo "fertig."
+  exit 0
+fi
 
 echo "→ Prüfe Pi ..."
 ARCH=$(ssh "$PI" uname -m)
