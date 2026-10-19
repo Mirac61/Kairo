@@ -67,6 +67,13 @@ const tz = computed(() => (today.value?.timezone === 'Local' ? undefined : today
 const fmt = (iso: string) => new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit', timeZone: tz.value }).format(new Date(iso))
 // Minuten seit Mitternacht in der Zeitzone des Backends.
 const minsOf = (ms: number) => minutesOfDay(ms, tz.value)
+// Ende eines Termins in Minuten seit Mitternacht; über Mitternacht reicht es in den nächsten Tag (z. B. 23:00→25:00),
+// damit der Block nicht rückwärts läuft, sondern im Raster korrekt nach unten ragt.
+const blockEnd = (start: string, end: string) => {
+  const s = minsOf(Date.parse(start))
+  const e = minsOf(Date.parse(end))
+  return e <= s ? e + 24 * 60 : e || 24 * 60
+}
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(now.value)))
@@ -97,7 +104,7 @@ const allBlocks = computed<Block[]>(() => {
   if (!t) return []
   const out: Block[] = t.events.map((e) => ({
     key: `e${e.id}${e.occurrence_start}`, title: e.title, kind: 'event', done: false, color: 'var(--p-neutral)', sub: e.location,
-    start: minsOf(Date.parse(e.occurrence_start)), end: minsOf(Date.parse(e.occurrence_end)) || 24 * 60,
+    start: minsOf(Date.parse(e.occurrence_start)), end: blockEnd(e.occurrence_start, e.occurrence_end),
   }))
   for (const task of t.tasks) {
     if (!task.planned_start_at) continue
