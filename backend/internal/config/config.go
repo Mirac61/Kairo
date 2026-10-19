@@ -48,6 +48,8 @@ type Config struct {
 	NtfyURL   string
 	NtfyTopic string
 	NtfyLead  time.Duration
+	// NtfyDigest ist die Uhrzeit (Abstand zu Mitternacht) der täglichen Meldung „heute fällig“; < 0 = aus.
+	NtfyDigest time.Duration
 }
 
 // Addr liefert die Listen-Adresse.
@@ -241,6 +243,16 @@ func resolve(getenv func(string) string) (Config, error) {
 			errs = append(errs, &Error{"KAIRO_NTFY_LEAD", v, "erwartet positive Dauer (z. B. 10m)"})
 		} else {
 			cfg.NtfyLead = d
+		}
+	}
+	cfg.NtfyDigest = 8 * time.Hour
+	if v := getenv("KAIRO_NTFY_DIGEST"); v == "off" {
+		cfg.NtfyDigest = -1
+	} else if v != "" {
+		if t, err := time.Parse("15:04", v); err != nil {
+			errs = append(errs, &Error{"KAIRO_NTFY_DIGEST", v, "erwartet Uhrzeit HH:MM oder off"})
+		} else {
+			cfg.NtfyDigest = time.Duration(t.Hour())*time.Hour + time.Duration(t.Minute())*time.Minute
 		}
 	}
 

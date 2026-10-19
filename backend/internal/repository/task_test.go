@@ -141,3 +141,27 @@ func TestTaskTableRejectsStartWithoutDate(t *testing.T) {
 		t.Error("planned_start_at ohne planned_date wurde akzeptiert")
 	}
 }
+
+func TestDueTasksWindow(t *testing.T) {
+	ctx := context.Background()
+	tasks, _ := newTaskRepos(t)
+	day := time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)
+	add := func(id string, due time.Time, status domain.TaskStatus) {
+		task := newTask(id)
+		task.DueAt, task.Status = &due, status
+		if err := tasks.Create(ctx, task); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("alt", day.AddDate(0, 0, -3), domain.TaskBacklog)
+	add("heute", day.Add(23*time.Hour+59*time.Minute), domain.TaskBacklog)
+	add("erledigt", day.Add(time.Hour), domain.TaskCompleted)
+	add("morgen", day.AddDate(0, 0, 1).Add(time.Hour), domain.TaskBacklog)
+	got, err := tasks.DueTasks(ctx, time.Time{}, day.AddDate(0, 0, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].ID != "alt" || got[1].ID != "heute" {
+		t.Fatalf("DueTasks = %v", got)
+	}
+}

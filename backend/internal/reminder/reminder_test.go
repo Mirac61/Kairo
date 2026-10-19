@@ -2,7 +2,7 @@ package reminder
 
 import (
 	"context"
-	"io"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +13,8 @@ import (
 
 type fakeStore struct {
 	tasks       []domain.Task
+	due         []domain.Task
+	dueCalls    int
 	events      []domain.EventInstance
 	lo, hi      time.Time
 	tasksCalls  int
@@ -25,6 +27,11 @@ func (f *fakeStore) UpcomingTasks(_ context.Context, lo, hi time.Time) ([]domain
 	return f.tasks, nil
 }
 
+func (f *fakeStore) DueTasks(_ context.Context, _, _ time.Time) ([]domain.Task, error) {
+	f.dueCalls++
+	return f.due, nil
+}
+
 func (f *fakeStore) Occurrences(_ context.Context, lo, hi time.Time) ([]domain.EventInstance, error) {
 	f.eventsCalls++
 	f.lo, f.hi = lo, hi
@@ -32,12 +39,12 @@ func (f *fakeStore) Occurrences(_ context.Context, lo, hi time.Time) ([]domain.E
 }
 
 func TestSend(t *testing.T) {
-	var method, path, body, title string
+	var method, path string
+	var msg map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		method, path = r.Method, r.URL.Path
-		title = r.Header.Get("Title")
-		b, _ := io.ReadAll(r.Body)
-		body = string(b)
+		msg = nil
+		_ = json.NewDecoder(r.Body).Decode(&msg)
 	}))
 	defer srv.Close()
 
@@ -47,8 +54,8 @@ func TestSend(t *testing.T) {
 	if err := r.send("VL 3", at, "Hörsaal 1"); err != nil {
 		t.Fatal(err)
 	}
-	if method != http.MethodPost || path != "/kairo" || body != "Start um 14:00 · Hörsaal 1" || title != "VL 3" {
-		t.Fatalf("send = %s %s body=%q title=%q", method, path, body, title)
+	if method != http.MethodPost || path != "/" || msg["topic"] != "kairo" || msg["message"] != "Start um 14:00 · Hörsaal 1" || msg["title"] != "VL 3" {
+		t.Fatalf("send = %s %s %v", method, path, msg)
 	}
 	off := New(nil, "", "", 10*time.Minute, time.Minute, berlin, nil)
 	if off.Enabled() {
@@ -85,3 +92,44 @@ func TestTickWindowAndDedup(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func TestDueDigest(t *testing.T) {
+	berlin, _ := time.LoadLocation("Europe/Berlin")
+	day := time.Date(2026, 10, 20, 0, 0, 0, 0, berlin)
+	store := &fakeStore{due: []domain.Task{
+		{ID: "a", Title: "Blatt 2", DueAt: ptr(day.Add(-time.Minute))},
+		{ID: "b", Title: "Abgabe Blatt 3", DueAt: ptr(day.Add(23*time.Hour + 59*time.Minute))},
+	}}
+	var msgs []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&m)
+		msgs = append(msgs, m)
+	}))
+	defer srv.Close()
+
+	r := New(store, srv.URL, "kairo", 10*time.Minute, time.Minute, berlin, nil).WithDigest(8 * time.Hour)
+	ctx := context.Background()
+	for _, at := range []time.Duration{7*time.Hour + 59*time.Minute, 8 * time.Hour, 8*time.Hour + time.Minute, 9 * time.Hour} {
+		now := day.Add(at)
+		r.now = func() time.Time { return now }
+		r.tick(ctx)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("%d Meldungen, erwartet genau eine um 08:00: %v", len(msgs), msgs)
+	}
+	if msgs[0]["title"] != "Heute fällig: 1 · überfällig: 1" || msgs[0]["message"] != "Abgabe Blatt 3\nÜberfällig: Blatt 2" {
+		t.Fatalf("Meldung %v", msgs[0])
+	}
+	// Später am Tag gestartet: keine Meldung mehr; ausgeschaltet: keine Abfrage.
+	late := New(store, srv.URL, "kairo", 10*time.Minute, time.Minute, berlin, nil).WithDigest(8 * time.Hour)
+	late.now = func() time.Time { return day.Add(10 * time.Hour) }
+	late.tick(ctx)
+	calls := store.dueCalls
+	off := New(store, srv.URL, "kairo", 10*time.Minute, time.Minute, berlin, nil)
+	off.now = func() time.Time { return day.Add(8 * time.Hour) }
+	off.tick(ctx)
+	if len(msgs) != 1 || store.dueCalls != calls {
+		t.Fatalf("Meldungen %d, Abfragen %d -> %d", len(msgs), calls, store.dueCalls)
+	}
+}

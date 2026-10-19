@@ -242,6 +242,10 @@ func (s reminderStore) UpcomingTasks(ctx context.Context, lo, hi time.Time) ([]d
 	return s.tasks.UpcomingTasks(ctx, lo, hi)
 }
 
+func (s reminderStore) DueTasks(ctx context.Context, lo, hi time.Time) ([]domain.Task, error) {
+	return s.tasks.DueTasks(ctx, lo, hi)
+}
+
 func (s reminderStore) Occurrences(ctx context.Context, lo, hi time.Time) ([]domain.EventInstance, error) {
 	return s.cal.Occurrences(ctx, lo, hi)
 }
@@ -320,7 +324,7 @@ func run() error {
 
 	// Erinnerungen per ntfy: nur wenn URL und Topic gesetzt sind.
 	if cfg.NtfyURL != "" && cfg.NtfyTopic != "" {
-		rem := reminder.New(reminderStore{taskRepo, calendar}, cfg.NtfyURL, cfg.NtfyTopic, cfg.NtfyLead, 0, cfg.Location, log)
+		rem := reminder.New(reminderStore{taskRepo, calendar}, cfg.NtfyURL, cfg.NtfyTopic, cfg.NtfyLead, 0, cfg.Location, log).WithDigest(cfg.NtfyDigest)
 		log.Info("Erinnerungen aktiv", "ntfy", cfg.NtfyURL+"/"+cfg.NtfyTopic, "lead", cfg.NtfyLead)
 		go rem.Run(ctx)
 	} else {

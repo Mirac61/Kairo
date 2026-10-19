@@ -193,6 +193,29 @@ func (r *TaskRepository) UpcomingTasks(ctx context.Context, lo, hi time.Time) ([
 	return out, rows.Err()
 }
 
+// DueTasks liefert offene Tasks mit Fälligkeit im Fenster (lo, hi] (beide UTC), aufsteigend.
+// Für die tägliche Meldung „heute fällig“.
+func (r *TaskRepository) DueTasks(ctx context.Context, lo, hi time.Time) ([]domain.Task, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT `+taskColumns+` FROM tasks
+		WHERE deleted_at IS NULL AND due_at IS NOT NULL
+			AND status NOT IN ('COMPLETED', 'CANCELLED')
+			AND due_at > ? AND due_at <= ?
+		ORDER BY due_at, id`, formatTime(lo), formatTime(hi))
+	if err != nil {
+		return nil, fmt.Errorf("repository: fällige Tasks lesen: %w", err)
+	}
+	defer rows.Close()
+	out := []domain.Task{}
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, fmt.Errorf("repository: Task lesen: %w", err)
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 func updateTask(ctx context.Context, q dbtx, t domain.Task) error {
 	res, err := q.ExecContext(ctx,
 		`UPDATE tasks SET project_id = ?, parent_task_id = ?, title = ?, description = ?, status = ?,

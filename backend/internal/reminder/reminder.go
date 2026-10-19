@@ -1,11 +1,14 @@
 // Package reminder erinnert vor dem Beginn von Aufgaben und Terminen per ntfy.
 // Der Scheduler läuft im Hintergrund, fragt die fälligen Einträge im Fenster ab
 // und verschickt für jeden Eintrag genau eine Benachrichtigung (Vorlauf NtfyLead).
+// Fälligkeiten haben keine Uhrzeit (gespeichert als 23:59), dafür gibt es morgens
+// eine Sammelmeldung „heute fällig“ mit dem Überfälligen.
 package reminder
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -18,6 +21,7 @@ import (
 // Store liefert die Einträge, die im Fenster (lo, hi] beginnen.
 type Store interface {
 	UpcomingTasks(ctx context.Context, lo, hi time.Time) ([]domain.Task, error)
+	DueTasks(ctx context.Context, lo, hi time.Time) ([]domain.Task, error)
 	Occurrences(ctx context.Context, lo, hi time.Time) ([]domain.EventInstance, error)
 }
 
@@ -33,6 +37,8 @@ type Runner struct {
 	log      *slog.Logger
 	client   *http.Client
 	sent     map[string]time.Time
+	digest   time.Duration // Uhrzeit der Sammelmeldung ab Mitternacht; < 0 = aus
+	digested string        // Tag (YYYY-MM-DD) der letzten Sammelmeldung
 }
 
 // New erzeugt einen Runner. interval ist der Abstand zwischen zwei Abfragen (≤ 0 = eine Minute).
@@ -57,7 +63,14 @@ func New(store Store, url, topic string, lead, interval time.Duration, loc *time
 		log:      log,
 		client:   &http.Client{Timeout: 10 * time.Second},
 		sent:     map[string]time.Time{},
+		digest:   -1,
 	}
+}
+
+// WithDigest schaltet die tägliche Meldung „heute fällig“ um at nach Mitternacht (Ortszeit) ein; < 0 = aus.
+func (r *Runner) WithDigest(at time.Duration) *Runner {
+	r.digest = at
+	return r
 }
 
 // Enabled sagt, ob Erinnerungen konfiguriert sind.
@@ -106,6 +119,7 @@ func (r *Runner) tick(ctx context.Context) {
 		}
 	}
 
+	r.dueDigest(ctx, now)
 	r.prune(now)
 	for _, it := range items {
 		if _, seen := r.sent[it.key]; seen {
@@ -117,6 +131,52 @@ func (r *Runner) tick(ctx context.Context) {
 		}
 		r.sent[it.key] = now
 	}
+}
+
+// dueDigest schickt einmal am Tag, in der Stunde ab r.digest, die offenen Fälligkeiten von heute und das Überfällige.
+// Startet der Server später am Tag, entfällt die Meldung für diesen Tag (kein Nachholen um Mitternacht).
+func (r *Runner) dueDigest(ctx context.Context, now time.Time) {
+	if r.digest < 0 {
+		return
+	}
+	local := now.In(r.loc)
+	day := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, r.loc)
+	at := day.Add(r.digest)
+	key := day.Format("2006-01-02")
+	if r.digested == key || local.Before(at) || !local.Before(at.Add(time.Hour)) {
+		return
+	}
+	ts, err := r.store.DueTasks(ctx, time.Time{}, day.AddDate(0, 0, 1))
+	if err != nil {
+		r.log.Warn("Erinnerung: Fälliges lesen", "err", err)
+		return
+	}
+	if len(ts) == 0 {
+		r.digested = key
+		return
+	}
+	var today, late []string
+	for _, t := range ts {
+		if t.DueAt.Before(day) {
+			late = append(late, t.Title)
+		} else {
+			today = append(today, t.Title)
+		}
+	}
+	title := fmt.Sprintf("Heute fällig: %d", len(today))
+	body := strings.Join(today, "\n")
+	if len(late) > 0 {
+		title += fmt.Sprintf(" · überfällig: %d", len(late))
+		if body != "" {
+			body += "\n"
+		}
+		body += "Überfällig: " + strings.Join(late, ", ")
+	}
+	if err := r.post(title, body); err != nil {
+		r.log.Warn("Erinnerung senden", "err", err)
+		return
+	}
+	r.digested = key
 }
 
 // prune entfernt Einträge, deren Fenster längst vorbei ist, damit die Map klein bleibt.
@@ -131,20 +191,23 @@ func (r *Runner) prune(now time.Time) {
 
 // send schickt eine ntfy-Benachrichtigung; ohne url/topic passiert nichts.
 func (r *Runner) send(title string, at time.Time, detail string) error {
-	if !r.Enabled() {
-		return nil
-	}
 	body := "Start um " + at.In(r.loc).Format("15:04")
 	if detail != "" {
 		body += " · " + detail
 	}
-	req, err := http.NewRequest(http.MethodPost, r.url+"/"+r.topic, bytes.NewBufferString(body))
+	return r.post(title, body)
+}
+
+// post veröffentlicht als JSON an die Wurzel-URL: Titel mit Umlauten kämen als Header nicht sicher an.
+func (r *Runner) post(title, body string) error {
+	if !r.Enabled() {
+		return nil
+	}
+	msg, err := json.Marshal(map[string]any{"topic": r.topic, "title": title, "message": body, "tags": []string{"bell"}})
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Title", title)
-	req.Header.Set("Tags", "bell")
-	resp, err := r.client.Do(req)
+	resp, err := r.client.Post(r.url, "application/json", bytes.NewReader(msg))
 	if err != nil {
 		return err
 	}
