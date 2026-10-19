@@ -17,7 +17,7 @@ async function onSubmit() {
     await login(email.value, password.value)
     router.replace('/')
   } catch (err: any) {
-    error.value = err?.status === 401 ? t('E-Mail oder Passwort ist falsch.') : t('Anmeldung fehlgeschlagen.')
+    error.value = err?.status === 401 ? t('E-Mail oder Passwort ist falsch.') : err?.status === 429 ? t('Zu viele Fehlversuche. Bitte eine Minute warten.') : t('Anmeldung fehlgeschlagen.')
   } finally {
     submitting.value = false
   }

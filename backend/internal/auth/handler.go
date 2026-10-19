@@ -3,7 +3,11 @@ package auth
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
+	"strconv"
+	"sync"
+	"time"
 )
 
 const sessionCookieName = "session"
@@ -12,6 +16,82 @@ const sessionCookieName = "session"
 type Handler struct {
 	service      *Service
 	cookieSecure bool
+	limit        loginLimit
+}
+
+// Nach maxLoginFails Fehlversuchen je Adresse oder Konto antwortet Login lockFor lang mit 429.
+const (
+	maxLoginFails = 5
+	lockFor       = time.Minute
+)
+
+// loginLimit zählt fehlgeschlagene Anmeldungen. Der Nullwert ist benutzbar.
+// shortcut: Zähler liegen im Speicher und wachsen mit jeder neuen Adresse; reicht hinter WireGuard,
+// bei offenem Zugang ältere Einträge regelmäßig löschen.
+type loginLimit struct {
+	mu    sync.Mutex
+	fails map[string]*loginFails
+	now   func() time.Time // nil: time.Now
+}
+
+type loginFails struct {
+	n     int
+	until time.Time
+}
+
+func (l *loginLimit) clock() time.Time {
+	if l.now != nil {
+		return l.now()
+	}
+	return time.Now()
+}
+
+// lockedFor liefert die Restdauer der Sperre (0: nicht gesperrt).
+func (l *loginLimit) lockedFor(keys ...string) time.Duration {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var d time.Duration
+	for _, k := range keys {
+		if f := l.fails[k]; f != nil {
+			d = max(d, f.until.Sub(l.clock()))
+		}
+	}
+	return d
+}
+
+func (l *loginLimit) fail(keys ...string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.fails == nil {
+		l.fails = map[string]*loginFails{}
+	}
+	for _, k := range keys {
+		f := l.fails[k]
+		if f == nil {
+			f = &loginFails{}
+			l.fails[k] = f
+		}
+		if f.n++; f.n >= maxLoginFails {
+			f.n, f.until = 0, l.clock().Add(lockFor)
+		}
+	}
+}
+
+func (l *loginLimit) reset(keys ...string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, k := range keys {
+		delete(l.fails, k)
+	}
+}
+
+// loginKeys: Adresse ohne Port und normalisierte E-Mail.
+func loginKeys(r *http.Request, email string) []string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	return []string{"ip:" + host, "mail:" + normalizeEmail(email)}
 }
 
 // NewHandler erzeugt einen neuen Auth-Handler.
@@ -101,9 +181,16 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	keys := loginKeys(r, req.Email)
+	if d := h.limit.lockedFor(keys...); d > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(d.Seconds())+1))
+		http.Error(w, "zu viele Fehlversuche, bitte kurz warten", http.StatusTooManyRequests)
+		return
+	}
 	_, token, err := h.service.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
+			h.limit.fail(keys...)
 			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
@@ -111,6 +198,7 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.limit.reset(keys...)
 	setSessionCookie(w, token, int(h.service.sessionTTL.Seconds()), h.cookieSecure)
 	w.WriteHeader(http.StatusNoContent)
 }

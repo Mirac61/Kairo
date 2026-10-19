@@ -87,6 +87,7 @@ const en: Record<string, string> = {
   'E-Mail': 'Email',
   'Passwort': 'Password',
   'E-Mail oder Passwort ist falsch.': 'Email or password is incorrect.',
+  'Zu viele Fehlversuche. Bitte eine Minute warten.': 'Too many failed attempts. Please wait a minute.',
   'Anmeldung fehlgeschlagen.': 'Sign in failed.',
   'Wird angemeldet …': 'Signing in …',
   'Anmelden': 'Sign in',
