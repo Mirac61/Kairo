@@ -24,6 +24,7 @@ type Services struct {
 	Review    ReviewService
 	Notes     *notes.Store
 	Settings  *Settings
+	Prefs     PrefsStore
 	// Location bestimmt die Ortszeit im ICS-Export; ohne Angabe gilt UTC.
 	Location *time.Location
 	// GitHub liefert Issues; zusammen mit Projects, Tasks und Resources gibt es /api/github.
@@ -81,6 +82,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	}
 	if svc.Settings != nil {
 		settingsHandlers{svc.Settings}.register(mux)
+	}
+	if svc.Prefs != nil {
+		prefsHandlers{svc.Prefs}.register(mux)
 	}
 	if svc.Hub != nil {
 		mux.HandleFunc("GET /ws", handleWebSocket(svc.Hub))

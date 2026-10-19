@@ -316,6 +316,7 @@ func run() error {
 		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil).WithWorkWindow(cfg.WorkStart, cfg.WorkEnd),
 		Review:    service.NewReviewService(tasks, projects, habits, calendar, timeTracking, cfg.Location, nil),
 		Notes:     notesStore,
+		Prefs:     repository.NewPrefsRepository(db),
 		Settings:  &api.Settings{Running: cfg, Getenv: os.Getenv, Restart: func() { restart.Store(true); stop() }},
 		Hub:       hub,
 		Location:  cfg.Location,

@@ -62,7 +62,7 @@ async function restart() {
 
 const locked = (k: keyof SettingsFile) => data.value?.env[k]
 
-// Die Sprache gilt sofort und nur in diesem Browser; sie steht nicht in config.json.
+// Die Sprache gilt sofort und auf allen Geräten (über /api/prefs); sie steht nicht in config.json.
 function setLang(v: Lang) {
   lang.value = v
   store.set('kairo-lang', v)
@@ -98,7 +98,7 @@ onMounted(() => {
 
           <template v-if="tab === 'general'">
             <div class="st-group">
-              <div class="st-ghead"><span class="lbl">{{ $t('Allgemein') }}</span><span class="st-scope">{{ $t('Sofort, dieser Browser') }}</span></div>
+              <div class="st-ghead"><span class="lbl">{{ $t('Allgemein') }}</span><span class="st-scope">{{ $t('Sofort, alle Geräte') }}</span></div>
               <div class="st-row">
                 <div class="st-text"><div class="st-t">{{ $t('Sprache') }}</div><div class="st-h">{{ $t('Sprache der Oberfläche. Die Schnelleingabe versteht beide.') }}</div></div>
                 <div class="seg">
@@ -117,7 +117,7 @@ onMounted(() => {
 
           <template v-else-if="tab === 'look'">
             <div class="st-group">
-              <div class="st-ghead"><span class="lbl">{{ $t('Theme') }}</span><span class="st-scope">{{ $t('Sofort, dieser Browser') }}</span></div>
+              <div class="st-ghead"><span class="lbl">{{ $t('Theme') }}</span><span class="st-scope">{{ $t('Sofort, alle Geräte') }}</span></div>
               <div class="st-themes" role="radiogroup" :aria-label="$t('Theme')">
                 <button
                   v-for="th in THEMES" :key="th.id" type="button" role="radio" class="st-theme" :class="`th-${th.id}`"
@@ -148,7 +148,7 @@ onMounted(() => {
 
           <template v-else-if="tab === 'time'">
             <div class="st-group">
-              <div class="st-ghead"><span class="lbl">{{ $t('Kalender') }}</span><span class="st-scope">{{ $t('Sofort, dieser Browser') }}</span></div>
+              <div class="st-ghead"><span class="lbl">{{ $t('Kalender') }}</span><span class="st-scope">{{ $t('Sofort, alle Geräte') }}</span></div>
               <div class="st-row">
                 <div class="st-text"><div class="st-t">{{ $t('Wochenbeginn') }}</div><div class="st-h">{{ $t('Erster Tag in Woche und Monat.') }}</div></div>
                 <div class="seg">

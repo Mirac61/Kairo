@@ -1,7 +1,9 @@
 import { computed, reactive, ref, watch, watchEffect } from 'vue'
+import { lang } from './i18n'
 import { store } from './storage'
 
-// Einstellungen, die nur in diesem Browser gelten (wie die Sprache). Sie stehen nicht in config.json.
+// Einstellungen der Oberfläche (dazu die Sprache). Sie stehen nicht in config.json, sondern unter /api/prefs,
+// damit Handy und Rechner gleich eingestellt sind; localStorage ist der Cache für den ersten Paint.
 export type Theme = 'dark' | 'light' | 'system'
 // Akzentfarben als Farbton für --a-hue; Rot und Grün fehlen, weil sie „überfällig“ und „läuft“ bedeuten.
 export const ACCENTS = { blue: 255, violet: 300, aqua: 200, pink: 350, orange: 60 } as const
@@ -52,3 +54,43 @@ export function applyPrefs() {
     }
   })
 }
+
+// Abgleich mit dem Server: holen beim Start und wenn die Seite wieder sichtbar wird, schreiben nach jeder Änderung.
+// Bevor einmal geholt wurde, wird nichts geschrieben, sonst überschriebe ein neues Gerät den Stand der anderen.
+let synced: string | null = null // zuletzt mit dem Server abgeglichener Stand
+const snapshot = () => JSON.stringify({ ...prefs, lang: lang.value })
+
+export async function pullPrefs() {
+  const res = await fetch('/api/prefs').catch(() => null)
+  if (!res?.ok) return // nicht angemeldet oder offline: lokaler Stand gilt weiter
+  const data = (await res.json()) as Record<string, unknown>
+  const p = prefs as Record<string, unknown>
+  for (const k of Object.keys(prefs)) if (typeof data[k] === typeof p[k]) p[k] = data[k]
+  if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
+  if (data.lang === 'de' || data.lang === 'en') {
+    lang.value = data.lang
+    store.set('kairo-lang', data.lang)
+  }
+  synced = Object.keys(data).length ? snapshot() : '' // leer am Server: den lokalen Stand hochladen
+  if (!synced) void pushPrefs()
+}
+
+async function pushPrefs() {
+  const snap = snapshot()
+  if (synced === null || snap === synced) return
+  const res = await fetch('/api/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: snap }).catch(() => null)
+  if (res?.ok) synced = snap
+}
+
+export function syncPrefs() {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  watch([prefs, lang], () => {
+    clearTimeout(timer)
+    timer = setTimeout(() => void pushPrefs(), 400)
+  })
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void pullPrefs() })
+  void pullPrefs()
+}
+
+// Noch nie geholt (z. B. vor dem Login)? Dann beim nächsten Seitenwechsel.
+export const prefsPulled = () => synced !== null

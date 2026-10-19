@@ -221,6 +221,24 @@ test('Sprache umschalten', async () => {
   await page.getByRole('link', { name: 'Aufgaben' }).waitFor()
 })
 
+// Einstellungen gelten auf allen Geräten: ein zweiter Browser (eigener localStorage) übernimmt das Theme.
+test('Einstellungen auf allen Geräten', async () => {
+  await page.goto(`${base}/settings`)
+  await page.getByRole('button', { name: 'Darstellung' }).click()
+  await page.getByRole('radio', { name: /Hell/ }).click()
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
+  const other = await browser.newContext({ locale: 'de-DE' })
+  try {
+    const p2 = await other.newPage()
+    await p2.goto(`${base}/today`)
+    await p2.waitForFunction(() => document.documentElement.dataset.theme === 'light', null, { timeout: 5000 })
+  } finally {
+    await other.close()
+  }
+  await page.getByRole('radio', { name: /Dunkel/ }).click()
+  await page.waitForFunction(async () => (await (await fetch('/api/prefs')).json()).theme === 'dark')
+})
+
 // Handy (390×844): Tab-Leiste und „Neu“-Knopf liegen fest über dem Inhalt und dürfen nichts verdecken.
 test('Handy: Fälligkeit sichtbar, Aufgabendetails über der Tab-Leiste', async () => {
   const due = new Date(Date.now() + 2 * 86400e3)
@@ -230,6 +248,7 @@ test('Handy: Fälligkeit sichtbar, Aufgabendetails über der Tab-Leiste', async 
   try {
     await m.goto(`${base}/tasks`)
     const row = m.locator('.task-row', { hasText: 'Handy-Aufgabe' })
+    await row.waitFor()
     assert.ok(await row.locator('.due').isVisible(), 'Fälligkeit in der Zeile')
     await row.locator('.row-title').click()
     const del = m.locator('.task-aside').getByRole('button', { name: 'Löschen' })

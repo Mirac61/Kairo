@@ -40,7 +40,8 @@ Kalender-Events sind feste Termine. Geplante Arbeitszeit für Tasks wird
 über `planned_start_at` am Task abgebildet, nicht über Events.
 
 `recurrence_rule` verwendet das RRULE-Format aus RFC 5545. Im MVP werden
-unterstützt: `FREQ=DAILY|WEEKLY`, `BYDAY`, `INTERVAL`, `UNTIL`, `COUNT`.
+unterstützt: `FREQ=DAILY|WEEKLY|MONTHLY|YEARLY`, `BYDAY` (wöchentlich),
+`BYMONTHDAY` (monatlich, `-1` = Monatsletzter), `INTERVAL`, `UNTIL`, `COUNT`.
 Einzelne ausgelassene Termine stehen in `recurrence_exdates` (Liste von
 Daten, als JSON gespeichert).
 

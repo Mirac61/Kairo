@@ -499,7 +499,7 @@ const en: Record<string, string> = {
   'Zeit & Kalender': 'Time & calendar',
   'System': 'System',
   'Nicht gespeichert': 'Not saved',
-  'Sofort, dieser Browser': 'Instant, this browser',
+  'Sofort, alle Geräte': 'Instant, all devices',
   'Nach Neustart': 'After restart',
   'Sprache der Oberfläche. Die Schnelleingabe versteht beide.': 'Interface language. Quick add understands both.',
   'Startseite': 'Start page',

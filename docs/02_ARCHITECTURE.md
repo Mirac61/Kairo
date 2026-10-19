@@ -249,6 +249,8 @@ PUT    /api/files/:path               ersetzen, ?mtime= (Version beim Laden) ?fo
 GET    /api/settings
 PUT    /api/settings
 POST   /api/restart
+GET    /api/prefs                     Einstellungen der Oberfläche (JSON-Objekt, {} ohne Eintrag)
+PUT    /api/prefs                     ersetzt das Objekt, höchstens 16 KB
 ```
 
 `notes` und `files` sind zwei Formate für denselben Ordner, kein Duplikat:
@@ -787,6 +789,12 @@ unter Einstellungen ein:
     fährt den Server sauber herunter und startet dasselbe Binary neu
     (siehe Betrieb).
 -   Der Standard-Notizordner ist `~/Kairo`.
+-   Sprache, Theme, Startseite und Kalenderansicht sind keine
+    Server-Einstellungen, gelten aber auf allen Geräten: Die WebUI legt
+    sie als JSON-Objekt unter `/api/prefs` ab (Tabelle `ui_prefs`), holt
+    es beim Start und wenn die Seite wieder sichtbar wird, und hält eine
+    Kopie in `localStorage` für den ersten Paint. Die Schlüssel kennt nur
+    die WebUI.
 
 ------------------------------------------------------------------------
 
