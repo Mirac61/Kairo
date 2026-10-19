@@ -100,22 +100,79 @@ ssh -t <benutzer>@<pi-host> sudo systemctl start kairo
 | `KAIRO_COOKIE_SECURE` | – | `true` nur hinter einem HTTPS-Reverse-Proxy. Kairo selbst spricht HTTP |
 | `KAIRO_SESSION_TTL` | – | Gültigkeit einer Anmeldung, Standard `720h` |
 | `KAIRO_NTFY_URL` | `http://<wg-ip>:<ntfy-port>` | ntfy-Server (auf dem Pi, nicht ntfy.sh). Mit Topic aktiviert es Erinnerungen |
-| `KAIRO_NTFY_TOPIC` | `kairo` | Topic für die Erinnerungen (Vorlauf `KAIRO_NTFY_LEAD`) |
+| `KAIRO_NTFY_TOPIC` | `<topic>` | Langes, zufälliges Topic für die Erinnerungen (Vorlauf `KAIRO_NTFY_LEAD`) |
 | `KAIRO_NTFY_LEAD` | `10m` | Vorlauf, mit dem vor Beginn von Aufgaben/Terminen erinnert wird |
 
 ## Erinnerungen (ntfy)
 
-Auf dem Pi läuft ein eigener ntfy-Server. Damit Kairo vor dem Beginn von
-Aufgaben (mit Uhrzeit) und Terminen benachrichtigt, setzt man im
-systemd-Unit des Dienstes:
+Auf dem Pi läuft ein eigener ntfy-Server, nur über WireGuard erreichbar.
+Ersetze die Platzhalter durch deine eigenen Werte: `<wg-ip>` ist die Adresse
+aus `ip -4 addr show wg0`, `<ntfy-port>` ein freier Port (z. B. `8082`),
+`<topic>` ein langer Zufallsname (z. B. `kairo-$(openssl rand -hex 12)`).
+Das Topic ist der einzige Schutz innerhalb des VPN, also nicht `kairo` nehmen.
+
+**1. ntfy installieren** (offizielles apt-Repo, auch für armhf):
+
+```sh
+sudo mkdir -p /etc/apt/keyrings
+sudo curl -fsSL -o /etc/apt/keyrings/ntfy.gpg https://archive.ntfy.sh/apt/keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/ntfy.gpg] https://archive.ntfy.sh/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/ntfy.list
+sudo apt update && sudo apt install ntfy
+```
+
+**2. `/etc/ntfy/server.yml`:**
+
+```yaml
+base-url: "http://<wg-ip>:<ntfy-port>"
+listen-http: "<wg-ip>:<ntfy-port>"
+# iOS: Sofort-Push bei gesperrtem iPhone. ntfy.sh bekommt nur die Nachrichten-ID
+# und einen Hash des Topics und weckt die App über APNs; den Text holt sie vom Pi.
+upstream-base-url: "https://ntfy.sh"
+cache-file: "/var/cache/ntfy/cache.db"
+cache-duration: "24h"
+```
+
+Wie Kairo darf ntfy erst nach `wg0` starten:
+
+```sh
+sudo mkdir -p /var/cache/ntfy && sudo chown ntfy:ntfy /var/cache/ntfy
+sudo systemctl edit ntfy    # Override, dann:
+[Unit]
+After=wg-quick@wg0.service
+[Service]
+Restart=always
+RestartSec=5
+```
+
+**3. Firewall** (nur über das VPN):
+
+```sh
+sudo ufw allow in on wg0 to any port <ntfy-port> proto tcp comment 'ntfy ueber VPN'
+sudo systemctl enable --now ntfy
+curl http://<wg-ip>:<ntfy-port>/v1/health   # {"healthy":true}
+```
+
+**4. Kairo anbinden:**
 
 ```sh
 sudo systemctl edit kairo   # Override, dann:
+[Service]
 Environment=KAIRO_NTFY_URL=http://<wg-ip>:<ntfy-port>
-Environment=KAIRO_NTFY_TOPIC=kairo
+Environment=KAIRO_NTFY_TOPIC=<topic>
 Environment=KAIRO_NTFY_LEAD=10m
 sudo systemctl restart kairo
 ```
+
+**5. Handy:** ntfy-App installieren, VPN an, als Server
+`http://<wg-ip>:<ntfy-port>` eintragen und `<topic>` abonnieren. Die URL muss
+exakt `base-url` entsprechen, sonst kommt auf iOS kein Push an. Test:
+
+```sh
+curl -H "Title: Kairo" -d "Test" http://<wg-ip>:<ntfy-port>/<topic>
+```
+
+Das Icon der Benachrichtigung ist immer das der ntfy-App.
 
 Sind `KAIRO_NTFY_URL` und `KAIRO_NTFY_TOPIC` leer, ist die Erinnerung aus.
 Die Benachrichtigung kommt als ntfy-Post mit dem Titel als `Title` und dem
