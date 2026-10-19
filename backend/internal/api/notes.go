@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"kairo/internal/domain"
 
@@ -131,6 +132,7 @@ func (h noteHandlers) delete(w http.ResponseWriter, r *http.Request) {
 
 // file liefert ein PDF, Bild, Code oder eine Zeichnung aus dem Notizordner (für <img>, den PDF-Viewer, den Code-Viewer und den Zeichen-Editor).
 func (h noteHandlers) file(w http.ResponseWriter, r *http.Request) {
+	longTransfer(w)
 	f, fi, err := h.store.Open(r.PathValue("path"))
 	if err != nil {
 		writeError(w, err)
@@ -160,6 +162,15 @@ func (h noteHandlers) search(w http.ResponseWriter, r *http.Request) {
 }
 
 const maxUploadBytes = 200 << 20 // Vorlesungsskripte können groß sein
+
+// longTransfer hebt die 30-s-Fristen des Servers für diese Anfrage an: Ein großes Skript braucht
+// über das VPN im Mobilfunk Minuten. Alle anderen Anfragen behalten die kurzen Fristen.
+func longTransfer(w http.ResponseWriter) {
+	rc := http.NewResponseController(w)
+	deadline := time.Now().Add(10 * time.Minute)
+	_ = rc.SetReadDeadline(deadline)
+	_ = rc.SetWriteDeadline(deadline)
+}
 
 // upload legt ein PDF, Bild oder Code an (Rohbytes im Body, z. B. ein eingefügter Screenshot); 409, wenn es schon existiert.
 func (h noteHandlers) upload(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +205,7 @@ func (h noteHandlers) replace(w http.ResponseWriter, r *http.Request) {
 // checkedBody begrenzt den Body und prüft, dass der Inhalt zur Endung passt,
 // damit keine HTML-Datei als .png durchrutscht.
 func checkedBody(w http.ResponseWriter, r *http.Request, p string) (*bufio.Reader, bool) {
+	longTransfer(w)
 	body := bufio.NewReader(http.MaxBytesReader(w, r.Body, maxUploadBytes))
 	head, _ := body.Peek(512)
 	want := map[string]string{"pdf": "application/pdf", "image": "image/", "code": "text/plain", "excalidraw": "text/plain"}[notes.Kind(p)]

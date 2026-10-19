@@ -1,8 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -273,5 +276,38 @@ func TestNoteFiles(t *testing.T) {
 	}
 	if strings.Join(names, ",") != "a.png,Folien.pdf,Makefile.Others,s.excalidraw,Skript 1.pdf,tree.hpp" {
 		t.Fatalf("Baum: %v", names)
+	}
+}
+
+// Ein Upload, der länger als ReadTimeout dauert, kommt trotzdem an (großes PDF über langsames Netz).
+func TestSlowUploadOutlastsReadTimeout(t *testing.T) {
+	store, err := notes.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	srv := httptest.NewUnstartedServer(NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{Notes: store}))
+	srv.Config.ReadTimeout = 200 * time.Millisecond
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	pr, pw := io.Pipe()
+	go func() {
+		_, _ = pw.Write(append([]byte("%PDF-1.4\n"), bytes.Repeat([]byte(" "), 600)...))
+		time.Sleep(500 * time.Millisecond)
+		_, _ = pw.Write([]byte("%%EOF\n"))
+		_ = pw.Close()
+	}()
+	req, _ := http.NewRequest("POST", srv.URL+"/api/files/skript.pdf", pr)
+	req.Host = "127.0.0.1:8742"
+	req.Header.Set("Origin", "http://127.0.0.1:8742")
+	res, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("Status %d: %s", res.StatusCode, b)
 	}
 }

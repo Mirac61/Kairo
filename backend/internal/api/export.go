@@ -32,6 +32,7 @@ func (h exportHandlers) zip(w http.ResponseWriter, r *http.Request) {
 		writeError(w, domain.ErrUnavailable)
 		return
 	}
+	longTransfer(w)
 	attachment(w, "application/zip", "zip")
 	if err := h.svc.Notes.Zip(w); err != nil {
 		// Header sind schon gesetzt; nur loggen, den Stream kann man nicht mehr ändern.
