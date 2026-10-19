@@ -15,13 +15,24 @@ export const filesUrl = (path: string) => `/api/files/${path.split('/').map(enco
 // Vorschau: relative <img src> (neben der Notiz, auch „../bilder/x.png“) zeigen auf /api/files.
 // Absolute URLs, data: und /pfad bleiben, wie sie sind. Zeichnungen (.excalidraw) bekommen data-drawing mit ihrem Pfad
 // und als src das fertige Bild aus drawing(pfad), solange es fehlt ein leeres Platzhalterbild.
+// Obsidian-Einbettungen (![[Name]], als <img data-wiki> aus NoteEditor) löst resolve(name) zum Pfad auf; ohne Treffer bleibt der Text sichtbar.
 const PENDING = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="120"/>')}`
 const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
-export const previewImages = (html: string, notePath: string, drawing: (path: string) => string | undefined = () => undefined) =>
+const unattr = (s: string) => s.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+export const previewImages = (
+  html: string, notePath: string, drawing: (path: string) => string | undefined = () => undefined, resolve: (name: string) => string = () => '',
+) =>
   html.replace(/<img\b[^>]*>/g, (tag) => {
     const src = /\ssrc="([^"]*)"/.exec(tag)?.[1]
-    if (src === undefined || /^([a-z][a-z\d+.-]*:|\/)/i.test(src)) return tag
-    const url = new URL(src, `http://x${filesUrl(notePath)}`).pathname
+    let url: string
+    if (src !== undefined && /\sdata-wiki=/.test(tag)) {
+      const p = resolve(unattr(src))
+      if (!p) return `<span class="md-wiki-missing">![[${src}]]</span>`
+      url = filesUrl(p)
+    } else {
+      if (src === undefined || /^([a-z][a-z\d+.-]*:|\/)/i.test(src)) return tag
+      url = new URL(src, `http://x${filesUrl(notePath)}`).pathname
+    }
     if (fileKind(url) !== 'excalidraw') return tag.replace(/\ssrc="[^"]*"/, () => ` src="${url}"`)
     const p = decodeURIComponent(url.slice('/api/files/'.length))
     tag = tag.replace(/\ssrc="[^"]*"/, () => ` data-drawing="${attr(p)}" src="${drawing(p) ?? PENDING}"`)
@@ -30,8 +41,44 @@ export const previewImages = (html: string, notePath: string, drawing: (path: st
   })
 
 // Pfade aller Zeichnungen in einer mit previewImages bearbeiteten Vorschau.
-export const drawingsIn = (html: string) =>
-  [...html.matchAll(/data-drawing="([^"]*)"/g)].map((m) => m[1]!.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&amp;/g, '&'))
+export const drawingsIn = (html: string) => [...html.matchAll(/data-drawing="([^"]*)"/g)].map((m) => unattr(m[1]!))
+
+// Sucht ein Link-Ziel wie Obsidian: Pfad ab der Wurzel, dann neben der Notiz (dir), sonst die Datei mit diesem
+// Namen irgendwo im Ordner, bei mehreren die mit dem kürzesten Pfad. "" = nicht gefunden.
+export function resolveLink(name: string, dir: string, files: string[]) {
+  let best = ''
+  for (const f of files) {
+    if (f === name || f === join(dir, name)) return f
+    if (f.slice(f.lastIndexOf('/') + 1) === name && (!best || f.length < best.length)) best = f
+  }
+  return best
+}
+
+// Zeichnungen aus Obsidian (Excalidraw-Plugin) liegen als „Name.excalidraw.md“ vor: die Szene als ```json- oder
+// ```compressed-json-Block (LZ-String, Base64; decompress kommt als Parameter, damit die Datei ohne Imports bleibt),
+// eingefügte Bilder und Formeln unter „## Embedded Files“ als „<fileId>: [[bild.png]]“ bzw. „<fileId>: $$TeX$$“.
+export const isObsidianDrawing = (path: string) => /\.excalidraw\.md$/i.test(path)
+export interface ObsidianScene { elements: { type?: string; fileId?: string; customData?: object }[]; files?: Record<string, unknown>; [k: string]: unknown }
+export type Embedded = { file: string } | { tex: string } | { other: string }
+export function parseObsidianDrawing(text: string, decompress: (s: string) => string | null) {
+  const m = /```(compressed-json|json)\n([\s\S]*?)\n```/.exec(text)
+  if (!m) throw new Error('kein json- oder compressed-json-Block')
+  const raw = m[1] === 'compressed-json' ? decompress(m[2]!.replace(/\s+/g, '')) : m[2]!
+  if (!raw) throw new Error('compressed-json nicht lesbar')
+  const scene = JSON.parse(raw) as ObsidianScene
+  if (!Array.isArray(scene.elements)) throw new Error('Szene ohne elements')
+  const embedded = new Map<string, Embedded>()
+  const section = /^## Embedded Files\n([\s\S]*?)(?=^%%|^#|(?![\s\S]))/m.exec(text)?.[1] ?? ''
+  for (const entry of section.split(/^(?=[0-9a-f]{8,}: )/m)) {
+    const e = /^([0-9a-f]{8,}): ([\s\S]*)$/.exec(entry.trim())
+    if (!e) continue
+    const v = e[2]!.trim()
+    const link = /^!?\[\[([^\]|]+)(?:\|[^\]]*)?\]\]$/.exec(v)
+    const tex = /^\$\$([\s\S]*)\$\$$/.exec(v)
+    embedded.set(e[1]!, link ? { file: link[1]!.trim() } : tex ? { tex: tex[1]!.trim() } : { other: v })
+  }
+  return { scene, embedded }
+}
 
 // Vorlagen: {{titel}} {{ordner}} {{datum}} {{wochentag}} {{uhrzeit}}; Unbekanntes bleibt stehen.
 // {{titel}} ist der Name ohne Datum vorn („2026-10-09 VL 3“ → „VL 3“), das steht schon in {{datum}}.

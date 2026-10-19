@@ -9,9 +9,9 @@ import FileEditor from '@/components/FileEditor.vue'
 import NoteEditor from '@/components/NoteEditor.vue'
 import NoteTree, { canDrop, canDropHere, parentOf, type TreeCtx } from '@/components/NoteTree.vue'
 import { vDialog } from '@/lib/dialog'
-import { fileKind, fillTemplate, join, under, withExt } from '@/lib/noteFiles'
+import { fileKind, fillTemplate, isObsidianDrawing, join, under, withExt } from '@/lib/noteFiles'
 import { store } from '@/lib/storage'
-import { t } from '@/lib/i18n'
+import { t, tn } from '@/lib/i18n'
 import { useSplitRatio } from '@/composables/useSplitRatio'
 
 const DISCARD = t('Ungespeicherte Änderungen verwerfen?')
@@ -22,6 +22,28 @@ const POLL_MS = 5000
 type Pane = 'doc' | 'note'
 const PANES: Pane[] = ['doc', 'note']
 const tree = ref<NoteNode[]>([])
+const allFiles = computed(() => {
+  const out: string[] = []
+  const walk = (ns: NoteNode[]) => ns.forEach((n) => (n.dir ? walk(n.children ?? []) : out.push(n.path)))
+  walk(tree.value)
+  return out
+})
+// Zeichnungen aus Obsidian (*.excalidraw.md) einmal in Kairo-Zeichnungen umwandeln; das Ergebnis bleibt bis zum Schließen stehen.
+const obsidianDrawings = computed(() => allFiles.value.filter(isObsidianDrawing))
+const converting = ref(false)
+const converted = ref<{ done: string[]; skipped: string[] } | null>(null)
+async function convertDrawings() {
+  converting.value = true
+  try {
+    const { convertObsidianDrawings } = await import('@/lib/obsidian')
+    converted.value = await convertObsidianDrawings(allFiles.value)
+    tree.value = await listNotes()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    converting.value = false
+  }
+}
 const paths = reactive<Record<Pane, string | null>>({ doc: null, note: null })
 const shown = ref<Pane>('note') // einzeln: der sichtbare Platz
 const split = ref(store.get('kairo-notes-split') === '1')
@@ -399,9 +421,7 @@ onMounted(async () => {
     error.value = errorMessage(e)
   }
   // Früher stand in kairo-notes-file auch eine PDF; die wandert in den linken Platz.
-  const files = new Set<string>()
-  const walk = (ns: NoteNode[]) => ns.forEach((n) => (n.dir ? walk(n.children ?? []) : files.add(n.path)))
-  walk(tree.value)
+  const files = new Set(allFiles.value)
   const [lastNote, lastDoc] = [store.get('kairo-notes-file') ?? '', store.get('kairo-notes-doc') ?? '']
   const load = (pn: Pane, p: string) => void readNote(p).then((n) => { if (!paths[pn]) { paths[pn] = p; show(pn, n) } }, () => {})
   const doc = [lastDoc, lastNote].find((p) => p && files.has(p) && (p === lastDoc || fileKind(p) !== 'md'))
@@ -471,6 +491,17 @@ onBeforeUnmount(() => {
           ><svg class="ic"><use href="#i-split" /></svg></button>
         </header>
         <div v-if="error && pn === errorPane" class="ed-bar" role="alert">{{ error }}</div>
+        <div v-if="pn === errorPane && (obsidianDrawings.length || converted)" class="ed-bar" role="status">
+          <template v-if="converted">
+            {{ tn(converted.done.length, '{n} Zeichnung umgewandelt, das Original liegt im Papierkorb.', '{n} Zeichnungen umgewandelt, die Originale liegen im Papierkorb.') }}
+            <template v-if="converted.skipped.length"> {{ $t('Nicht umgewandelt:') }} {{ converted.skipped.join(' · ') }}</template>
+            <button type="button" class="btn btn-ghost" @click="converted = null">{{ $t('Schließen') }}</button>
+          </template>
+          <template v-else>
+            {{ tn(obsidianDrawings.length, '{n} Zeichnung aus Obsidian gefunden.', '{n} Zeichnungen aus Obsidian gefunden.') }}
+            <button type="button" class="btn btn-ghost" :disabled="converting" @click="convertDrawings">{{ converting ? $t('Wandle um …') : $t('In Kairo-Zeichnungen umwandeln') }}</button>
+          </template>
+        </div>
 
         <template v-if="isMd(pn)">
           <div v-if="bufs[pn].external" class="ed-bar" role="alert">
@@ -481,7 +512,7 @@ onBeforeUnmount(() => {
             <span>{{ $t('Vorlage') }}</span>
             <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t, pn)">{{ t.name.replace(/\.md$/i, '') }}</button>
           </div>
-          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" :drawing-rev="drawingRev" @uploaded="uploaded" @error="error = $event" @open="openDrawing" />
+          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" :drawing-rev="drawingRev" :files="allFiles" @uploaded="uploaded" @error="error = $event" @open="openDrawing" />
         </template>
         <FileEditor
           v-else-if="pn === 'doc' && paths.doc && (docKind === 'pdf' || docKind === 'image')" :ref="setDocEd" :key="paths.doc" :path="paths.doc" :kind="docKind"

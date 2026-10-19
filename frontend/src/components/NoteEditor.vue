@@ -3,8 +3,24 @@ import { EditorView } from '@codemirror/view'
 import { config } from 'md-editor-v3'
 
 // Rechtschreibprüfung des Browsers bzw. von macOS (rote Wellenlinie, Vorschläge per Rechtsklick); CodeMirror schaltet sie sonst ab.
+// ![[Name]] und ![[Name|900]] wie in Obsidian: ein <img data-wiki>, das sanitize (previewImages) zum Pfad auflöst.
 config({
   codeMirrorExtensions: (exts) => [...exts, { type: 'spellcheck', extension: EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }) }],
+  markdownItConfig: (md) => {
+    md.inline.ruler.before('image', 'wikiEmbed', (state, silent) => {
+      const m = /^!\[\[([^\]|\n]+)(?:\|([^\]\n]*))?\]\]/.exec(state.src.slice(state.pos))
+      if (!m) return false
+      if (!silent) {
+        const img = state.push('image', 'img', 0)
+        img.attrs = [['src', m[1]!.trim()], ['alt', ''], ['data-wiki', '']]
+        const width = /^\d+/.exec(m[2] ?? '')?.[0]
+        if (width) img.attrs.push(['width', width])
+        img.children = []
+      }
+      state.pos += m[0].length
+      return true
+    })
+  },
 })
 </script>
 
@@ -13,14 +29,15 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ApiError, createNote, errorMessage, uploadFile } from '@/api/client'
-import { assetName, drawingsIn, join, previewImages } from '@/lib/noteFiles'
+import { assetName, drawingsIn, join, previewImages, resolveLink } from '@/lib/noteFiles'
 import { drawingSrc, renderDrawing } from '@/lib/drawingPreview'
 import { parentOf } from '@/components/NoteTree.vue'
 
 // Markdown-Editor der Notizen. Mermaid, KaTeX, Prettier und Highlight lädt md-editor-v3 vom CDN; sie sind abgeschaltet
 // (Kairo läuft lokal). Bilder landen über uploadImages neben der Notiz.
 // drawingRev: NotesView erhöht ihn nach dem Speichern einer Zeichnung und alle 5 s; eingebettete Zeichnungen prüfen dann ihre mtime.
-const props = defineProps<{ path: string; drawingRev?: number }>()
+// files: alle Dateien im Notizordner, für ![[Name]] (Suche nach dem Namen wie in Obsidian).
+const props = defineProps<{ path: string; drawingRev?: number; files?: string[] }>()
 const text = defineModel<string>({ required: true })
 const emit = defineEmits<{ uploaded: []; error: [string]; open: [string] }>()
 
@@ -57,8 +74,9 @@ const redraw = (ps: string[]) =>
   void Promise.all(ps.map((p) => renderDrawing(p).catch(() => false))).then((r) => { if (r.includes(true)) rendered.value++ })
 const sanitize = computed(() => {
   void rendered.value
+  const files = props.files ?? []
   return (html: string) => {
-    const out = previewImages(html, props.path, drawingSrc)
+    const out = previewImages(html, props.path, drawingSrc, (name) => resolveLink(name, parentOf(props.path), files))
     drawings = drawingsIn(out)
     redraw(drawings.filter((p) => !drawingSrc(p)))
     return out

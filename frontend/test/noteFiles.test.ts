@@ -1,6 +1,7 @@
 // Prüfung der Notizdateien: node test/noteFiles.test.ts
 import assert from 'node:assert/strict'
-import { assetName, drawingsIn, fileKind, fillTemplate, join, previewImages, under, withExt } from '../src/lib/noteFiles.ts'
+import lz from 'lz-string'
+import { assetName, drawingsIn, fileKind, fillTemplate, isObsidianDrawing, join, parseObsidianDrawing, previewImages, resolveLink, under, withExt } from '../src/lib/noteFiles.ts'
 
 assert.equal(fileKind('Uni/a.MD'), 'md')
 assert.equal(fileKind('skript.pdf'), 'pdf')
@@ -52,3 +53,33 @@ assert.ok(!under('Uni2/a.md', 'Uni'))
 const at = new Date(2026, 9, 9, 14, 5, 7)
 assert.equal(assetName(note, 'image/png', at), 'VL 1-2026-10-09-140507.png')
 assert.equal(assetName('a.md', 'image/jpeg', at, 1, 2), 'a-2026-10-09-140507-2.jpg')
+
+// Obsidian-Links: Pfad ab der Wurzel, neben der Notiz, sonst nach Namen (kürzester Pfad)
+const files = ['Excalidraw/a.excalidraw', 'x/assets/b.png', 'assets/b.png', 'Uni/c.png']
+assert.equal(resolveLink('Excalidraw/a.excalidraw', 'Uni', files), 'Excalidraw/a.excalidraw')
+assert.equal(resolveLink('a.excalidraw', 'Uni', files), 'Excalidraw/a.excalidraw')
+assert.equal(resolveLink('b.png', 'Uni', files), 'assets/b.png')
+assert.equal(resolveLink('c.png', 'Uni', files), 'Uni/c.png')
+assert.equal(resolveLink('fehlt.png', 'Uni', files), '')
+
+// ![[…]] in der Vorschau (NoteEditor macht daraus <img data-wiki>)
+const wiki = (html: string) => previewImages(html, note, () => undefined, (n) => resolveLink(n, 'Uni', files))
+assert.match(wiki('<img src="a.excalidraw" alt="" data-wiki="" width="900">'), /data-drawing="Excalidraw\/a.excalidraw"/)
+assert.match(wiki('<img src="a.excalidraw" alt="" data-wiki="" width="900">'), /width="900"/)
+assert.equal(wiki('<img src="b.png" alt="" data-wiki="">'), '<img src="/api/files/assets/b.png" alt="" data-wiki="">')
+assert.equal(wiki('<img src="fehlt &amp; weg.png" alt="" data-wiki="">'), '<span class="md-wiki-missing">![[fehlt &amp; weg.png]]</span>')
+
+// Obsidian-Zeichnung: gepackte Szene, Bilder und Formeln (auch über mehrere Zeilen)
+assert.ok(isObsidianDrawing('Excalidraw/Drawing 1.excalidraw.md') && !isObsidianDrawing('a.excalidraw'))
+const scene = { type: 'excalidraw', elements: [{ id: 'i', type: 'image', fileId: 'abcdef0123' }, { text: 'Größe ≤ n² 🙂', x: 1.5 }], files: {} }
+const packed = lz.compressToBase64(JSON.stringify(scene))
+const md = `---\nexcalidraw-plugin: parsed\n---\n# Excalidraw Data\n## Embedded Files\nabcdef0123: [[Bild 1.png]]\n0123456789: $$\\begin{array}{c}\n0 \\\\ 1\n\\end{array}$$\nfedcba9876: https://example.org\n\n%%\n## Drawing\n\`\`\`compressed-json\n${packed.slice(0, 40)}\n${packed.slice(40)}\n\`\`\`\n%%\n`
+const got = parseObsidianDrawing(md, lz.decompressFromBase64)
+assert.deepEqual(got.scene, scene)
+assert.deepEqual([...got.embedded], [
+  ['abcdef0123', { file: 'Bild 1.png' }],
+  ['0123456789', { tex: '\\begin{array}{c}\n0 \\\\ 1\n\\end{array}' }],
+  ['fedcba9876', { other: 'https://example.org' }],
+])
+assert.deepEqual(parseObsidianDrawing('```json\n{"elements":[]}\n```', lz.decompressFromBase64).scene, { elements: [] })
+assert.throws(() => parseObsidianDrawing('nur Text', lz.decompressFromBase64))
