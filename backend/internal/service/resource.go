@@ -92,6 +92,13 @@ func validateResource(r domain.Resource) error {
 		}
 		return nil
 	}
+	if r.Type == domain.ResourceNote {
+		// relativ zum Notizordner, ohne Ausbruch nach oben; ob die Datei existiert, prüft erst das Öffnen
+		if c := path.Clean(r.Target); c != r.Target || strings.HasPrefix(c, "/") || c == ".." || strings.HasPrefix(c, "../") {
+			return fmt.Errorf("%w: target muss ein Pfad im Notizordner sein (z. B. Uni/Skript.pdf)", domain.ErrInvalid)
+		}
+		return nil
+	}
 	// Pfade sind Referenzen für Clients mit eigenem Arbeitsverzeichnis, also nie relativ.
 	// "/" gilt auf jedem System, damit Pfade von macOS/Linux-Clients auch auf einem Windows-Backend gehen.
 	if !strings.HasPrefix(r.Target, "/") && !filepath.IsAbs(r.Target) && r.Target != "~" && !strings.HasPrefix(r.Target, "~/") {

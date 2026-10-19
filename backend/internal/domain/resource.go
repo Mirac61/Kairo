@@ -9,12 +9,13 @@ const (
 	ResourceFile   ResourceType = "FILE"
 	ResourceFolder ResourceType = "FOLDER"
 	ResourceURL    ResourceType = "URL"
+	ResourceNote   ResourceType = "NOTE" // Datei in Kairos Notizordner, Target relativ dazu
 )
 
 // Valid meldet, ob t ein bekannter Typ ist.
 func (t ResourceType) Valid() bool {
 	switch t {
-	case ResourceFile, ResourceFolder, ResourceURL:
+	case ResourceFile, ResourceFolder, ResourceURL, ResourceNote:
 		return true
 	}
 	return false
@@ -27,7 +28,7 @@ type Resource struct {
 	TaskID    *string
 	ProjectID *string
 	Type      ResourceType
-	Target    string // Pfad (absolut oder mit ~) bzw. http(s)-URL
+	Target    string // Pfad (absolut oder mit ~), http(s)-URL bzw. bei NOTE Pfad im Notizordner
 	Label     string
 	CreatedAt time.Time
 }

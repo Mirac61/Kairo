@@ -90,7 +90,7 @@ func TestResourceRepositoryConstraints(t *testing.T) {
 	both := newResource("y")
 	both.TaskID, both.ProjectID = ptr("t1"), ptr("p1")
 	badType := newResource("z")
-	badType.TaskID, badType.Type = ptr("t1"), "NOTE"
+	badType.TaskID, badType.Type = ptr("t1"), "WIKI"
 	emptyTarget := newResource("w")
 	emptyTarget.TaskID, emptyTarget.Target = ptr("t1"), "  "
 	for name, r := range map[string]domain.Resource{

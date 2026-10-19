@@ -74,7 +74,7 @@ func TestResourcesErrors(t *testing.T) {
 	h := newResourcesRouter(t)
 	for name, body := range map[string]string{
 		"ohne Besitzer":    `{"type":"URL","target":"https://x.org"}`,
-		"Typ NOTE":         `{"task_id":"t","type":"NOTE","target":"text"}`,
+		"Typ WIKI":         `{"task_id":"t","type":"WIKI","target":"text"}`,
 		"relativer Pfad":   `{"task_id":"t","type":"FILE","target":"a.pdf"}`,
 		"unbekannte Task":  `{"task_id":"gibt-es-nicht","type":"URL","target":"https://x.org"}`,
 		"unbekanntes Feld": `{"task_id":"t","type":"URL","target":"https://x.org","foo":1}`,
@@ -84,7 +84,7 @@ func TestResourcesErrors(t *testing.T) {
 			t.Errorf("%s: POST = %d %s", name, rec.Code, rec.Body)
 		}
 	}
-	if rec := call(h, "GET", "/api/resources?type=NOTE", ""); rec.Code != 400 {
+	if rec := call(h, "GET", "/api/resources?type=WIKI", ""); rec.Code != 400 {
 		t.Errorf("GET mit falschem Typ = %d", rec.Code)
 	}
 }

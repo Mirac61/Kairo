@@ -42,7 +42,10 @@ func TestResourceCreateValidation(t *testing.T) {
 	for name, in := range map[string]CreateResourceInput{
 		"ohne Besitzer":           {Type: domain.ResourceURL, Target: "https://x.org"},
 		"zwei Besitzer":           {TaskID: ptr("t"), ProjectID: ptr("p"), Type: domain.ResourceURL, Target: "https://x.org"},
-		"falscher Typ":            {TaskID: ptr("t"), Type: "NOTE", Target: "text"},
+		"falscher Typ":            {TaskID: ptr("t"), Type: "WIKI", Target: "text"},
+		"Notiz absolut":           {TaskID: ptr("t"), Type: domain.ResourceNote, Target: "/etc/passwd"},
+		"Notiz nach oben":         {TaskID: ptr("t"), Type: domain.ResourceNote, Target: "../geheim.md"},
+		"Notiz ungeputzt":         {TaskID: ptr("t"), Type: domain.ResourceNote, Target: "Uni/../x.md"},
 		"leeres Ziel ohne Typ":    {TaskID: ptr("t"), Target: " "},
 		"relativer Pfad ohne Typ": {TaskID: ptr("t"), Target: "docs/a.pdf"},
 		"leeres Ziel":             {TaskID: ptr("t"), Type: domain.ResourceFile, Target: " "},
@@ -62,6 +65,7 @@ func TestResourceCreateValidation(t *testing.T) {
 		"Home":           {ProjectID: ptr("p"), Type: domain.ResourceFolder, Target: "~"},
 		"Home-Ordner":    {ProjectID: ptr("p"), Type: domain.ResourceFolder, Target: "~/code"},
 		"http-URL":       {TaskID: ptr("t"), Type: domain.ResourceURL, Target: "http://localhost:3000/x?y=1"},
+		"Notiz":          {TaskID: ptr("t"), Type: domain.ResourceNote, Target: "Uni/Algo Skript.pdf"},
 	} {
 		if _, err := svc.Create(ctx, in); err != nil {
 			t.Errorf("%s: %v", name, err)
@@ -70,7 +74,7 @@ func TestResourceCreateValidation(t *testing.T) {
 }
 
 func TestResourceListRejectsUnknownType(t *testing.T) {
-	if _, err := newResourceSvc().List(context.Background(), domain.ResourceFilter{Type: "NOTE"}); !errors.Is(err, domain.ErrInvalid) {
+	if _, err := newResourceSvc().List(context.Background(), domain.ResourceFilter{Type: "WIKI"}); !errors.Is(err, domain.ErrInvalid) {
 		t.Errorf("err = %v", err)
 	}
 }
