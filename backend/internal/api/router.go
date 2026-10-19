@@ -4,6 +4,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"kairo/internal/auth"
 	"kairo/internal/notes"
@@ -23,6 +24,8 @@ type Services struct {
 	Review    ReviewService
 	Notes     *notes.Store
 	Settings  *Settings
+	// Location bestimmt die Ortszeit im ICS-Export; ohne Angabe gilt UTC.
+	Location *time.Location
 	// GitHub liefert Issues; zusammen mit Projects, Tasks und Resources gibt es /api/github.
 	GitHub IssueSource
 	// Hub speist /ws mit Ereignissen. Ohne Hub gibt es keinen WebSocket.
@@ -72,6 +75,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	}
 	if svc.GitHub != nil && svc.Projects != nil && svc.Tasks != nil && svc.Resources != nil {
 		githubHandlers{svc.GitHub, svc.Projects, svc.Tasks, svc.Resources}.register(mux)
+	}
+	if svc.Projects != nil && svc.Tasks != nil && svc.Calendar != nil && svc.Habits != nil && svc.Time != nil && svc.Resources != nil {
+		exportHandlers{svc, svc.Location}.register(mux)
 	}
 	if svc.Settings != nil {
 		settingsHandlers{svc.Settings}.register(mux)

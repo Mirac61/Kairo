@@ -254,6 +254,16 @@ onMounted(() => {
                 <div class="st-text"><div class="st-t">{{ $t('Backup von Hand') }}</div><div class="st-h">{{ $t('Im Terminal, schreibt eine Kopie in denselben Ordner oder an einen eigenen Pfad.') }}</div></div>
                 <code class="st-val">kairo backup [datei]</code>
               </div>
+              <div class="st-row">
+                <div class="st-text"><div class="st-t">{{ $t('Backup einspielen') }}</div><div class="st-h">{{ $t('Im Terminal bei gestopptem Kairo. Die bisherige Datenbank bleibt als .before-restore-… daneben liegen.') }}</div></div>
+                <code class="st-val">kairo restore &lt;datei&gt;</code>
+              </div>
+              <div class="st-row">
+                <div class="st-text"><div class="st-t">{{ $t('Export') }}</div><div class="st-h">{{ $t('Alle Daten als JSON, Termine und Aufgaben mit Frist als ICS, Aufgaben als CSV. Notizen liegen schon als Dateien im Notizordner.') }}</div></div>
+                <span class="row">
+                  <a v-for="f in ['json', 'ics', 'csv']" :key="f" class="btn btn-secondary st-link" :href="`/api/export.${f}`" download>{{ f.toUpperCase() }}</a>
+                </span>
+              </div>
             </div>
           </template>
         </div>

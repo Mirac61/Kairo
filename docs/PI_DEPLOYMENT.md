@@ -79,12 +79,15 @@ laufendem Dienst) nach `db/`, die neuesten 30 bleiben. Notizen werden nach
 ssh zum Pi muss ohne Abfrage gehen (Schlüssel mit `ssh-add --apple-use-keychain`);
 Fehler stehen in `~/Library/Logs/kairo-pi-backup.log`.
 
-Wiederherstellen: Dienst stoppen, Datei zurückkopieren, starten.
+Wiederherstellen: Dienst stoppen, Datei hochladen, `kairo restore`, starten.
+`kairo restore` prüft, dass die Datei eine SQLite-Datenbank ist und der Port
+frei ist (Kairo also nicht läuft). Die bisherige Datenbank samt WAL-Resten
+bleibt als `kairo.db.before-restore-<zeit>` daneben liegen.
 
 ```sh
 ssh -t <benutzer>@<pi-host> sudo systemctl stop kairo
-ssh <benutzer>@<pi-host> rm -f kairo/data/kairo.db-wal kairo/data/kairo.db-shm   # alte WAL-Reste passen nicht zur Kopie
-scp ~/Backups/kairo-pi/db/kairo-<datum>.db <benutzer>@<pi-host>:kairo/data/kairo.db
+scp ~/Backups/kairo-pi/db/kairo-<datum>.db <benutzer>@<pi-host>:kairo/restore.db
+ssh <benutzer>@<pi-host> <kairo-binary> restore kairo/restore.db   # mit denselben KAIRO_*-Variablen wie der Dienst
 ssh -t <benutzer>@<pi-host> sudo systemctl start kairo
 ```
 

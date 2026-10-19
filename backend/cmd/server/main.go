@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -37,7 +39,7 @@ func main() {
 	}
 }
 
-// dispatch führt "install", "uninstall" oder (ohne Argument) den Server aus.
+// dispatch führt "install", "uninstall", "backup", "restore" oder (ohne Argument) den Server aus.
 func dispatch(args []string) error {
 	if len(args) == 0 {
 		if err := run(); !errors.Is(err, errRestart) {
@@ -76,9 +78,79 @@ func dispatch(args []string) error {
 		return nil
 	case "backup":
 		return backup(args[1:])
+	case "restore":
+		return restore(args[1:])
 	default:
-		return fmt.Errorf("unbekannter Befehl %q (erlaubt: install, uninstall, backup [datei] oder ohne Argument den Server starten)", args[0])
+		return fmt.Errorf("unbekannter Befehl %q (erlaubt: install, uninstall, backup [datei], restore <datei> oder ohne Argument den Server starten)", args[0])
 	}
+}
+
+// restore stellt die Datenbank aus der Backup-Datei args[0] wieder her.
+func restore(args []string) error {
+	if len(args) != 1 {
+		return errors.New("Aufruf: kairo restore <datei>")
+	}
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		return err
+	}
+	aside, err := restoreDB(cfg.DBPath, cfg.Addr(), args[0], time.Now())
+	if err != nil {
+		return err
+	}
+	if aside != "" {
+		fmt.Println("Bisherige Datenbank gesichert:", aside)
+	}
+	fmt.Println("Datenbank wiederhergestellt:", cfg.DBPath, "aus", args[0])
+	return nil
+}
+
+// restoreDB kopiert src nach dbPath. Läuft unter addr ein Server, bricht es ab.
+// Die bisherige Datenbank samt WAL-Resten wandert nach <dbPath>.before-restore-<Zeit>
+// (aside, leer wenn es keine gab); es wird nichts gelöscht.
+func restoreDB(dbPath, addr, src string, now time.Time) (aside string, err error) {
+	in, err := os.Open(src)
+	if err != nil {
+		return "", err
+	}
+	defer in.Close()
+	header := make([]byte, len("SQLite format 3\x00"))
+	if _, err := io.ReadFull(in, header); err != nil || string(header) != "SQLite format 3\x00" {
+		return "", fmt.Errorf("%s ist keine SQLite-Datenbank", src)
+	}
+	if ln, err := net.Listen("tcp", addr); err != nil {
+		return "", fmt.Errorf("%s ist belegt, läuft Kairo noch? Erst stoppen, dann wiederherstellen", addr)
+	} else {
+		ln.Close()
+	}
+	// Erst neben das Ziel kopieren, damit ein Abbruch die bisherige Datenbank nicht berührt.
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o700); err != nil {
+		return "", err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(dbPath), ".restore-*")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := in.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(tmp, in); err != nil {
+		tmp.Close()
+		return "", err
+	}
+	if err := tmp.Close(); err != nil { // CreateTemp legt die Datei schon mit 0600 an
+		return "", err
+	}
+	if _, err := os.Stat(dbPath); err == nil {
+		aside = dbPath + ".before-restore-" + now.Format("20060102-150405")
+		for _, suffix := range []string{"", "-wal", "-shm"} {
+			if err := os.Rename(dbPath+suffix, aside+suffix); err != nil && !(suffix != "" && errors.Is(err, os.ErrNotExist)) {
+				return "", err
+			}
+		}
+	}
+	return aside, os.Rename(tmp.Name(), dbPath)
 }
 
 // backup kopiert die Datenbank nach args[0] (Standard: backups/ neben der Datenbank).
@@ -177,6 +249,7 @@ func run() error {
 		Notes:     notesStore,
 		Settings:  &api.Settings{Running: cfg, Getenv: os.Getenv, Restart: func() { restart.Store(true); stop() }},
 		Hub:       hub,
+		Location:  cfg.Location,
 		GitHub:    github.New(),
 	}
 
