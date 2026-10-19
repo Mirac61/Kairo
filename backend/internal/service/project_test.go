@@ -42,11 +42,11 @@ func TestProjectCreateDefaultsAndValidation(t *testing.T) {
 	svc, _ := newSvc()
 	ctx := context.Background()
 
-	p, err := svc.Create(ctx, CreateProjectInput{Name: "  AlgoDat  ", LocalPath: ptr("  ")})
+	p, err := svc.Create(ctx, CreateProjectInput{Name: "  Beispielprojekt  ", LocalPath: ptr("  ")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Name != "AlgoDat" || p.Status != domain.ProjectActive || p.LocalPath != nil || p.ID == "" {
+	if p.Name != "Beispielprojekt" || p.Status != domain.ProjectActive || p.LocalPath != nil || p.ID == "" {
 		t.Errorf("Create = %+v", p)
 	}
 

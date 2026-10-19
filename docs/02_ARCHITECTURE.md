@@ -54,7 +54,7 @@ Das Backend soll als lokaler Prozess laufen.
 Beispiel:
 
 ``` text
-~/code/personal/Kairo
+~/code/kairo
 ├── README.md
 ├── AGENTS.md
 ├── docs/          00_VISION.md … 05_ROADMAP.md

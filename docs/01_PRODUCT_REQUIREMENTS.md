@@ -1,5 +1,7 @@
 # Product Requirements
 
+Alle Namen, Projekte und Pfade in diesen Dokumenten sind Beispiele.
+
 # 1. Calendar
 
 Der Kalender unterstützt:
@@ -313,12 +315,12 @@ Beispiel:
 
 ``` text
 Task:
-AlgoDat Musterprüfung A
+Beispielkurs Musterprüfung A
 
 Resources:
-FILE   ~/Documents/Uni/AlgoDat/Pruefungen/AuD_Musterprf_A.pdf
-FILE   ~/Documents/Uni/AlgoDat/Pruefungen/AuD_Musterprf_A_l.pdf
-FOLDER ~/Documents/Uni/AlgoDat/CodeAlgorithmen
+FILE   ~/Documents/Uni/Beispielkurs/Pruefungen/Musterpruefung_A.pdf
+FILE   ~/Documents/Uni/Beispielkurs/Pruefungen/Musterpruefung_A_l.pdf
+FOLDER ~/Documents/Uni/Beispielkurs/Code
 URL    https://moodle...
 ```
 
@@ -363,14 +365,14 @@ Beispiel:
 ``` text
 TODAY
 
-08:30  📅 AlgoDat Vorlesung
+08:30  📅 Beispielkurs Vorlesung
 
-10:15  🔴 AlgoDat Musterprüfung A
+10:15  🔴 Beispielkurs Musterprüfung A
        90 min
 
 12:30  📅 Mittagessen
 
-14:00  💻 Activitytracker Login
+14:00  💻 Beispielprojekt Login
        60 min
 
 18:00  🔁 Sport
@@ -473,7 +475,7 @@ Sie zeigt:
 ``` text
 CURRENT TASK
 
-AlgoDat — Musterprüfung A
+Beispielkurs — Musterprüfung A
 
 90 min geplant
 32 min gearbeitet
@@ -483,14 +485,14 @@ AlgoDat — Musterprüfung A
 
 Resources
 
-📄 AuD_Musterprf_A.pdf
-📄 AuD_Musterprf_A_l.pdf
-📁 CodeAlgorithmen
+📄 Musterpruefung_A.pdf
+📄 Musterpruefung_A_l.pdf
+📁 Code
 🌐 Moodle
 
 NEXT
 
-Activitytracker — Login reparieren
+Beispielprojekt — Login reparieren
 ```
 
 Stand der Extension: Die Ansicht hat die Tabs „Heute“ und „Projekte“. „Heute“
@@ -511,17 +513,17 @@ Statistik und Rückblick stehen nur in der WebUI.
 Wenn der aktuelle Workspace einem Project entspricht:
 
 ``` text
-~/code/uni/activitytracker
+~/code/uni/beispielprojekt
         ↓
-Project: Activitytracker
+Project: Beispielprojekt
 
-~/Documents/Uni/AlgoDat
+~/Documents/Uni/Beispielkurs
         ↓
-Project: AlgoDat
+Project: Beispielkurs
 ```
 
 Ein Workspace gilt auch dann als erkannt, wenn ein Unterordner geöffnet
-wird (z. B. `~/Documents/Uni/AlgoDat/CodeAlgorithmen` → AlgoDat).
+wird (z. B. `~/Documents/Uni/Beispielkurs/Code` → Beispielkurs).
 
 Die Erkennung nutzt `local_path`; ein führendes `~` steht für das
 Home-Verzeichnis. Passen mehrere Projekte, gewinnt der längste passende

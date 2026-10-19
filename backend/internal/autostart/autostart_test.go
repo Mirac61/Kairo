@@ -9,7 +9,7 @@ import (
 )
 
 func TestPlistIsValidXMLWithEnvAndEscaping(t *testing.T) {
-	p := string(Plist("/Users/x/My & Bin/kairo", "/Users/x/Library/Logs/kairo.log",
+	p := string(Plist("/Users/test/My & Bin/kairo", "/Users/test/Library/Logs/kairo.log",
 		map[string]string{"KAIRO_PORT": "9000", "KAIRO_DB_PATH": "/a<b>/k.db"}))
 	dec := xml.NewDecoder(strings.NewReader(p))
 	dec.Strict = false
@@ -53,8 +53,8 @@ func TestInstallRefusesGoRunBinary(t *testing.T) {
 }
 
 func TestPaths(t *testing.T) {
-	plist, log := launchdPaths("/Users/x")
-	if plist != filepath.FromSlash("/Users/x/Library/LaunchAgents/app.kairo.backend.plist") || log != filepath.FromSlash("/Users/x/Library/Logs/kairo.log") {
+	plist, log := launchdPaths("/Users/test")
+	if plist != filepath.FromSlash("/Users/test/Library/LaunchAgents/app.kairo.backend.plist") || log != filepath.FromSlash("/Users/test/Library/Logs/kairo.log") {
 		t.Errorf("Paths = %s, %s", plist, log)
 	}
 }
@@ -73,10 +73,10 @@ func TestUnitQuotesAndEnv(t *testing.T) {
 }
 
 func TestScriptQuotesPaths(t *testing.T) {
-	s := string(Script(`C:\Program Files\kairo.exe`, `C:\Users\x\kairo.log`, map[string]string{"KAIRO_PORT": "9000"}))
+	s := string(Script(`C:\Program Files\kairo.exe`, `C:\Users\test\kairo.log`, map[string]string{"KAIRO_PORT": "9000"}))
 	for _, want := range []string{
 		`sh.Environment("Process")("KAIRO_PORT") = "9000"`,
-		`sh.Run "cmd /c """"C:\Program Files\kairo.exe"" >> ""C:\Users\x\kairo.log"" 2>&1""", 0, False`,
+		`sh.Run "cmd /c """"C:\Program Files\kairo.exe"" >> ""C:\Users\test\kairo.log"" 2>&1""", 0, False`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("fehlt %q in\n%s", want, s)

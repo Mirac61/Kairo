@@ -29,12 +29,12 @@ func newResourcesRouter(t *testing.T) http.Handler {
 func TestResourcesCRUDAndFilters(t *testing.T) {
 	h := newResourcesRouter(t)
 	var task taskDTO
-	_ = json.Unmarshal(call(h, "POST", "/api/tasks", `{"title":"AlgoDat"}`).Body.Bytes(), &task)
+	_ = json.Unmarshal(call(h, "POST", "/api/tasks", `{"title":"Beispielprojekt"}`).Body.Bytes(), &task)
 	var project projectDTO
 	_ = json.Unmarshal(call(h, "POST", "/api/projects", `{"name":"Uni"}`).Body.Bytes(), &project)
 
 	rec := call(h, "POST", "/api/resources", `{"task_id":"`+task.ID+`","type":"FILE",
-		"target":"~/Documents/Uni/AuD_Musterprf_A.pdf","label":"Musterprüfung A"}`)
+		"target":"~/Documents/beispiel/musterpruefung.pdf","label":"Musterprüfung A"}`)
 	if rec.Code != 201 {
 		t.Fatalf("POST = %d %s", rec.Code, rec.Body)
 	}

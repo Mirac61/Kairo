@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { parseQuickAdd as p } from '../src/lib/quickAdd.ts'
 
-const projects = [{ id: 'k', name: 'Kairo' }, { id: 's', name: 'SmartHome' }, { id: 'c', name: 'code-stats.nvim' }]
+const projects = [{ id: 'k', name: 'Kairo' }, { id: 's', name: 'Haushalt' }, { id: 'c', name: 'code-stats.nvim' }]
 const today = '2026-10-07' // Mittwoch
 const f = (s: string) => p(s, projects, today)
 
@@ -29,13 +29,13 @@ assert.equal(f('Lampen @31.2.').title, 'Lampen @31.2.') // kein echtes Datum
 assert.deepEqual([f('x @14:30').date, f('x @14:30').time], ['2026-10-07', '14:30'])
 assert.deepEqual([f('x @morgen @9:05').date, f('x @morgen @9:05').time], ['2026-10-08', '09:05'])
 assert.equal(f('x @25:00').title, 'x @25:00')
-assert.equal(f('Lampen #smart').project?.id, 's') // Anfang reicht
-assert.equal(f('Lampen #SmartHome').project?.id, 's')
+assert.equal(f('Lampen #haus').project?.id, 's') // Anfang reicht
+assert.equal(f('Lampen #Haushalt').project?.id, 's')
 assert.equal(f('Lampen #codestats').project?.id, 'c') // Satzzeichen egal
 assert.equal(f('Lampen #unbekannt').title, 'Lampen #unbekannt') // kein Treffer bleibt im Titel
 assert.equal(f('Lampen !hoch').priority, 'HIGH')
 assert.equal(f('Fertig!').priority, null)
-assert.deepEqual(f('Lampen kaufen 1h @fr 18:00 #SmartHome !dringend'), { title: 'Lampen kaufen 18:00', minutes: 60, date: '2026-10-09', time: null, project: projects[1], priority: 'URGENT' })
+assert.deepEqual(f('Lampen kaufen 1h @fr 18:00 #Haushalt !dringend'), { title: 'Lampen kaufen 18:00', minutes: 60, date: '2026-10-09', time: null, project: projects[1], priority: 'URGENT' })
 assert.equal(f('#Kairo').title, '') // nur Token: kein Titel, die Ansicht legt nichts an
 console.log('quickAdd: ok')
 

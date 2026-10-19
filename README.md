@@ -7,6 +7,7 @@ Kairo is a planner for tasks, calendar events, habits and notes. It runs on your
 By default Kairo only listens on `127.0.0.1` and needs no account. When you bind it to another address (for example on a Raspberry Pi with `KAIRO_HOST=<wg-ip>`, reachable only through WireGuard), login is enabled automatically and the first start asks you to create the one account at `/setup`. On your laptop it stays login-free.
 
 ![Kairo start page](docs/screenshots/start.png)
+*Demo data, not a real account.*
 
 ## Why Kairo
 
@@ -46,6 +47,7 @@ Optional: install `kairo-*.vsix` from the same release in VSCodium or VS Code (E
 ## What's inside
 
 ![Calendar](docs/screenshots/kalender.png)
+*Demo data, not a real account.*
 
 | View | What it does |
 |---|---|
@@ -61,6 +63,7 @@ Optional: install `kairo-*.vsix` from the same release in VSCodium or VS Code (E
 Almost every action can be undone right away.
 
 ![Tasks](docs/screenshots/aufgaben.png)
+*Demo data, not a real account.*
 
 ## Your data
 

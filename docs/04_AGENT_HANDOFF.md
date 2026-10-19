@@ -13,7 +13,7 @@
 
 Wir bauen **Kairo**, ein lokales Personal OS.
 
-Das Repository liegt unter `~/code/personal/Kairo`.
+Das Repository liegt unter `~/code/kairo`.
 
 Es besteht aus:
 
@@ -196,7 +196,7 @@ Wenn nein:
 
 Am Ende soll der Nutzer sagen können:
 
-> "Ich muss heute AlgoDat, Software Testing und den Activitytracker machen."
+> "Ich muss heute Beispielkurs, Software Testing und den Beispielprojekt machen."
 
 (Langfristiges Zielbild: Die Freitext-Eingabe gehört nicht zum MVP. Im
 MVP plant der Nutzer diese Dinge selbst in der WebUI.)

@@ -1,5 +1,7 @@
 # Kairo — Vision
 
+Alle Namen, Projekte und Pfade in diesen Dokumenten sind Beispiele.
+
 ## Produktidee
 
 **Kairo** ist ein persönliches **Operating System für Planung und
@@ -48,10 +50,10 @@ Tasks beschreiben Dinge, die erledigt werden müssen.
 
 Beispiele:
 
--   AlgoDat Musterprüfung A durchrechnen
+-   Beispielkurs Musterprüfung A durchrechnen
 -   Bewerbung schreiben
--   Bug im Activitytracker beheben
--   AlgoDat Kapitel 5 (Suchverfahren) lernen
+-   Bug im Beispielprojekt beheben
+-   Beispielkurs Kapitel 5 (Suchverfahren) lernen
 
 Tasks können geplant, priorisiert und Projekten zugeordnet werden.
 
@@ -81,9 +83,9 @@ Projects bündeln Arbeit und Kontext.
 
 Beispiele:
 
--   AlgoDat
+-   Beispielkurs
 -   Software Testing
--   Activitytracker
+-   Beispielprojekt
 -   Kairo (dieses Projekt)
 -   Bewerbungen
 
@@ -99,10 +101,10 @@ VSCodium ist der tatsächliche Arbeitsbereich.
 Ein Projekt kann mit einem lokalen Pfad verbunden sein:
 
 ``` text
-~/Documents/Uni/AlgoDat          Uni-Material (Skripte, Prüfungen, Notizen)
-~/code/uni/activitytracker       Uni-Code-Projekt
-~/code/personal/Kairo            privates Code-Projekt
-~/Documents/bewerbungen          Bewerbungen (Typst)
+~/Documents/Uni/Beispielkurs   Uni-Material (Skripte, Prüfungen, Notizen)
+~/code/uni/beispielprojekt     Uni-Code-Projekt
+~/code/kairo                   privates Code-Projekt
+~/Documents/bewerbungen        Bewerbungen (Typst)
 ```
 
 Wenn eine Aufgabe zu diesem Projekt gestartet wird, kann die
@@ -136,10 +138,10 @@ VSCodium-Extension den passenden Workspace und die relevanten Ressourcen
 # Ein typischer Tag
 
 ``` text
-08:30  📅 AlgoDat Vorlesung
-10:15  🔴 AlgoDat Musterprüfung A bearbeiten
+08:30  📅 Beispielkurs Vorlesung
+10:15  🔴 Beispielkurs Musterprüfung A bearbeiten
 12:30  📅 Mittagessen
-14:00  💻 Activitytracker Login reparieren
+14:00  💻 Beispielprojekt Login reparieren
 18:00  🔁 Sport
 22:30  🔁 Lesen
 ```

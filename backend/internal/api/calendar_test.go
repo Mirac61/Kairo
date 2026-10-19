@@ -33,7 +33,7 @@ func newCalendarRouter(t *testing.T) http.Handler {
 func TestCalendarCRUDAndWindow(t *testing.T) {
 	h := newCalendarRouter(t)
 
-	rec := call(h, "POST", "/api/calendar/events", `{"title":"AlgoDat Vorlesung","location":"HS 1",
+	rec := call(h, "POST", "/api/calendar/events", `{"title":"Beispiel-Vorlesung","location":"HS 1",
 		"start_at":"2026-10-07T08:30:00Z","end_at":"2026-10-07T10:00:00Z",
 		"recurrence_rule":"FREQ=WEEKLY;BYDAY=WE","recurrence_exdates":["2026-10-14"]}`)
 	if rec.Code != 201 {
@@ -150,11 +150,11 @@ func TestCalendarOccurrences(t *testing.T) {
 
 const importICS = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" +
 	"BEGIN:VEVENT\r\nUID:a@uni\r\nSUMMARY:Arzt\r\nDTSTART:20261009T120000Z\r\nDTEND:20261009T130000Z\r\nEND:VEVENT\r\n" +
-	"BEGIN:VEVENT\r\nUID:w@uni\r\nSUMMARY:AlgoDat\r\nLOCATION:HS 1\r\nDTSTART:20261007T083000Z\r\nDTEND:20261007T100000Z\r\n" +
+	"BEGIN:VEVENT\r\nUID:w@uni\r\nSUMMARY:Beispielkurs\r\nLOCATION:HS 1\r\nDTSTART:20261007T083000Z\r\nDTEND:20261007T100000Z\r\n" +
 	"RRULE:FREQ=WEEKLY;BYDAY=WE;UNTIL=20261031T000000Z\r\nEXDATE:20261014T083000Z\r\nEND:VEVENT\r\n" +
 	"BEGIN:VEVENT\r\nUID:d@uni\r\nSUMMARY:Ferien\r\nDTSTART;VALUE=DATE:20261224\r\nDTEND;VALUE=DATE:20261227\r\nEND:VEVENT\r\n" +
 	"BEGIN:VEVENT\r\nUID:m@uni\r\nSUMMARY:Monatlich\r\nDTSTART:20261001T080000Z\r\nDTEND:20261001T090000Z\r\nRRULE:FREQ=MONTHLY\r\nEND:VEVENT\r\n" +
-	"BEGIN:VEVENT\r\nUID:w@uni\r\nSUMMARY:AlgoDat verschoben\r\nRECURRENCE-ID:20261021T083000Z\r\nDTSTART:20261022T083000Z\r\nDTEND:20261022T100000Z\r\nEND:VEVENT\r\n" +
+	"BEGIN:VEVENT\r\nUID:w@uni\r\nSUMMARY:Beispielkurs verschoben\r\nRECURRENCE-ID:20261021T083000Z\r\nDTSTART:20261022T083000Z\r\nDTEND:20261022T100000Z\r\nEND:VEVENT\r\n" +
 	"END:VCALENDAR\r\n"
 
 func TestCalendarImportICSIsIdempotent(t *testing.T) {
@@ -190,8 +190,8 @@ func TestCalendarImportICSIsIdempotent(t *testing.T) {
 
 	// Projekt am Termin setzen; ein erneuter Import ändert Felder aus der ICS, lässt das Projekt aber stehen.
 	var p projectDTO
-	_ = json.Unmarshal(call(h, "POST", "/api/projects", `{"name":"AlgoDat"}`).Body.Bytes(), &p)
-	call(h, "PATCH", "/api/calendar/events/"+events["AlgoDat"].ID, `{"project_id":"`+p.ID+`"}`)
+	_ = json.Unmarshal(call(h, "POST", "/api/projects", `{"name":"Beispielkurs"}`).Body.Bytes(), &p)
+	call(h, "PATCH", "/api/calendar/events/"+events["Beispielkurs"].ID, `{"project_id":"`+p.ID+`"}`)
 
 	res = doImport(strings.Replace(importICS, "SUMMARY:Arzt", "SUMMARY:Zahnarzt", 1))
 	if res.Created != 0 || res.Updated != 4 || res.Skipped != 1 {
@@ -201,7 +201,7 @@ func TestCalendarImportICSIsIdempotent(t *testing.T) {
 	if _, ok := events["Zahnarzt"]; len(events) != 4 || !ok {
 		t.Errorf("Duplikate oder fehlendes Update: %+v", events)
 	}
-	if pid := events["AlgoDat"].ProjectID; pid == nil || *pid != p.ID {
+	if pid := events["Beispielkurs"].ProjectID; pid == nil || *pid != p.ID {
 		t.Errorf("Projekt nach Re-Import: %v", pid)
 	}
 
@@ -210,7 +210,7 @@ func TestCalendarImportICSIsIdempotent(t *testing.T) {
 	_ = json.Unmarshal(call(h, "GET", "/api/calendar/occurrences?"+q, "").Body.Bytes(), &occ)
 	var starts []string
 	for _, o := range occ {
-		if o.Title == "AlgoDat" {
+		if o.Title == "Beispielkurs" {
 			starts = append(starts, o.OccurrenceStart)
 		}
 	}

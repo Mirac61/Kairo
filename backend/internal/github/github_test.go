@@ -56,8 +56,8 @@ func TestRepoIssuesSkipsPullRequests(t *testing.T) {
 
 func TestRepoFromRemote(t *testing.T) {
 	for in, want := range map[string]string{
-		"git@github.com:Mirac61/Kairo.git":           "Mirac61/Kairo",
-		"ssh://git@github.com/bug-bazaar/bugless":    "bug-bazaar/bugless",
+		"git@github.com:example/repo.git":            "example/repo",
+		"ssh://git@github.com/example/other-repo":    "example/other-repo",
 		"https://github.com/nestjs/starter.git":      "nestjs/starter",
 		"https://github.com/o/r/":                    "o/r",
 		"ssh://git@codeberg.org/user/privat-notizen": "",

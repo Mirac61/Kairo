@@ -81,13 +81,13 @@ Beispiel:
 Der Nutzer öffnet:
 
 ``` text
-~/code/uni/activitytracker
+~/code/uni/beispielprojekt
 ```
 
 Die Extension erkennt:
 
 ``` text
-Project = Activitytracker
+Project = Beispielprojekt
 ```
 
 und zeigt:

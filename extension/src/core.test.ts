@@ -16,9 +16,9 @@ assert.equal(matchProject(winProjects, "C:\\Users\\x\\Notes", "C:\\Users\\x", tr
 assert.equal(matchProject(winProjects, "C:\\Code\\Kairo2", "C:\\Users\\x", true), undefined);
 assert.equal(matchProject(projects, "/tmp"), undefined);
 const home = [p("tilde", "~/code/kairo"), p("tilde2", "~code")];
-assert.equal(matchProject(home, "/Users/m/code/kairo/backend", "/Users/m")?.id, "tilde"); // ~ wird erweitert
-assert.equal(matchProject(home, "/Users/m/code", "/Users/m"), undefined); // "~code" ist kein Home-Pfad
-assert.equal(expandHome("~", "/Users/m"), "/Users/m");
+assert.equal(matchProject(home, "/Users/test/code/kairo/backend", "/Users/test")?.id, "tilde"); // ~ wird erweitert
+assert.equal(matchProject(home, "/Users/test/code", "/Users/test"), undefined); // "~code" ist kein Home-Pfad
+assert.equal(expandHome("~", "/Users/test"), "/Users/test");
 assert.equal(isIdle(0, 600_000, 600_000), true);
 assert.equal(isIdle(0, 599_999, 600_000), false);
 assert.equal(isIdle(0, 1e9, 0), false); // 0 = aus

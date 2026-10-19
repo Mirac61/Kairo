@@ -64,7 +64,7 @@ func TestParseSingleEvent(t *testing.T) {
 func TestParseWeeklyWithExdates(t *testing.T) {
 	data := calendar(vevent(
 		"UID:w1",
-		"SUMMARY:AlgoDat",
+		"SUMMARY:Beispielkurs",
 		"DTSTART;TZID=Europe/Berlin:20261005T083000",
 		"DTEND;TZID=Europe/Berlin:20261005T100000",
 		"RRULE:FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20270130T225959Z;WKST=MO",

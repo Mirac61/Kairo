@@ -23,7 +23,7 @@ func newProjectRepo(t *testing.T) *ProjectRepository {
 func TestProjectRepositoryRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	r := newProjectRepo(t)
-	path := "~/code/personal/Kairo"
+	path := "~/code/kairo"
 	now := time.Date(2026, 10, 6, 12, 0, 0, 123, time.UTC)
 	p := domain.Project{ID: "p1", Name: "Kairo", Description: "d", LocalPath: &path,
 		Status: domain.ProjectActive, Color: "blue", CreatedAt: now, UpdatedAt: now}

@@ -38,7 +38,7 @@ func TestProjectsCRUD(t *testing.T) {
 	h := newProjectsRouter(t)
 
 	dir := t.TempDir()
-	rec := call(h, "POST", "/api/projects", `{"name":"AlgoDat","local_path":`+strconv.Quote(dir)+`}`)
+	rec := call(h, "POST", "/api/projects", `{"name":"Beispielprojekt","local_path":`+strconv.Quote(dir)+`}`)
 	if rec.Code != 201 {
 		t.Fatalf("POST = %d %s", rec.Code, rec.Body)
 	}
@@ -58,7 +58,7 @@ func TestProjectsCRUD(t *testing.T) {
 		t.Fatalf("PATCH = %d %s", rec.Code, rec.Body)
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &p)
-	if p.Status != "PAUSED" || p.LocalPath != nil || p.Name != "AlgoDat" {
+	if p.Status != "PAUSED" || p.LocalPath != nil || p.Name != "Beispielprojekt" {
 		t.Errorf("PATCH-Antwort = %+v", p)
 	}
 
