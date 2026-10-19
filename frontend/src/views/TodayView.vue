@@ -501,7 +501,10 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 .col-title .count { margin-left: 4px; font: 400 14px/1 var(--font-ui); }
 .st-gap { margin-top: 32px; }
 button.col-link { background: none; }
-.st-proj { flex: none; width: 118px; overflow: hidden; }
+/* Der Titel ist das Wichtigste der Zeile: er behält mindestens gut ein Drittel, das Projekt gibt zuerst nach
+   (die Farbe steht schon am Kreis bzw. am Balken). */
+.start-col .task-row .t { flex: 1 0 35%; }
+.st-proj { flex: 0 1 118px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .task-row .due.now { color: var(--tx-primary); }
 .task-row .due { min-width: 64px; }
 .task-row[draggable='true'] { cursor: grab; }
