@@ -143,3 +143,64 @@ func TestTaskListRejectsBadFilters(t *testing.T) {
 		t.Errorf("Datum: %v", err)
 	}
 }
+
+func TestTaskRecurrence(t *testing.T) {
+	ctx := context.Background()
+	berlin, _ := time.LoadLocation("Europe/Berlin")
+	store := &memTasks{m: map[string]domain.Task{}}
+	clock := time.Date(2026, 10, 6, 9, 0, 0, 0, berlin) // Dienstag
+	svc := NewTaskService(store, func() time.Time { return clock }).WithLocation(berlin)
+	done := domain.TaskCompleted
+	others := func(id string) []domain.Task {
+		var out []domain.Task
+		for _, x := range store.m {
+			if x.ID != id && x.Status != domain.TaskCompleted {
+				out = append(out, x)
+			}
+		}
+		return out
+	}
+
+	// Jeden Freitag, geplant Fr 9.10. 14:00, am Dienstag schon erledigt: nächste am Fr 16.10. 14:00.
+	fr, err := svc.Create(ctx, CreateTaskInput{Title: "Wochenrückblick", PlannedDate: ptr("2026-10-09"),
+		PlannedStartAt: ptr("2026-10-09T14:00:00+02:00"), RecurrenceRule: ptr("FREQ=WEEKLY;BYDAY=FR")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.Update(ctx, fr.ID, UpdateTaskInput{Status: &done})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RecurrenceRule != nil {
+		t.Errorf("erledigte Task behält die Regel")
+	}
+	next := others(fr.ID)
+	if len(next) != 1 || *next[0].PlannedDate != "2026-10-16" || next[0].Status != domain.TaskPlanned ||
+		next[0].PlannedStartAt.In(berlin).Format("15:04") != "14:00" || *next[0].RecurrenceRule != "FREQ=WEEKLY;BYDAY=FR" {
+		t.Fatalf("nächste = %+v", next)
+	}
+	delete(store.m, next[0].ID)
+
+	// Täglich, überfällig seit Freitag: nächste ist morgen, nicht der Samstag in der Vergangenheit.
+	d, _ := svc.Create(ctx, CreateTaskInput{Title: "Lesen", PlannedDate: ptr("2026-10-02"), RecurrenceRule: ptr("FREQ=DAILY")})
+	if _, err := svc.Update(ctx, d.ID, UpdateTaskInput{Status: &done}); err != nil {
+		t.Fatal(err)
+	}
+	if n := others(d.ID); len(n) != 1 || *n[0].PlannedDate != "2026-10-07" {
+		t.Fatalf("täglich nächste = %+v", n)
+	}
+	for id := range store.m {
+		delete(store.m, id)
+	}
+
+	// Abgelaufenes UNTIL: keine neue Task. COUNT und Unsinn werden abgelehnt.
+	u, _ := svc.Create(ctx, CreateTaskInput{Title: "x", RecurrenceRule: ptr("FREQ=DAILY;UNTIL=20261006")})
+	if _, err := svc.Update(ctx, u.ID, UpdateTaskInput{Status: &done}); err != nil || len(others(u.ID)) != 0 {
+		t.Errorf("UNTIL: err=%v, andere=%v", err, others(u.ID))
+	}
+	for _, r := range []string{"FREQ=DAILY;COUNT=3", "FREQ=MONTHLY"} {
+		if _, err := svc.Create(ctx, CreateTaskInput{Title: "x", RecurrenceRule: ptr(r)}); !errors.Is(err, domain.ErrInvalid) {
+			t.Errorf("%s: err = %v", r, err)
+		}
+	}
+}

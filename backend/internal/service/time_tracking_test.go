@@ -33,6 +33,7 @@ func (m *memTime) GetTask(_ context.Context, id string) (domain.Task, error) {
 	return t, nil
 }
 func (m *memTime) UpdateTask(_ context.Context, t domain.Task) error { m.tasks[t.ID] = t; return nil }
+func (m *memTime) CreateTask(_ context.Context, t domain.Task) error { m.tasks[t.ID] = t; return nil }
 func (m *memTime) RunningEntry(context.Context) (*domain.TimeEntry, error) {
 	for i := range m.entries {
 		if m.entries[i].EndedAt == nil {
@@ -431,4 +432,24 @@ func TestTimeEventsAreEmittedAfterSuccess(t *testing.T) {
 	check("StopTimer", domain.EventTimerStopped)
 	_ = svc.StopTimer(ctx, "a")
 	check("StopTimer ohne Timer")
+}
+
+// Das Häkchen (Complete) legt bei einer wiederkehrenden Task die nächste an, wie TaskService.Update.
+func TestCompleteRecurring(t *testing.T) {
+	svc, m, _ := newTimeSvc(map[string]domain.TaskStatus{"a": domain.TaskPlanned})
+	svc.WithLocation(time.UTC)
+	a := m.tasks["a"]
+	a.PlannedDate, a.RecurrenceRule = ptr("2026-10-09"), ptr("FREQ=WEEKLY")
+	m.tasks["a"] = a
+	if _, err := svc.Complete(context.Background(), "a"); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.tasks) != 2 || m.tasks["a"].RecurrenceRule != nil {
+		t.Fatalf("tasks = %+v", m.tasks)
+	}
+	for id, x := range m.tasks {
+		if id != "a" && (*x.PlannedDate != "2026-10-16" || x.Status != domain.TaskPlanned) {
+			t.Errorf("nächste = %+v", x)
+		}
+	}
 }

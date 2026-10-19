@@ -50,4 +50,5 @@ type TimeEntryFilter struct {
 type TimerResult struct {
 	Task  Task
 	Entry *TimeEntry
+	Next  *Task // beim Abschluss einer wiederkehrenden Task: die neu angelegte Wiederholung
 }

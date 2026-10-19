@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -36,6 +37,7 @@ type TaskService struct {
 	store  TaskStore
 	now    func() time.Time
 	timers TimerStopper
+	loc    *time.Location // Ortszeit für Wiederholungen
 }
 
 // NewTaskService erzeugt einen TaskService. now ist die Uhr (nil = time.Now).
@@ -43,7 +45,13 @@ func NewTaskService(store TaskStore, now func() time.Time) *TaskService {
 	if now == nil {
 		now = time.Now
 	}
-	return &TaskService{store: store, now: now}
+	return &TaskService{store: store, now: now, loc: time.Local}
+}
+
+// WithLocation setzt die Zeitzone, in der Wiederholungen gerechnet werden (Standard: time.Local).
+func (s *TaskService) WithLocation(loc *time.Location) *TaskService {
+	s.loc = loc
+	return s
 }
 
 // WithTimerStopper sorgt dafür, dass Update den Timer einer Task beendet,
@@ -67,11 +75,12 @@ type CreateTaskInput struct {
 	PlannedStartAt   *string
 	ProjectID        *string
 	ParentTaskID     *string
+	RecurrenceRule   *string
 }
 
 // UpdateTaskInput ändert nur die gesetzten (non-nil) Felder. Bei den
 // optionalen Feldern (DueAt, PlannedDate, PlannedStartAt, ProjectID,
-// ParentTaskID) entfernt ein leerer String den Wert.
+// ParentTaskID, RecurrenceRule) entfernt ein leerer String den Wert.
 type UpdateTaskInput struct {
 	Title            *string
 	Description      *string
@@ -83,6 +92,7 @@ type UpdateTaskInput struct {
 	PlannedStartAt   *string
 	ProjectID        *string
 	ParentTaskID     *string
+	RecurrenceRule   *string
 }
 
 func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (domain.Task, error) {
@@ -103,6 +113,7 @@ func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (domain.Ta
 		PlannedDate:      trimOrNil(in.PlannedDate),
 		ProjectID:        trimOrNil(in.ProjectID),
 		ParentTaskID:     trimOrNil(in.ParentTaskID),
+		RecurrenceRule:   trimOrNil(in.RecurrenceRule),
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}
@@ -116,7 +127,7 @@ func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (domain.Ta
 	if t.Status == domain.TaskCompleted {
 		t.CompletedAt = &now
 	}
-	if err := validateTask(t); err != nil {
+	if err := s.validate(t); err != nil {
 		return domain.Task{}, err
 	}
 	if err := s.store.Create(ctx, t); err != nil {
@@ -167,6 +178,9 @@ func (s *TaskService) Update(ctx context.Context, id string, in UpdateTaskInput)
 	if in.ProjectID != nil {
 		t.ProjectID = trimOrNil(in.ProjectID)
 	}
+	if in.RecurrenceRule != nil {
+		t.RecurrenceRule = trimOrNil(in.RecurrenceRule)
+	}
 	parentChanged := in.ParentTaskID != nil
 	if parentChanged {
 		t.ParentTaskID = trimOrNil(in.ParentTaskID)
@@ -181,6 +195,7 @@ func (s *TaskService) Update(ctx context.Context, id string, in UpdateTaskInput)
 			return domain.Task{}, err
 		}
 	}
+	completing := in.Status != nil && *in.Status == domain.TaskCompleted && t.Status != domain.TaskCompleted
 	if in.Status != nil && *in.Status != t.Status {
 		t.Status = *in.Status
 		t.CompletedAt = nil
@@ -188,7 +203,7 @@ func (s *TaskService) Update(ctx context.Context, id string, in UpdateTaskInput)
 			t.CompletedAt = &now
 		}
 	}
-	if err := validateTask(t); err != nil {
+	if err := s.validate(t); err != nil {
 		return domain.Task{}, err
 	}
 	if parentChanged && t.ParentTaskID != nil {
@@ -203,11 +218,89 @@ func (s *TaskService) Update(ctx context.Context, id string, in UpdateTaskInput)
 			return domain.Task{}, err
 		}
 	}
+	if completing && t.RecurrenceRule != nil {
+		// Erst die nächste anlegen: Scheitert das, bleibt die Task offen und die Regel geht nicht verloren.
+		if err := s.createNext(ctx, t); err != nil {
+			return domain.Task{}, err
+		}
+		t.RecurrenceRule = nil // sonst entstünde nach Wiedereröffnen und erneutem Erledigen eine zweite
+	}
 	if err := s.store.Update(ctx, t); err != nil {
 		return domain.Task{}, err
 	}
 	s.emit(domain.Event{Type: domain.EventTaskUpdated, ID: t.ID})
 	return t, nil
+}
+
+// createNext legt die nächste Wiederholung von t an (siehe nextRecurrence).
+func (s *TaskService) createNext(ctx context.Context, t domain.Task) error {
+	next, err := nextRecurrence(t, s.loc, s.now())
+	if err != nil || next == nil {
+		return err
+	}
+	if err := s.store.Create(ctx, *next); err != nil {
+		return err
+	}
+	s.emit(domain.Event{Type: domain.EventTaskCreated, ID: next.ID})
+	return nil
+}
+
+// nextRecurrence liefert die nächste Wiederholung von t: gleiche Felder, Tag (und Uhrzeiten) auf den nächsten
+// Termin nach max(Tag von t, heute) verschoben. Ohne Tag zählt heute. Endet die Regel (UNTIL), kommt nil.
+// shortcut: Teilaufgaben wandern nicht mit; erst nachziehen, wenn wiederkehrende Tasks mit Checklisten gebraucht werden.
+func nextRecurrence(t domain.Task, loc *time.Location, clock time.Time) (*domain.Task, error) {
+	rule, err := domain.ParseRule(*t.RecurrenceRule, loc)
+	if err != nil {
+		return nil, err
+	}
+	now := clock.In(loc)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	anchor := today
+	switch {
+	case t.PlannedDate != nil:
+		anchor, _ = time.ParseInLocation("2006-01-02", *t.PlannedDate, loc)
+	case t.DueAt != nil:
+		d := t.DueAt.In(loc)
+		anchor = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, loc)
+	}
+	from := anchor
+	if today.After(from) {
+		from = today
+	}
+	from = from.AddDate(0, 0, 1)
+	starts := rule.Starts(anchor, from, from.AddDate(0, 0, 7*rule.Interval+7))
+	if len(starts) == 0 {
+		return nil, nil
+	}
+	days := int(math.Round(starts[0].Sub(anchor).Hours() / 24))
+	shift := func(p *time.Time) *time.Time {
+		if p == nil {
+			return nil
+		}
+		v := p.In(loc).AddDate(0, 0, days).UTC()
+		return &v
+	}
+	day := starts[0].Format("2006-01-02")
+	at := clock.UTC()
+	next := domain.Task{
+		ID:               domain.NewID(),
+		Title:            t.Title,
+		Description:      t.Description,
+		Status:           domain.TaskBacklog,
+		Priority:         t.Priority,
+		EstimatedMinutes: t.EstimatedMinutes,
+		DueAt:            shift(t.DueAt),
+		PlannedStartAt:   shift(t.PlannedStartAt),
+		ProjectID:        t.ProjectID,
+		ParentTaskID:     t.ParentTaskID,
+		RecurrenceRule:   t.RecurrenceRule,
+		CreatedAt:        at,
+		UpdatedAt:        at,
+	}
+	if t.PlannedDate != nil || t.DueAt == nil {
+		next.PlannedDate, next.Status = &day, domain.TaskPlanned
+	}
+	return &next, nil
 }
 
 // Delete löscht endgültig; die Zeiteinträge bleiben dabei geschützt (domain.ErrConflict).
@@ -278,6 +371,25 @@ func parseOptTime(field string, v *string) (*time.Time, error) {
 func validateDate(field, v string) error {
 	if _, err := time.Parse("2006-01-02", v); err != nil {
 		return fmt.Errorf("%w: %s muss YYYY-MM-DD sein", domain.ErrInvalid, field)
+	}
+	return nil
+}
+
+// validate prüft die Felder und die Wiederholungsregel. COUNT ergibt bei Tasks keinen Sinn, weil jede
+// Wiederholung neu ab ihrem eigenen Tag zählt.
+func (s *TaskService) validate(t domain.Task) error {
+	if err := validateTask(t); err != nil {
+		return err
+	}
+	if t.RecurrenceRule == nil {
+		return nil
+	}
+	rule, err := domain.ParseRule(*t.RecurrenceRule, s.loc)
+	if err != nil {
+		return err
+	}
+	if rule.Count > 0 {
+		return fmt.Errorf("%w: recurrence_rule: COUNT geht bei Tasks nicht, stattdessen UNTIL", domain.ErrInvalid)
 	}
 	return nil
 }

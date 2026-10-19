@@ -18,7 +18,7 @@ type TaskRepository struct{ db *sql.DB }
 func NewTaskRepository(db *sql.DB) *TaskRepository { return &TaskRepository{db: db} }
 
 const taskColumns = `id, project_id, parent_task_id, title, description, status, priority,
-	estimated_minutes, due_at, planned_date, planned_start_at, created_at, updated_at, completed_at`
+	estimated_minutes, due_at, planned_date, planned_start_at, created_at, updated_at, completed_at, recurrence_rule`
 
 func nullTime(t *time.Time) any {
 	if t == nil {
@@ -50,15 +50,15 @@ func scanTask(s scanner, extra ...any) (domain.Task, error) {
 	var (
 		t                                           domain.Task
 		project, parent, due, planned, plannedStart sql.NullString
-		completed                                   sql.NullString
+		completed, rule                             sql.NullString
 		status, priority, created, updated          string
 	)
 	if err := s.Scan(append([]any{&t.ID, &project, &parent, &t.Title, &t.Description, &status, &priority,
-		&t.EstimatedMinutes, &due, &planned, &plannedStart, &created, &updated, &completed}, extra...)...); err != nil {
+		&t.EstimatedMinutes, &due, &planned, &plannedStart, &created, &updated, &completed, &rule}, extra...)...); err != nil {
 		return domain.Task{}, err
 	}
 	t.Status, t.Priority = domain.TaskStatus(status), domain.TaskPriority(priority)
-	t.ProjectID, t.ParentTaskID, t.PlannedDate = nullStr(project), nullStr(parent), nullStr(planned)
+	t.ProjectID, t.ParentTaskID, t.PlannedDate, t.RecurrenceRule = nullStr(project), nullStr(parent), nullStr(planned), nullStr(rule)
 	var err error
 	if t.DueAt, err = parseNullTime(due); err != nil {
 		return domain.Task{}, fmt.Errorf("due_at: %w", err)
@@ -88,11 +88,15 @@ func mapFK(err error) error {
 
 // Create legt eine Task an.
 func (r *TaskRepository) Create(ctx context.Context, t domain.Task) error {
-	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO tasks (`+taskColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	return createTask(ctx, r.db, t)
+}
+
+func createTask(ctx context.Context, q dbtx, t domain.Task) error {
+	_, err := q.ExecContext(ctx,
+		`INSERT INTO tasks (`+taskColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.ProjectID, t.ParentTaskID, t.Title, t.Description, string(t.Status), string(t.Priority),
 		t.EstimatedMinutes, nullTime(t.DueAt), t.PlannedDate, nullTime(t.PlannedStartAt),
-		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), nullTime(t.CompletedAt))
+		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), nullTime(t.CompletedAt), t.RecurrenceRule)
 	if err != nil {
 		return fmt.Errorf("repository: Task anlegen: %w", mapFK(err))
 	}
@@ -170,10 +174,10 @@ func updateTask(ctx context.Context, q dbtx, t domain.Task) error {
 	res, err := q.ExecContext(ctx,
 		`UPDATE tasks SET project_id = ?, parent_task_id = ?, title = ?, description = ?, status = ?,
 			priority = ?, estimated_minutes = ?, due_at = ?, planned_date = ?, planned_start_at = ?,
-			updated_at = ?, completed_at = ? WHERE id = ? AND deleted_at IS NULL`,
+			updated_at = ?, completed_at = ?, recurrence_rule = ? WHERE id = ? AND deleted_at IS NULL`,
 		t.ProjectID, t.ParentTaskID, t.Title, t.Description, string(t.Status), string(t.Priority),
 		t.EstimatedMinutes, nullTime(t.DueAt), t.PlannedDate, nullTime(t.PlannedStartAt),
-		formatTime(t.UpdatedAt), nullTime(t.CompletedAt), t.ID)
+		formatTime(t.UpdatedAt), nullTime(t.CompletedAt), t.RecurrenceRule, t.ID)
 	if err != nil {
 		return fmt.Errorf("repository: Task ändern: %w", mapFK(err))
 	}

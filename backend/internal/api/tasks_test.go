@@ -118,3 +118,23 @@ func TestTasksErrors(t *testing.T) {
 		}
 	}
 }
+
+// Wiederholung über SQLite: Regel kommt zurück, Erledigen legt die nächste an.
+func TestTasksRecurrence(t *testing.T) {
+	h := newTasksRouter(t)
+	rec := call(h, "POST", "/api/tasks", `{"title":"Müll","planned_date":"2026-10-09","recurrence_rule":"FREQ=WEEKLY"}`)
+	var task taskDTO
+	_ = json.Unmarshal(rec.Body.Bytes(), &task)
+	if rec.Code != 201 || task.RecurrenceRule == nil || *task.RecurrenceRule != "FREQ=WEEKLY" {
+		t.Fatalf("POST = %d %s", rec.Code, rec.Body)
+	}
+	call(h, "PATCH", "/api/tasks/"+task.ID, `{"status":"COMPLETED"}`)
+	var list []taskDTO
+	_ = json.Unmarshal(call(h, "GET", "/api/tasks?status=PLANNED", "").Body.Bytes(), &list)
+	if len(list) != 1 || list[0].ID == task.ID || list[0].RecurrenceRule == nil || *list[0].PlannedDate <= "2026-10-09" {
+		t.Errorf("nächste = %+v", list)
+	}
+	if rec := call(h, "PATCH", "/api/tasks/"+task.ID, `{"recurrence_rule":"FREQ=YEARLY"}`); rec.Code != 400 {
+		t.Errorf("ungültige Regel = %d", rec.Code)
+	}
+}

@@ -55,6 +55,7 @@ type Task struct {
 	PlannedStartAt   *time.Time // UTC, nur zusammen mit PlannedDate
 	ProjectID        *string
 	ParentTaskID     *string
+	RecurrenceRule   *string // RRULE-Teilmenge (ParseRule); beim Erledigen entsteht die nächste Task
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	CompletedAt      *time.Time

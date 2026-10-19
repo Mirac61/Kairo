@@ -45,6 +45,7 @@ func toTimeEntryDTO(e domain.TimeEntry) timeEntryDTO {
 type timerDTO struct {
 	Task      taskDTO       `json:"task"`
 	TimeEntry *timeEntryDTO `json:"time_entry"`
+	Next      *taskDTO      `json:"next,omitempty"` // nächste Wiederholung, damit Rückgängig sie entfernen kann
 }
 
 func toTimerDTO(r domain.TimerResult) timerDTO {
@@ -52,6 +53,10 @@ func toTimerDTO(r domain.TimerResult) timerDTO {
 	if r.Entry != nil {
 		e := toTimeEntryDTO(*r.Entry)
 		out.TimeEntry = &e
+	}
+	if r.Next != nil {
+		n := toTaskDTO(*r.Next)
+		out.Next = &n
 	}
 	return out
 }

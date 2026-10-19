@@ -153,6 +153,10 @@ func (t timeTx) UpdateTask(ctx context.Context, task domain.Task) error {
 	return updateTask(ctx, t.q, task)
 }
 
+func (t timeTx) CreateTask(ctx context.Context, task domain.Task) error {
+	return createTask(ctx, t.q, task)
+}
+
 func (t timeTx) RunningEntry(ctx context.Context) (*domain.TimeEntry, error) {
 	e, err := scanTimeEntry(t.q.QueryRowContext(ctx, timeEntrySelect+` WHERE te.ended_at IS NULL`))
 	if errors.Is(err, sql.ErrNoRows) {

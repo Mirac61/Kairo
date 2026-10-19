@@ -33,6 +33,7 @@ type taskDTO struct {
 	PlannedStartAt   *string `json:"planned_start_at"`
 	ProjectID        *string `json:"project_id"`
 	ParentTaskID     *string `json:"parent_task_id"`
+	RecurrenceRule   *string `json:"recurrence_rule"`
 	CreatedAt        string  `json:"created_at"`
 	UpdatedAt        string  `json:"updated_at"`
 	CompletedAt      *string `json:"completed_at"`
@@ -60,6 +61,7 @@ func toTaskDTO(t domain.Task) taskDTO {
 		PlannedStartAt:   formatOptTime(t.PlannedStartAt),
 		ProjectID:        t.ProjectID,
 		ParentTaskID:     t.ParentTaskID,
+		RecurrenceRule:   t.RecurrenceRule,
 		CreatedAt:        t.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:        t.UpdatedAt.UTC().Format(time.RFC3339),
 		CompletedAt:      formatOptTime(t.CompletedAt),
@@ -105,6 +107,7 @@ func (h taskHandlers) create(w http.ResponseWriter, r *http.Request) {
 		PlannedStartAt   *string `json:"planned_start_at"`
 		ProjectID        *string `json:"project_id"`
 		ParentTaskID     *string `json:"parent_task_id"`
+		RecurrenceRule   *string `json:"recurrence_rule"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
@@ -120,6 +123,7 @@ func (h taskHandlers) create(w http.ResponseWriter, r *http.Request) {
 		PlannedStartAt:   in.PlannedStartAt,
 		ProjectID:        in.ProjectID,
 		ParentTaskID:     in.ParentTaskID,
+		RecurrenceRule:   in.RecurrenceRule,
 	})
 	if err != nil {
 		writeError(w, err)
@@ -138,7 +142,7 @@ func (h taskHandlers) get(w http.ResponseWriter, r *http.Request) {
 }
 
 // update: nicht gesendete Felder (oder null) bleiben unverändert; bei
-// due_at, planned_date, planned_start_at, project_id und parent_task_id
+// due_at, planned_date, planned_start_at, project_id, parent_task_id und recurrence_rule
 // entfernt "" den Wert.
 func (h taskHandlers) update(w http.ResponseWriter, r *http.Request) {
 	var in struct {
@@ -152,6 +156,7 @@ func (h taskHandlers) update(w http.ResponseWriter, r *http.Request) {
 		PlannedStartAt   *string `json:"planned_start_at"`
 		ProjectID        *string `json:"project_id"`
 		ParentTaskID     *string `json:"parent_task_id"`
+		RecurrenceRule   *string `json:"recurrence_rule"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
@@ -165,6 +170,7 @@ func (h taskHandlers) update(w http.ResponseWriter, r *http.Request) {
 		PlannedStartAt:   in.PlannedStartAt,
 		ProjectID:        in.ProjectID,
 		ParentTaskID:     in.ParentTaskID,
+		RecurrenceRule:   in.RecurrenceRule,
 	}
 	if in.Status != nil {
 		s := domain.TaskStatus(*in.Status)

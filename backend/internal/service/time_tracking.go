@@ -23,6 +23,7 @@ type TimeStore interface {
 type TimeTx interface {
 	GetTask(ctx context.Context, id string) (domain.Task, error)
 	UpdateTask(ctx context.Context, t domain.Task) error
+	CreateTask(ctx context.Context, t domain.Task) error
 	// RunningEntry liefert den laufenden Timer oder nil.
 	RunningEntry(ctx context.Context) (*domain.TimeEntry, error)
 	CreateEntry(ctx context.Context, e domain.TimeEntry) error
@@ -39,6 +40,7 @@ type TimeTrackingService struct {
 	publisher
 	store TimeStore
 	now   func() time.Time
+	loc   *time.Location // Ortszeit für wiederkehrende Tasks
 }
 
 // NewTimeTrackingService erzeugt einen TimeTrackingService. now ist die Uhr (nil = time.Now).
@@ -46,7 +48,13 @@ func NewTimeTrackingService(store TimeStore, now func() time.Time) *TimeTracking
 	if now == nil {
 		now = time.Now
 	}
-	return &TimeTrackingService{store: store, now: now}
+	return &TimeTrackingService{store: store, now: now, loc: time.Local}
+}
+
+// WithLocation setzt die Zeitzone, in der Wiederholungen gerechnet werden (Standard: time.Local).
+func (s *TimeTrackingService) WithLocation(loc *time.Location) *TimeTrackingService {
+	s.loc = loc
+	return s
 }
 
 // Start startet den Timer einer Task und setzt sie auf IN_PROGRESS. Läuft
@@ -170,6 +178,7 @@ func (s *TimeTrackingService) Complete(ctx context.Context, taskID string) (doma
 		res       domain.TimerResult
 		completed bool
 		changed   bool
+		next      *domain.Task
 	)
 	err := s.store.Tx(ctx, func(tx TimeTx) error {
 		now := s.now().UTC()
@@ -194,11 +203,22 @@ func (s *TimeTrackingService) Complete(ctx context.Context, taskID string) (doma
 		if task.Status != domain.TaskCompleted {
 			changed = true
 			task.Status, task.CompletedAt, task.UpdatedAt = domain.TaskCompleted, &now, now
+			if task.RecurrenceRule != nil {
+				if next, err = nextRecurrence(task, s.loc, now); err != nil {
+					return err
+				}
+				if next != nil {
+					if err := tx.CreateTask(ctx, *next); err != nil {
+						return err
+					}
+				}
+				task.RecurrenceRule = nil // die Regel lebt in der nächsten weiter
+			}
 			if err := tx.UpdateTask(ctx, task); err != nil {
 				return err
 			}
 		}
-		res.Task = task
+		res.Task, res.Next = task, next
 		completed = task.Status == domain.TaskCompleted && changed
 		return nil
 	})
@@ -208,6 +228,9 @@ func (s *TimeTrackingService) Complete(ctx context.Context, taskID string) (doma
 		}
 		if completed {
 			s.emit(domain.Event{Type: domain.EventTaskCompleted, ID: taskID})
+		}
+		if next != nil {
+			s.emit(domain.Event{Type: domain.EventTaskCreated, ID: next.ID})
 		}
 	}
 	return res, err

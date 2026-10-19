@@ -157,10 +157,10 @@ func run() error {
 	defer notesStore.Close()
 
 	hub := realtime.NewHub()
-	tasks := service.NewTaskService(repository.NewTaskRepository(db), nil)
+	tasks := service.NewTaskService(repository.NewTaskRepository(db), nil).WithLocation(cfg.Location)
 	calendar := service.NewCalendarService(repository.NewCalendarRepository(db), cfg.Location, nil)
 	habits := service.NewHabitService(repository.NewHabitRepository(db), cfg.Location, nil)
-	timeTracking := service.NewTimeTrackingService(repository.NewTimeEntryRepository(db), nil)
+	timeTracking := service.NewTimeTrackingService(repository.NewTimeEntryRepository(db), nil).WithLocation(cfg.Location)
 	projects := service.NewProjectService(repository.NewProjectRepository(db), nil)
 	for _, p := range []interface{ SetPublisher(service.Publisher) }{projects, tasks, calendar, habits, timeTracking} {
 		p.SetPublisher(hub)
