@@ -1,7 +1,7 @@
 // Prüfung der Notizdateien: node test/noteFiles.test.ts
 import assert from 'node:assert/strict'
 import lz from 'lz-string'
-import { assetCandidates, assetName, drawingsIn, fileKind, fillTemplate, fold, fuzzyScore, headingsOf, isObsidianDrawing, join, noteCandidates, parseObsidianDrawing, parseWikiLink, previewImages, previewWikiLinks, rankCandidates, resolveLink, resolveNote, under, withExt } from '../src/lib/noteFiles.ts'
+import { assetCandidates, assetName, drawingsIn, fileKind, fillTemplate, fold, fuzzyScore, headingsOf, isObsidianDrawing, join, noteCandidates, parseObsidianDrawing, parseWikiLink, previewImages, previewWikiLinks, rankCandidates, resolveLink, resolveNote, slugify, under, withExt } from '../src/lib/noteFiles.ts'
 
 assert.equal(fileKind('Uni/a.MD'), 'md')
 assert.equal(fileKind('skript.pdf'), 'pdf')
@@ -101,8 +101,10 @@ assert.equal(resolveNote('fehlt', '', notes), '')
 const wl = '<p><a href="#" data-wikilink="se#Ziele|Alias" target="_blank">Alias</a> <a href="#" data-wikilink="fehlt">fehlt</a> <a href="https://x.de">x</a></p>'
 assert.equal(
   previewWikiLinks(wl, (n) => resolveNote(n, '', notes)),
-  '<p><a href="#" class="md-wikilink" data-note="Uni/SE.md">Alias</a> <a href="#" class="md-wikilink md-wiki-unresolved" data-name="fehlt">fehlt</a> <a href="https://x.de">x</a></p>',
+  '<p><a href="#" class="md-wikilink" data-note="Uni/SE.md" data-heading="Ziele">Alias</a> <a href="#" class="md-wikilink md-wiki-unresolved" data-name="fehlt">fehlt</a> <a href="https://x.de">x</a></p>',
 )
+assert.equal(slugify('Offene Punkte'), 'offene-punkte')
+assert.equal(slugify('Übung 3'), 'ubung-3')
 
 // Wiki-Link-Autovervollständigung: Kandidaten und Ranking
 const cand = ['a.md', 'Uni/Algo.md', 'Uni/AlgoDat.md', 'Uni/Sub/Bäume.md', 'bild.png', 'skript.pdf', 'Uni/Skizze.excalidraw', 'Uni/Makefile']

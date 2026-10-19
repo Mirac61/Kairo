@@ -1,6 +1,7 @@
 <script lang="ts">
 import { EditorView } from '@codemirror/view'
 import { config } from 'md-editor-v3'
+import { slugify } from '@/lib/noteFiles'
 
 // Rechtschreibprüfung des Browsers bzw. von macOS (rote Wellenlinie, Vorschläge per Rechtsklick); CodeMirror schaltet sie sonst ab.
 // ![[Name]] und ![[Name|900]] wie in Obsidian: ein <img data-wiki>, das sanitize (previewImages) zum Pfad auflöst.
@@ -8,6 +9,13 @@ import { config } from 'md-editor-v3'
 config({
   codeMirrorExtensions: (exts) => [...exts, { type: 'spellcheck', extension: EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }) }],
   markdownItConfig: (md) => {
+    // Überschriften bekommen einen Anker (slugify), damit [[Name#Abschnitt]] dorthin scrollen kann.
+    const headingOpen = md.renderer.rules.heading_open || ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
+    md.renderer.rules.heading_open = (tokens, idx, options, env, self) => {
+      const text = tokens[idx + 1]?.content ?? ''
+      tokens[idx]!.attrSet('id', slugify(text))
+      return headingOpen(tokens, idx, options, env, self)
+    }
     md.inline.ruler.before('image', 'wikiEmbed', (state, silent) => {
       const m = /^!\[\[([^\]|\n]+)(?:\|([^\]\n]*))?\]\]/.exec(state.src.slice(state.pos))
       if (!m) return false
@@ -37,7 +45,7 @@ config({
 </script>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ApiError, createNote, errorMessage, readNote, uploadFile } from '@/api/client'
@@ -49,10 +57,10 @@ import { parentOf } from '@/components/NoteTree.vue'
 // Markdown-Editor der Notizen. Mermaid, KaTeX, Prettier und Highlight lädt md-editor-v3 vom CDN; sie sind abgeschaltet
 // (Kairo läuft lokal). Bilder landen über uploadImages neben der Notiz.
 // drawingRev: NotesView erhöht ihn nach dem Speichern einer Zeichnung und alle 5 s; eingebettete Zeichnungen prüfen dann ihre mtime.
-// files: alle Dateien im Notizordner, für ![[Name]] (Suche nach dem Namen wie in Obsidian).
-const props = defineProps<{ path: string; drawingRev?: number; files?: string[] }>()
+// files: alle Dateien im Notizordner, für ![[Name]] (Suche nach dem Namen wie in Obsidian). scrollHeading: Ziel-Überschrift.
+const props = defineProps<{ path: string; drawingRev?: number; files?: string[]; scrollHeading?: string }>()
 const text = defineModel<string>({ required: true })
-const emit = defineEmits<{ uploaded: []; error: [string]; open: [string]; openNote: [string]; createNote: [string] }>()
+const emit = defineEmits<{ uploaded: []; error: [string]; open: [string]; openNote: [string, string]; createNote: [string] }>()
 
 const TOOLBAR: ToolbarNames[] = [
   'bold', 'italic', 'strikeThrough', 'title', '-', 'quote', 'unorderedList', 'orderedList', 'task', '-',
@@ -108,13 +116,22 @@ const completions = computed(() => [
   }),
 ])
 
-// Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab, Zeichnungen links in Kairo, [[Links]] die Notiz;
-// ein unaufgelöster Link (md-wiki-unresolved) meldet den Namen, damit die Ansicht die Notiz anlegen kann.
+// [[Name#Abschnitt]]: nach dem Öffnen zur Überschrift in der Vorschau scrollen.
+const root = ref<HTMLElement>()
+watch(() => props.scrollHeading, (h) => {
+  if (!h) return
+  void nextTick(() => {
+    root.value?.querySelector(`.md-editor-preview [id="${CSS.escape(slugify(h))}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  })
+})
+
+// Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab, Zeichnungen links in Kairo, [[Links]] die Notiz
+// (mit Überschrift für [[Name#Abschnitt]]); ein unaufgelöster Link (md-wiki-unresolved) meldet den Namen, damit die Ansicht die Notiz anlegen kann.
 function openPreviewImage(e: MouseEvent) {
   const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('.md-editor-preview a.md-wikilink')
   if (link) {
     e.preventDefault()
-    if (link.dataset.note) emit('openNote', link.dataset.note)
+    if (link.dataset.note) emit('openNote', link.dataset.note, link.dataset.heading || '')
     else if (link.dataset.name) emit('createNote', link.dataset.name)
     return
   }
@@ -131,7 +148,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
 </script>
 
 <template>
-  <div class="nd" @click="openPreviewImage">
+  <div class="nd" ref="root" @click="openPreviewImage">
     <MdEditor
       v-model="text" :theme="dark ? 'dark' : 'light'" language="en-US" preview-theme="default"
       :toolbars="TOOLBAR" :footers="[]" :sanitize="sanitize" :completions="completions" no-highlight no-mermaid no-katex no-prettier no-echarts

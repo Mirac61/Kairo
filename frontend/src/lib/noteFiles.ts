@@ -63,14 +63,21 @@ export function resolveNote(name: string, dir: string, files: string[]) {
   return best
 }
 
-// Vorschau: die <a data-wikilink="…"> aus NoteEditor bekommen data-note mit dem Pfad der Zielnotiz, ohne Treffer die Klasse
-// md-wiki-unresolved samt data-name (dem gewünschten Namen, damit ein Klick die Notiz anlegen kann).
+// Vorschau: die <a data-wikilink="…"> aus NoteEditor bekommen data-note mit dem Pfad der Zielnotiz (und data-heading
+// für [[Name#Abschnitt]]), ohne Treffer die Klasse md-wiki-unresolved samt data-name (dem gewünschten Namen, damit ein
+// Klick die Notiz anlegen kann).
 export const previewWikiLinks = (html: string, resolve: (name: string) => string) =>
   html.replace(/<a\b[^>]*?\sdata-wikilink="([^"]*)"[^>]*>/g, (_, v: string) => {
-    const { name } = parseWikiLink(unattr(v))
+    const { name, heading } = parseWikiLink(unattr(v))
     const p = resolve(name)
-    return p ? `<a href="#" class="md-wikilink" data-note="${attr(p)}">` : `<a href="#" class="md-wikilink md-wiki-unresolved" data-name="${attr(name)}">`
+    return p
+      ? `<a href="#" class="md-wikilink" data-note="${attr(p)}" data-heading="${attr(heading)}">`
+      : `<a href="#" class="md-wikilink md-wiki-unresolved" data-name="${attr(name)}">`
   })
+
+// slugify: Anker für Überschriften ([[Name#Abschnitt]] scrollt darauf). Ohne Akzente, Kleinschreibung,
+// Nicht-Buchstaben/Ziffern werden zu „-“.
+export const slugify = (s: string) => fold(s).replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '')
 
 // Pfade aller Zeichnungen in einer mit previewImages bearbeiteten Vorschau.
 export const drawingsIn = (html: string) => [...html.matchAll(/data-drawing="([^"]*)"/g)].map((m) => unattr(m[1]!))

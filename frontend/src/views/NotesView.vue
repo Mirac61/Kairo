@@ -270,10 +270,13 @@ function show(pane: Pane, n: { content: string; mtime: string }) {
 
 // PDFs und Bilder gehen in den linken Platz, Notizen in den rechten, geteilt in den zuletzt benutzten. Eine schon offene
 // Datei wird nur gezeigt; zwei Kopien derselben Notiz würden sich beim Speichern gegenseitig überschreiben.
-async function openFile(p: string) {
+// heading ist die Ziel-Überschrift eines [[Name#Abschnitt]]-Links; der Editor scrollt dorthin.
+const headings = reactive<Record<Pane, string>>({ doc: '', note: '' })
+async function openFile(p: string, heading = '') {
   const md = fileKind(p) === 'md'
   const pane: Pane = PANES.find((pn) => paths[pn] === p) ?? (!md || (split.value && focus.value === 'doc') ? 'doc' : 'note')
   if (p !== paths[pane]) {
+    headings[pane] = '' // neuer Inhalt: erst zurücksetzen, damit auch die gleiche Überschrift neu greift
     if (isDirty(pane) && !confirm(DISCARD)) return
     if (md) {
       try {
@@ -287,6 +290,7 @@ async function openFile(p: string) {
     error.value = ''
   }
   shown.value = focus.value = pane
+  headings[pane] = heading
   if (matchMedia('(max-width:760px)').matches) treeOpen.value = false // Handy: Baum und Notiz nacheinander, nicht nebeneinander
 }
 
@@ -536,7 +540,7 @@ onBeforeUnmount(() => {
             <span>{{ $t('Vorlage') }}</span>
             <button v-for="t in templates" :key="t.path" type="button" class="btn btn-ghost" @click="useTemplate(t, pn)">{{ t.name.replace(/\.md$/i, '') }}</button>
           </div>
-          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" :drawing-rev="drawingRev" :files="allFiles" @uploaded="uploaded" @error="error = $event" @open="openDrawing" @open-note="openFile" @create-note="createNoteFromLink" />
+          <NoteEditor v-model="bufs[pn].text" :path="paths[pn]!" :drawing-rev="drawingRev" :files="allFiles" :scroll-heading="headings[pn]" @uploaded="uploaded" @error="error = $event" @open="openDrawing" @open-note="openFile" @create-note="createNoteFromLink" />
           <NoteBacklinks :path="paths[pn]!" :rev="bufs[pn].mtime" @open="openFile" />
         </template>
         <FileEditor
