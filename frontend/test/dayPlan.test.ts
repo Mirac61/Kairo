@@ -1,7 +1,7 @@
 // Rechenteile der Startseite: node --test test/dayPlan.test.ts
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { columns, doneSeconds, findSlot, minutesOfDay, stopwatch } from '../src/lib/dayPlan.ts'
+import { blockEndMinutes, columns, doneSeconds, findSlot, minutesOfDay, stopwatch } from '../src/lib/dayPlan.ts'
 
 test('Uhrzeit, Stoppuhr und erfasste Zeit', () => {
   assert.equal(minutesOfDay(Date.parse('2026-10-09T08:30:00Z'), 'Europe/Berlin'), 10 * 60 + 30)
@@ -46,4 +46,12 @@ test('Zeitvorschlag: Lücke, Ränder, nichts frei', () => {
   // jetzt mitten in einem Termin, leerer Tag
   assert.equal(findSlot(busy, h(15, 30), h(9), h(17, 30), 60), null)
   assert.deepEqual(findSlot([], h(10, 2), h(9), h(18), 30), { start: h(10, 5), prev: undefined, next: undefined })
+})
+
+test('Block-Ende über Mitternacht', () => {
+  const h = (x: number, m = 0) => x * 60 + m
+  assert.equal(blockEndMinutes(h(10), h(11)), h(11)) // normal
+  assert.equal(blockEndMinutes(h(23), h(1)), h(25)) // 23:00 → 01:00
+  assert.equal(blockEndMinutes(h(23), 0), h(24)) // endet genau um Mitternacht
+  assert.equal(blockEndMinutes(0, 0), h(24)) // ganztägig
 })

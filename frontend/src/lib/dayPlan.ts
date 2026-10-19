@@ -53,3 +53,9 @@ export function findSlot<T extends { start: number; end: number }>(busy: T[], fr
   const prev = busy.filter((b) => b.end <= at).sort((a, b) => b.end - a.end)[0]
   return { start: at, prev, next: busy.find((b) => b.start >= at + minutes) }
 }
+
+// Ende eines Blocks in Minuten seit Mitternacht; ein Termin über Mitternacht reicht in den
+// nächsten Tag hinein (23:00→25:00), damit der Block nicht rückwärts läuft.
+export function blockEndMinutes(startMin: number, endMin: number) {
+  return endMin <= startMin ? endMin + 24 * 60 : endMin || 24 * 60
+}

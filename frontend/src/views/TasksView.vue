@@ -10,6 +10,7 @@ import { useLoader } from '@/composables/useLoader'
 import { useShortcuts } from '@/composables/useShortcuts'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { useUndo } from '@/composables/useUndo'
+import { useFreeSlot } from '@/composables/useFreeSlot'
 import { addDays, dayLabel, daysAgo, dm, hhmm, hm, ruleText, shortDay, weekStart, ymd } from '@/lib/dates'
 import { store } from '@/lib/storage'
 import { vDialog } from '@/lib/dialog'
@@ -162,6 +163,14 @@ const { picked, onClick: pickRow, onPointerDown, onPointerUp } = selection
 
 // Archivierte Projekte sind für #name nicht wählbar.
 const quickParsed = computed(() => parseQuickAdd(quick.value, projects.value.filter((p) => p.status !== 'ARCHIVED'), todayStr()))
+// Zeitvorschlag wie auf der Startseite; Tasks ohne Schätzung zählen 30 Minuten.
+const slotDay = computed(() => {
+  const q = quickParsed.value
+  return q.title && !q.time ? (q.date ?? todayStr()) : null
+})
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes() }
+const { hint: slotHint } = useFreeSlot(() => slotDay.value, () => quickParsed.value.minutes, todayStr, nowMin)
+const takeSlot = (time: string) => { quick.value = `${quick.value.trimEnd()} @${time.padStart(5, '0')}`; quickEl.value?.focus() }
 function add() {
   const q = quickParsed.value
   if (!q.title) return
@@ -306,6 +315,10 @@ useLiveEvents(load)
       <span class="qa-syntax" aria-hidden="true"><kbd class="key">{{ $t('30m') }}</kbd><kbd class="key">{{ $t('@datum') }}</kbd><kbd class="key">{{ $t('#projekt') }}</kbd><kbd class="key">{{ $t('!prio') }}</kbd></span>
     </form>
     <QuickHints :q="quickParsed" :today="todayStr()" />
+    <div v-if="slotHint" class="qa-hints">
+      <button v-if="slotHint.time" type="button" class="qa-hint qa-slot" @click="takeSlot(slotHint.time)">{{ slotHint.text }}</button>
+      <span v-else class="qa-hint">{{ slotHint.text }}</span>
+    </div>
     <div class="tk-opts">
       <span class="tk-by">{{ view.group === 'none' ? $t('Nicht gruppiert') : $t('Gruppiert nach {by}', { by: BY[view.group] ?? '' }) }}</span>
       <span class="spacer"></span>

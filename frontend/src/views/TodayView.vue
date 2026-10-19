@@ -9,9 +9,10 @@ import { useLoader } from '@/composables/useLoader'
 import { useShortcuts } from '@/composables/useShortcuts'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { useUndo } from '@/composables/useUndo'
+import { useFreeSlot } from '@/composables/useFreeSlot'
 import { daysAgo, dur, entryMinutes, hhmm, hm, ymd } from '@/lib/dates'
 import { parseQuickAdd, taskBody } from '@/lib/quickAdd'
-import { columns, doneSeconds, findSlot, minutesOfDay, stopwatch } from '@/lib/dayPlan'
+import { columns, doneSeconds, minutesOfDay, stopwatch } from '@/lib/dayPlan'
 import QuickHints from '@/components/QuickHints.vue'
 import SelectionBar from '@/components/SelectionBar.vue'
 import { habitColor, projectColor } from '@/lib/projectColor'
@@ -217,18 +218,14 @@ function dropTask(e: DragEvent) {
 }
 
 const quickParsed = computed(() => parseQuickAdd(quick.value, projectList.value, today.value?.date))
-// Zeitvorschlag für heute, solange die Eingabe weder Uhrzeit noch anderen Tag hat; Tasks ohne Schätzung zählen 30 Minuten.
-const slotHint = computed(() => {
+// Zeitvorschlag, solange die Eingabe weder Uhrzeit noch Titel vermissen lässt; Tasks ohne Schätzung zählen 30 Minuten.
+// Für @morgen und andere Tage wird der jeweilige Tag vom Backend geholt.
+const slotDay = computed(() => {
   const q = quickParsed.value
   const td = today.value
-  if (!q.title || q.time || !td || (q.date && q.date !== td.date)) return null
-  const [ws, we] = td.work_end > td.work_start ? [td.work_start, td.work_end] : [START_H * 60, END_H * 60]
-  const s = findSlot(blocks.value, nowMin.value, ws, we, q.minutes || 30)
-  if (!s) return { text: t('Heute kein freier Slot'), time: '' }
-  const time = hm(s.start), a = s.prev?.title ?? '', b = s.next?.title ?? ''
-  const text = a && b ? t('Passt heute {time} zwischen {a} und {b}', { time, a, b }) : a ? t('Passt heute {time} nach {a}', { time, a }) : b ? t('Passt heute {time} vor {b}', { time, b }) : t('Passt heute {time}', { time })
-  return { text, time }
+  return q.title && !q.time && td ? (q.date ?? td.date) : null
 })
+const { hint: slotHint } = useFreeSlot(() => slotDay.value, () => quickParsed.value.minutes, () => today.value?.date ?? '', () => nowMin.value)
 const takeSlot = (time: string) => { quick.value = `${quick.value.trimEnd()} @${time.padStart(5, '0')}`; quickEl.value?.focus() }
 
 // Ohne Tag in der Eingabe landet die Task heute.

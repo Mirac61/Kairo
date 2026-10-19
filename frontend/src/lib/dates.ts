@@ -51,6 +51,14 @@ export function dayLabel(day: string, today: string) {
   return diff === 0 ? t('Heute') : diff === 1 ? t('Morgen') : shortDay(day)
 }
 
+// "heute", "morgen" oder der Wochentag (z. B. "Freitag") für den Zeitvorschlag.
+export function dayWord(day: string, today: string) {
+  const diff = Math.round((Date.parse(day) - Date.parse(today)) / 864e5)
+  if (diff === 0) return t('heute')
+  if (diff === 1) return t('morgen')
+  return new Intl.DateTimeFormat(locale.value, { weekday: 'long' }).format(new Date(`${day}T00:00:00`))
+}
+
 // Wiederholungsregel einer Task lesbar, z. B. „Jeden Freitag“.
 export function ruleText(rule: string) {
   const l = ruleLabel(rule)
