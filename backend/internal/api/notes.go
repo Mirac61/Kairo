@@ -13,6 +13,8 @@ import (
 
 type noteHandlers struct{ store *notes.Store }
 
+// register: /api/notes liefert Text als JSON mit mtime und erkennt Konflikte (409, außer force),
+// /api/files liefert Rohbytes (PDF, Bild, Zeichnung). Zwei Formate für denselben Ordner.
 func (h noteHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/notes", h.tree)
 	mux.HandleFunc("GET /api/notes/{path...}", h.read)

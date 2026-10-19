@@ -167,62 +167,100 @@ Hier liegen Regeln wie:
 
 HTTP Handler und DTOs.
 
-REST-Endpunkte beispielsweise:
+REST-Endpunkte (vollständig; Quelle der Wahrheit sind die `register`-Methoden
+in `backend/internal/api/*.go` und `router.go`). Zeitpunkte sind RFC 3339,
+Tage `YYYY-MM-DD`. `DELETE` auf Tasks, Habits und Termine verschiebt in den
+Papierkorb, `?permanent=true` löscht endgültig.
 
 ``` text
-GET    /api/tasks
+GET    /api/health                    Version, ohne Anmeldung
+GET    /ws                            Echtzeit-Ereignisse (siehe WebSocket)
+
+POST   /api/auth/register             /api/auth/*: nur im Login-Modus (Host ≠ 127.0.0.1)
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/me
+GET    /api/auth/setup-required
+
+GET    /api/tasks                     ?status= ?project_id= ?planned_date=
 POST   /api/tasks
 GET    /api/tasks/:id
 PATCH  /api/tasks/:id
-DELETE /api/tasks/:id            (Papierkorb; ?permanent=true endgültig)
+DELETE /api/tasks/:id                 ?permanent=true
 POST   /api/tasks/:id/restore
-
-POST   /api/tasks/:id/start
+POST   /api/tasks/:id/start           Timer starten (stoppt einen laufenden)
 POST   /api/tasks/:id/pause
 POST   /api/tasks/:id/complete
 
 GET    /api/projects
-POST   /api/projects
+POST   /api/projects                  local_path, github_repo optional
+GET    /api/projects/stats            Minuten je Projekt: diese Woche, gesamt, letzte Aktivität
+GET    /api/projects/:id
+PATCH  /api/projects/:id              "" bei local_path/github_repo entfernt die Verknüpfung
+DELETE /api/projects/:id
+GET    /api/projects/:id/github/issues   aus github_repo, sonst git remote von local_path
 
 GET    /api/habits
 POST   /api/habits
-
-GET    /api/calendar/events
-POST   /api/calendar/events
-POST   /api/calendar/import
-
-GET    /api/time-entries
-POST   /api/time-entries
-
+GET    /api/habits/due                ?from= ?to= (Tage)
+GET    /api/habits/:id
+PATCH  /api/habits/:id
+DELETE /api/habits/:id                ?permanent=true
+POST   /api/habits/:id/restore
+GET    /api/habits/:id/completions    ?from= ?to= (Tage)
 POST   /api/habits/:id/completions
 DELETE /api/habits/:id/completions/:date
-DELETE /api/habits/:id           (Papierkorb; ?permanent=true endgültig)
-POST   /api/habits/:id/restore
-DELETE /api/calendar/events/:id  (Papierkorb; ?permanent=true endgültig)
-POST   /api/calendar/events/:id/restore
-GET    /api/trash
 
-GET    /api/resources
-POST   /api/resources
+GET    /api/calendar/events           ?from= ?to= (nur zusammen; Serien einmal)
+POST   /api/calendar/events
+GET    /api/calendar/events/:id
+PATCH  /api/calendar/events/:id
+DELETE /api/calendar/events/:id       ?permanent=true
+POST   /api/calendar/events/:id/restore
+GET    /api/calendar/occurrences      ?from= ?to= (Pflicht; Serien aufgelöst)
+POST   /api/calendar/import           ICS-Datei
+
+GET    /api/time-entries              ?task_id= ?project_id= ?from= ?to= ?running=true|false
+POST   /api/time-entries              nachtragen
+PATCH  /api/time-entries/:id
+DELETE /api/time-entries/:id
+
+GET    /api/resources                 ?task_id= ?project_id= ?type=FILE|FOLDER|URL
+POST   /api/resources                 type optional (sonst: Endung = Datei, ohne = Ordner)
 DELETE /api/resources/:id
 
-GET    /api/today
-GET    /api/review
+GET    /api/today                     ?date= (Standard heute)
+GET    /api/review                    ?from= ?to= (Tage, Standard letzte 7)
+GET    /api/trash
 
-GET    /api/notes                Dateibaum
-GET    /api/notes/:path
-POST   /api/notes/:path          neue Notiz ({"dir": true}: Ordner)
-PUT    /api/notes/:path          speichern
-PATCH  /api/notes/:path          umbenennen/verschieben
-DELETE /api/notes/:path          nach .trash/
-GET    /api/files/:path          PDF, Bild, Code oder Zeichnung (.excalidraw)
-POST   /api/files/:path          hochladen
-PUT    /api/files/:path          ersetzen (beschriftet bzw. gezeichnet, ?mtime=)
+GET    /api/github/issues             offene Issues, an denen man beteiligt ist
+POST   /api/github/issues/import      Issue als Task anlegen
+
+GET    /api/notes                     Dateibaum
+GET    /api/notes/:path               JSON {path, content, mtime}
+POST   /api/notes/:path               neue Notiz ({"dir": true}: Ordner)
+PUT    /api/notes/:path               speichern, Body {content, mtime, force}
+PATCH  /api/notes/:path               umbenennen/verschieben
+DELETE /api/notes/:path               nach .trash/
+GET    /api/files/:path               Rohbytes: PDF, Bild, Code oder Zeichnung (.excalidraw)
+POST   /api/files/:path               hochladen
+PUT    /api/files/:path               ersetzen, ?mtime= (Version beim Laden) ?force=1
 
 GET    /api/settings
 PUT    /api/settings
 POST   /api/restart
 ```
+
+`notes` und `files` sind zwei Formate für denselben Ordner, kein Duplikat:
+`notes` liefert Text als JSON mit `mtime` und erkennt gleichzeitiges
+Bearbeiten (`409`, außer mit `force`), `files` liefert und nimmt Rohbytes
+für alles, was kein Text ist.
+
+Fehler kommen immer als `{"error": "…"}`: `400` ungültige Eingabe, `401`
+ohne gültiges Token oder Sitzung, `403` fremder Host oder Origin, `404`
+nicht gefunden, `409` Konflikt (Timer läuft schon, Datei geändert, Name
+vergeben), `503` Dienst nicht verfügbar (z. B. GitHub ohne Token), `500`
+interner Fehler (Details nur im Log). Anlegen per `POST` antwortet mit `201`.
 
 ------------------------------------------------------------------------
 

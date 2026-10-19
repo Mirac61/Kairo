@@ -7,6 +7,7 @@ Anweisungen für Coding-Agenten in diesem Repository.
 1. Lies zuerst `docs/04_AGENT_HANDOFF.md`.
 2. Lies danach `docs/00_VISION.md` bis `docs/03_AGENT_GUIDELINES.md`.
 3. Halte dich an `docs/03_AGENT_GUIDELINES.md`.
+4. Für UI-Arbeit: Farben, Abstände und Bausteine stehen als Referenz in `docs/design-system/` (`index.html` im Browser öffnen, Tokens in `tokens.css`).
 
 ## Harte Regeln
 
