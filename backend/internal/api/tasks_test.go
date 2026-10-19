@@ -138,3 +138,29 @@ func TestTasksRecurrence(t *testing.T) {
 		t.Errorf("ungültige Regel = %d", rec.Code)
 	}
 }
+
+// Sammel-Änderung: eine Anfrage ändert mehrere Aufgaben.
+func TestTasksBulk(t *testing.T) {
+	h := newTasksRouter(t)
+	var a, b taskDTO
+	_ = json.Unmarshal(call(h, "POST", "/api/tasks", `{"title":"a"}`).Body.Bytes(), &a)
+	_ = json.Unmarshal(call(h, "POST", "/api/tasks", `{"title":"b"}`).Body.Bytes(), &b)
+
+	body := `{"updates":[{"id":"` + a.ID + `","planned_date":"2026-10-07"},{"id":"` + b.ID + `","priority":"HIGH"}]}`
+	rec := call(h, "POST", "/api/tasks/bulk", body)
+	var res struct {
+		Updated int `json:"updated"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &res)
+	if rec.Code != 200 || res.Updated != 2 {
+		t.Fatalf("bulk = %d %s", rec.Code, rec.Body)
+	}
+	var list []taskDTO
+	_ = json.Unmarshal(call(h, "GET", "/api/tasks", "").Body.Bytes(), &list)
+	if list[0].PlannedDate == nil || *list[0].PlannedDate != "2026-10-07" || list[1].Priority != "HIGH" {
+		t.Errorf("nach bulk = %+v", list)
+	}
+	if rec := call(h, "POST", "/api/tasks/bulk", `{"updates":[]}`); rec.Code != 400 {
+		t.Errorf("leere updates = %d", rec.Code)
+	}
+}

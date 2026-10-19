@@ -238,6 +238,10 @@ export const restoreEvent = (id: string) => api<unknown>(`/calendar/events/${id}
 export const updateTask = (id: string, body: Record<string, unknown>) =>
   api<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
+// Mehrere Aufgaben in einem Aufruf ändern (Sammelaktionen der Mehrfachauswahl).
+export const bulkUpdateTasks = (updates: { id: string; [k: string]: unknown }[]) =>
+  api<{ updated: number }>('/tasks/bulk', { method: 'POST', body: JSON.stringify({ updates }) })
+
 export interface Resource {
   id: string
   task_id: string | null

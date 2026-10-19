@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { deleteTask, restoreTask, updateTask, type Task } from '@/api/client'
+import { bulkUpdateTasks, deleteTask, restoreTask, type Task } from '@/api/client'
 import { useShortcuts } from '@/composables/useShortcuts'
 import { useUndo } from '@/composables/useUndo'
 import { tn } from '@/lib/i18n'
@@ -29,9 +29,9 @@ export function useTaskSelection(order: () => Task[], run: (fn: () => Promise<un
   useShortcuts((e) => e.key === 'Escape' && clear())
 
   const chosen = () => order().filter((x) => picked.value.includes(x.id))
-  // Nacheinander statt parallel (SQLite); Rückgängig stellt über patch jeweils den alten Wert wieder her.
+  // Eine Sammel-Anfrage statt n einzelner PATCH (bei vielen Aufgaben spürbar); Rückgängig stellt per Bulk den alten Wert wieder her.
   async function patchAll(ts: Task[], patch: (x: Task) => Record<string, unknown>) {
-    for (const x of ts) await updateTask(x.id, patch(x))
+    await bulkUpdateTasks(ts.map((x) => ({ id: x.id, ...patch(x) })))
   }
 
   function toTomorrow(ts: Task[] = chosen()) {
@@ -53,9 +53,10 @@ export function useTaskSelection(order: () => Task[], run: (fn: () => Promise<un
     })
     clear()
   }
-  // Löschen legt in den Papierkorb; Rückgängig holt alle zurück.
+  // Löschen legt in den Papierkorb; Rückgängig holt alle zurück. Teilaufgaben, deren
+  // Elternaufgabe mitgewählt ist, fallen heraus (das Löschen der Eltern nimmt sie ohnehin mit).
   function trash() {
-    const ts = chosen()
+    const ts = chosen().filter((x) => !x.parent_task_id || !picked.value.includes(x.parent_task_id))
     if (!ts.length) return
     void run(async () => {
       for (const x of ts) await deleteTask(x.id)

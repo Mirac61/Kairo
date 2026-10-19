@@ -74,6 +74,7 @@ type taskHandlers struct{ svc TaskService }
 func (h taskHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks", h.list)
 	mux.HandleFunc("POST /api/tasks", h.create)
+	mux.HandleFunc("POST /api/tasks/bulk", h.bulk)
 	mux.HandleFunc("GET /api/tasks/{id}", h.get)
 	mux.HandleFunc("PATCH /api/tasks/{id}", h.update)
 	mux.HandleFunc("DELETE /api/tasks/{id}", deleteHandler(h.svc.Trash, h.svc.Delete))
@@ -145,45 +146,77 @@ func (h taskHandlers) get(w http.ResponseWriter, r *http.Request) {
 // due_at, planned_date, planned_start_at, project_id, parent_task_id und recurrence_rule
 // entfernt "" den Wert.
 func (h taskHandlers) update(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Title            *string `json:"title"`
-		Description      *string `json:"description"`
-		Status           *string `json:"status"`
-		Priority         *string `json:"priority"`
-		EstimatedMinutes *int    `json:"estimated_minutes"`
-		DueAt            *string `json:"due_at"`
-		PlannedDate      *string `json:"planned_date"`
-		PlannedStartAt   *string `json:"planned_start_at"`
-		ProjectID        *string `json:"project_id"`
-		ParentTaskID     *string `json:"parent_task_id"`
-		RecurrenceRule   *string `json:"recurrence_rule"`
-	}
+	var in taskUpdate
 	if !decodeJSON(w, r, &in) {
 		return
 	}
-	upd := service.UpdateTaskInput{
-		Title:            in.Title,
-		Description:      in.Description,
-		EstimatedMinutes: in.EstimatedMinutes,
-		DueAt:            in.DueAt,
-		PlannedDate:      in.PlannedDate,
-		PlannedStartAt:   in.PlannedStartAt,
-		ProjectID:        in.ProjectID,
-		ParentTaskID:     in.ParentTaskID,
-		RecurrenceRule:   in.RecurrenceRule,
-	}
-	if in.Status != nil {
-		s := domain.TaskStatus(*in.Status)
-		upd.Status = &s
-	}
-	if in.Priority != nil {
-		p := domain.TaskPriority(*in.Priority)
-		upd.Priority = &p
-	}
-	t, err := h.svc.Update(r.Context(), r.PathValue("id"), upd)
+	t, err := h.svc.Update(r.Context(), r.PathValue("id"), in.input())
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, toTaskDTO(t))
+}
+
+// taskUpdate ist eine einzelne Feldänderung; für PATCH /api/tasks/{id} bleibt id leer,
+// für POST /api/tasks/bulk trägt jedes Element seine id.
+type taskUpdate struct {
+	ID               string  `json:"id"`
+	Title            *string `json:"title"`
+	Description      *string `json:"description"`
+	Status           *string `json:"status"`
+	Priority         *string `json:"priority"`
+	EstimatedMinutes *int    `json:"estimated_minutes"`
+	DueAt            *string `json:"due_at"`
+	PlannedDate      *string `json:"planned_date"`
+	PlannedStartAt   *string `json:"planned_start_at"`
+	ProjectID        *string `json:"project_id"`
+	ParentTaskID     *string `json:"parent_task_id"`
+	RecurrenceRule   *string `json:"recurrence_rule"`
+}
+
+func (u taskUpdate) input() service.UpdateTaskInput {
+	upd := service.UpdateTaskInput{
+		Title:            u.Title,
+		Description:      u.Description,
+		EstimatedMinutes: u.EstimatedMinutes,
+		DueAt:            u.DueAt,
+		PlannedDate:      u.PlannedDate,
+		PlannedStartAt:   u.PlannedStartAt,
+		ProjectID:        u.ProjectID,
+		ParentTaskID:     u.ParentTaskID,
+		RecurrenceRule:   u.RecurrenceRule,
+	}
+	if u.Status != nil {
+		s := domain.TaskStatus(*u.Status)
+		upd.Status = &s
+	}
+	if u.Priority != nil {
+		p := domain.TaskPriority(*u.Priority)
+		upd.Priority = &p
+	}
+	return upd
+}
+
+// bulk ändert mehrere Aufgaben in einem Aufruf (eine Anfrage statt n einzelner PATCH).
+func (h taskHandlers) bulk(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Updates []taskUpdate `json:"updates"`
+	}
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	if len(in.Updates) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "updates darf nicht leer sein"})
+		return
+	}
+	updated := 0
+	for _, u := range in.Updates {
+		if _, err := h.svc.Update(r.Context(), u.ID, u.input()); err != nil {
+			writeError(w, err)
+			return
+		}
+		updated++
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"updated": updated})
 }
