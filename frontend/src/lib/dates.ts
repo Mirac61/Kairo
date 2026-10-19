@@ -1,4 +1,5 @@
 import { locale, t } from './i18n.ts'
+import { ruleLabel } from './quickAdd.ts'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -48,4 +49,10 @@ export const shortDay = (day: string) =>
 export function dayLabel(day: string, today: string) {
   const diff = Math.round((Date.parse(day) - Date.parse(today)) / 864e5)
   return diff === 0 ? t('Heute') : diff === 1 ? t('Morgen') : shortDay(day)
+}
+
+// Wiederholungsregel einer Task lesbar, z. B. „Jeden Freitag“.
+export function ruleText(rule: string) {
+  const l = ruleLabel(rule)
+  return l.day ? t(l.key, { day: t(l.day) }) : t(l.key)
 }

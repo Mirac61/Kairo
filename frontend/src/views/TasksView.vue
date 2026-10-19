@@ -9,11 +9,11 @@ import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import { useShortcuts } from '@/composables/useShortcuts'
 import { useUndo } from '@/composables/useUndo'
-import { addDays, dayLabel, daysAgo, dm, hhmm, hm, shortDay, weekStart, ymd } from '@/lib/dates'
+import { addDays, dayLabel, daysAgo, dm, hhmm, hm, ruleText, shortDay, weekStart, ymd } from '@/lib/dates'
 import { store } from '@/lib/storage'
 import { vDialog } from '@/lib/dialog'
 import { projectColor } from '@/lib/projectColor'
-import { parseQuickAdd, taskBody } from '@/lib/quickAdd'
+import { parseQuickAdd, RULE_PRESETS, taskBody } from '@/lib/quickAdd'
 import GitHubIssues from '@/components/GitHubIssues.vue'
 import QuickHints from '@/components/QuickHints.vue'
 import ResourceList from '@/components/ResourceList.vue'
@@ -205,7 +205,7 @@ function setTime(t: Task, time: string) {
   void run(() => updateTask(t.id, { planned_start_at: time ? new Date(`${t.planned_date}T${time}`).toISOString() : '' }))
 }
 const setEstimate = (t: Task, value: string) => void run(() => updateTask(t.id, { estimated_minutes: Number(value) || 0 }))
-const setField = (t: Task, field: 'title' | 'description' | 'priority' | 'project_id' | 'status', value: string) => {
+const setField = (t: Task, field: 'title' | 'description' | 'priority' | 'project_id' | 'status' | 'recurrence_rule', value: string) => {
   if (field === 'title' && !value.trim()) return
   if (field === 'status' && value === 'CANCELLED') return setDone(t, 'CANCELLED', run)
   void run(() => updateTask(t.id, { [field]: value }))
@@ -214,6 +214,13 @@ const setField = (t: Task, field: 'title' | 'description' | 'priority' | 'projec
 const dueDay = (t: Task) => (t.due_at ? ymd(new Date(t.due_at)) : '')
 const setDue = (t: Task, day: string) => void run(() => updateTask(t.id, { due_at: day ? new Date(`${day}T23:59:00`).toISOString() : '' }))
 const valueOf = (e: Event) => (e.target as HTMLInputElement).value
+// Wiederholung: Vorlagen plus „jeden <Wochentag des geplanten Tags>“; eine andere gespeicherte Regel bleibt auswählbar.
+const weekdayCode = (day: string) => ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(`${day}T12:00:00`).getDay()]
+const ruleOptions = (t: Task) => [...new Set([
+  ...RULE_PRESETS.map(([r]) => r),
+  ...(t.planned_date ? [`FREQ=WEEKLY;BYDAY=${weekdayCode(t.planned_date)}`] : []),
+  ...(t.recurrence_rule ? [t.recurrence_rule] : []),
+])]
 
 // Tastenkürzel: n neu · j/k wählen · x erledigen · Enter öffnen · s Start/Pause · t heute. Nicht beim Tippen, nicht in Dialogen.
 function move(d: number) {
@@ -251,6 +258,7 @@ function focusTask(id: unknown) {
 // „Neu …“ / ⌘K aus der Sidebar: /tasks?new=… fokussiert die Schnelleingabe.
 function focusNew() {
   if (!route.query.new) return
+  if (typeof route.query.text === 'string') quick.value = route.query.text // aus der Suche: Eingabe übernehmen
   void nextTick(() => quickEl.value?.focus())
   void router.replace({ query: {} })
 }
@@ -316,6 +324,7 @@ useLiveEvents(load)
         <div class="task-row" :class="{ done: !isOpen(t), selected: sel === t.id, running: t.status === 'IN_PROGRESS' }" :data-task="t.id">
           <button type="button" class="cb ring" :style="{ '--rc': projectColor(t.project_id) }" role="checkbox" :aria-checked="t.status === 'COMPLETED'" :aria-label="$t('{title} erledigt', { title: t.title })" :disabled="t.status === 'CANCELLED'" @click="toggle(t)"></button>
           <button type="button" class="t row-title" :aria-expanded="openId === t.id" @click="openId = openId === t.id ? null : t.id; sel = t.id; subTitle = ''">{{ t.title }}</button>
+          <span v-if="t.recurrence_rule" class="rec-i" role="img" :aria-label="$t('Wiederholt sich: {rule}', { rule: ruleText(t.recurrence_rule) })" :data-tip="ruleText(t.recurrence_rule)">↻</span>
           <span v-if="progress(t.id)" class="badge mono" role="img" :aria-label="`${$t('Teilaufgaben erledigt')}: ${progress(t.id)}`">{{ progress(t.id) }}</span>
           <span v-if="t.status === 'IN_PROGRESS' || t.status === 'PAUSED'" class="status-l" :class="{ run: t.status === 'IN_PROGRESS' }"><span class="cdot"></span>{{ STATUS_LABEL[t.status] }}</span>
           <span class="chip" :style="{ '--chip-c': projectColor(t.project_id) }"><template v-if="t.project_id"><span class="cdot"></span>{{ projectName.get(t.project_id) }}</template></span>
@@ -350,13 +359,19 @@ useLiveEvents(load)
               <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
           </label>
+          <label v-if="isOpen(t)" class="field"><span>{{ $t('Wiederholung') }}</span>
+            <select class="input" :value="t.recurrence_rule ?? ''" @change="(e) => setField(t, 'recurrence_rule', valueOf(e))">
+              <option value="">{{ $t('Nicht wiederholen') }}</option>
+              <option v-for="r in ruleOptions(t)" :key="r" :value="r">{{ ruleText(r) }}</option>
+            </select>
+          </label>
           <label class="field"><span>{{ $t('Fällig') }}</span><input class="input" type="date" :value="dueDay(t)" @change="(e) => setDue(t, valueOf(e))" /></label>
           <template v-if="isOpen(t)">
             <label class="field"><span>{{ $t('Datum') }}</span><input class="input" type="date" :value="t.planned_date ?? ''" @change="(e) => setDate(t, valueOf(e))" /></label>
             <label class="field"><span>{{ $t('Uhrzeit') }}</span><input class="input" type="time" :value="startTime(t)" :disabled="!t.planned_date" @change="(e) => setTime(t, valueOf(e))" /></label>
             <label class="field"><span>{{ $t('Minuten') }}</span><input class="input" type="number" min="0" :value="t.estimated_minutes" @change="(e) => setEstimate(t, valueOf(e))" /></label>
             <button v-if="t.planned_date !== todayStr()" type="button" class="btn btn-secondary" @click="setDate(t, todayStr())">{{ $t('Heute') }}</button>
-            <TaskActions :task="t" :running="t.status === 'IN_PROGRESS'" @run="run" />
+            <TaskActions :task="t" :running="t.status === 'IN_PROGRESS'" :note="resOf(t.id).find((r) => r.type === 'NOTE')?.target" @run="run" />
           </template>
           <button type="button" class="btn btn-secondary" @click="trash(t)">{{ $t('Löschen') }}</button>
           <div class="full sub-sec">
@@ -401,6 +416,7 @@ useLiveEvents(load)
 .keys { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 16px; font: 400 12px/1 var(--font-ui); color: var(--tx-secondary); }
 .keys span { display: inline-flex; align-items: center; gap: 6px; }
 .keys .key { min-width: 20px; text-align: center; color: var(--tx-secondary); }
+.rec-i { color: var(--tx-muted); font-size: 13px; line-height: 1; }
 .task-row.selected { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--br-default); }
 .task-row.running::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--a-run); }
 .task-row:hover:not(.selected) { background: var(--bg-hover); }

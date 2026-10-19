@@ -2,6 +2,7 @@
 //   Dauer:    30m · 30 min · 1h · 1,5h · 1h30        Tag:  @heute · @morgen · @übermorgen · @mo … @sonntag · @12.10.
 //   Uhrzeit:  @14:30 (ohne Tag: heute)               Projekt: #name (ganzer Name oder Anfang, Groß/Klein egal)
 //   Priorität: !dringend · !hoch · !mittel · !niedrig
+//   Wiederholung: @täglich · @werktags · @wöchentlich · @jeden freitag · @jede woche (ohne Tag: erster passender ab heute)
 // Englisch geht immer mit: @today · @tomorrow · @mon … @sunday · !urgent · !high · !medium · !low.
 // Reine Funktion ohne Imports, damit quickAdd.test.ts sie direkt mit Node prüfen kann.
 export interface QuickProject { id: string; name: string }
@@ -12,6 +13,7 @@ export interface Quick {
   time: string | null // HH:MM
   project: QuickProject | null
   priority: 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW' | null
+  rule: string | null // RRULE wie beim Backend, z. B. FREQ=WEEKLY;BYDAY=FR
 }
 
 const PRIO = {
@@ -43,6 +45,38 @@ function dayOf(word: string, today: string): string | null {
   return !Number.isNaN(at(day).getTime()) && at(day).toISOString().slice(0, 10) === day ? day : null
 }
 
+const RRULE_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
+const WORKDAYS = 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'
+const SIMPLE_RULES: Record<string, string> = {
+  täglich: 'FREQ=DAILY', daily: 'FREQ=DAILY', werktags: WORKDAYS, weekdays: WORKDAYS, wöchentlich: 'FREQ=WEEKLY', weekly: 'FREQ=WEEKLY',
+}
+// Wort nach „@jeden“/„@every“: Tag, Woche oder ein Wochentag (ganz oder Anfang ab zwei Buchstaben).
+function everyRule(word: string): string | null {
+  if (['tag', 'day'].includes(word)) return 'FREQ=DAILY'
+  if (['woche', 'week'].includes(word)) return 'FREQ=WEEKLY'
+  const wd = word.length < 2 ? -1 : WEEKDAYS.findIndex((names) => names.some((n) => n.startsWith(word)))
+  return wd >= 0 ? `FREQ=WEEKLY;BYDAY=${RRULE_DAYS[wd]}` : null
+}
+// Erster Tag ab heute (inklusive), an dem die Regel greift; ohne BYDAY heute.
+function firstDay(rule: string, today: string): string {
+  const days = rule.match(/BYDAY=([A-Z,]+)/)?.[1]?.split(',')
+  for (let i = 0; days && i < 7; i++) if (days.includes(RRULE_DAYS[at(addDays(today, i)).getUTCDay()]!)) return addDays(today, i)
+  return today
+}
+
+// Lesbarer Name einer Regel für Zeile und Auswahl; unbekannte Regeln zeigen sich roh.
+export const RULE_PRESETS: [string, string][] = [
+  ['FREQ=DAILY', 'Täglich'], [WORKDAYS, 'Werktags'], ['FREQ=WEEKLY', 'Wöchentlich'], ['FREQ=WEEKLY;INTERVAL=2', 'Alle 2 Wochen'],
+]
+const DAY_NAMES = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
+export function ruleLabel(rule: string): { key: string; day?: string } {
+  const preset = RULE_PRESETS.find(([r]) => r === rule)
+  if (preset) return { key: preset[1] }
+  const one = rule.match(/^FREQ=WEEKLY;BYDAY=([A-Z]{2})$/)?.[1]
+  const wd = one ? RRULE_DAYS.indexOf(one) : -1
+  return wd >= 0 ? { key: 'Jeden {day}', day: DAY_NAMES[wd] } : { key: rule }
+}
+
 function minutesOf(token: string, unit?: string): number | null {
   const [, num, u] = unit ? [0, token, unit] : (token.match(/^(\d+(?:[.,]\d+)?)(h|std|min|m)$/i) ?? [])
   if (num && u && /^\d+(?:[.,]\d+)?$/.test(num)) {
@@ -55,7 +89,7 @@ function minutesOf(token: string, unit?: string): number | null {
 }
 
 export function parseQuickAdd(raw: string, projects: QuickProject[] = [], today = new Date().toLocaleDateString('sv')): Quick {
-  const q: Quick = { title: '', minutes: 0, date: null, time: null, project: null, priority: null }
+  const q: Quick = { title: '', minutes: 0, date: null, time: null, project: null, priority: null, rule: null }
   const words = raw.trim().split(/\s+/).filter(Boolean)
   const rest: string[] = []
   for (let i = 0; i < words.length; i++) {
@@ -67,6 +101,9 @@ export function parseQuickAdd(raw: string, projects: QuickProject[] = [], today 
       const one = two ?? minutesOf(w)
       if (one) { q.minutes = one; if (two) i++; continue }
     }
+    if (w[0] === '@' && !q.rule && Object.hasOwn(SIMPLE_RULES, body)) { q.rule = SIMPLE_RULES[body]!; continue }
+    const every = w[0] === '@' && !q.rule && ['jeden', 'jede', 'jedes', 'every'].includes(body) && words[i + 1] ? everyRule(words[i + 1]!.toLowerCase()) : null
+    if (every) { q.rule = every; i++; continue }
     if (w[0] === '@' && !q.date && dayOf(body, today)) { q.date = dayOf(body, today); continue }
     const t = w[0] === '@' && !q.time ? body.match(/^(\d{1,2}):(\d{2})$/) : null
     if (t && Number(t[1]) < 24 && Number(t[2]) < 60) { q.time = `${pad(Number(t[1]))}:${t[2]}`; continue }
@@ -79,6 +116,7 @@ export function parseQuickAdd(raw: string, projects: QuickProject[] = [], today 
     rest.push(w)
   }
   q.title = rest.join(' ')
+  if (q.rule && !q.date) q.date = firstDay(q.rule, today)
   if (q.time && !q.date) q.date = today
   return q
 }
@@ -90,6 +128,7 @@ export function taskBody(q: Quick, fallbackDate?: string) {
     estimated_minutes: q.minutes,
     ...(q.priority ? { priority: q.priority } : {}),
     ...(q.project ? { project_id: q.project.id } : {}),
+    ...(q.rule ? { recurrence_rule: q.rule } : {}),
     ...(date ? { planned_date: date, status: 'PLANNED' as const } : {}),
     ...(date && q.time ? { planned_start_at: new Date(`${date}T${q.time}:00`).toISOString() } : {}),
   }

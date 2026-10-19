@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { dayLabel, hm } from '@/lib/dates'
+import { dayLabel, hm, ruleText } from '@/lib/dates'
 import type { Quick } from '@/lib/quickAdd'
 import { t } from '@/lib/i18n'
 
@@ -15,6 +15,7 @@ const hints = computed(() => {
     q.minutes && hm(q.minutes),
     q.project && `#${q.project.name}`,
     q.priority && t(PRIO[q.priority]),
+    q.rule && `↻ ${ruleText(q.rule)}`,
   ].filter(Boolean) as string[]
 })
 </script>

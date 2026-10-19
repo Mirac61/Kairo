@@ -61,6 +61,7 @@ export interface Task {
   planned_start_at: string | null
   project_id: string | null
   parent_task_id: string | null
+  recurrence_rule?: string | null
 }
 
 // Offen = weder erledigt noch abgebrochen.
@@ -239,7 +240,7 @@ export interface Resource {
   id: string
   task_id: string | null
   project_id: string | null
-  type: 'FILE' | 'FOLDER' | 'URL'
+  type: 'FILE' | 'FOLDER' | 'URL' | 'NOTE' // NOTE: Pfad im Notizordner
   target: string
   label: string
 }
