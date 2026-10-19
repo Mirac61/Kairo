@@ -1,7 +1,7 @@
 // Prüfung der Notizdateien: node test/noteFiles.test.ts
 import assert from 'node:assert/strict'
 import lz from 'lz-string'
-import { assetName, drawingsIn, fileKind, fillTemplate, isObsidianDrawing, join, parseObsidianDrawing, parseWikiLink, previewImages, previewWikiLinks, resolveLink, resolveNote, under, withExt } from '../src/lib/noteFiles.ts'
+import { assetCandidates, assetName, drawingsIn, fileKind, fillTemplate, fold, fuzzyScore, headingsOf, isObsidianDrawing, join, noteCandidates, parseObsidianDrawing, parseWikiLink, previewImages, previewWikiLinks, rankCandidates, resolveLink, resolveNote, under, withExt } from '../src/lib/noteFiles.ts'
 
 assert.equal(fileKind('Uni/a.MD'), 'md')
 assert.equal(fileKind('skript.pdf'), 'pdf')
@@ -103,3 +103,19 @@ assert.equal(
   previewWikiLinks(wl, (n) => resolveNote(n, '', notes)),
   '<p><a href="#" class="md-wikilink" data-note="Uni/SE.md">Alias</a> <a href="#" class="md-wikilink md-wiki-unresolved">fehlt</a> <a href="https://x.de">x</a></p>',
 )
+
+// Wiki-Link-Autovervollständigung: Kandidaten und Ranking
+const cand = ['a.md', 'Uni/Algo.md', 'Uni/AlgoDat.md', 'Uni/Sub/Bäume.md', 'bild.png', 'skript.pdf', 'Uni/Skizze.excalidraw', 'Uni/Makefile']
+assert.deepEqual(noteCandidates(cand).map((c) => c.label), ['a', 'Algo', 'AlgoDat', 'Bäume'])
+assert.equal(noteCandidates(cand).find((c) => c.label === 'Bäume')!.detail, 'Uni/Sub')
+assert.deepEqual(assetCandidates(cand).map((c) => [c.label, c.kind]), [['bild.png', 'image'], ['skript.pdf', 'pdf'], ['Skizze.excalidraw', 'excalidraw']])
+assert.equal(fuzzyScore('algo', 'Algo'), 1000) // exakt
+assert.equal(fuzzyScore('algo', 'AlgoDat'), 900) // Präfix
+assert.equal(fuzzyScore('baum', 'Bäume'), 900) // Akzente egal, Präfix
+assert.equal(fuzzyScore('ume', 'Bäume'), 500) // Teilstring
+assert.equal(fuzzyScore('agdt', 'AlgoDat'), 300) // Teilfolge
+assert.equal(fuzzyScore('xyz', 'Algo'), 0) // kein Treffer
+assert.deepEqual(rankCandidates('algo', noteCandidates(cand)).map((c) => c.label), ['Algo', 'AlgoDat']) // exakt vor Präfix
+assert.equal(rankCandidates('', noteCandidates(cand)).length, 0) // leere Eingabe: nichts
+assert.equal(fold('BäÜme'), 'baume')
+assert.deepEqual(headingsOf('# A\n## B\nnicht\n###  C\n'), ['A', 'B', 'C'])

@@ -40,8 +40,9 @@ config({
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
-import { ApiError, createNote, errorMessage, uploadFile } from '@/api/client'
-import { assetName, drawingsIn, join, parseWikiLink, previewImages, previewWikiLinks, resolveLink, resolveNote } from '@/lib/noteFiles'
+import { ApiError, createNote, errorMessage, readNote, uploadFile } from '@/api/client'
+import { assetName, drawingsIn, headingsOf, join, parseWikiLink, previewImages, previewWikiLinks, resolveLink, resolveNote } from '@/lib/noteFiles'
+import { wikiCompletionSource } from '@/lib/noteAutocomplete'
 import { drawingSrc, renderDrawing } from '@/lib/drawingPreview'
 import { parentOf } from '@/components/NoteTree.vue'
 
@@ -98,6 +99,15 @@ const sanitize = computed(() => {
 })
 watch(() => props.drawingRev, () => redraw(drawings))
 
+// Autovervollständigung für [[…]] und ![[…]]: md-editor-v3 reicht CompletionSources an CodeMirror weiter.
+const completions = computed(() => [
+  wikiCompletionSource({
+    path: props.path,
+    files: props.files ?? [],
+    readHeadings: (p) => readNote(p).then((n) => headingsOf(n.content)),
+  }),
+])
+
 // Bilder in der Vorschau öffnen sich per Klick in voller Auflösung in einem neuen Tab, Zeichnungen links in Kairo, [[Links]] die Notiz.
 function openPreviewImage(e: MouseEvent) {
   const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('.md-editor-preview a.md-wikilink')
@@ -122,7 +132,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
   <div class="nd" @click="openPreviewImage">
     <MdEditor
       v-model="text" :theme="dark ? 'dark' : 'light'" language="en-US" preview-theme="default"
-      :toolbars="TOOLBAR" :footers="[]" :sanitize="sanitize" no-highlight no-mermaid no-katex no-prettier no-echarts
+      :toolbars="TOOLBAR" :footers="[]" :sanitize="sanitize" :completions="completions" no-highlight no-mermaid no-katex no-prettier no-echarts
       @on-upload-img="uploadImages"
     />
   </div>

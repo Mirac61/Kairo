@@ -555,6 +555,7 @@ const en: Record<string, string> = {
   'Verknüpfen': 'Link',
   'Notiz oder PDF verknüpfen …': 'Link a note or PDF …',
   'Diese Datei gibt es in den Notizen nicht.': 'This file does not exist in your notes.',
+  'Neue Notiz „{name}“ anlegen': 'Create note “{name}”',
   'Suche': 'Search',
   'Suchen oder neu …': 'Search or new …',
   'Aufgabe „{text}“ anlegen': 'Create task “{text}”',
