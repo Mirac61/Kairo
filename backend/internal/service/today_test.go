@@ -206,7 +206,7 @@ func TestTodayWorkWindow(t *testing.T) {
 	}
 
 	got, err := mk(plan(100)).Get(context.Background(), d)
-	if err != nil || got.WorkMinutes != 480 || got.FreeMinutes != 480-120-100 || got.OverplannedMinutes != 0 {
+	if err != nil || got.WorkMinutes != 480 || got.WorkStart != 9*60 || got.WorkEnd != 17*60 || got.FreeMinutes != 480-120-100 || got.OverplannedMinutes != 0 {
 		t.Errorf("frei: %+v, %v", got, err)
 	}
 	got, _ = mk(plan(400)).Get(context.Background(), d)

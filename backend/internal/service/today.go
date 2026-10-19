@@ -92,6 +92,8 @@ type Today struct {
 	TrackedMinutes int
 	// WorkMinutes ist die Länge des Arbeitsfensters an diesem Tag.
 	WorkMinutes int
+	// WorkStart und WorkEnd sind das Arbeitsfenster in Minuten seit Mitternacht (0/0 ohne Fenster).
+	WorkStart, WorkEnd int
 	// FreeMinutes ist die Arbeitszeit, die nach Terminen im Fenster und
 	// geplanten Tasks übrig bleibt (nie negativ). Heute zählt nur der Rest des
 	// Fensters ab jetzt, erledigte Tasks zählen dann nicht mehr. Tasks ohne
@@ -189,6 +191,7 @@ func (s *TodayService) Get(ctx context.Context, date string) (Today, error) {
 		ws := time.Date(day.Year(), day.Month(), day.Day(), 0, s.workStart, 0, 0, s.loc)
 		we := time.Date(day.Year(), day.Month(), day.Day(), 0, s.workEnd, 0, 0, s.loc)
 		t.WorkMinutes = int(we.Sub(ws) / time.Minute)
+		t.WorkStart, t.WorkEnd = s.workStart, s.workEnd
 		from := ws
 		if date == now.In(s.loc).Format("2006-01-02") && now.After(from) {
 			from = now

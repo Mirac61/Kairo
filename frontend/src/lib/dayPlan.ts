@@ -39,3 +39,17 @@ export function columns(blocks: { key: string; start: number; end: number }[], m
   flush()
   return pos
 }
+
+// Erster freier Platz für `minutes` ab `from` im Fenster [winStart, winEnd] (Minuten seit Mitternacht), auf 5 Minuten aufgerundet.
+// busy ist nach Beginn sortiert. prev/next sind die Blöcke direkt davor und danach; null = kein freier Platz.
+export function findSlot<T extends { start: number; end: number }>(busy: T[], from: number, winStart: number, winEnd: number, minutes: number) {
+  let at = Math.ceil(Math.max(from, winStart) / 5) * 5
+  for (const b of busy) {
+    if (b.end <= at) continue
+    if (b.start - at >= minutes) break
+    at = Math.ceil(Math.max(at, b.end) / 5) * 5
+  }
+  if (at + minutes > winEnd) return null
+  const prev = busy.filter((b) => b.end <= at).sort((a, b) => b.end - a.end)[0]
+  return { start: at, prev, next: busy.find((b) => b.start >= at + minutes) }
+}

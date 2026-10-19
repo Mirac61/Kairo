@@ -106,6 +106,8 @@ export interface Today {
   calendar_minutes: number
   tracked_minutes: number
   work_minutes: number
+  work_start: number // Arbeitsfenster in Minuten seit Mitternacht, 0/0 ohne Fenster
+  work_end: number
   free_minutes: number
   overplanned_minutes: number
   unestimated_tasks: number

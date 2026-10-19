@@ -114,6 +114,11 @@ const en: Record<string, string> = {
 
   // Datum und Zeit
   'Heute': 'Today',
+  'Heute kein freier Slot': 'No free slot today',
+  'Passt heute {time}': 'Fits today at {time}',
+  'Passt heute {time} nach {a}': 'Fits today at {time} after {a}',
+  'Passt heute {time} vor {b}': 'Fits today at {time} before {b}',
+  'Passt heute {time} zwischen {a} und {b}': 'Fits today at {time} between {a} and {b}',
   'heute': 'today',
   'Heute (t)': 'Today (t)',
   'Morgen': 'Tomorrow',

@@ -48,6 +48,8 @@ type todayDTO struct {
 	CalendarMinutes int             `json:"calendar_minutes"`
 	TrackedMinutes  int             `json:"tracked_minutes"`
 	WorkMinutes     int             `json:"work_minutes"`
+	WorkStart       int             `json:"work_start"`
+	WorkEnd         int             `json:"work_end"`
 	FreeMinutes     int             `json:"free_minutes"`
 	Overplanned     int             `json:"overplanned_minutes"`
 	Unestimated     int             `json:"unestimated_tasks"`
@@ -76,6 +78,8 @@ func toTodayDTO(t service.Today) todayDTO {
 		CalendarMinutes: t.CalendarMinutes,
 		TrackedMinutes:  t.TrackedMinutes,
 		WorkMinutes:     t.WorkMinutes,
+		WorkStart:       t.WorkStart,
+		WorkEnd:         t.WorkEnd,
 		FreeMinutes:     t.FreeMinutes,
 		Overplanned:     t.OverplannedMinutes,
 		Unestimated:     t.UnestimatedTasks,

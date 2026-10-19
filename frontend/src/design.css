@@ -469,6 +469,7 @@ select.input{
 .addrow{display:flex;align-items:center;gap:10px;margin-top:12px}
 .addrow .ic{color:var(--tx-muted)}
 .qa-hints{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding-left:26px}
+.qa-slot{margin:8px 0 0 26px;cursor:pointer;background:none;color:var(--tx-primary)}.qa-slot:hover{background:var(--bg-hover)}
 .qa-hint{display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid var(--br-default);border-radius:999px;font:400 12px/1 var(--font-ui);font-variant-numeric:tabular-nums;color:var(--tx-secondary)}
 .addrow input{
   flex:1;min-width:0;height:36px;padding:0 12px;

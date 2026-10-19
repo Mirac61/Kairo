@@ -1,7 +1,7 @@
 // Rechenteile der Startseite: node --test test/dayPlan.test.ts
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { columns, doneSeconds, minutesOfDay, stopwatch } from '../src/lib/dayPlan.ts'
+import { columns, doneSeconds, findSlot, minutesOfDay, stopwatch } from '../src/lib/dayPlan.ts'
 
 test('Uhrzeit, Stoppuhr und erfasste Zeit', () => {
   assert.equal(minutesOfDay(Date.parse('2026-10-09T08:30:00Z'), 'Europe/Berlin'), 10 * 60 + 30)
@@ -27,4 +27,23 @@ test('Überlappende Blöcke nebeneinander', () => {
     a: { col: 0, cols: 2 }, b: { col: 1, cols: 2 }, c: { col: 0, cols: 2 },
     d: { col: 0, cols: 2 }, e: { col: 1, cols: 2 },
   })
+})
+
+test('Zeitvorschlag: Lücke, Ränder, nichts frei', () => {
+  const h = (x: number, m = 0) => x * 60 + m
+  const busy = [{ title: 'Mensa', start: h(12), end: h(13, 7) }, { title: 'Labor', start: h(15), end: h(17) }]
+  // Lücke zwischen zwei Terminen, Ende der Mensa wird auf 5 Minuten aufgerundet
+  const mid = findSlot(busy, h(12, 30), h(9), h(18), 60)!
+  assert.deepEqual([mid.start, mid.prev?.title, mid.next?.title], [h(13, 10), 'Mensa', 'Labor'])
+  // zu lang für die Lücke: nach dem letzten Termin
+  const after = findSlot(busy, h(12, 30), h(9), h(18), 120)
+  assert.equal(after, null) // 17:00 + 2h > 18:00
+  const late = findSlot(busy, h(12, 30), h(9), h(20), 120)!
+  assert.deepEqual([late.start, late.prev?.title, late.next], [h(17), 'Labor', undefined])
+  // vor dem ersten Termin (jetzt liegt vor dem Fenster)
+  const early = findSlot(busy, h(6), h(9), h(18), 60)!
+  assert.deepEqual([early.start, early.prev, early.next?.title], [h(9), undefined, 'Mensa'])
+  // jetzt mitten in einem Termin, leerer Tag
+  assert.equal(findSlot(busy, h(15, 30), h(9), h(17, 30), 60), null)
+  assert.deepEqual(findSlot([], h(10, 2), h(9), h(18), 30), { start: h(10, 5), prev: undefined, next: undefined })
 })
