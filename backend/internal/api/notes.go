@@ -17,6 +17,7 @@ type noteHandlers struct{ store *notes.Store }
 // /api/files liefert Rohbytes (PDF, Bild, Zeichnung). Zwei Formate für denselben Ordner.
 func (h noteHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/notes", h.tree)
+	mux.HandleFunc("GET /api/search/notes", h.search)
 	mux.HandleFunc("GET /api/notes/{path...}", h.read)
 	mux.HandleFunc("PUT /api/notes/{path...}", h.save)
 	mux.HandleFunc("POST /api/notes/{path...}", h.create)
@@ -135,6 +136,16 @@ func (h noteHandlers) file(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	}
 	http.ServeContent(w, r, fi.Name(), fi.ModTime(), f)
+}
+
+// search: ?q= im Inhalt aller Notizen, höchstens 30 Treffer (für die Suche auf ⌘K).
+func (h noteHandlers) search(w http.ResponseWriter, r *http.Request) {
+	hits, err := h.store.Search(r.URL.Query().Get("q"), 30)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, hits)
 }
 
 const maxUploadBytes = 200 << 20 // Vorlesungsskripte können groß sein
