@@ -89,28 +89,38 @@ func dispatch(args []string) error {
 
 // restore stellt die Datenbank aus der Backup-Datei args[0] wieder her.
 func restore(args []string) error {
-	if len(args) != 1 {
-		return errors.New("Aufruf: kairo restore <datei>")
+	force := false
+	var files []string
+	for _, a := range args {
+		if a == "--force" {
+			force = true
+		} else {
+			files = append(files, a)
+		}
+	}
+	if len(files) != 1 {
+		return errors.New("Aufruf: kairo restore [--force] <datei>")
 	}
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
 		return err
 	}
-	aside, err := restoreDB(cfg.DBPath, cfg.Addr(), args[0], time.Now())
+	aside, err := restoreDB(cfg.DBPath, cfg.Addr(), files[0], time.Now(), force)
 	if err != nil {
 		return err
 	}
 	if aside != "" {
 		fmt.Println("Bisherige Datenbank gesichert:", aside)
 	}
-	fmt.Println("Datenbank wiederhergestellt:", cfg.DBPath, "aus", args[0])
+	fmt.Println("Datenbank wiederhergestellt:", cfg.DBPath, "aus", files[0])
 	return nil
 }
 
-// restoreDB kopiert src nach dbPath. Läuft unter addr ein Server, bricht es ab.
-// Die bisherige Datenbank samt WAL-Resten wandert nach <dbPath>.before-restore-<Zeit>
+// restoreDB kopiert src nach dbPath. Läuft unter addr ein Server, bricht es ab
+// (außer mit force, das nur der bewusste Eingriff von Hand ist). Die bisherige
+// Datenbank samt WAL-Resten wandert nach <dbPath>.before-restore-<Zeit>
 // (aside, leer wenn es keine gab); es wird nichts gelöscht.
-func restoreDB(dbPath, addr, src string, now time.Time) (aside string, err error) {
+func restoreDB(dbPath, addr, src string, now time.Time, force bool) (aside string, err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return "", err
@@ -120,10 +130,12 @@ func restoreDB(dbPath, addr, src string, now time.Time) (aside string, err error
 	if _, err := io.ReadFull(in, header); err != nil || string(header) != "SQLite format 3\x00" {
 		return "", fmt.Errorf("%s ist keine SQLite-Datenbank", src)
 	}
-	if ln, err := net.Listen("tcp", addr); err != nil {
-		return "", fmt.Errorf("%s ist belegt, läuft Kairo noch? Erst stoppen, dann wiederherstellen", addr)
-	} else {
-		ln.Close()
+	if !force {
+		if ln, err := net.Listen("tcp", addr); err != nil {
+			return "", fmt.Errorf("%s ist belegt, läuft Kairo noch? Erst stoppen oder --force", addr)
+		} else {
+			ln.Close()
+		}
 	}
 	// Erst neben das Ziel kopieren, damit ein Abbruch die bisherige Datenbank nicht berührt.
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o700); err != nil {

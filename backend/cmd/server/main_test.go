@@ -38,20 +38,29 @@ func TestRestoreDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := restoreDB(db, ln.Addr().String(), src, now); err == nil || !strings.Contains(err.Error(), "belegt") {
+	if _, err := restoreDB(db, ln.Addr().String(), src, now, false); err == nil || !strings.Contains(err.Error(), "belegt") {
 		t.Errorf("belegter Port: err = %v", err)
+	}
+	// Mit --force (force=true) läuft die Wiederherstellung trotz belegtem Port.
+	forceDB := filepath.Join(dir, "force.db")
+	write(forceDB, sqliteHeader+"alt")
+	if _, err := restoreDB(forceDB, ln.Addr().String(), src, now, true); err != nil {
+		t.Errorf("force ignoriert den belegten Port nicht: %v", err)
+	}
+	if read(forceDB) != sqliteHeader+"neu" {
+		t.Error("force hat nicht wiederhergestellt")
 	}
 	ln.Close()
 
 	write(filepath.Join(dir, "text.txt"), "kein SQLite")
-	if _, err := restoreDB(db, "127.0.0.1:0", filepath.Join(dir, "text.txt"), now); err == nil {
+	if _, err := restoreDB(db, "127.0.0.1:0", filepath.Join(dir, "text.txt"), now, false); err == nil {
 		t.Error("Datei ohne SQLite-Header wurde akzeptiert")
 	}
 	if read(db) != sqliteHeader+"alt" {
 		t.Fatal("Datenbank wurde trotz Fehler verändert")
 	}
 
-	aside, err := restoreDB(db, "127.0.0.1:0", src, now)
+	aside, err := restoreDB(db, "127.0.0.1:0", src, now, false)
 	if err != nil {
 		t.Fatal(err)
 	}

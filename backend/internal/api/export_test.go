@@ -1,6 +1,8 @@
 package api
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -9,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"kairo/internal/notes"
 	"kairo/internal/repository"
 	"kairo/internal/service"
 )
@@ -20,6 +23,11 @@ func newExportRouter(t *testing.T) http.Handler {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
+	ns, err := notes.Open(filepath.Join(t.TempDir(), "notes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ns.Close() })
 	return NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
 		Projects:  service.NewProjectService(repository.NewProjectRepository(db), nil),
 		Tasks:     service.NewTaskService(repository.NewTaskRepository(db), nil),
@@ -27,6 +35,7 @@ func newExportRouter(t *testing.T) http.Handler {
 		Habits:    service.NewHabitService(repository.NewHabitRepository(db), time.UTC, nil),
 		Resources: service.NewResourceService(repository.NewResourceRepository(db), nil),
 		Time:      service.NewTimeTrackingService(repository.NewTimeEntryRepository(db), nil),
+		Notes:     ns,
 		Location:  time.UTC,
 	})
 }
@@ -64,5 +73,14 @@ func TestExport(t *testing.T) {
 	rec = call(h, "GET", "/api/export.csv", "")
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"'=Abgabe, wichtig"`) || !strings.HasSuffix(rec.Header().Get("Content-Disposition"), `.csv"`) {
 		t.Errorf("export.csv = %d %s", rec.Code, rec.Body)
+	}
+
+	// Notizen als ZIP: der neue Notizordner ist leer, also eine leere, aber gültige ZIP-Datei.
+	rec = call(h, "GET", "/api/export.zip", "")
+	if rec.Code != 200 || rec.Header().Get("Content-Type") != "application/zip" {
+		t.Fatalf("export.zip = %d %s", rec.Code, rec.Header().Get("Content-Type"))
+	}
+	if _, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len())); err != nil {
+		t.Errorf("export.zip ist kein gültiges ZIP: %v", err)
 	}
 }

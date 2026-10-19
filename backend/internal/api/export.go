@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/csv"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,6 +23,20 @@ func (h exportHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/export.json", h.json)
 	mux.HandleFunc("GET /api/export.ics", h.ics)
 	mux.HandleFunc("GET /api/export.csv", h.csv)
+	mux.HandleFunc("GET /api/export.zip", h.zip)
+}
+
+// zip exportiert den Notizordner als ZIP; ohne Notizen ist die Datei leer.
+func (h exportHandlers) zip(w http.ResponseWriter, r *http.Request) {
+	if h.svc.Notes == nil {
+		writeError(w, domain.ErrUnavailable)
+		return
+	}
+	attachment(w, "application/zip", "zip")
+	if err := h.svc.Notes.Zip(w); err != nil {
+		// Header sind schon gesetzt; nur loggen, den Stream kann man nicht mehr ändern.
+		slog.Error("Export ZIP", "err", err)
+	}
 }
 
 // attachment setzt Content-Type und Dateinamen, damit der Browser speichert statt anzeigt.
