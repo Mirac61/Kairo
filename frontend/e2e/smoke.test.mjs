@@ -153,14 +153,14 @@ test('Ziel mit Bild anlegen', async () => {
 })
 
 test('Journal speichern', async () => {
-  const loaded = page.waitForResponse((r) => r.url().includes('/api/notes/Journal/'))
   await page.goto(`${base}/journal`)
-  await loaded
+  await page.getByRole('button', { name: 'Ersten Eintrag schreiben' }).click()
   await page.getByLabel('Was lief gut?').fill('Smoke grün')
   await page.getByLabel('Was ist morgen wichtig?').fill('Weiter so')
   const saved = page.waitForResponse((r) => r.url().includes('/api/notes/Journal/') && r.request().method() === 'PUT')
   await page.getByRole('button', { name: 'Speichern' }).click()
   await saved
+  await page.getByRole('row').filter({ hasText: 'Smoke grün' }).waitFor()
   const d = new Date()
   const file = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.md`
   const md = readFileSync(join(env.KAIRO_NOTES_DIR, 'Journal', file), 'utf8')
