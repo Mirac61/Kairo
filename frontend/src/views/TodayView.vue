@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
-  completeHabit, createTask, taskAction, createTimeEntry, deleteTimeEntry, getToday, listProjects, listTasks, listTimeEntries, uncompleteHabit, updateTask, updateTimeEntry,
-  isOpen, type Project, type Task, type TimeEntry, type Today,
+  completeHabit, createTask, goalToday, taskAction, createTimeEntry, deleteTimeEntry, getToday, listProjects, listTasks, listTimeEntries, uncompleteHabit, updateTask, updateTimeEntry,
+  isOpen, type Goal, type Project, type Task, type TimeEntry, type Today,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
@@ -20,6 +20,8 @@ import TaskActions from '@/components/TaskActions.vue'
 import { locale, t } from '@/lib/i18n'
 import { prefs } from '@/lib/prefs'
 import DeleteButton from '@/components/DeleteButton.vue'
+import { filesUrl } from '@/lib/noteFiles'
+import { goalProgressText } from '@/lib/goals'
 
 // Planungsfenster der Tagesleiste und des Tagesplans (Einstellungen, „Sichtbarer Tagesbereich“).
 const { dayStart: START_H, dayEnd: END_H } = prefs
@@ -27,6 +29,7 @@ const HOUR = 44
 
 const { offer, setDone } = useUndo()
 const today = ref<Today | null>(null)
+const goal = ref<Goal | null>(null)
 const now = ref(Date.now())
 const quick = ref('')
 const quickEl = ref<HTMLInputElement>()
@@ -41,7 +44,8 @@ let tick: ReturnType<typeof setInterval> | undefined
 const { error, load, run } = useLoader(async () => {
   const t = await getToday()
   const from = new Date(`${t.date}T00:00:00`)
-  const [es, tasks, projects] = await Promise.all([listTimeEntries(from, new Date(from.getTime() + 864e5)), listTasks(), listProjects()])
+  const [es, tasks, projects, g] = await Promise.all([listTimeEntries(from, new Date(from.getTime() + 864e5)), listTasks(), listProjects(), goalToday()])
+  goal.value = g
   today.value = t
   entries.value = es.reverse()
   tasksById.value = new Map(tasks.map((x) => [x.id, x]))
@@ -390,6 +394,21 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
             </div>
           </template>
 
+          <template v-if="goal">
+            <div class="col-head st-gap"><h2 class="col-title">{{ $t('Dein Ziel') }}</h2><router-link class="col-link" to="/goals">{{ $t('Alle Ziele') }}</router-link></div>
+            <router-link to="/goals" class="card st-goal">
+              <img v-if="goal.image_path" :src="filesUrl(goal.image_path)" alt="" />
+              <span class="st-goal-t">
+                <b>{{ goal.title }}</b>
+                <q v-if="goal.why">{{ goal.why }}</q>
+                <template v-if="goal.progress">
+                  <span class="pbar" aria-hidden="true"><span class="pbar-fill" :style="{ width: goal.progress.percent + '%' }"></span></span>
+                  <small>{{ goal.progress.percent }} % · {{ goalProgressText(goal) }}</small>
+                </template>
+              </span>
+            </router-link>
+          </template>
+
           <template v-if="today.habits.length">
             <div class="col-head st-gap"><h2 class="col-title">{{ $t('Gewohnheiten') }}</h2><router-link class="col-link" to="/habits">{{ $t('Alle ansehen') }}</router-link></div>
             <div class="st-habits">
@@ -469,6 +488,14 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 </template>
 
 <style scoped>
+.st-goal { display: flex; gap: 14px; align-items: center; padding: 12px; color: inherit; text-decoration: none; }
+.st-goal img { flex: none; width: 72px; height: 72px; border-radius: var(--r-s); object-fit: cover; }
+.st-goal-t { display: grid; gap: 6px; min-width: 0; flex: 1; }
+.st-goal-t b { font: 600 15px/1.3 var(--font-ui); color: var(--tx-primary); }
+.st-goal-t q { font: italic 400 13px/1.4 var(--font-ui); color: var(--tx-secondary); }
+.st-goal-t small { font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
+.st-goal .pbar { display: block; }
+.st-goal .pbar-fill { display: block; }
 .task-row.picked { background: var(--bg-selected); }
 .day-title { font: 600 28px/1.2 var(--font-ui); letter-spacing: -0.02em; color: var(--tx-primary); }
 .st-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }

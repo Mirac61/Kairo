@@ -301,10 +301,12 @@ func run() error {
 	tasks := service.NewTaskService(taskRepo, nil).WithLocation(cfg.Location)
 	calendar := service.NewCalendarService(repository.NewCalendarRepository(db), cfg.Location, nil)
 	timeEntries := repository.NewTimeEntryRepository(db)
-	habits := service.NewHabitService(repository.NewHabitRepository(db), cfg.Location, nil).WithTracked(timeEntries)
+	habitRepo := repository.NewHabitRepository(db)
+	habits := service.NewHabitService(habitRepo, cfg.Location, nil).WithTracked(timeEntries)
 	timeTracking := service.NewTimeTrackingService(timeEntries, nil).WithLocation(cfg.Location).WithAfterTrack(habits.SyncTracked)
 	projects := service.NewProjectService(repository.NewProjectRepository(db), nil)
-	for _, p := range []interface{ SetPublisher(service.Publisher) }{projects, tasks, calendar, habits, timeTracking} {
+	goals := service.NewGoalService(repository.NewGoalRepository(db), tasks, timeEntries, habitRepo, cfg.Location, nil)
+	for _, p := range []interface{ SetPublisher(service.Publisher) }{projects, tasks, calendar, habits, timeTracking, goals} {
 		p.SetPublisher(hub)
 	}
 	services := api.Services{
@@ -316,6 +318,7 @@ func run() error {
 		Time:      timeTracking,
 		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil).WithWorkWindow(cfg.WorkStart, cfg.WorkEnd),
 		Review:    service.NewReviewService(tasks, projects, habits, calendar, timeTracking, cfg.Location, nil),
+		Goals:     goals,
 		Notes:     notesStore,
 		Prefs:     repository.NewPrefsRepository(db),
 		Settings:  &api.Settings{Running: cfg, Getenv: os.Getenv, Restart: func() { restart.Store(true); stop() }},

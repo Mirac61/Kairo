@@ -218,6 +218,30 @@ export const deleteHabit = (id: string, permanent = false) =>
   api<void>(`/habits/${id}${permanent ? '?permanent=true' : ''}`, { method: 'DELETE' })
 export const restoreHabit = (id: string) => api<unknown>(`/habits/${id}/restore`, { method: 'POST' })
 
+// Ziele fürs Motivationsboard. progress kommt vom Backend (aus Projekt, Zeiterfassung oder Gewohnheit), bei NONE null.
+export type GoalKind = 'NONE' | 'PROJECT_TASKS' | 'PROJECT_HOURS' | 'HABIT_COUNT'
+export interface Goal {
+  id: string
+  title: string
+  why: string
+  image_path: string | null // im Notizordner, über filesUrl
+  kind: GoalKind
+  project_id: string | null
+  habit_id: string | null
+  target: number // Stunden bei PROJECT_HOURS, Anzahl bei HABIT_COUNT
+  start_date: string
+  due_date: string | null
+  archived: boolean
+  progress: { current: number; target: number; percent: number } | null
+}
+
+export const listGoals = () => api<Goal[]>('/goals')
+export const goalToday = () => api<Goal | null>('/goals/today')
+export const createGoal = (body: Partial<Goal>) => api<Goal>('/goals', { method: 'POST', body: JSON.stringify(body) })
+export const updateGoal = (id: string, body: Partial<Goal>) =>
+  api<Goal>(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+export const deleteGoal = (id: string) => api<void>(`/goals/${id}`, { method: 'DELETE' })
+
 export interface EventBody {
   title?: string
   start_at?: string

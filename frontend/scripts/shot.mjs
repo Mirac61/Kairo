@@ -1,7 +1,7 @@
 // Screenshot einer Ansicht mit Mock-Daten, um UI-Änderungen anzusehen statt nur zu bauen.
 //   pnpm dev               (in einem zweiten Terminal)
 //   pnpm shot --view day --theme light --size 1280x800
-//   pnpm shot --route tasks|habits|projects|review|trash|notes|settings
+//   pnpm shot --route tasks|habits|projects|goals|review|trash|notes|settings
 //   pnpm shot --view work --time 10:30       (Uhrzeit festsetzen: Jetzt-Linie und Scrollposition des Kalenders)
 // Kalender-Ansichten: week (7 Tage), work (5 Tage), day, month; heute jeweils in der Mitte. Ergebnis: frontend/.shots/<view|route>-<theme>.png
 // Das Backend wird nur für nicht gemockte Pfade gebraucht (z. B. /api/health); die Kalenderdaten stammen aus diesem Skript.
@@ -12,7 +12,7 @@ import { chromium } from 'playwright'
 const { values: o } = parseArgs({
   options: {
     view: { type: 'string', default: 'week' },
-    route: { type: 'string', default: 'calendar' }, // calendar | tasks | habits | projects | review | trash | notes | settings
+    route: { type: 'string', default: 'calendar' }, // calendar | tasks | habits | projects | goals | review | trash | notes | settings
     theme: { type: 'string', default: 'dark' },
     lang: { type: 'string', default: 'de' }, // de | en
     size: { type: 'string', default: '1555x900' },
@@ -138,6 +138,15 @@ Vorlesung **Mo + Do 10:00**, Raum 101. Abgabe Übungsblatt 3 am Mittwoch.
 Siehe auch [Skript](https://example.org) und \`git log --oneline\`.
 `
 const noteOf = /^\/api\/notes\/(.+)$/
+const goals = [
+  { id: 'g1', title: 'Kairo 1.0 veröffentlichen', why: 'Ein Werkzeug, das ich selbst jeden Tag benutze.', image_path: 'Ziele/g1.svg', kind: 'PROJECT_TASKS', project_id: 'p3', habit_id: null, target: 0, start_date: day(0), due_date: day(60), archived: false, progress: { current: 7, target: 12, percent: 58 } },
+  { id: 'g2', title: '100 Stunden Uni', why: 'Den Abschluss ohne Stress.', image_path: null, kind: 'PROJECT_HOURS', project_id: 'p1', habit_id: null, target: 100, start_date: day(-30), due_date: null, archived: false, progress: { current: 34, target: 100, percent: 34 } },
+  { id: 'g3', title: 'Fit bleiben', why: '', image_path: 'Ziele/g3.svg', kind: 'HABIT_COUNT', project_id: null, habit_id: 'h1', target: 50, start_date: day(-20), due_date: null, archived: false, progress: { current: 12, target: 50, percent: 24 } },
+  { id: 'g4', title: 'Halbmarathon', why: 'Geschafft.', image_path: null, kind: 'NONE', project_id: null, habit_id: null, target: 0, start_date: day(-90), due_date: null, archived: true, progress: null },
+]
+// Platzhalterbild für /api/files: Farbverlauf je nach Name.
+const fileOf = /^\/api\/files\/(.+)$/
+const svgImage = (name) => `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><defs><linearGradient id="a" x2="1" y2="1"><stop stop-color="${name.includes('g1') ? '#7c5cff' : '#2bb673'}"/><stop offset="1" stop-color="#1b1d24"/></linearGradient></defs><rect width="640" height="360" fill="url(#a)"/></svg>`
 const inWindow = (key, list, from, to) => list.filter((e) => e[key[0]] >= from && e[key[1] ?? key[0]] < to)
 const mock = {
   '/api/projects': () => projects,
@@ -159,6 +168,8 @@ const mock = {
     { title: 'MQTT-Reconnect nach Standby', url: 'https://github.com/demo/haus/issues/7', repo: 'demo/haus', number: 7, labels: [], updated_at: iso(-3), task_id: null },
   ],
   '/api/review': review,
+  '/api/goals': () => goals,
+  '/api/goals/today': () => goals[0],
   '/api/trash': trash,
   '/api/notes': () => noteTree,
   '/api/prefs': () => ({}), // leer: es gelten die --store-Werte
@@ -203,6 +214,8 @@ await page.route('**/api/**', (route) => {
   const c = completionsOf.exec(u.pathname)
   const n = noteOf.exec(u.pathname)
   const gi = projectIssuesOf.exec(u.pathname)
+  const file = fileOf.exec(u.pathname)
+  if (file) return route.fulfill({ contentType: 'image/svg+xml', body: svgImage(file[1]) })
   const f = gi ? () => (gi[1] === 'p3' ? { repo: 'demo/kairo', issues: mock['/api/github/issues']().filter((i) => i.repo === 'demo/kairo') } : { repo: '', issues: [] }) : c ? () => completions(c[1]) : n ? () => ({ path: decodeURIComponent(n[1]), content: noteText, mtime: '1' }) : mock[u.pathname]
   return f && route.request().method() === 'GET' ? route.fulfill({ json: f(u.searchParams) }) : route.continue()
 })

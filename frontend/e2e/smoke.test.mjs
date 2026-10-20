@@ -136,6 +136,22 @@ test('Notiz speichern', async () => {
   assert.match(readFileSync(join(env.KAIRO_NOTES_DIR, 'Smoke.md'), 'utf8'), /Hallo aus dem Smoke-Test/)
 })
 
+// Ziel mit Bild anlegen: das Bild landet im Notizordner unter Ziele/, die Karte zeigt es.
+test('Ziel mit Bild anlegen', async () => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
+  await page.goto(`${base}/goals`)
+  await page.getByRole('button', { name: 'Neues Ziel' }).click()
+  await page.getByLabel('Ziel', { exact: true }).fill('Smoke-Ziel')
+  await page.getByLabel('Warum?').fill('Weil es geht')
+  await page.getByLabel('Bild').setInputFiles({ name: 'bild.png', mimeType: 'image/png', buffer: png })
+  await page.getByRole('button', { name: 'Anlegen' }).click()
+  await page.locator('.gl-card', { hasText: 'Smoke-Ziel' }).locator('img').waitFor()
+  const [g] = (await api('/goals')).filter((x) => x.title === 'Smoke-Ziel')
+  assert.equal(g.why, 'Weil es geht')
+  assert.match(g.image_path, /^Ziele\/.+\.png$/)
+  assert.ok(existsSync(join(env.KAIRO_NOTES_DIR, g.image_path)))
+})
+
 // Rechteck auf PDF und Bild zeichnen und speichern; die Datei auf der Platte muss sich ändern.
 test('PDF und Bild bezeichnen', async () => {
   const { PDFDocument } = await import('pdf-lib')

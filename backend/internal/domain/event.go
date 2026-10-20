@@ -27,6 +27,10 @@ const (
 	EventHabitCompleted   EventType = "HABIT_COMPLETED"
 	EventHabitUncompleted EventType = "HABIT_UNCOMPLETED"
 
+	EventGoalCreated EventType = "GOAL_CREATED"
+	EventGoalUpdated EventType = "GOAL_UPDATED"
+	EventGoalDeleted EventType = "GOAL_DELETED"
+
 	EventCalendarEventCreated EventType = "CALENDAR_EVENT_CREATED"
 	EventCalendarEventUpdated EventType = "CALENDAR_EVENT_UPDATED"
 	EventCalendarEventDeleted EventType = "CALENDAR_EVENT_DELETED"
