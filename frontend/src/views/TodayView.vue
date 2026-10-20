@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
-  completeHabit, createTask, goalToday, taskAction, createTimeEntry, deleteTimeEntry, getToday, listProjects, listTasks, listTimeEntries, uncompleteHabit, updateTask, updateTimeEntry,
+  completeHabit, createTask, dueCards, goalToday, taskAction, createTimeEntry, deleteTimeEntry, getToday, listProjects, listTasks, listTimeEntries, uncompleteHabit, updateTask, updateTimeEntry,
   isOpen, type Goal, type Project, type Task, type TimeEntry, type Today,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
@@ -30,6 +30,7 @@ const HOUR = 44
 const { offer, setDone } = useUndo()
 const today = ref<Today | null>(null)
 const goal = ref<Goal | null>(null)
+const cardsDue = ref(0)
 const now = ref(Date.now())
 const quick = ref('')
 const quickEl = ref<HTMLInputElement>()
@@ -63,6 +64,8 @@ useShortcuts((e) => {
 useLiveEvents(load)
 onMounted(() => {
   void load()
+  // Fehler hier nur verschlucken: ohne Karten fehlt bloß der Hinweis.
+  dueCards().then((cs) => (cardsDue.value = cs.length), () => {})
   tick = setInterval(() => (now.value = Date.now()), 1000)
 })
 onUnmounted(() => clearInterval(tick))
@@ -394,6 +397,10 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
             </div>
           </template>
 
+          <router-link v-if="cardsDue" to="/cards" class="card st-cards-due">
+            <svg class="ic"><use href="#i-cards" /></svg>{{ $tn(cardsDue, '{n} Lernkarte fällig', '{n} Lernkarten fällig') }}
+          </router-link>
+
           <template v-if="goal">
             <div class="col-head st-gap"><h2 class="col-title">{{ $t('Dein Ziel') }}</h2><router-link class="col-link" to="/goals">{{ $t('Alle Ziele') }}</router-link></div>
             <router-link to="/goals" class="card st-goal">
@@ -488,6 +495,7 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 </template>
 
 <style scoped>
+.st-cards-due { display: flex; align-items: center; gap: 10px; margin-top: 24px; padding: 10px 12px; color: var(--tx-primary); text-decoration: none; font: 500 14px/1.3 var(--font-ui); }
 .st-goal { display: flex; gap: 14px; align-items: center; padding: 12px; color: inherit; text-decoration: none; }
 .st-goal img { flex: none; width: 72px; height: 72px; border-radius: var(--r-s); object-fit: cover; }
 .st-goal-t { display: grid; gap: 6px; min-width: 0; flex: 1; }

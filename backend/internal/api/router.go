@@ -23,6 +23,7 @@ type Services struct {
 	Today     TodayService
 	Review    ReviewService
 	Goals     GoalService
+	Cards     CardService
 	Notes     *notes.Store
 	Settings  *Settings
 	Prefs     PrefsStore
@@ -71,6 +72,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	}
 	if svc.Review != nil {
 		reviewHandlers{svc.Review}.register(mux)
+	}
+	if svc.Cards != nil {
+		cardHandlers{svc.Cards}.register(mux)
 	}
 	if svc.Goals != nil {
 		goalHandlers{svc.Goals}.register(mux)

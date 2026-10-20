@@ -630,6 +630,22 @@ const en: Record<string, string> = {
   'Was lief gut?': 'What went well?',
   'Was lerne ich daraus?': 'What do I learn from it?',
   'Was ist morgen wichtig?': 'What matters tomorrow?',
+  // Lernkarten
+  'Antwort zeigen': 'Show answer',
+  'Fertig für heute. Morgen geht es weiter.': 'Done for today. More tomorrow.',
+  'Gut': 'Good',
+  'Jede solche Zeile wird eine Karte. Kairo fragt sie in wachsenden Abständen ab.': 'Each such line becomes a card. Kairo asks it at growing intervals.',
+  'Karte': 'Card',
+  'Keine Karten fällig. Schreib in eine Notiz eine Zeile wie': 'No cards due. Write a line like this in a note',
+  'Leertaste': 'Space',
+  'Leicht': 'Easy',
+  'Lernkarten': 'Flashcards',
+  'Nochmal': 'Again',
+  'Schwer': 'Hard',
+  'Wiederholung nach Abständen aus deinen Notizen': 'Spaced repetition from your notes',
+  '{n} Lernkarte fällig': '{n} flashcard due',
+  '{n} Lernkarten fällig': '{n} flashcards due',
+  '{n} von {m} gelernt': '{n} of {m} learned',
 }
 
 export default en

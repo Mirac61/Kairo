@@ -1,7 +1,7 @@
 // Screenshot einer Ansicht mit Mock-Daten, um UI-Änderungen anzusehen statt nur zu bauen.
 //   pnpm dev               (in einem zweiten Terminal)
 //   pnpm shot --view day --theme light --size 1280x800
-//   pnpm shot --route tasks|habits|projects|goals|journal|review|trash|notes|settings
+//   pnpm shot --route tasks|habits|projects|goals|journal|cards|review|trash|notes|settings
 //   pnpm shot --view work --time 10:30       (Uhrzeit festsetzen: Jetzt-Linie und Scrollposition des Kalenders)
 // Kalender-Ansichten: week (7 Tage), work (5 Tage), day, month; heute jeweils in der Mitte. Ergebnis: frontend/.shots/<view|route>-<theme>.png
 // Das Backend wird nur für nicht gemockte Pfade gebraucht (z. B. /api/health); die Kalenderdaten stammen aus diesem Skript.
@@ -12,7 +12,7 @@ import { chromium } from 'playwright'
 const { values: o } = parseArgs({
   options: {
     view: { type: 'string', default: 'week' },
-    route: { type: 'string', default: 'calendar' }, // calendar | tasks | habits | projects | goals | journal | review | trash | notes | settings
+    route: { type: 'string', default: 'calendar' }, // calendar | tasks | habits | projects | goals | journal | cards | review | trash | notes | settings
     theme: { type: 'string', default: 'dark' },
     lang: { type: 'string', default: 'de' }, // de | en
     size: { type: 'string', default: '1555x900' },
@@ -171,6 +171,10 @@ const mock = {
   ],
   '/api/review': review,
   '/api/goals': () => goals,
+  '/api/cards/due': () => [
+    { key: 'c1', question: 'Was ist ein Mutex?', answer: 'Eine Sperre, die nur ein Thread zur Zeit halten kann.', note_path: 'uni/Übung.md', new: false },
+    { key: 'c2', question: 'Big-O von binärer Suche', answer: 'O(log n)', note_path: 'uni/Übung.md', new: true },
+  ],
   '/api/goals/today': () => goals[0],
   '/api/trash': trash,
   '/api/notes': () => noteTree,

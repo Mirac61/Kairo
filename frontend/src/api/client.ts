@@ -242,6 +242,18 @@ export const updateGoal = (id: string, body: Partial<Goal>) =>
   api<Goal>(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 export const deleteGoal = (id: string) => api<void>(`/goals/${id}`, { method: 'DELETE' })
 
+// Karteikarten: Zeilen „Frage :: Antwort“ in den Notizen, fällig nach SM-2. grade: 0 nochmal, 1 schwer, 2 gut, 3 leicht.
+export interface DueCard {
+  key: string
+  question: string
+  answer: string
+  note_path: string
+  new: boolean
+}
+export const dueCards = () => api<DueCard[]>('/cards/due')
+export const reviewCard = (key: string, grade: number) =>
+  api<{ due: string; interval_days: number }>(`/cards/${key}/review`, { method: 'POST', body: JSON.stringify({ grade }) })
+
 export interface EventBody {
   title?: string
   start_at?: string

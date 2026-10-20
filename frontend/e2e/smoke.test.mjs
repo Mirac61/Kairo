@@ -167,6 +167,20 @@ test('Journal speichern', async () => {
   assert.match(md, /## Was lief gut\?\n\nSmoke grün\n\n## Was lerne ich daraus\?\n\n## Was ist morgen wichtig\?\n\nWeiter so\n/)
 })
 
+test('Lernkarte bewerten', async () => {
+  mkdirSync(env.KAIRO_NOTES_DIR, { recursive: true })
+  writeFileSync(join(env.KAIRO_NOTES_DIR, 'Karten.md'), '- Smoke-Frage :: Smoke-Antwort\n')
+  await page.goto(`${base}/cards`)
+  await page.getByText('Smoke-Frage').waitFor()
+  await page.keyboard.press('Space')
+  await page.getByText('Smoke-Antwort').waitFor()
+  const reviewed = page.waitForResponse((r) => r.url().includes('/api/cards/') && r.request().method() === 'POST')
+  await page.keyboard.press('3')
+  await reviewed
+  await page.getByText('Fertig für heute.').waitFor()
+  assert.equal((await api('/cards/due')).filter((c) => c.question === 'Smoke-Frage').length, 0)
+})
+
 // Rechteck auf PDF und Bild zeichnen und speichern; die Datei auf der Platte muss sich ändern.
 test('PDF und Bild bezeichnen', async () => {
   const { PDFDocument } = await import('pdf-lib')

@@ -13,6 +13,7 @@ export const navItems = [
   { path: '/notes', name: 'notes', label: 'Notizen', icon: 'note', component: () => import('@/views/NotesView.vue') },
   { path: '/goals', name: 'goals', label: 'Ziele', icon: 'goal', component: () => import('@/views/GoalsView.vue') },
   { path: '/journal', name: 'journal', label: 'Journal', icon: 'journal', component: () => import('@/views/JournalView.vue') },
+  { path: '/cards', name: 'cards', label: 'Lernkarten', icon: 'cards', component: () => import('@/views/CardsView.vue') },
   { path: '/review', name: 'review', label: 'Woche', icon: 'bars', component: () => import('@/views/ReviewView.vue') },
   { path: '/trash', name: 'trash', label: 'Papierkorb', icon: 'trash', component: () => import('@/views/TrashView.vue') },
 ]

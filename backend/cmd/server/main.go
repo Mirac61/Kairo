@@ -312,6 +312,7 @@ func run() error {
 	for _, p := range []interface{ SetPublisher(service.Publisher) }{projects, tasks, calendar, habits, timeTracking, goals} {
 		p.SetPublisher(hub)
 	}
+	cards := service.NewCardService(notesStore, repository.NewCardRepository(db), cfg.Location, nil)
 	review := service.NewReviewService(tasks, projects, habits, calendar, timeTracking, cfg.Location, nil)
 	services := api.Services{
 		Projects:  projects,
@@ -323,6 +324,7 @@ func run() error {
 		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil).WithWorkWindow(cfg.WorkStart, cfg.WorkEnd),
 		Review:    review,
 		Goals:     goals,
+		Cards:     cards,
 		Notes:     notesStore,
 		Prefs:     repository.NewPrefsRepository(db),
 		Settings:  &api.Settings{Running: cfg, Getenv: os.Getenv, Restart: func() { restart.Store(true); stop() }},
@@ -341,6 +343,13 @@ func run() error {
 					return "", err
 				}
 				return g.Line(), nil
+			}).
+			WithDigestLine(func(ctx context.Context) (string, error) {
+				cs, err := cards.Due(ctx)
+				if len(cs) == 0 || err != nil {
+					return "", err
+				}
+				return fmt.Sprintf("Lernkarten fällig: %d", len(cs)), nil
 			}).
 			WithJob(time.Sunday, cfg.NtfyWeekly, review.Scorecard).
 			WithJob(reminder.Daily, cfg.NtfyJournal, func(_ context.Context, day time.Time) (string, string, error) {
