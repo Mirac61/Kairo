@@ -1,7 +1,7 @@
 // Screenshot einer Ansicht mit Mock-Daten, um UI-Änderungen anzusehen statt nur zu bauen.
 //   pnpm dev               (in einem zweiten Terminal)
 //   pnpm shot --view day --theme light --size 1280x800
-//   pnpm shot --route tasks|habits|projects|goals|review|trash|notes|settings
+//   pnpm shot --route tasks|habits|projects|goals|journal|review|trash|notes|settings
 //   pnpm shot --view work --time 10:30       (Uhrzeit festsetzen: Jetzt-Linie und Scrollposition des Kalenders)
 // Kalender-Ansichten: week (7 Tage), work (5 Tage), day, month; heute jeweils in der Mitte. Ergebnis: frontend/.shots/<view|route>-<theme>.png
 // Das Backend wird nur für nicht gemockte Pfade gebraucht (z. B. /api/health); die Kalenderdaten stammen aus diesem Skript.
@@ -12,7 +12,7 @@ import { chromium } from 'playwright'
 const { values: o } = parseArgs({
   options: {
     view: { type: 'string', default: 'week' },
-    route: { type: 'string', default: 'calendar' }, // calendar | tasks | habits | projects | goals | review | trash | notes | settings
+    route: { type: 'string', default: 'calendar' }, // calendar | tasks | habits | projects | goals | journal | review | trash | notes | settings
     theme: { type: 'string', default: 'dark' },
     lang: { type: 'string', default: 'de' }, // de | en
     size: { type: 'string', default: '1555x900' },
@@ -111,6 +111,7 @@ const trash = () => ({
 })
 // --- Mock-Daten für Notizen (uni/ ist aufgeklappt, uni/Beispiel-Vorlesung.md geöffnet)
 const noteTree = [
+  { name: 'Journal', path: 'Journal', dir: true, children: [-1, -2, -4].map((d) => ({ name: `${day(todayIdx + d)}.md`, path: `Journal/${day(todayIdx + d)}.md`, dir: false })) },
   { name: 'projekte', path: 'projekte', dir: true, children: [{ name: 'kairo.md', path: 'projekte/kairo.md', dir: false }] },
   { name: 'uni', path: 'uni', dir: true, children: [
     { name: 'Übung.md', path: 'uni/Übung.md', dir: false },
@@ -138,6 +139,7 @@ Vorlesung **Mo + Do 10:00**, Raum 101. Abgabe Übungsblatt 3 am Mittwoch.
 Siehe auch [Skript](https://example.org) und \`git log --oneline\`.
 `
 const noteOf = /^\/api\/notes\/(.+)$/
+const journalText = '# Journal\n\n## Was lief gut?\n\nDen Kalender fürs Handy fertig gemacht, abends noch gelaufen.\n\n## Was lerne ich daraus?\n\nKleine Schritte mit Screenshot prüfen spart Zeit.\n\n## Was ist morgen wichtig?\n\nÜbungsblatt 3 abgeben.\n'
 const goals = [
   { id: 'g1', title: 'Kairo 1.0 veröffentlichen', why: 'Ein Werkzeug, das ich selbst jeden Tag benutze.', image_path: 'Ziele/g1.svg', kind: 'PROJECT_TASKS', project_id: 'p3', habit_id: null, target: 0, start_date: day(0), due_date: day(60), archived: false, progress: { current: 7, target: 12, percent: 58 } },
   { id: 'g2', title: '100 Stunden Uni', why: 'Den Abschluss ohne Stress.', image_path: null, kind: 'PROJECT_HOURS', project_id: 'p1', habit_id: null, target: 100, start_date: day(-30), due_date: null, archived: false, progress: { current: 34, target: 100, percent: 34 } },
@@ -216,7 +218,7 @@ await page.route('**/api/**', (route) => {
   const gi = projectIssuesOf.exec(u.pathname)
   const file = fileOf.exec(u.pathname)
   if (file) return route.fulfill({ contentType: 'image/svg+xml', body: svgImage(file[1]) })
-  const f = gi ? () => (gi[1] === 'p3' ? { repo: 'demo/kairo', issues: mock['/api/github/issues']().filter((i) => i.repo === 'demo/kairo') } : { repo: '', issues: [] }) : c ? () => completions(c[1]) : n ? () => ({ path: decodeURIComponent(n[1]), content: noteText, mtime: '1' }) : mock[u.pathname]
+  const f = gi ? () => (gi[1] === 'p3' ? { repo: 'demo/kairo', issues: mock['/api/github/issues']().filter((i) => i.repo === 'demo/kairo') } : { repo: '', issues: [] }) : c ? () => completions(c[1]) : n ? () => ({ path: decodeURIComponent(n[1]), content: n[1].startsWith('Journal/') ? journalText : noteText, mtime: '1' }) : mock[u.pathname]
   return f && route.request().method() === 'GET' ? route.fulfill({ json: f(u.searchParams) }) : route.continue()
 })
 try {

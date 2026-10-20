@@ -152,6 +152,21 @@ test('Ziel mit Bild anlegen', async () => {
   assert.ok(existsSync(join(env.KAIRO_NOTES_DIR, g.image_path)))
 })
 
+test('Journal speichern', async () => {
+  const loaded = page.waitForResponse((r) => r.url().includes('/api/notes/Journal/'))
+  await page.goto(`${base}/journal`)
+  await loaded
+  await page.getByLabel('Was lief gut?').fill('Smoke grün')
+  await page.getByLabel('Was ist morgen wichtig?').fill('Weiter so')
+  const saved = page.waitForResponse((r) => r.url().includes('/api/notes/Journal/') && r.request().method() === 'PUT')
+  await page.getByRole('button', { name: 'Speichern' }).click()
+  await saved
+  const d = new Date()
+  const file = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.md`
+  const md = readFileSync(join(env.KAIRO_NOTES_DIR, 'Journal', file), 'utf8')
+  assert.match(md, /## Was lief gut\?\n\nSmoke grün\n\n## Was lerne ich daraus\?\n\n## Was ist morgen wichtig\?\n\nWeiter so\n/)
+})
+
 // Rechteck auf PDF und Bild zeichnen und speichern; die Datei auf der Platte muss sich ändern.
 test('PDF und Bild bezeichnen', async () => {
   const { PDFDocument } = await import('pdf-lib')

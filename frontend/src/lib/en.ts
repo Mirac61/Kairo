@@ -620,6 +620,16 @@ const en: Record<string, string> = {
   '{n} von {m}-mal': '{n} of {m} times',
   '„{title}“ bearbeiten': 'Edit “{title}”',
   '„{title}“ löschen?': 'Delete “{title}”?',
+  // Journal
+  'Der Eintrag wurde inzwischen woanders geändert. Lade ihn neu, bevor du speicherst.': 'The entry was changed elsewhere in the meantime. Reload it before saving.',
+  'Frühere Einträge': 'Earlier entries',
+  'Gespeichert': 'Saved',
+  'Journal': 'Journal',
+  'Nächster Tag': 'Next day',
+  'Vorheriger Tag': 'Previous day',
+  'Was lief gut?': 'What went well?',
+  'Was lerne ich daraus?': 'What do I learn from it?',
+  'Was ist morgen wichtig?': 'What matters tomorrow?',
 }
 
 export default en
