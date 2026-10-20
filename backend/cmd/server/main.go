@@ -233,6 +233,9 @@ func importJSON(args []string) error {
 var errRestart = errors.New("Neustart")
 
 // reminderStore verbindet TaskRepository und CalendarService für den Erinnerungs-Scheduler.
+// journalPath ist die Notiz des Journals für day (wie in frontend/src/lib/journal.ts).
+func journalPath(day time.Time) string { return "Journal/" + day.Format("2006-01-02") + ".md" }
+
 type reminderStore struct {
 	tasks *repository.TaskRepository
 	cal   *service.CalendarService
@@ -309,6 +312,7 @@ func run() error {
 	for _, p := range []interface{ SetPublisher(service.Publisher) }{projects, tasks, calendar, habits, timeTracking, goals} {
 		p.SetPublisher(hub)
 	}
+	review := service.NewReviewService(tasks, projects, habits, calendar, timeTracking, cfg.Location, nil)
 	services := api.Services{
 		Projects:  projects,
 		Tasks:     tasks.WithTimerStopper(timeTracking),
@@ -317,7 +321,7 @@ func run() error {
 		Resources: service.NewResourceService(repository.NewResourceRepository(db), nil),
 		Time:      timeTracking,
 		Today:     service.NewTodayService(tasks, calendar, habits, timeTracking, cfg.Location, nil).WithWorkWindow(cfg.WorkStart, cfg.WorkEnd),
-		Review:    service.NewReviewService(tasks, projects, habits, calendar, timeTracking, cfg.Location, nil),
+		Review:    review,
 		Goals:     goals,
 		Notes:     notesStore,
 		Prefs:     repository.NewPrefsRepository(db),
@@ -329,7 +333,23 @@ func run() error {
 
 	// Erinnerungen per ntfy: nur wenn URL und Topic gesetzt sind.
 	if cfg.NtfyURL != "" && cfg.NtfyTopic != "" {
-		rem := reminder.New(reminderStore{taskRepo, calendar}, cfg.NtfyURL, cfg.NtfyTopic, cfg.NtfyLead, 0, cfg.Location, log).WithDigest(cfg.NtfyDigest)
+		rem := reminder.New(reminderStore{taskRepo, calendar}, cfg.NtfyURL, cfg.NtfyTopic, cfg.NtfyLead, 0, cfg.Location, log).
+			WithDigest(cfg.NtfyDigest).
+			WithDigestLine(func(ctx context.Context) (string, error) {
+				g, err := goals.Today(ctx)
+				if g == nil || err != nil {
+					return "", err
+				}
+				return g.Line(), nil
+			}).
+			WithJob(time.Sunday, cfg.NtfyWeekly, review.Scorecard).
+			WithJob(reminder.Daily, cfg.NtfyJournal, func(_ context.Context, day time.Time) (string, string, error) {
+				// Wer heute schon geschrieben hat, wird nicht erinnert.
+				if _, _, err := notesStore.Read(journalPath(day)); err == nil {
+					return "", "", nil
+				}
+				return "3 Dinge heute?", "Was lief gut? Was lerne ich daraus? Was ist morgen wichtig?", nil
+			})
 		log.Info("Erinnerungen aktiv", "ntfy", cfg.NtfyURL+"/"+cfg.NtfyTopic, "lead", cfg.NtfyLead)
 		go rem.Run(ctx)
 	} else {

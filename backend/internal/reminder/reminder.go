@@ -37,8 +37,21 @@ type Runner struct {
 	log      *slog.Logger
 	client   *http.Client
 	sent     map[string]time.Time
-	digest   time.Duration // Uhrzeit der Sammelmeldung ab Mitternacht; < 0 = aus
-	digested string        // Tag (YYYY-MM-DD) der letzten Sammelmeldung
+	jobs     []*job
+	extras   []func(ctx context.Context) (string, error) // weitere Zeilen der Sammelmeldung
+}
+
+// Daily ist der Wochentag eines Jobs, der jeden Tag läuft.
+const Daily time.Weekday = -1
+
+// job ist eine geplante Meldung: einmal am Tag (oder nur an weekday), in der Stunde ab at.
+// build liefert Titel und Text; ein leerer Titel heißt „heute nichts zu melden“.
+// Startet der Server später am Tag, entfällt die Meldung für diesen Tag (kein Nachholen).
+type job struct {
+	weekday time.Weekday
+	at      time.Duration // ab Mitternacht, Ortszeit
+	build   func(ctx context.Context, day time.Time) (title, body string, err error)
+	last    string // Tag (YYYY-MM-DD) der letzten Meldung
 }
 
 // New erzeugt einen Runner. interval ist der Abstand zwischen zwei Abfragen (≤ 0 = eine Minute).
@@ -63,13 +76,25 @@ func New(store Store, url, topic string, lead, interval time.Duration, loc *time
 		log:      log,
 		client:   &http.Client{Timeout: 10 * time.Second},
 		sent:     map[string]time.Time{},
-		digest:   -1,
 	}
 }
 
 // WithDigest schaltet die tägliche Meldung „heute fällig“ um at nach Mitternacht (Ortszeit) ein; < 0 = aus.
 func (r *Runner) WithDigest(at time.Duration) *Runner {
-	r.digest = at
+	return r.WithJob(Daily, at, r.digest)
+}
+
+// WithDigestLine hängt an die Sammelmeldung eine Zeile an (z. B. das Ziel des Tages); "" = keine.
+func (r *Runner) WithDigestLine(line func(ctx context.Context) (string, error)) *Runner {
+	r.extras = append(r.extras, line)
+	return r
+}
+
+// WithJob plant eine Meldung um at nach Mitternacht (Ortszeit), täglich (Daily) oder an weekday; at < 0 = aus.
+func (r *Runner) WithJob(weekday time.Weekday, at time.Duration, build func(ctx context.Context, day time.Time) (title, body string, err error)) *Runner {
+	if at >= 0 {
+		r.jobs = append(r.jobs, &job{weekday: weekday, at: at, build: build})
+	}
 	return r
 }
 
@@ -119,7 +144,9 @@ func (r *Runner) tick(ctx context.Context) {
 		}
 	}
 
-	r.dueDigest(ctx, now)
+	for _, j := range r.jobs {
+		r.runJob(ctx, j, now)
+	}
 	r.prune(now)
 	for _, it := range items {
 		if _, seen := r.sent[it.key]; seen {
@@ -133,29 +160,35 @@ func (r *Runner) tick(ctx context.Context) {
 	}
 }
 
-// dueDigest schickt einmal am Tag, in der Stunde ab r.digest, die offenen Fälligkeiten von heute und das Überfällige.
-// Startet der Server später am Tag, entfällt die Meldung für diesen Tag (kein Nachholen um Mitternacht).
-func (r *Runner) dueDigest(ctx context.Context, now time.Time) {
-	if r.digest < 0 {
-		return
-	}
+func (r *Runner) runJob(ctx context.Context, j *job, now time.Time) {
 	local := now.In(r.loc)
 	day := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, r.loc)
-	at := day.Add(r.digest)
+	at := day.Add(j.at)
 	key := day.Format("2006-01-02")
-	if r.digested == key || local.Before(at) || !local.Before(at.Add(time.Hour)) {
+	if j.last == key || (j.weekday != Daily && local.Weekday() != j.weekday) || local.Before(at) || !local.Before(at.Add(time.Hour)) {
 		return
 	}
+	title, body, err := j.build(ctx, day)
+	if err != nil {
+		r.log.Warn("Erinnerung: Meldung bauen", "err", err)
+		return
+	}
+	if title != "" {
+		if err := r.post(title, body); err != nil {
+			r.log.Warn("Erinnerung senden", "err", err)
+			return
+		}
+	}
+	j.last = key
+}
+
+// digest: die offenen Fälligkeiten von heute, das Überfällige und die Zusatzzeilen (WithDigestLine).
+func (r *Runner) digest(ctx context.Context, day time.Time) (string, string, error) {
 	ts, err := r.store.DueTasks(ctx, time.Time{}, day.AddDate(0, 0, 1))
 	if err != nil {
-		r.log.Warn("Erinnerung: Fälliges lesen", "err", err)
-		return
+		return "", "", fmt.Errorf("Fälliges lesen: %w", err)
 	}
-	if len(ts) == 0 {
-		r.digested = key
-		return
-	}
-	var today, late []string
+	var today, late, lines []string
 	for _, t := range ts {
 		if t.DueAt.Before(day) {
 			late = append(late, t.Title)
@@ -163,20 +196,27 @@ func (r *Runner) dueDigest(ctx context.Context, now time.Time) {
 			today = append(today, t.Title)
 		}
 	}
+	for _, extra := range r.extras {
+		line, err := extra(ctx)
+		if err != nil {
+			r.log.Warn("Erinnerung: Zusatzzeile", "err", err)
+		} else if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	if len(ts) == 0 {
+		if len(lines) == 0 {
+			return "", "", nil
+		}
+		return "Heute nichts fällig", strings.Join(lines, "\n"), nil
+	}
 	title := fmt.Sprintf("Heute fällig: %d", len(today))
-	body := strings.Join(today, "\n")
+	body := today
 	if len(late) > 0 {
 		title += fmt.Sprintf(" · überfällig: %d", len(late))
-		if body != "" {
-			body += "\n"
-		}
-		body += "Überfällig: " + strings.Join(late, ", ")
+		body = append(body, "Überfällig: "+strings.Join(late, ", "))
 	}
-	if err := r.post(title, body); err != nil {
-		r.log.Warn("Erinnerung senden", "err", err)
-		return
-	}
-	r.digested = key
+	return title, strings.Join(append(body, lines...), "\n"), nil
 }
 
 // prune entfernt Einträge, deren Fenster längst vorbei ist, damit die Map klein bleibt.

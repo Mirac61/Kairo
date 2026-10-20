@@ -133,3 +133,52 @@ func TestDueDigest(t *testing.T) {
 		t.Fatalf("Meldungen %d, Abfragen %d -> %d", len(msgs), calls, store.dueCalls)
 	}
 }
+
+func TestJobs(t *testing.T) {
+	sunday := time.Date(2026, 10, 25, 0, 0, 0, 0, time.UTC)
+	var titles []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&m)
+		titles = append(titles, m["title"].(string)+"|"+m["message"].(string))
+	}))
+	defer srv.Close()
+
+	journalDone := false
+	r := New(&fakeStore{}, srv.URL, "kairo", 10*time.Minute, time.Minute, time.UTC, nil).
+		WithDigest(8*time.Hour).
+		WithDigestLine(func(context.Context) (string, error) { return "Ziel: Fit", nil }).
+		WithJob(time.Sunday, 19*time.Hour, func(_ context.Context, day time.Time) (string, string, error) {
+			return "Woche", day.Format("2006-01-02"), nil
+		}).
+		WithJob(Daily, 21*time.Hour, func(context.Context, time.Time) (string, string, error) {
+			if journalDone {
+				return "", "", nil
+			}
+			return "Journal", "", nil
+		}).
+		WithJob(Daily, -1, func(context.Context, time.Time) (string, string, error) { panic("ausgeschaltet") })
+	ctx := context.Background()
+	tick := func(d time.Time) {
+		r.now = func() time.Time { return d }
+		r.tick(ctx)
+	}
+	// Sonntag: Sammelmeldung nur mit Ziel, Wochenbilanz, Journal; jede nur einmal.
+	for _, h := range []time.Duration{8 * time.Hour, 8*time.Hour + time.Minute, 19 * time.Hour, 19*time.Hour + 30*time.Minute, 21 * time.Hour} {
+		tick(sunday.Add(h))
+	}
+	// Montag: keine Wochenbilanz, Journal schon geschrieben.
+	journalDone = true
+	for _, h := range []time.Duration{19 * time.Hour, 21 * time.Hour} {
+		tick(sunday.AddDate(0, 0, 1).Add(h))
+	}
+	want := []string{"Heute nichts fällig|Ziel: Fit", "Woche|2026-10-25", "Journal|"}
+	if len(titles) != len(want) {
+		t.Fatalf("Meldungen = %q, erwartet %q", titles, want)
+	}
+	for i := range want {
+		if titles[i] != want[i] {
+			t.Errorf("Meldung %d = %q, erwartet %q", i, titles[i], want[i])
+		}
+	}
+}

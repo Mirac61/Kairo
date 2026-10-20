@@ -50,6 +50,9 @@ type Config struct {
 	NtfyLead  time.Duration
 	// NtfyDigest ist die Uhrzeit (Abstand zu Mitternacht) der täglichen Meldung „heute fällig“; < 0 = aus.
 	NtfyDigest time.Duration
+	// NtfyWeekly ist die Uhrzeit der Wochenbilanz am Sonntag, NtfyJournal die der abendlichen Journal-Frage; < 0 = aus.
+	NtfyWeekly  time.Duration
+	NtfyJournal time.Duration
 }
 
 // Addr liefert die Listen-Adresse.
@@ -245,16 +248,24 @@ func resolve(getenv func(string) string) (Config, error) {
 			cfg.NtfyLead = d
 		}
 	}
-	cfg.NtfyDigest = 8 * time.Hour
-	if v := getenv("KAIRO_NTFY_DIGEST"); v == "off" {
-		cfg.NtfyDigest = -1
-	} else if v != "" {
-		if t, err := time.Parse("15:04", v); err != nil {
-			errs = append(errs, &Error{"KAIRO_NTFY_DIGEST", v, "erwartet Uhrzeit HH:MM oder off"})
-		} else {
-			cfg.NtfyDigest = time.Duration(t.Hour())*time.Hour + time.Duration(t.Minute())*time.Minute
+	clock := func(name string, def time.Duration) time.Duration {
+		v := getenv(name)
+		if v == "off" {
+			return -1
 		}
+		if v == "" {
+			return def
+		}
+		t, err := time.Parse("15:04", v)
+		if err != nil {
+			errs = append(errs, &Error{name, v, "erwartet Uhrzeit HH:MM oder off"})
+			return def
+		}
+		return time.Duration(t.Hour())*time.Hour + time.Duration(t.Minute())*time.Minute
 	}
+	cfg.NtfyDigest = clock("KAIRO_NTFY_DIGEST", 8*time.Hour)
+	cfg.NtfyWeekly = clock("KAIRO_NTFY_WEEKLY", 19*time.Hour)
+	cfg.NtfyJournal = clock("KAIRO_NTFY_JOURNAL", 21*time.Hour)
 
 	home, homeErr := os.UserHomeDir()
 	cfg.DBPath = getenv("KAIRO_DB_PATH")

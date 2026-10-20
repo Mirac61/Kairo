@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"kairo/internal/domain"
@@ -270,4 +271,62 @@ func (s *ReviewService) ProjectStats(ctx context.Context) ([]ProjectStat, error)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ProjectID < out[j].ProjectID })
 	return out, nil
+}
+
+// Scorecard ist die Wochenbilanz für ntfy: die 7 Tage bis day im Vergleich zu den 7 davor.
+func (s *ReviewService) Scorecard(ctx context.Context, day time.Time) (string, string, error) {
+	d := func(n int) string { return day.AddDate(0, 0, n).Format("2006-01-02") }
+	cur, err := s.Get(ctx, d(-6), d(0))
+	if err != nil {
+		return "", "", err
+	}
+	prev, err := s.Get(ctx, d(-13), d(-7))
+	if err != nil {
+		return "", "", err
+	}
+	title, body := FormatScorecard(cur, prev)
+	return title, body, nil
+}
+
+// FormatScorecard fasst eine Woche zusammen, mit Veränderung zur Vorwoche in Klammern.
+func FormatScorecard(cur, prev Review) (string, string) {
+	hm := func(m int) string { return fmt.Sprintf("%d:%02d", m/60, m%60) }
+	delta := func(d int, f func(int) string) string {
+		switch {
+		case d > 0:
+			return " (+" + f(d) + ")"
+		case d < 0:
+			return " (−" + f(-d) + ")"
+		}
+		return ""
+	}
+	num := func(n int) string { return fmt.Sprint(n) }
+	sumDone := func(r Review) (n int) {
+		for _, h := range r.Habits {
+			n += h.Done
+		}
+		return n
+	}
+	lines := []string{
+		"Zeit: " + hm(cur.TrackedMinutes) + " h" + delta(cur.TrackedMinutes-prev.TrackedMinutes, hm),
+		"Erledigt: " + num(cur.CompletedTasks) + " Aufgaben" + delta(cur.CompletedTasks-prev.CompletedTasks, num),
+	}
+	if len(cur.Habits) > 0 {
+		lines = append(lines, "Gewohnheiten: "+num(sumDone(cur))+"× abgehakt"+delta(sumDone(cur)-sumDone(prev), num))
+		// Habits sind nach Serie sortiert (siehe Get).
+		if best := cur.Habits[0]; best.Streak >= 2 {
+			lines = append(lines, fmt.Sprintf("Beste Serie: %s (%d)", best.Name, best.Streak))
+		}
+	}
+	var top []string
+	for _, p := range cur.Projects {
+		if p.TrackedMinutes == 0 || len(top) == 3 {
+			break
+		}
+		top = append(top, p.Name+" "+hm(p.TrackedMinutes))
+	}
+	if len(top) > 0 {
+		lines = append(lines, "Projekte: "+strings.Join(top, " · "))
+	}
+	return fmt.Sprintf("Wochenbilanz: %s h · %d erledigt", hm(cur.TrackedMinutes), cur.CompletedTasks), strings.Join(lines, "\n")
 }

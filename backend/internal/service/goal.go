@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -257,4 +258,17 @@ func (s *GoalService) view(ctx context.Context, g domain.Goal) (GoalView, error)
 	}
 	v.Progress = p
 	return v, nil
+}
+
+// Line ist das Ziel als eine Zeile für ntfy, z. B. „Ziel: Fit – 40 % (20 von 50-mal)“.
+func (v GoalView) Line() string {
+	s := "Ziel: " + v.Title
+	if p := v.Progress; p != nil {
+		unit := map[domain.GoalKind]string{domain.GoalProjectTasks: " Aufgaben", domain.GoalProjectHours: " Std.", domain.GoalHabitCount: "-mal"}[v.Kind]
+		s += fmt.Sprintf(" – %d %% (%d von %d%s)", p.Percent, p.Current, p.Target, unit)
+	}
+	if v.Why != "" {
+		s += "\n„" + v.Why + "“"
+	}
+	return s
 }

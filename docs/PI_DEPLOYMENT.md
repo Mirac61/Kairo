@@ -102,7 +102,9 @@ ssh -t <benutzer>@<pi-host> sudo systemctl start kairo
 | `KAIRO_NTFY_URL` | `http://<wg-ip>:<ntfy-port>` | ntfy-Server (auf dem Pi, nicht ntfy.sh). Mit Topic aktiviert es Erinnerungen |
 | `KAIRO_NTFY_TOPIC` | `<topic>` | Langes, zufälliges Topic für die Erinnerungen (Vorlauf `KAIRO_NTFY_LEAD`) |
 | `KAIRO_NTFY_LEAD` | `10m` | Vorlauf, mit dem vor Beginn von Aufgaben/Terminen erinnert wird |
-| `KAIRO_NTFY_DIGEST` | `08:00` | Uhrzeit der täglichen Meldung „Heute fällig“ mit dem Überfälligen; `off` schaltet sie ab |
+| `KAIRO_NTFY_DIGEST` | `08:00` | Uhrzeit der täglichen Meldung „Heute fällig“ mit dem Überfälligen und dem Ziel des Tages; `off` schaltet sie ab |
+| `KAIRO_NTFY_WEEKLY` | `19:00` | Sonntags: Wochenbilanz (Stunden, Erledigtes, Gewohnheiten, Projekte) im Vergleich zur Vorwoche; `off` schaltet sie ab |
+| `KAIRO_NTFY_JOURNAL` | `21:00` | Abends: Frage nach „3 Dinge heute“, nur wenn es für heute noch keinen Journal-Eintrag gibt; `off` schaltet sie ab |
 
 ## Erinnerungen (ntfy)
 
