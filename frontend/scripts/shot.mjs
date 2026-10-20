@@ -140,11 +140,32 @@ Siehe auch [Skript](https://example.org) und \`git log --oneline\`.
 `
 const noteOf = /^\/api\/notes\/(.+)$/
 const journalText = '# Journal\n\n## Was lief gut?\n\nDen Kalender fürs Handy fertig gemacht, abends noch gelaufen.\n\n## Was lerne ich daraus?\n\nKleine Schritte mit Screenshot prüfen spart Zeit.\n\n## Was ist morgen wichtig?\n\nÜbungsblatt 3 abgeben.\n'
+const card = (deck, question, answer, due, extra = {}) => ({ key: question, id: extra.note ? null : question, deck, question, answer, note_path: extra.note ?? null, new: !!extra.new, due, due_date: extra.new ? null : day(todayIdx + (due ? 0 : 3)), interval_days: 3 })
+const cards = [
+  card('Computerarchitektur', 'Was ist ein CMOS?', 'Ein PMOS- und ein NMOS-Transistor im Paar; im Ruhezustand fließt kaum Strom.', true, { note: 'Computerarchitektur/2026-10-09_Fundamente.md' }),
+  card('Computerarchitektur', 'Was macht ein Multiplexer?', 'Wählt einen von mehreren Eingängen über Steuerleitungen aus.', true, { new: true }),
+  card('Computerarchitektur', 'Big-Endian', 'Höchstwertiges Byte an der niedrigsten Adresse.', false),
+  card('Mathe 2', 'Ableitung von sin(x)', 'cos(x)', true),
+  card('Mathe 2', 'Eigenwert', 'λ mit Av = λv für ein v ≠ 0', false),
+  card('Japanisch', '勉強', 'べんきょう – lernen', true, { new: true }),
+  card('Japanisch', '仕事', 'しごと – Arbeit', true),
+  card('Japanisch', '会社', 'かいしゃ – Firma', false),
+]
+const decks = ['Computerarchitektur', 'Japanisch', 'Mathe 2'].map((name, i) => {
+  const cs = cards.filter((c) => c.deck === name)
+  return { name, color: ['violet', 'pink', 'aqua'][i], total: cs.length, due: cs.filter((c) => c.due).length, new_due: cs.filter((c) => c.new).length }
+})
+const goal = (id, title, why, extra = {}) => ({ id, title, why, image_path: null, kind: 'NONE', project_id: null, habit_id: null, target: 0, start_date: day(0), due_date: null, archived: false, parent_id: null, progress: null, ...extra })
 const goals = [
-  { id: 'g1', title: 'Kairo 1.0 veröffentlichen', why: 'Ein Werkzeug, das ich selbst jeden Tag benutze.', image_path: 'Ziele/g1.svg', kind: 'PROJECT_TASKS', project_id: 'p3', habit_id: null, target: 0, start_date: day(0), due_date: day(60), archived: false, progress: { current: 7, target: 12, percent: 58 } },
-  { id: 'g2', title: '100 Stunden Uni', why: 'Den Abschluss ohne Stress.', image_path: null, kind: 'PROJECT_HOURS', project_id: 'p1', habit_id: null, target: 100, start_date: day(-30), due_date: null, archived: false, progress: { current: 34, target: 100, percent: 34 } },
-  { id: 'g3', title: 'Fit bleiben', why: '', image_path: 'Ziele/g3.svg', kind: 'HABIT_COUNT', project_id: null, habit_id: 'h1', target: 50, start_date: day(-20), due_date: null, archived: false, progress: { current: 12, target: 50, percent: 24 } },
-  { id: 'g4', title: 'Halbmarathon', why: 'Geschafft.', image_path: null, kind: 'NONE', project_id: null, habit_id: null, target: 0, start_date: day(-90), due_date: null, archived: true, progress: null },
+  goal('g1', 'Ein Werkstudentenplatz bekommen', 'Ich will selber Geld verdienen und Arbeitserfahrung sammeln.', { image_path: 'Ziele/g1.svg', due_date: day(90), progress: { current: 1, target: 3, percent: 55 } }),
+  goal('g1a', 'Lebenslauf fertig', '', { parent_id: 'g1', archived: true }),
+  goal('g1b', '20 Bewerbungen schicken', 'Jede Absage ist eine Übung.', { parent_id: 'g1', kind: 'PROJECT_TASKS', project_id: 'p3', progress: { current: 7, target: 20, percent: 35 } }),
+  goal('g1c', 'Portfolio mit Kairo', '', { parent_id: 'g1', image_path: 'Ziele/g1c.svg', kind: 'PROJECT_HOURS', project_id: 'p3', target: 40, progress: { current: 22, target: 40, percent: 55 } }),
+  goal('g1d', 'Interview üben', 'Ruhig bleiben, Beispiele parat haben.', { parent_id: 'g1', due_date: day(30) }),
+  goal('g2', 'Japanisch auf N4', 'Einmal in Tokio ohne Übersetzer durch den Tag.', { progress: { current: 0, target: 2, percent: 20 } }),
+  goal('g2a', '300 Kanji', '', { parent_id: 'g2', kind: 'HABIT_COUNT', habit_id: 'h1', target: 300, progress: { current: 120, target: 300, percent: 40 } }),
+  goal('g2b', 'Probeprüfung bestehen', '', { parent_id: 'g2' }),
+  goal('g3', 'Halbmarathon', 'Geschafft.', { archived: true }),
 ]
 // Platzhalterbild für /api/files: Farbverlauf je nach Name.
 const fileOf = /^\/api\/files\/(.+)$/
@@ -171,10 +192,9 @@ const mock = {
   ],
   '/api/review': review,
   '/api/goals': () => goals,
-  '/api/cards/due': () => [
-    { key: 'c1', question: 'Was ist ein Mutex?', answer: 'Eine Sperre, die nur ein Thread zur Zeit halten kann.', note_path: 'uni/Übung.md', new: false },
-    { key: 'c2', question: 'Big-O von binärer Suche', answer: 'O(log n)', note_path: 'uni/Übung.md', new: true },
-  ],
+  '/api/cards': () => cards,
+  '/api/cards/due': () => cards.filter((c) => c.due),
+  '/api/cards/decks': () => decks,
   '/api/goals/today': () => goals[0],
   '/api/trash': trash,
   '/api/notes': () => noteTree,
@@ -233,7 +253,8 @@ try {
 }
 await page.waitForSelector({ calendar: '.fc-view', notes: '.notes', settings: '.st', login: '.auth-page', setup: '.auth-page' }[o.route] ?? '.view-inner')
 await page.waitForLoadState('networkidle')
-if (o.click) await page.locator(o.click).first().click()
+// Mehrere Klicks nacheinander mit „ && “ getrennt, z. B. '.cd-tile-learn && .cd-show'.
+if (o.click) for (const sel of o.click.split(' && ')) await page.locator(sel).first().click()
 await page.waitForTimeout(400)
 mkdirSync(out.includes('/') ? out.slice(0, out.lastIndexOf('/')) : '.', { recursive: true })
 // Querformat-Überlauf (Handy): Seitenbreite und Elemente, die rechts über den Rand ragen.

@@ -232,6 +232,7 @@ export interface Goal {
   start_date: string
   due_date: string | null
   archived: boolean
+  parent_id: string | null // gesetzt: Teilziel eines Langzeitziels
   progress: { current: number; target: number; percent: number } | null
 }
 
@@ -242,15 +243,38 @@ export const updateGoal = (id: string, body: Partial<Goal>) =>
   api<Goal>(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 export const deleteGoal = (id: string) => api<void>(`/goals/${id}`, { method: 'DELETE' })
 
-// Karteikarten: Zeilen „Frage :: Antwort“ in den Notizen, fällig nach SM-2. grade: 0 nochmal, 1 schwer, 2 gut, 3 leicht.
-export interface DueCard {
+// Karteikarten: Zeilen „Frage :: Antwort“ in den Notizen (Fach = erster Ordner) oder direkt angelegt (id gesetzt).
+// Fällig nach SM-2. grade: 0 nochmal, 1 schwer, 2 gut, 3 leicht.
+export interface Card {
   key: string
+  id: string | null
+  deck: string
   question: string
   answer: string
-  note_path: string
+  note_path: string | null
   new: boolean
+  due: boolean
+  due_date: string | null
+  interval_days: number
 }
-export const dueCards = () => api<DueCard[]>('/cards/due')
+export type DueCard = Card
+export interface Deck {
+  name: string
+  color: string // aus PROJECT_COLORS
+  total: number
+  due: number
+  new_due: number
+}
+export const listCards = () => api<Card[]>('/cards')
+export const dueCards = () => api<Card[]>('/cards/due')
+export const listDecks = () => api<Deck[]>('/cards/decks')
+export const createCard = (body: { deck: string; question: string; answer: string }) =>
+  api<Card>('/cards', { method: 'POST', body: JSON.stringify(body) })
+export const updateCard = (id: string, body: { deck: string; question: string; answer: string }) =>
+  api<Card>(`/cards/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+export const deleteCard = (id: string) => api<void>(`/cards/${id}`, { method: 'DELETE' })
+export const setDeckColor = (name: string, color: string) =>
+  api<void>(`/cards/decks/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ color }) })
 export const reviewCard = (key: string, grade: number) =>
   api<{ due: string; interval_days: number }>(`/cards/${key}/review`, { method: 'POST', body: JSON.stringify({ grade }) })
 

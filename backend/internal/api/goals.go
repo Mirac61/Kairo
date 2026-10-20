@@ -36,6 +36,7 @@ type goalDTO struct {
 	StartDate string           `json:"start_date"`
 	DueDate   *string          `json:"due_date"`
 	Archived  bool             `json:"archived"`
+	ParentID  *string          `json:"parent_id"`
 	CreatedAt string           `json:"created_at"`
 	Progress  *goalProgressDTO `json:"progress"`
 }
@@ -44,7 +45,7 @@ func toGoalDTO(v service.GoalView) goalDTO {
 	out := goalDTO{
 		ID: v.ID, Title: v.Title, Why: v.Why, ImagePath: v.ImagePath, Kind: string(v.Kind),
 		ProjectID: v.ProjectID, HabitID: v.HabitID, Target: v.Target, StartDate: v.StartDate,
-		DueDate: v.DueDate, Archived: v.Archived, CreatedAt: v.CreatedAt.UTC().Format(time.RFC3339),
+		DueDate: v.DueDate, Archived: v.Archived, ParentID: v.ParentID, CreatedAt: v.CreatedAt.UTC().Format(time.RFC3339),
 	}
 	if v.Progress != nil {
 		p := goalProgressDTO(*v.Progress)
@@ -98,13 +99,14 @@ func (h goalHandlers) create(w http.ResponseWriter, r *http.Request) {
 		Target    int     `json:"target"`
 		StartDate *string `json:"start_date"`
 		DueDate   *string `json:"due_date"`
+		ParentID  *string `json:"parent_id"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
 	}
 	g, err := h.svc.Create(r.Context(), service.CreateGoalInput{
 		Title: in.Title, Why: in.Why, ImagePath: in.ImagePath, Kind: domain.GoalKind(in.Kind),
-		ProjectID: in.ProjectID, HabitID: in.HabitID, Target: in.Target, StartDate: in.StartDate, DueDate: in.DueDate,
+		ProjectID: in.ProjectID, HabitID: in.HabitID, Target: in.Target, StartDate: in.StartDate, DueDate: in.DueDate, ParentID: in.ParentID,
 	})
 	if err != nil {
 		writeError(w, err)
@@ -126,13 +128,14 @@ func (h goalHandlers) update(w http.ResponseWriter, r *http.Request) {
 		StartDate *string `json:"start_date"`
 		DueDate   *string `json:"due_date"`
 		Archived  *bool   `json:"archived"`
+		ParentID  *string `json:"parent_id"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
 	}
 	upd := service.UpdateGoalInput{
 		Title: in.Title, Why: in.Why, ImagePath: in.ImagePath, ProjectID: in.ProjectID, HabitID: in.HabitID,
-		Target: in.Target, StartDate: in.StartDate, DueDate: in.DueDate, Archived: in.Archived,
+		Target: in.Target, StartDate: in.StartDate, DueDate: in.DueDate, Archived: in.Archived, ParentID: in.ParentID,
 	}
 	if in.Kind != nil {
 		k := domain.GoalKind(*in.Kind)

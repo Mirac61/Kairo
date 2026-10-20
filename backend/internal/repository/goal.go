@@ -15,20 +15,21 @@ type GoalRepository struct{ db *sql.DB }
 // NewGoalRepository erzeugt ein GoalRepository.
 func NewGoalRepository(db *sql.DB) *GoalRepository { return &GoalRepository{db: db} }
 
-const goalColumns = `id, title, why, image_path, kind, project_id, habit_id, target, start_date, due_date, archived, created_at`
+const goalColumns = `id, title, why, image_path, kind, project_id, habit_id, target, start_date, due_date, archived, created_at, parent_id`
 
 func scanGoal(s scanner) (domain.Goal, error) {
 	var (
-		g                       domain.Goal
-		image, proj, habit, due sql.NullString
-		kind, created           string
-		archived                int
+		g                               domain.Goal
+		image, proj, habit, due, parent sql.NullString
+		kind, created                   string
+		archived                        int
 	)
-	if err := s.Scan(&g.ID, &g.Title, &g.Why, &image, &kind, &proj, &habit, &g.Target, &g.StartDate, &due, &archived, &created); err != nil {
+	if err := s.Scan(&g.ID, &g.Title, &g.Why, &image, &kind, &proj, &habit, &g.Target, &g.StartDate, &due, &archived, &created, &parent); err != nil {
 		return domain.Goal{}, err
 	}
 	g.Kind, g.Archived = domain.GoalKind(kind), archived == 1
 	g.ImagePath, g.ProjectID, g.HabitID, g.DueDate = nullStr(image), nullStr(proj), nullStr(habit), nullStr(due)
+	g.ParentID = nullStr(parent)
 	var err error
 	if g.CreatedAt, err = parseTime(created); err != nil {
 		return domain.Goal{}, fmt.Errorf("created_at: %w", err)
@@ -38,9 +39,9 @@ func scanGoal(s scanner) (domain.Goal, error) {
 
 // Create legt ein Ziel an.
 func (r *GoalRepository) Create(ctx context.Context, g domain.Goal) error {
-	_, err := r.db.ExecContext(ctx, `INSERT INTO goals (`+goalColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err := r.db.ExecContext(ctx, `INSERT INTO goals (`+goalColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		g.ID, g.Title, g.Why, g.ImagePath, string(g.Kind), g.ProjectID, g.HabitID, g.Target, g.StartDate, g.DueDate,
-		boolInt(g.Archived), formatTime(g.CreatedAt))
+		boolInt(g.Archived), formatTime(g.CreatedAt), g.ParentID)
 	if err != nil {
 		return fmt.Errorf("repository: Ziel anlegen: %w", mapFK(err))
 	}
@@ -81,9 +82,9 @@ func (r *GoalRepository) List(ctx context.Context) ([]domain.Goal, error) {
 func (r *GoalRepository) Update(ctx context.Context, g domain.Goal) error {
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE goals SET title = ?, why = ?, image_path = ?, kind = ?, project_id = ?, habit_id = ?, target = ?,
-			start_date = ?, due_date = ?, archived = ? WHERE id = ?`,
+			start_date = ?, due_date = ?, archived = ?, parent_id = ? WHERE id = ?`,
 		g.Title, g.Why, g.ImagePath, string(g.Kind), g.ProjectID, g.HabitID, g.Target, g.StartDate, g.DueDate,
-		boolInt(g.Archived), g.ID)
+		boolInt(g.Archived), g.ParentID, g.ID)
 	if err != nil {
 		return fmt.Errorf("repository: Ziel ändern: %w", mapFK(err))
 	}

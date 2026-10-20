@@ -29,6 +29,7 @@ type Goal struct {
 	StartDate string // YYYY-MM-DD, ab hier zählen Stunden und Completions
 	DueDate   *string
 	Archived  bool
+	ParentID  *string // gesetzt: Teilziel eines Langzeitziels
 	CreatedAt time.Time
 }
 

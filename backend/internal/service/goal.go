@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -68,9 +69,10 @@ type CreateGoalInput struct {
 	Target    int
 	StartDate *string
 	DueDate   *string
+	ParentID  *string
 }
 
-// UpdateGoalInput ändert nur gesetzte Felder; "" entfernt ImagePath, ProjectID, HabitID und DueDate.
+// UpdateGoalInput ändert nur gesetzte Felder; "" entfernt ImagePath, ProjectID, HabitID, DueDate und ParentID.
 type UpdateGoalInput struct {
 	Title     *string
 	Why       *string
@@ -82,6 +84,7 @@ type UpdateGoalInput struct {
 	StartDate *string
 	DueDate   *string
 	Archived  *bool
+	ParentID  *string
 }
 
 func (s *GoalService) Create(ctx context.Context, in CreateGoalInput) (GoalView, error) {
@@ -96,19 +99,20 @@ func (s *GoalService) Create(ctx context.Context, in CreateGoalInput) (GoalView,
 		Target:    in.Target,
 		StartDate: s.now().In(s.loc).Format("2006-01-02"),
 		DueDate:   trimOrNil(in.DueDate),
+		ParentID:  trimOrNil(in.ParentID),
 		CreatedAt: s.now().UTC(),
 	}
 	if sd := trimOrNil(in.StartDate); sd != nil {
 		g.StartDate = *sd
 	}
-	if err := g.Validate(); err != nil {
+	if err := s.validate(ctx, &g); err != nil {
 		return GoalView{}, err
 	}
 	if err := s.store.Create(ctx, g); err != nil {
 		return GoalView{}, err
 	}
 	s.emit(domain.Event{Type: domain.EventGoalCreated, ID: g.ID})
-	return s.view(ctx, g)
+	return s.get(ctx, g.ID)
 }
 
 func (s *GoalService) Update(ctx context.Context, id string, in UpdateGoalInput) (GoalView, error) {
@@ -146,14 +150,17 @@ func (s *GoalService) Update(ctx context.Context, id string, in UpdateGoalInput)
 	if in.Archived != nil {
 		g.Archived = *in.Archived
 	}
-	if err := g.Validate(); err != nil {
+	if in.ParentID != nil {
+		g.ParentID = trimOrNil(in.ParentID)
+	}
+	if err := s.validate(ctx, &g); err != nil {
 		return GoalView{}, err
 	}
 	if err := s.store.Update(ctx, g); err != nil {
 		return GoalView{}, err
 	}
 	s.emit(domain.Event{Type: domain.EventGoalUpdated, ID: g.ID})
-	return s.view(ctx, g)
+	return s.get(ctx, g.ID)
 }
 
 func (s *GoalService) Delete(ctx context.Context, id string) error {
@@ -178,12 +185,87 @@ func (s *GoalService) List(ctx context.Context) ([]GoalView, error) {
 		}
 		out = append(out, v)
 	}
+	// Ein Langzeitziel ohne eigene Messung zeigt den Schnitt seiner Teilziele (erreichte zählen voll).
+	for i := range out {
+		if out[i].Progress != nil || out[i].ParentID != nil {
+			continue
+		}
+		sum, n := 0, 0
+		for _, c := range out {
+			if c.ParentID == nil || *c.ParentID != out[i].ID {
+				continue
+			}
+			switch {
+			case c.Archived:
+				sum += 100
+			case c.Progress != nil:
+				sum += c.Progress.Percent
+			}
+			n++
+		}
+		if n > 0 {
+			done := 0
+			for _, c := range out {
+				if c.ParentID != nil && *c.ParentID == out[i].ID && (c.Archived || c.Progress != nil && c.Progress.Percent >= 100) {
+					done++
+				}
+			}
+			out[i].Progress = &GoalProgress{Current: done, Target: n, Percent: sum / n}
+		}
+	}
 	return out, nil
+}
+
+// get liefert ein Ziel so, wie es in List steht (mit Fortschritt aus Teilzielen).
+func (s *GoalService) get(ctx context.Context, id string) (GoalView, error) {
+	vs, err := s.List(ctx)
+	if err != nil {
+		return GoalView{}, err
+	}
+	for _, v := range vs {
+		if v.ID == id {
+			return v, nil
+		}
+	}
+	return GoalView{}, domain.ErrNotFound
+}
+
+// validate prüft das Ziel und den Verweis aufs Langzeitziel: es gibt nur eine Ebene.
+func (s *GoalService) validate(ctx context.Context, g *domain.Goal) error {
+	if err := g.Validate(); err != nil {
+		return err
+	}
+	if g.ParentID == nil {
+		return nil
+	}
+	if *g.ParentID == g.ID {
+		return fmt.Errorf("%w: ein Ziel kann nicht sein eigenes Teilziel sein", domain.ErrInvalid)
+	}
+	p, err := s.store.Get(ctx, *g.ParentID)
+	if errors.Is(err, domain.ErrNotFound) {
+		return fmt.Errorf("%w: Langzeitziel existiert nicht", domain.ErrInvalid)
+	}
+	if err != nil {
+		return err
+	}
+	if p.ParentID != nil {
+		return fmt.Errorf("%w: Teilziele können keine eigenen Teilziele haben", domain.ErrInvalid)
+	}
+	gs, err := s.store.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, c := range gs {
+		if c.ParentID != nil && *c.ParentID == g.ID {
+			return fmt.Errorf("%w: ein Langzeitziel mit Teilzielen kann nicht selbst Teilziel werden", domain.ErrInvalid)
+		}
+	}
+	return nil
 }
 
 // Today wählt reihum ein aktives Ziel für heute (nach Tag im Jahr); nil, wenn es keins gibt.
 func (s *GoalService) Today(ctx context.Context) (*GoalView, error) {
-	gs, err := s.store.List(ctx)
+	gs, err := s.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -196,10 +278,7 @@ func (s *GoalService) Today(ctx context.Context) (*GoalView, error) {
 	if len(active) == 0 {
 		return nil, nil
 	}
-	v, err := s.view(ctx, active[s.now().In(s.loc).YearDay()%len(active)])
-	if err != nil {
-		return nil, err
-	}
+	v := active[s.now().In(s.loc).YearDay()%len(active)]
 	return &v, nil
 }
 

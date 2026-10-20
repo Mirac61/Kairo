@@ -110,3 +110,43 @@ func TestGoalsFlow(t *testing.T) {
 		t.Errorf("PATCH nach DELETE = %d", rec.Code)
 	}
 }
+
+func TestGoalParents(t *testing.T) {
+	db, err := repository.Open(context.Background(), filepath.Join(t.TempDir(), "k.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	h := NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
+		Goals: service.NewGoalService(repository.NewGoalRepository(db), nil, nil, nil, time.UTC, nil),
+	})
+	post := func(body string) (int, goalDTO) {
+		rec := call(h, "POST", "/api/goals", body)
+		var g goalDTO
+		_ = json.Unmarshal(rec.Body.Bytes(), &g)
+		return rec.Code, g
+	}
+	_, long := post(`{"title":"Werkstudent"}`)
+	_, a := post(`{"title":"CV","parent_id":"` + long.ID + `"}`)
+	post(`{"title":"Bewerben","parent_id":"` + long.ID + `"}`)
+	if code, _ := post(`{"title":"Zu tief","parent_id":"` + a.ID + `"}`); code != 400 {
+		t.Errorf("Teilziel eines Teilziels = %d", code)
+	}
+	if rec := call(h, "PATCH", "/api/goals/"+long.ID, `{"parent_id":"`+a.ID+`"}`); rec.Code != 400 {
+		t.Errorf("Langzeitziel unter Teilziel = %d", rec.Code)
+	}
+	// Ein erreichtes (archiviertes) Teilziel von zweien: 50 %.
+	var g goalDTO
+	call(h, "PATCH", "/api/goals/"+a.ID, `{"archived":true}`)
+	_ = json.Unmarshal(call(h, "PATCH", "/api/goals/"+long.ID, `{"why":"Geld"}`).Body.Bytes(), &g)
+	if p := g.Progress; p == nil || p.Percent != 50 || p.Current != 1 || p.Target != 2 {
+		t.Errorf("Fortschritt Langzeitziel = %+v", p)
+	}
+	// Löschen nimmt die Teilziele mit.
+	call(h, "DELETE", "/api/goals/"+long.ID, "")
+	var list []goalDTO
+	_ = json.Unmarshal(call(h, "GET", "/api/goals", "").Body.Bytes(), &list)
+	if len(list) != 0 {
+		t.Errorf("nach Löschen = %+v", list)
+	}
+}

@@ -140,12 +140,12 @@ test('Notiz speichern', async () => {
 test('Ziel mit Bild anlegen', async () => {
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
   await page.goto(`${base}/goals`)
-  await page.getByRole('button', { name: 'Neues Ziel' }).click()
+  await page.getByRole('button', { name: 'Neues Langzeitziel' }).click()
   await page.getByLabel('Ziel', { exact: true }).fill('Smoke-Ziel')
   await page.getByLabel('Warum?').fill('Weil es geht')
   await page.getByLabel('Bild').setInputFiles({ name: 'bild.png', mimeType: 'image/png', buffer: png })
   await page.getByRole('button', { name: 'Anlegen' }).click()
-  await page.locator('.gl-card', { hasText: 'Smoke-Ziel' }).locator('img').waitFor()
+  await page.locator('.gl-hero', { hasText: 'Smoke-Ziel' }).locator('img').waitFor()
   const [g] = (await api('/goals')).filter((x) => x.title === 'Smoke-Ziel')
   assert.equal(g.why, 'Weil es geht')
   assert.match(g.image_path, /^Ziele\/.+\.png$/)
@@ -171,6 +171,13 @@ test('Lernkarte bewerten', async () => {
   mkdirSync(env.KAIRO_NOTES_DIR, { recursive: true })
   writeFileSync(join(env.KAIRO_NOTES_DIR, 'Karten.md'), '- Smoke-Frage :: Smoke-Antwort\n')
   await page.goto(`${base}/cards`)
+  // Eine direkt angelegte Karte in neuem Fach; gelernt wird nur das Fach der Notizkarte.
+  await page.getByLabel('Fach', { exact: true }).fill('Smoke-Fach')
+  await page.getByLabel('Frage', { exact: true }).fill('Eigene Frage')
+  await page.getByLabel('Antwort', { exact: true }).fill('Eigene Antwort')
+  await page.keyboard.press('Enter')
+  await page.locator('.cd-tile', { hasText: 'Smoke-Fach' }).waitFor()
+  await page.locator('.cd-tile', { hasText: 'Allgemein' }).getByRole('button', { name: 'Lernen' }).click()
   await page.getByText('Smoke-Frage').waitFor()
   await page.keyboard.press('Space')
   await page.getByText('Smoke-Antwort').waitFor()
@@ -178,7 +185,8 @@ test('Lernkarte bewerten', async () => {
   await page.keyboard.press('3')
   await reviewed
   await page.getByText('Fertig für heute.').waitFor()
-  assert.equal((await api('/cards/due')).filter((c) => c.question === 'Smoke-Frage').length, 0)
+  const due = await api('/cards/due')
+  assert.deepEqual(due.map((c) => [c.deck, c.question]), [['Smoke-Fach', 'Eigene Frage']])
 })
 
 // Rechteck auf PDF und Bild zeichnen und speichern; die Datei auf der Platte muss sich ändern.

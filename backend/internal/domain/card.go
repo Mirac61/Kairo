@@ -12,9 +12,28 @@ import (
 // (wie im Obsidian-Plugin „Spaced Repetition“).
 type Card struct {
 	Key      string // Hash der Frage
+	ID       string // nur bei Karten direkt in Kairo (ohne Notiz)
+	Deck     string // Fach: erster Ordner der Notiz oder frei gewählt
 	Question string
 	Answer   string
 	NotePath string
+}
+
+// NoDeck ist das Fach von Karten aus Notizen ohne Ordner.
+const NoDeck = "Allgemein"
+
+// DeckOf ist das Fach einer Notiz: ihr erster Ordner.
+func DeckOf(notePath string) string {
+	if i := strings.Index(notePath, "/"); i > 0 {
+		return notePath[:i]
+	}
+	return NoDeck
+}
+
+// CardKey identifiziert eine Karte über ihre Frage; gleiche Fragen teilen sich den Lernstand.
+func CardKey(question string) string {
+	sum := sha1.Sum([]byte(strings.TrimSpace(question)))
+	return hex.EncodeToString(sum[:8])
 }
 
 // CardState ist der Lernstand einer Karte (SM-2). Due ist der nächste Tag (YYYY-MM-DD).
@@ -54,8 +73,7 @@ func ParseCards(notePath, content string) []Card {
 		if q == "" || a == "" {
 			continue
 		}
-		sum := sha1.Sum([]byte(q))
-		out = append(out, Card{Key: hex.EncodeToString(sum[:8]), Question: q, Answer: a, NotePath: notePath})
+		out = append(out, Card{Key: CardKey(q), Deck: DeckOf(notePath), Question: q, Answer: a, NotePath: notePath})
 	}
 	return out
 }

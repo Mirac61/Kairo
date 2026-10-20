@@ -7,5 +7,6 @@ export function goalProgressText({ kind, progress: p }: Pick<Goal, 'kind' | 'pro
   const vars = { n: p.current, m: p.target }
   if (kind === 'PROJECT_HOURS') return t('{n} von {m} Std.', vars)
   if (kind === 'HABIT_COUNT') return t('{n} von {m}-mal', vars)
+  if (kind === 'NONE') return t('{n} von {m} Teilzielen erreicht', vars)
   return t('{n} von {m} Aufgaben', vars)
 }
