@@ -13,6 +13,8 @@ import (
 // TaskService ist die Geschäftslogik, die die Task-Handler brauchen.
 type TaskService interface {
 	Create(ctx context.Context, in service.CreateTaskInput) (domain.Task, error)
+	ImportFromJournal(ctx context.Context, date string, titles []string) (domain.JournalTaskImport, bool, error)
+	ListJournalTaskImports(ctx context.Context) ([]domain.JournalTaskImport, error)
 	Get(ctx context.Context, id string) (domain.Task, error)
 	List(ctx context.Context, f domain.TaskFilter) ([]domain.Task, error)
 	Update(ctx context.Context, id string, in service.UpdateTaskInput) (domain.Task, error)
@@ -23,22 +25,23 @@ type TaskService interface {
 }
 
 type taskDTO struct {
-	ID               string  `json:"id"`
-	Title            string  `json:"title"`
-	Description      string  `json:"description"`
-	Status           string  `json:"status"`
-	Priority         string  `json:"priority"`
-	EstimatedMinutes int     `json:"estimated_minutes"`
-	DueAt            *string `json:"due_at"`
-	PlannedDate      *string `json:"planned_date"`
-	PlannedStartAt   *string `json:"planned_start_at"`
-	ProjectID        *string `json:"project_id"`
-	ParentTaskID     *string `json:"parent_task_id"`
-	RecurrenceRule   *string `json:"recurrence_rule"`
-	CreatedAt        string  `json:"created_at"`
-	UpdatedAt        string  `json:"updated_at"`
-	CompletedAt      *string `json:"completed_at"`
-	DeletedAt        *string `json:"deleted_at,omitempty"` // nur im Papierkorb
+	ID                string  `json:"id"`
+	Title             string  `json:"title"`
+	Description       string  `json:"description"`
+	Status            string  `json:"status"`
+	Priority          string  `json:"priority"`
+	EstimatedMinutes  int     `json:"estimated_minutes"`
+	DueAt             *string `json:"due_at"`
+	PlannedDate       *string `json:"planned_date"`
+	PlannedStartAt    *string `json:"planned_start_at"`
+	ProjectID         *string `json:"project_id"`
+	ParentTaskID      *string `json:"parent_task_id"`
+	RecurrenceRule    *string `json:"recurrence_rule"`
+	SourceJournalDate *string `json:"source_journal_date"`
+	CreatedAt         string  `json:"created_at"`
+	UpdatedAt         string  `json:"updated_at"`
+	CompletedAt       *string `json:"completed_at"`
+	DeletedAt         *string `json:"deleted_at,omitempty"` // nur im Papierkorb
 }
 
 func formatOptTime(t *time.Time) *string {
@@ -51,22 +54,23 @@ func formatOptTime(t *time.Time) *string {
 
 func toTaskDTO(t domain.Task) taskDTO {
 	return taskDTO{
-		ID:               t.ID,
-		Title:            t.Title,
-		Description:      t.Description,
-		Status:           string(t.Status),
-		Priority:         string(t.Priority),
-		EstimatedMinutes: t.EstimatedMinutes,
-		DueAt:            formatOptTime(t.DueAt),
-		PlannedDate:      t.PlannedDate,
-		PlannedStartAt:   formatOptTime(t.PlannedStartAt),
-		ProjectID:        t.ProjectID,
-		ParentTaskID:     t.ParentTaskID,
-		RecurrenceRule:   t.RecurrenceRule,
-		CreatedAt:        t.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:        t.UpdatedAt.UTC().Format(time.RFC3339),
-		CompletedAt:      formatOptTime(t.CompletedAt),
-		DeletedAt:        formatOptTime(t.DeletedAt),
+		ID:                t.ID,
+		Title:             t.Title,
+		Description:       t.Description,
+		Status:            string(t.Status),
+		Priority:          string(t.Priority),
+		EstimatedMinutes:  t.EstimatedMinutes,
+		DueAt:             formatOptTime(t.DueAt),
+		PlannedDate:       t.PlannedDate,
+		PlannedStartAt:    formatOptTime(t.PlannedStartAt),
+		ProjectID:         t.ProjectID,
+		ParentTaskID:      t.ParentTaskID,
+		RecurrenceRule:    t.RecurrenceRule,
+		SourceJournalDate: t.SourceJournalDate,
+		CreatedAt:         t.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:         t.UpdatedAt.UTC().Format(time.RFC3339),
+		CompletedAt:       formatOptTime(t.CompletedAt),
+		DeletedAt:         formatOptTime(t.DeletedAt),
 	}
 }
 
@@ -76,10 +80,54 @@ func (h taskHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks", h.list)
 	mux.HandleFunc("POST /api/tasks", h.create)
 	mux.HandleFunc("POST /api/tasks/bulk", h.bulk)
+	mux.HandleFunc("GET /api/journal/task-imports", h.listJournalTaskImports)
+	mux.HandleFunc("POST /api/journal/{date}/tasks", h.importJournalTasks)
 	mux.HandleFunc("GET /api/tasks/{id}", h.get)
 	mux.HandleFunc("PATCH /api/tasks/{id}", h.update)
 	mux.HandleFunc("DELETE /api/tasks/{id}", deleteHandler(h.svc.Trash, h.svc.Delete))
 	mux.HandleFunc("POST /api/tasks/{id}/restore", restoreHandler(h.svc.Restore, toTaskDTO))
+}
+
+type journalTaskImportDTO struct {
+	JournalDate string `json:"journal_date"`
+	TaskCount   int    `json:"task_count"`
+	ImportedAt  string `json:"imported_at"`
+}
+
+func toJournalTaskImportDTO(i domain.JournalTaskImport) journalTaskImportDTO {
+	return journalTaskImportDTO{
+		JournalDate: i.JournalDate,
+		TaskCount:   i.TaskCount,
+		ImportedAt:  i.ImportedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+func (h taskHandlers) listJournalTaskImports(w http.ResponseWriter, r *http.Request) {
+	imports, err := h.svc.ListJournalTaskImports(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeList(w, imports, toJournalTaskImportDTO)
+}
+
+func (h taskHandlers) importJournalTasks(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Titles []string `json:"titles"`
+	}
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	result, created, err := h.svc.ImportFromJournal(r.Context(), r.PathValue("date"), in.Titles)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	status := http.StatusOK
+	if created {
+		status = http.StatusCreated
+	}
+	writeJSON(w, status, toJournalTaskImportDTO(result))
 }
 
 // list unterstützt die Filter ?status=, ?project_id= und ?planned_date=.

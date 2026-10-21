@@ -169,6 +169,45 @@ test('Journal speichern', async () => {
   assert.match(md, /## Was lief gut\?\n\nSmoke grün\n\n## Was lerne ich daraus\?\n\n## Was ist morgen wichtig\?\n\nWeiter so\n/)
 })
 
+test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
+  const date = new Date().toLocaleDateString('sv')
+  mkdirSync(join(env.KAIRO_NOTES_DIR, 'Journal'), { recursive: true })
+  writeFileSync(join(env.KAIRO_NOTES_DIR, 'Journal', `${date}.md`), [
+    `# Journal ${date}`,
+    '',
+    '## Was ist morgen wichtig?',
+    '',
+    'Abgabe einreichen. Kapitel lesen',
+    '- Sport machen',
+    '',
+  ].join('\n'))
+
+  await page.goto(`${base}/journal`)
+  const entry = page.locator('.jr-entry', { hasText: 'Abgabe einreichen' })
+  await entry.getByRole('button', { name: 'Als Aufgaben übernehmen' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Als Aufgaben übernehmen' })
+  const candidates = dialog.locator('.jr-task-candidate')
+  await candidates.nth(1).locator('input[type="text"]').fill('Kapitel 7 lesen')
+  await candidates.nth(2).locator('input[type="checkbox"]').uncheck()
+  const created = page.waitForResponse((response) => response.url().endsWith(`/api/journal/${date}/tasks`) && response.request().method() === 'POST')
+  await dialog.getByRole('button', { name: 'Aufgaben anlegen' }).click()
+  const response = await created
+  assert.equal(response.status(), 201, await response.text())
+
+  await entry.getByRole('button', { name: '2 Aufgaben übernommen' }).waitFor()
+  const imported = (await api('/tasks')).filter((task) => task.source_journal_date === date)
+  assert.deepEqual(imported.map((task) => task.title).sort(), ['Abgabe einreichen', 'Kapitel 7 lesen'])
+  const expectedDue = new Date(`${date}T12:00:00`)
+  expectedDue.setDate(expectedDue.getDate() + 1)
+  for (const task of imported) {
+    assert.equal(new Date(task.due_at).toLocaleDateString('sv'), expectedDue.toLocaleDateString('sv'))
+  }
+
+  const retry = await api(`/journal/${date}/tasks`, { method: 'POST', body: JSON.stringify({ titles: ['Duplikat'] }) })
+  assert.equal(retry.task_count, 2)
+  assert.equal((await api('/tasks')).filter((task) => task.source_journal_date === date).length, 2)
+})
+
 test('Lernkarte bewerten', async () => {
   mkdirSync(env.KAIRO_NOTES_DIR, { recursive: true })
   writeFileSync(join(env.KAIRO_NOTES_DIR, 'Karten.md'), '- Smoke-Frage :: Smoke-Antwort\n')

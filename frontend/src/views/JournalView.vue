@@ -1,22 +1,28 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
-import { ApiError, createNote, errorMessage, listNotes, readNote, saveNote } from '@/api/client'
+import { ApiError, createNote, errorMessage, importJournalTasks, listJournalTaskImports, listNotes, readNote, saveNote } from '@/api/client'
 import { addDays, ymd } from '@/lib/dates'
-import { journalPath, parseEntry, QUESTIONS, toMarkdown } from '@/lib/journal'
+import { journalPath, parseEntry, QUESTIONS, splitTaskCandidates, toMarkdown } from '@/lib/journal'
 import { locale, t } from '@/lib/i18n'
 import { useShortcuts } from '@/composables/useShortcuts'
+import { vDialog } from '@/lib/dialog'
 
 // Übersicht der letzten Einträge; Schreiben in einem eigenen Editor.
 const RECENT = 30
 const HINTS = [t('Etwas, das heute geklappt hat, auch Kleines'), t('Was würdest du beim nächsten Mal anders machen?'), t('Die eine Sache, die morgen zählt')]
 
 interface Row { date: string; answers: string[] }
+interface TaskCandidate { title: string; selected: boolean }
 
 const todayStr = ymd(new Date())
 const rows = ref<Row[]>([])
 const total = ref(0)
 const loaded = ref(false)
 const error = ref('')
+const taskImports = ref<Record<string, number>>({})
+const importDate = ref<string | null>(null)
+const candidates = ref<TaskCandidate[]>([])
+const importingTasks = ref(false)
 
 // Editor
 const editing = ref<string | null>(null) // Datum des Eintrags im Editor
@@ -47,6 +53,14 @@ const groups = computed(() => {
   return out
 })
 const readRow = computed(() => rows.value.find((r) => r.date === reading.value) ?? null)
+const taskImportCount = (date: string) => taskImports.value[date] ?? 0
+const selectedTaskTitles = computed(() => candidates.value.filter((c) => c.selected && c.title.trim()).map((c) => c.title.trim()))
+const importDueLabel = computed(() => {
+  if (!importDate.value) return ''
+  const [year = 0, month = 1, day = 1] = importDate.value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day + 1))
+  return new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date)
+})
 
 const hasToday = computed(() => rows.value[0]?.date === todayStr)
 // Tage in Folge mit Eintrag, bis heute oder (falls heute noch fehlt) bis gestern.
@@ -65,7 +79,8 @@ const streak = computed(() => {
 // shortcut: liest die letzten RECENT Einträge einzeln; für mehr bräuchte es Blättern oder einen Endpunkt.
 async function load() {
   try {
-    const dir = (await listNotes()).find((n) => n.dir && n.path === 'Journal')
+    const [notes, imports] = await Promise.all([listNotes(), listJournalTaskImports()])
+    const dir = notes.find((n) => n.dir && n.path === 'Journal')
     const dates = (dir?.children ?? [])
       .map((n) => /^(\d{4}-\d{2}-\d{2})\.md$/.exec(n.name)?.[1])
       .filter((d): d is string => !!d)
@@ -75,6 +90,7 @@ async function load() {
     rows.value = await Promise.all(dates.slice(0, RECENT).map(async (date) => ({
       date, answers: parseEntry((await readNote(journalPath(date))).content).answers,
     })))
+    taskImports.value = Object.fromEntries(imports.map((item) => [item.journal_date, item.task_count]))
     error.value = ''
   } catch (e) {
     error.value = errorMessage(e)
@@ -82,6 +98,35 @@ async function load() {
   loaded.value = true
 }
 onMounted(load)
+
+function openTaskImport(row: Row) {
+  if (taskImportCount(row.date)) return
+  importDate.value = row.date
+  candidates.value = splitTaskCandidates(row.answers[2] ?? '').map((title) => ({ title, selected: true }))
+}
+
+function closeTaskImport() {
+  if (importingTasks.value) return
+  importDate.value = null
+  candidates.value = []
+}
+
+async function submitTaskImport() {
+  const date = importDate.value
+  if (!date || importingTasks.value || !selectedTaskTitles.value.length) return
+  importingTasks.value = true
+  try {
+    const imported = await importJournalTasks(date, selectedTaskTitles.value)
+    taskImports.value = { ...taskImports.value, [date]: imported.task_count }
+    error.value = ''
+    importDate.value = null
+    candidates.value = []
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    importingTasks.value = false
+  }
+}
 
 const scrollTop = () => (document.querySelector('.content') as HTMLElement | null)?.scrollTo({ top: 0 })
 
@@ -241,29 +286,60 @@ useShortcuts((e) => {
         <section v-for="g in groups" :key="g.month" class="jr-month-group">
           <h2 class="jr-month">{{ monthLabel(g.month) }}</h2>
           <div class="jr-feed">
-            <button
-              v-for="r in g.rows" :key="r.date" type="button" class="jr-entry" :class="{ today: r.date === todayStr }"
-              @click="openRead(r.date)"
-            >
-              <span class="jr-entry-head">
-                <span class="jr-entry-date">
-                  <b>{{ label(r.date) }}</b>
-                  <span>{{ fmt(longFmt, r.date) }}</span>
+            <article v-for="r in g.rows" :key="r.date" class="jr-entry" :class="{ today: r.date === todayStr }">
+              <button type="button" class="jr-entry-open" @click="openRead(r.date)">
+                <span class="jr-entry-head">
+                  <span class="jr-entry-date">
+                    <b>{{ label(r.date) }}</b>
+                    <span>{{ fmt(longFmt, r.date) }}</span>
+                  </span>
+                  <svg class="ic jr-chev"><use href="#i-right" /></svg>
                 </span>
-                <svg class="ic jr-chev"><use href="#i-right" /></svg>
-              </span>
-              <span class="jr-entry-answers">
-                <span v-for="(a, i) in r.answers" :key="i" class="jr-preview" :class="{ empty: !a }">
-                  <span class="jr-q-lbl">{{ $t(QUESTIONS[i]!) }}</span>
-                  <span class="jr-a">{{ a || '–' }}</span>
+                <span class="jr-entry-answers">
+                  <span v-for="(a, i) in r.answers" :key="i" class="jr-preview" :class="{ empty: !a }">
+                    <span class="jr-q-lbl">{{ $t(QUESTIONS[i]!) }}</span>
+                    <span class="jr-a">{{ a || '–' }}</span>
+                  </span>
                 </span>
-              </span>
-            </button>
+              </button>
+              <button v-if="r.answers[2]?.trim() || taskImportCount(r.date)" type="button" class="btn btn-ghost jr-import-btn"
+                :disabled="!!taskImportCount(r.date)" @click="openTaskImport(r)">
+                <template v-if="taskImportCount(r.date)"><span aria-hidden="true">✓ </span>{{ $tn(taskImportCount(r.date), '{n} Aufgabe übernommen', '{n} Aufgaben übernommen') }}</template>
+                <template v-else>{{ $t('Als Aufgaben übernehmen') }}</template>
+              </button>
+            </article>
           </div>
         </section>
       </div>
       <p v-if="total > rows.length" class="v-sub jr-more">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</p>
     </template>
+
+    <div v-if="importDate" v-dialog="closeTaskImport" class="overlay open" @mousedown.self="closeTaskImport">
+      <form class="dialog jr-import-dialog" aria-labelledby="jr-import-title" @submit.prevent="submitTaskImport">
+        <div class="dlg-head">
+          <div>
+            <h3 id="jr-import-title">{{ $t('Als Aufgaben übernehmen') }}</h3>
+            <div class="v-sub">{{ $t('Fällig am {date}', { date: importDueLabel }) }}</div>
+          </div>
+          <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="closeTaskImport"><svg class="ic"><use href="#i-x" /></svg></button>
+        </div>
+        <div class="dlg-body">
+          <p class="v-sub">{{ $t('Wähle die Aufgaben aus und passe Titel bei Bedarf an.') }}</p>
+          <div class="jr-task-candidates">
+            <label v-for="(candidate, i) in candidates" :key="i" class="jr-task-candidate">
+              <input v-model="candidate.selected" type="checkbox" :aria-label="$t('Aufgabe übernehmen: {title}', { title: candidate.title })" />
+              <input v-model="candidate.title" class="input" type="text" :aria-label="$t('Aufgabentitel {n}', { n: i + 1 })" />
+            </label>
+          </div>
+        </div>
+        <div class="dlg-foot">
+          <button class="btn btn-ghost" type="button" :disabled="importingTasks" @click="closeTaskImport">{{ $t('Abbrechen') }}</button>
+          <button class="btn btn-primary" type="submit" :disabled="importingTasks || !selectedTaskTitles.length">
+            {{ importingTasks ? $t('Wird angelegt …') : $t('Aufgaben anlegen') }}
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -275,18 +351,19 @@ useShortcuts((e) => {
 .jr-feed { position: relative; display: grid; gap: 10px; }
 .jr-feed::before { content: ''; position: absolute; left: 13px; top: 18px; bottom: 18px; width: 1px; background: var(--br-default); }
 .jr-entry {
-  position: relative; display: grid; gap: 14px; margin-left: 30px; padding: 18px 20px;
+  position: relative; display: grid; gap: 12px; margin-left: 30px; padding: 18px 20px;
   border: 1px solid var(--br-default); border-radius: var(--r-m); background: var(--bg-1);
-  color: inherit; font: inherit; text-align: left; cursor: pointer;
+  color: inherit;
   transition: border-color var(--dur) ease-out, background var(--dur) ease-out;
 }
+.jr-entry-open { display: grid; gap: 14px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .jr-entry::before {
   content: ''; position: absolute; left: -21px; top: 24px; width: 9px; height: 9px; border-radius: 50%;
   background: var(--br-strong); box-shadow: 0 0 0 4px var(--bg-0);
 }
 .jr-entry.today { border-color: var(--br-default); background: color-mix(in srgb, var(--a-blue) 5%, var(--bg-1)); }
 .jr-entry.today::before { background: var(--a-blue-hi); }
-.jr-entry:hover, .jr-entry:focus-visible { border-color: var(--a-blue-hi); background: var(--bg-hover); }
+.jr-entry:hover, .jr-entry:focus-within { border-color: var(--a-blue-hi); background: var(--bg-hover); }
 .jr-entry-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .jr-entry-date { display: grid; gap: 3px; min-width: 0; }
 .jr-entry-date b { font: 600 16px/1.25 var(--font-ui); color: var(--tx-primary); }
@@ -301,7 +378,15 @@ useShortcuts((e) => {
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 .jr-preview.empty .jr-a { color: var(--tx-disabled); }
+.jr-import-btn { justify-self: start; }
 .jr-more { margin-top: 12px; }
+
+.jr-import-dialog { max-width: 520px; }
+.jr-import-dialog .dlg-head .v-sub { margin-top: 6px; }
+.jr-import-dialog .dlg-body > .v-sub { margin: 0; }
+.jr-task-candidates { display: grid; gap: 8px; max-height: 42vh; overflow-y: auto; }
+.jr-task-candidate { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 10px; }
+.jr-task-candidate input[type='checkbox'] { margin: 0; }
 
 /* Leseansicht */
 .jr-read { max-width: 720px; padding: 4px 32px; margin-top: 4px; }

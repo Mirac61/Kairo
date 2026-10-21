@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"kairo/internal/repository"
 	"kairo/internal/service"
@@ -19,9 +20,13 @@ func newTasksRouter(t *testing.T) http.Handler {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
 	return NewTestRouter(8742, testToken, "dev", http.NotFoundHandler(), Services{
 		Projects: service.NewProjectService(repository.NewProjectRepository(db), nil),
-		Tasks:    service.NewTaskService(repository.NewTaskRepository(db), nil),
+		Tasks:    service.NewTaskService(repository.NewTaskRepository(db), nil).WithLocation(loc),
 	})
 }
 
@@ -117,6 +122,79 @@ func TestTasksErrors(t *testing.T) {
 		if rec := call(h, tc.method, tc.path, tc.body); rec.Code != tc.want {
 			t.Errorf("%s: %d, erwartet %d (%s)", name, rec.Code, tc.want, rec.Body)
 		}
+	}
+}
+
+func TestJournalTaskImportIsIdempotentAndDueNextLocalDay(t *testing.T) {
+	h := newTasksRouter(t)
+	body := `{"titles":["Abgabe vorbereiten","Kapitel lesen"]}`
+	rec := call(h, "POST", "/api/journal/2026-10-21/tasks", body)
+	var imported journalTaskImportDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &imported); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != http.StatusCreated || imported.JournalDate != "2026-10-21" || imported.TaskCount != 2 {
+		t.Fatalf("Import = %d %+v %s", rec.Code, imported, rec.Body)
+	}
+
+	var list []taskDTO
+	if rec := call(h, "GET", "/api/tasks", ""); rec.Code != http.StatusOK {
+		t.Fatalf("GET Tasks = %d %s", rec.Code, rec.Body)
+	} else if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation("Europe/Berlin")
+	if len(list) != 2 {
+		t.Fatalf("Tasks = %d, erwartet 2", len(list))
+	}
+	for _, task := range list {
+		if task.DueAt == nil {
+			t.Errorf("Fälligkeit fehlt: %+v", task)
+			continue
+		}
+		due, err := time.Parse(time.RFC3339, *task.DueAt)
+		if err != nil || task.SourceJournalDate == nil || *task.SourceJournalDate != "2026-10-21" ||
+			due.In(loc).Format("2006-01-02 15:04") != "2026-10-22 23:59" {
+			t.Errorf("Task-Ursprung/Fälligkeit = %+v, due=%v, err=%v", task, due, err)
+		}
+	}
+
+	rec = call(h, "POST", "/api/journal/2026-10-21/tasks", `{"titles":["Andere Task"]}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("zweiter Import = %d %s", rec.Code, rec.Body)
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &imported)
+	if imported.TaskCount != 2 {
+		t.Errorf("zweiter Import meldet %d Tasks statt 2", imported.TaskCount)
+	}
+	list = nil
+	rec = call(h, "GET", "/api/tasks", "")
+	_ = json.Unmarshal(rec.Body.Bytes(), &list)
+	if len(list) != 2 {
+		t.Errorf("zweiter Import hat Duplikate erzeugt: %d Tasks", len(list))
+	}
+
+	rec = call(h, "GET", "/api/journal/task-imports", "")
+	var imports []journalTaskImportDTO
+	_ = json.Unmarshal(rec.Body.Bytes(), &imports)
+	if rec.Code != http.StatusOK || len(imports) != 1 || imports[0].TaskCount != 2 {
+		t.Errorf("Importstatus = %d %+v", rec.Code, imports)
+	}
+}
+
+func TestJournalTaskImportRejectsInvalidInput(t *testing.T) {
+	h := newTasksRouter(t)
+	for _, tc := range []struct{ path, body string }{
+		{"/api/journal/not-a-date/tasks", `{"titles":["Task"]}`},
+		{"/api/journal/2026-10-21/tasks", `{"titles":[]}`},
+		{"/api/journal/2026-10-21/tasks", `{"titles":[" "]}`},
+	} {
+		if rec := call(h, "POST", tc.path, tc.body); rec.Code != http.StatusBadRequest {
+			t.Errorf("POST %s: %d %s", tc.path, rec.Code, rec.Body)
+		}
+	}
+	if rec := call(h, "GET", "/api/journal/task-imports", ""); rec.Code != http.StatusOK || rec.Body.String() != "[]\n" {
+		t.Errorf("fehlerhafte Anfragen hinterließen Marker: %d %s", rec.Code, rec.Body)
 	}
 }
 

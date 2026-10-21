@@ -14,6 +14,8 @@ import (
 // TaskStore ist der Speicher, den der TaskService braucht.
 type TaskStore interface {
 	Create(ctx context.Context, t domain.Task) error
+	ImportFromJournal(ctx context.Context, date string, tasks []domain.Task) (domain.JournalTaskImport, bool, error)
+	ListJournalTaskImports(ctx context.Context) ([]domain.JournalTaskImport, error)
 	Get(ctx context.Context, id string) (domain.Task, error)
 	List(ctx context.Context, f domain.TaskFilter) ([]domain.Task, error)
 	Update(ctx context.Context, t domain.Task) error
@@ -137,6 +139,58 @@ func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (domain.Ta
 	}
 	s.emit(domain.Event{Type: domain.EventTaskCreated, ID: t.ID})
 	return t, nil
+}
+
+// ImportFromJournal legt die ausgewählten Antworten eines Journaltags einmalig als Tasks an.
+// Die Fälligkeit liegt am folgenden lokalen Kalendertag um 23:59.
+func (s *TaskService) ImportFromJournal(ctx context.Context, date string, titles []string) (domain.JournalTaskImport, bool, error) {
+	if err := validateDate("journal_date", date); err != nil {
+		return domain.JournalTaskImport{}, false, err
+	}
+	if len(titles) == 0 {
+		return domain.JournalTaskImport{}, false, fmt.Errorf("%w: mindestens eine Task auswählen", domain.ErrInvalid)
+	}
+	day, err := time.ParseInLocation("2006-01-02", date, s.loc)
+	if err != nil {
+		return domain.JournalTaskImport{}, false, fmt.Errorf("%w: journal_date ist ungültig", domain.ErrInvalid)
+	}
+	day = time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, s.loc)
+	due := time.Date(day.Year(), day.Month(), day.Day()+1, 23, 59, 0, 0, s.loc).UTC()
+	now := s.now().UTC()
+
+	tasks := make([]domain.Task, 0, len(titles))
+	for _, title := range titles {
+		t := domain.Task{
+			ID:                domain.NewID(),
+			Title:             strings.TrimSpace(title),
+			Status:            domain.TaskBacklog,
+			Priority:          domain.PriorityMedium,
+			DueAt:             &due,
+			SourceJournalDate: &date,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		}
+		if err := s.validate(t); err != nil {
+			return domain.JournalTaskImport{}, false, err
+		}
+		tasks = append(tasks, t)
+	}
+
+	result, created, err := s.store.ImportFromJournal(ctx, date, tasks)
+	if err != nil {
+		return domain.JournalTaskImport{}, false, err
+	}
+	if created {
+		for _, task := range tasks {
+			s.emit(domain.Event{Type: domain.EventTaskCreated, ID: task.ID})
+		}
+	}
+	return result, created, nil
+}
+
+// ListJournalTaskImports liefert die bereits importierten Journaltage.
+func (s *TaskService) ListJournalTaskImports(ctx context.Context) ([]domain.JournalTaskImport, error) {
+	return s.store.ListJournalTaskImports(ctx)
 }
 
 func (s *TaskService) Get(ctx context.Context, id string) (domain.Task, error) {

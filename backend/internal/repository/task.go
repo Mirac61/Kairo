@@ -18,7 +18,7 @@ type TaskRepository struct{ db *sql.DB }
 func NewTaskRepository(db *sql.DB) *TaskRepository { return &TaskRepository{db: db} }
 
 const taskColumns = `id, project_id, parent_task_id, title, description, status, priority,
-	estimated_minutes, due_at, planned_date, planned_start_at, created_at, updated_at, completed_at, recurrence_rule`
+	estimated_minutes, due_at, planned_date, planned_start_at, created_at, updated_at, completed_at, recurrence_rule, source_journal_date`
 
 func nullTime(t *time.Time) any {
 	if t == nil {
@@ -50,15 +50,16 @@ func scanTask(s scanner, extra ...any) (domain.Task, error) {
 	var (
 		t                                           domain.Task
 		project, parent, due, planned, plannedStart sql.NullString
-		completed, rule                             sql.NullString
+		completed, rule, sourceJournalDate          sql.NullString
 		status, priority, created, updated          string
 	)
 	if err := s.Scan(append([]any{&t.ID, &project, &parent, &t.Title, &t.Description, &status, &priority,
-		&t.EstimatedMinutes, &due, &planned, &plannedStart, &created, &updated, &completed, &rule}, extra...)...); err != nil {
+		&t.EstimatedMinutes, &due, &planned, &plannedStart, &created, &updated, &completed, &rule, &sourceJournalDate}, extra...)...); err != nil {
 		return domain.Task{}, err
 	}
 	t.Status, t.Priority = domain.TaskStatus(status), domain.TaskPriority(priority)
 	t.ProjectID, t.ParentTaskID, t.PlannedDate, t.RecurrenceRule = nullStr(project), nullStr(parent), nullStr(planned), nullStr(rule)
+	t.SourceJournalDate = nullStr(sourceJournalDate)
 	var err error
 	if t.DueAt, err = parseNullTime(due); err != nil {
 		return domain.Task{}, fmt.Errorf("due_at: %w", err)
@@ -91,12 +92,89 @@ func (r *TaskRepository) Create(ctx context.Context, t domain.Task) error {
 	return createTask(ctx, r.db, t)
 }
 
+// ImportFromJournal legt Tasks und den einmaligen Importmarker atomar an.
+// Ein bereits importiertes Datum liefert den vorhandenen Marker zurück.
+func (r *TaskRepository) ImportFromJournal(ctx context.Context, date string, tasks []domain.Task) (domain.JournalTaskImport, bool, error) {
+	if len(tasks) == 0 {
+		return domain.JournalTaskImport{}, false, fmt.Errorf("%w: mindestens eine Task nötig", domain.ErrInvalid)
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.JournalTaskImport{}, false, fmt.Errorf("repository: Journal-Import-Transaktion: %w", err)
+	}
+	defer tx.Rollback()
+
+	importedAt := tasks[0].CreatedAt
+	res, err := tx.ExecContext(ctx, `INSERT INTO journal_task_imports (journal_date, task_count, imported_at)
+		VALUES (?, ?, ?) ON CONFLICT(journal_date) DO NOTHING`, date, len(tasks), formatTime(importedAt))
+	if err != nil {
+		return domain.JournalTaskImport{}, false, fmt.Errorf("repository: Journal-Import markieren: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return domain.JournalTaskImport{}, false, fmt.Errorf("repository: Journal-Import prüfen: %w", err)
+	}
+	if affected == 0 {
+		stored, err := scanJournalTaskImport(tx.QueryRowContext(ctx, `SELECT journal_date, task_count, imported_at
+			FROM journal_task_imports WHERE journal_date = ?`, date))
+		if err != nil {
+			return domain.JournalTaskImport{}, false, fmt.Errorf("repository: Journal-Import lesen: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return domain.JournalTaskImport{}, false, fmt.Errorf("repository: Journal-Import bestätigen: %w", err)
+		}
+		return stored, false, nil
+	}
+
+	for _, task := range tasks {
+		if err := createTask(ctx, tx, task); err != nil {
+			return domain.JournalTaskImport{}, false, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.JournalTaskImport{}, false, fmt.Errorf("repository: Journal-Import bestätigen: %w", err)
+	}
+	return domain.JournalTaskImport{JournalDate: date, TaskCount: len(tasks), ImportedAt: importedAt}, true, nil
+}
+
+// ListJournalTaskImports liefert den Importstatus je Journaldatum, neueste zuerst.
+func (r *TaskRepository) ListJournalTaskImports(ctx context.Context) ([]domain.JournalTaskImport, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT journal_date, task_count, imported_at
+		FROM journal_task_imports ORDER BY journal_date DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("repository: Journal-Importe lesen: %w", err)
+	}
+	defer rows.Close()
+	out := []domain.JournalTaskImport{}
+	for rows.Next() {
+		item, err := scanJournalTaskImport(rows)
+		if err != nil {
+			return nil, fmt.Errorf("repository: Journal-Import lesen: %w", err)
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func scanJournalTaskImport(s scanner) (domain.JournalTaskImport, error) {
+	var item domain.JournalTaskImport
+	var importedAt string
+	if err := s.Scan(&item.JournalDate, &item.TaskCount, &importedAt); err != nil {
+		return domain.JournalTaskImport{}, err
+	}
+	var err error
+	if item.ImportedAt, err = parseTime(importedAt); err != nil {
+		return domain.JournalTaskImport{}, fmt.Errorf("imported_at: %w", err)
+	}
+	return item, nil
+}
+
 func createTask(ctx context.Context, q dbtx, t domain.Task) error {
 	_, err := q.ExecContext(ctx,
-		`INSERT INTO tasks (`+taskColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO tasks (`+taskColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.ProjectID, t.ParentTaskID, t.Title, t.Description, string(t.Status), string(t.Priority),
 		t.EstimatedMinutes, nullTime(t.DueAt), t.PlannedDate, nullTime(t.PlannedStartAt),
-		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), nullTime(t.CompletedAt), t.RecurrenceRule)
+		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), nullTime(t.CompletedAt), t.RecurrenceRule, t.SourceJournalDate)
 	if err != nil {
 		return fmt.Errorf("repository: Task anlegen: %w", mapFK(err))
 	}

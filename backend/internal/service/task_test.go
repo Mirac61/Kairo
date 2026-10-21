@@ -9,9 +9,33 @@ import (
 	"kairo/internal/domain"
 )
 
-type memTasks struct{ m map[string]domain.Task }
+type memTasks struct {
+	m       map[string]domain.Task
+	imports map[string]domain.JournalTaskImport
+}
 
 func (s *memTasks) Create(_ context.Context, t domain.Task) error { s.m[t.ID] = t; return nil }
+func (s *memTasks) ImportFromJournal(_ context.Context, date string, tasks []domain.Task) (domain.JournalTaskImport, bool, error) {
+	if imported, ok := s.imports[date]; ok {
+		return imported, false, nil
+	}
+	if s.imports == nil {
+		s.imports = map[string]domain.JournalTaskImport{}
+	}
+	imported := domain.JournalTaskImport{JournalDate: date, TaskCount: len(tasks), ImportedAt: tasks[0].CreatedAt}
+	for _, task := range tasks {
+		s.m[task.ID] = task
+	}
+	s.imports[date] = imported
+	return imported, true, nil
+}
+func (s *memTasks) ListJournalTaskImports(context.Context) ([]domain.JournalTaskImport, error) {
+	out := make([]domain.JournalTaskImport, 0, len(s.imports))
+	for _, item := range s.imports {
+		out = append(out, item)
+	}
+	return out, nil
+}
 func (s *memTasks) Get(_ context.Context, id string) (domain.Task, error) {
 	t, ok := s.m[id]
 	if !ok {
@@ -63,6 +87,48 @@ func TestTaskCreateDefaultsAndValidation(t *testing.T) {
 		"falscher Zeitpunkt": {Title: "x", DueAt: ptr("morgen")},
 	} {
 		if _, err := svc.Create(ctx, in); !errors.Is(err, domain.ErrInvalid) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+}
+
+func TestTaskImportFromJournalUsesLocalDayAndIsIdempotent(t *testing.T) {
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &memTasks{m: map[string]domain.Task{}, imports: map[string]domain.JournalTaskImport{}}
+	clock := time.Date(2026, 10, 24, 12, 0, 0, 0, berlin)
+	svc := NewTaskService(store, func() time.Time { return clock }).WithLocation(berlin)
+
+	imported, created, err := svc.ImportFromJournal(context.Background(), "2026-10-24", []string{"  Abgabe vorbereiten  ", "Lesen"})
+	if err != nil || !created || imported.TaskCount != 2 {
+		t.Fatalf("Import = %+v, created=%v, err=%v", imported, created, err)
+	}
+	for _, task := range store.m {
+		if task.SourceJournalDate == nil || *task.SourceJournalDate != "2026-10-24" || task.DueAt == nil ||
+			task.DueAt.In(berlin).Format("2006-01-02 15:04") != "2026-10-25 23:59" {
+			t.Errorf("Task ohne Journal-Ursprung oder falsche Fälligkeit: %+v", task)
+		}
+	}
+
+	imported, created, err = svc.ImportFromJournal(context.Background(), "2026-10-24", []string{"Andere Task"})
+	if err != nil || created || imported.TaskCount != 2 || len(store.m) != 2 {
+		t.Fatalf("zweiter Import = %+v, created=%v, Tasks=%d, err=%v", imported, created, len(store.m), err)
+	}
+}
+
+func TestTaskImportFromJournalRejectsInvalidInput(t *testing.T) {
+	svc, _ := newTaskSvc()
+	for name, tc := range map[string]struct {
+		date   string
+		titles []string
+	}{
+		"Datum":         {"gestern", []string{"Task"}},
+		"keine Auswahl": {"2026-10-07", nil},
+		"leerer Titel":  {"2026-10-07", []string{"  "}},
+	} {
+		if _, _, err := svc.ImportFromJournal(context.Background(), tc.date, tc.titles); !errors.Is(err, domain.ErrInvalid) {
 			t.Errorf("%s: err = %v", name, err)
 		}
 	}

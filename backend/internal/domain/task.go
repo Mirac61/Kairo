@@ -44,22 +44,23 @@ func (p TaskPriority) Valid() bool {
 
 // Task ist konkrete Arbeit, optional innerhalb eines Projekts.
 type Task struct {
-	ID               string
-	Title            string
-	Description      string
-	Status           TaskStatus
-	Priority         TaskPriority
-	EstimatedMinutes int
-	DueAt            *time.Time // UTC
-	PlannedDate      *string    // lokaler Tag, YYYY-MM-DD
-	PlannedStartAt   *time.Time // UTC, nur zusammen mit PlannedDate
-	ProjectID        *string
-	ParentTaskID     *string
-	RecurrenceRule   *string // RRULE-Teilmenge (ParseRule); beim Erledigen entsteht die nächste Task
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	CompletedAt      *time.Time
-	DeletedAt        *time.Time // UTC; nur in der Papierkorb-Liste gesetzt
+	ID                string
+	Title             string
+	Description       string
+	Status            TaskStatus
+	Priority          TaskPriority
+	EstimatedMinutes  int
+	DueAt             *time.Time // UTC
+	PlannedDate       *string    // lokaler Tag, YYYY-MM-DD
+	PlannedStartAt    *time.Time // UTC, nur zusammen mit PlannedDate
+	ProjectID         *string
+	ParentTaskID      *string
+	RecurrenceRule    *string // RRULE-Teilmenge (ParseRule); beim Erledigen entsteht die nächste Task
+	SourceJournalDate *string // lokales Journal-Datum, aus dem die Task übernommen wurde
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	CompletedAt       *time.Time
+	DeletedAt         *time.Time // UTC; nur in der Papierkorb-Liste gesetzt
 }
 
 // TaskFilter schränkt die Task-Liste ein. Leere Felder filtern nicht.

@@ -183,6 +183,7 @@ const mock = {
   }).filter((s) => s.total_minutes),
   '/api/time-entries': (q) => (q.get('from') ? inWindow(['started_at'], times, q.get('from'), q.get('to')) : times),
   '/api/resources': () => [],
+  '/api/journal/task-imports': () => [],
   '/api/habits': () => habits,
   '/api/habits/due': habitsDue,
   '/api/github/issues': () => [

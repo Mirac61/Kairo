@@ -62,6 +62,7 @@ export interface Task {
   project_id: string | null
   parent_task_id: string | null
   recurrence_rule?: string | null
+  source_journal_date?: string | null
 }
 
 // Offen = weder erledigt noch abgebrochen.
@@ -152,6 +153,17 @@ export const listTasks = (query = '') => api<Task[]>(`/tasks${query}`)
 
 export const createTask = (body: Partial<Task>) =>
   api<Task>('/tasks', { method: 'POST', body: JSON.stringify(body) })
+
+export interface JournalTaskImport {
+  journal_date: string
+  task_count: number
+  imported_at: string
+}
+
+export const listJournalTaskImports = () => api<JournalTaskImport[]>('/journal/task-imports')
+
+export const importJournalTasks = (date: string, titles: string[]) =>
+  api<JournalTaskImport>(`/journal/${encodeURIComponent(date)}/tasks`, { method: 'POST', body: JSON.stringify({ titles }) })
 
 // DELETE legt in den Papierkorb, permanent löscht endgültig (Task mit Zeiteinträgen: 409).
 export const deleteTask = (id: string, permanent = false) =>
