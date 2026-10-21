@@ -269,11 +269,11 @@ useShortcuts((e) => {
 
     <!-- Übersicht -->
     <template v-else>
-      <div class="v-head v-head-row">
+      <div class="v-head v-head-row jr-overview-head">
         <div>
           <h1 class="v-title">{{ $t('Journal') }}</h1>
           <div class="v-sub">
-            <template v-if="streak">{{ $t('{n} Tage in Folge', { n: streak }) }} · </template>{{ $tn(total, '{n} Eintrag', '{n} Einträge') }}
+            <template v-if="streak">{{ $tn(streak, '{n} Tag in Folge', '{n} Tage in Folge') }} · </template>{{ $tn(total, '{n} Eintrag', '{n} Einträge') }}
           </div>
         </div>
         <button v-if="loaded && todayStr && !hasToday" class="btn btn-primary" type="button" aria-keyshortcuts="n" @click="open(todayStr)">
@@ -350,6 +350,7 @@ useShortcuts((e) => {
 
 <style scoped>
 /* Übersicht: eine Zeitleiste aus Tageskarten statt einer Tabelle. */
+.jr-overview-head, .jr-months, .jr-more { max-width: 1040px; }
 .jr-months { display: grid; gap: 28px; margin-top: 8px; }
 .jr-month-group { display: grid; gap: 10px; }
 .jr-month { font: 600 12px/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); padding-left: 2px; }
@@ -366,9 +367,9 @@ useShortcuts((e) => {
   content: ''; position: absolute; left: -21px; top: 24px; width: 9px; height: 9px; border-radius: 50%;
   background: var(--br-strong); box-shadow: 0 0 0 4px var(--bg-0);
 }
-.jr-entry.today { border-color: var(--br-default); background: color-mix(in srgb, var(--a-blue) 5%, var(--bg-1)); }
+.jr-entry.today { border-color: var(--br-default); }
 .jr-entry.today::before { background: var(--a-blue-hi); }
-.jr-entry:hover, .jr-entry:focus-within { border-color: var(--a-blue-hi); background: var(--bg-hover); }
+.jr-entry:hover, .jr-entry:focus-within:has(:focus-visible) { border-color: color-mix(in srgb, var(--a-blue-hi) 65%, var(--br-default)); background: var(--bg-hover); }
 .jr-entry-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .jr-entry-date { display: grid; gap: 3px; min-width: 0; }
 .jr-entry-date b { font: 600 16px/1.25 var(--font-ui); color: var(--tx-primary); }

@@ -656,6 +656,7 @@ const en: Record<string, string> = {
   'Heute weiterschreiben': 'Continue today',
   'Fällig am {date}': 'Due {date}',
   'Gestern hast du dir vorgenommen:': 'Yesterday you planned:',
+  '{n} Tag in Folge': '{n} day in a row',
   'Letzte Einträge': 'Recent entries',
   'Was lief gut, was lernst du daraus, was ist morgen wichtig. Zwei Minuten reichen.': 'What went well, what you learn from it, what matters tomorrow. Two minutes is enough.',
   'Was würdest du beim nächsten Mal anders machen?': 'What would you do differently next time?',
