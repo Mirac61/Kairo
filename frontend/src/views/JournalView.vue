@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
-import { ApiError, createNote, errorMessage, importJournalTasks, listJournalTaskImports, listNotes, readNote, saveNote } from '@/api/client'
-import { addDays, ymd } from '@/lib/dates'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ApiError, createNote, errorMessage, getJournalSummary, importJournalTasks, listJournalTaskImports, listNotes, readNote, saveNote } from '@/api/client'
+import { shiftDate } from '@/lib/dates'
 import { journalPath, parseEntry, QUESTIONS, splitTaskCandidates, toMarkdown } from '@/lib/journal'
 import { locale, t } from '@/lib/i18n'
 import { useShortcuts } from '@/composables/useShortcuts'
@@ -10,13 +11,16 @@ import { vDialog } from '@/lib/dialog'
 // Übersicht der letzten Einträge; Schreiben in einem eigenen Editor.
 const RECENT = 30
 const HINTS = [t('Etwas, das heute geklappt hat, auch Kleines'), t('Was würdest du beim nächsten Mal anders machen?'), t('Die eine Sache, die morgen zählt')]
+const route = useRoute()
+const router = useRouter()
 
 interface Row { date: string; answers: string[] }
 interface TaskCandidate { title: string; selected: boolean }
 
-const todayStr = ymd(new Date())
+const todayStr = ref('')
 const rows = ref<Row[]>([])
 const total = ref(0)
+const streak = ref(0)
 const loaded = ref(false)
 const error = ref('')
 const taskImports = ref<Record<string, number>>({})
@@ -39,7 +43,7 @@ const longFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 
 const dayFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'short', day: 'numeric', month: 'short' }))
 const monthFmt = computed(() => new Intl.DateTimeFormat(locale.value, { month: 'long', year: 'numeric' }))
 const fmt = (f: Intl.DateTimeFormat, d: string) => f.format(new Date(d + 'T00:00'))
-const relativeLabel = (d: string) => (d === todayStr ? t('Heute') : d === ymd(addDays(new Date(), -1)) ? t('Gestern') : '')
+const relativeLabel = (d: string) => (todayStr.value && d === todayStr.value ? t('Heute') : todayStr.value && d === shiftDate(todayStr.value, -1) ? t('Gestern') : '')
 const label = (d: string) => relativeLabel(d) || fmt(dayFmt.value, d)
 const monthLabel = (m: string) => fmt(monthFmt.value, `${m}-01`)
 const groups = computed(() => {
@@ -62,35 +66,26 @@ const importDueLabel = computed(() => {
   return new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date)
 })
 
-const hasToday = computed(() => rows.value[0]?.date === todayStr)
-// Tage in Folge mit Eintrag, bis heute oder (falls heute noch fehlt) bis gestern.
-const streak = computed(() => {
-  const have = new Set(rows.value.map((r) => r.date))
-  let d = new Date()
-  if (!have.has(todayStr)) d = addDays(d, -1)
-  let n = 0
-  while (have.has(ymd(d))) {
-    n++
-    d = addDays(d, -1)
-  }
-  return n
-})
+const hasToday = computed(() => rows.value.some((r) => r.date === todayStr.value))
 
 // shortcut: liest die letzten RECENT Einträge einzeln; für mehr bräuchte es Blättern oder einen Endpunkt.
 async function load() {
   try {
-    const [notes, imports] = await Promise.all([listNotes(), listJournalTaskImports()])
+    const [notes, imports, summary] = await Promise.all([listNotes(), listJournalTaskImports(), getJournalSummary()])
     const dir = notes.find((n) => n.dir && n.path === 'Journal')
     const dates = (dir?.children ?? [])
       .map((n) => /^(\d{4}-\d{2}-\d{2})\.md$/.exec(n.name)?.[1])
       .filter((d): d is string => !!d)
       .sort()
       .reverse()
-    total.value = dates.length
+    todayStr.value = summary.date
+    total.value = summary.total
+    streak.value = summary.streak
     rows.value = await Promise.all(dates.slice(0, RECENT).map(async (date) => ({
       date, answers: parseEntry((await readNote(journalPath(date))).content).answers,
     })))
     taskImports.value = Object.fromEntries(imports.map((item) => [item.journal_date, item.task_count]))
+    if (typeof route.query.date === 'string' && rows.value.some((r) => r.date === route.query.date)) reading.value = route.query.date
     error.value = ''
   } catch (e) {
     error.value = errorMessage(e)
@@ -98,6 +93,10 @@ async function load() {
   loaded.value = true
 }
 onMounted(load)
+watch(() => route.query.date, (date) => {
+  if (typeof date === 'string' && rows.value.some((r) => r.date === date)) reading.value = date
+  else if (!date) reading.value = null
+})
 
 function openTaskImport(row: Row) {
   if (taskImportCount(row.date)) return
@@ -133,6 +132,13 @@ const scrollTop = () => (document.querySelector('.content') as HTMLElement | nul
 function openRead(date: string) {
   reading.value = date
   scrollTop()
+}
+
+function showAll() {
+  reading.value = null
+  const query = { ...route.query }
+  delete query.date
+  void router.replace({ query })
 }
 
 async function open(date: string, keepReading = false) {
@@ -206,9 +212,9 @@ function onKey(e: KeyboardEvent) {
 }
 // n: heute schreiben (nur in der Übersicht).
 useShortcuts((e) => {
-  if (e.key === 'n' && !editing.value) {
+  if (e.key === 'n' && !editing.value && todayStr.value) {
     e.preventDefault()
-    void open(todayStr)
+    void open(todayStr.value)
   }
 })
 </script>
@@ -240,7 +246,7 @@ useShortcuts((e) => {
 
     <!-- Leseansicht eines Eintrags -->
     <template v-else-if="readRow">
-      <button type="button" class="col-link jr-back" @click="reading = null"><svg class="ic"><use href="#i-left" /></svg>{{ $t('Alle Einträge') }}</button>
+      <button type="button" class="col-link jr-back" @click="showAll"><svg class="ic"><use href="#i-left" /></svg>{{ $t('Alle Einträge') }}</button>
       <div class="v-head v-head-row">
         <div>
           <h1 class="v-title">{{ fmt(longFmt, readRow.date) }}</h1>
@@ -267,11 +273,11 @@ useShortcuts((e) => {
         <div>
           <h1 class="v-title">{{ $t('Journal') }}</h1>
           <div class="v-sub">
-            {{ $tn(total, '{n} Eintrag', '{n} Einträge') }}<template v-if="streak > 1"> · {{ $t('{n} Tage in Folge', { n: streak }) }}</template>
+            <template v-if="streak">{{ $t('{n} Tage in Folge', { n: streak }) }} · </template>{{ $tn(total, '{n} Eintrag', '{n} Einträge') }}
           </div>
         </div>
-        <button class="btn btn-primary" type="button" aria-keyshortcuts="n" @click="open(todayStr)">
-          <svg class="ic"><use :href="hasToday ? '#i-journal' : '#i-plus'" /></svg>{{ hasToday ? $t('Heute weiterschreiben') : $t('Heute schreiben') }}
+        <button v-if="loaded && todayStr && !hasToday" class="btn btn-primary" type="button" aria-keyshortcuts="n" @click="open(todayStr)">
+          <svg class="ic"><use href="#i-plus" /></svg>{{ $t('Heute schreiben') }}
         </button>
       </div>
       <div v-if="error" class="badge" role="alert">{{ error }}</div>
@@ -279,7 +285,6 @@ useShortcuts((e) => {
       <div v-if="loaded && !rows.length" class="card jr-empty">
         <p class="jr-empty-t">{{ $t('Drei kurze Fragen am Abend.') }}</p>
         <p class="v-sub">{{ $t('Was lief gut, was lernst du daraus, was ist morgen wichtig. Zwei Minuten reichen.') }}</p>
-        <button class="btn btn-primary" type="button" @click="open(todayStr)">{{ $t('Ersten Eintrag schreiben') }}</button>
       </div>
 
       <div v-else-if="rows.length" class="jr-months">
@@ -287,7 +292,7 @@ useShortcuts((e) => {
           <h2 class="jr-month">{{ monthLabel(g.month) }}</h2>
           <div class="jr-feed">
             <article v-for="r in g.rows" :key="r.date" class="jr-entry" :class="{ today: r.date === todayStr }">
-              <button type="button" class="jr-entry-open" @click="openRead(r.date)">
+              <button type="button" class="jr-entry-open" @click="r.date === todayStr ? open(r.date) : openRead(r.date)">
                 <span class="jr-entry-head">
                   <span class="jr-entry-date">
                     <b>{{ label(r.date) }}</b>
@@ -400,7 +405,6 @@ useShortcuts((e) => {
 .jr-empty { display: grid; justify-items: start; gap: 8px; max-width: 560px; padding: 28px; }
 .jr-empty p { margin: 0; }
 .jr-empty-t { font: 600 17px/1.3 var(--font-ui); color: var(--tx-primary); }
-.jr-empty .btn { margin-top: 8px; }
 
 /* Editor */
 .jr-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 12px; padding: 0; border: 0; background: none; cursor: pointer; }

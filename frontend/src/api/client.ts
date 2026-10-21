@@ -154,6 +154,14 @@ export const listTasks = (query = '') => api<Task[]>(`/tasks${query}`)
 export const createTask = (body: Partial<Task>) =>
   api<Task>('/tasks', { method: 'POST', body: JSON.stringify(body) })
 
+export interface JournalSummary {
+  date: string
+  total: number
+  streak: number
+}
+
+export const getJournalSummary = () => api<JournalSummary>('/journal/summary')
+
 export interface JournalTaskImport {
   journal_date: string
   task_count: number

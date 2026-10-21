@@ -302,6 +302,7 @@ func run() error {
 	hub := realtime.NewHub()
 	taskRepo := repository.NewTaskRepository(db)
 	tasks := service.NewTaskService(taskRepo, nil).WithLocation(cfg.Location)
+	journal := service.NewJournalService(notesStore, nil, cfg.Location)
 	calendar := service.NewCalendarService(repository.NewCalendarRepository(db), cfg.Location, nil)
 	timeEntries := repository.NewTimeEntryRepository(db)
 	habitRepo := repository.NewHabitRepository(db)
@@ -317,6 +318,7 @@ func run() error {
 	services := api.Services{
 		Projects:  projects,
 		Tasks:     tasks.WithTimerStopper(timeTracking),
+		Journal:   journal,
 		Calendar:  calendar,
 		Habits:    habits,
 		Resources: service.NewResourceService(repository.NewResourceRepository(db), nil),

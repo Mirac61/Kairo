@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
-  completeHabit, createTask, dueCards, goalToday, taskAction, createTimeEntry, deleteTimeEntry, getToday, listProjects, listTasks, listTimeEntries, uncompleteHabit, updateTask, updateTimeEntry,
+  completeHabit, createTask, dueCards, goalToday, taskAction, createTimeEntry, deleteTimeEntry, getToday, listProjects, listTasks, listTimeEntries, readNote, uncompleteHabit, updateTask, updateTimeEntry,
   isOpen, type Goal, type Project, type Task, type TimeEntry, type Today,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
@@ -10,7 +10,8 @@ import { useShortcuts } from '@/composables/useShortcuts'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { useUndo } from '@/composables/useUndo'
 import { useFreeSlot } from '@/composables/useFreeSlot'
-import { daysAgo, dur, entryMinutes, hhmm, hm, ymd } from '@/lib/dates'
+import { daysAgo, dur, entryMinutes, hhmm, hm, shiftDate, ymd } from '@/lib/dates'
+import { journalPath, parseEntry } from '@/lib/journal'
 import { parseQuickAdd, taskBody } from '@/lib/quickAdd'
 import { columns, doneSeconds, minutesOfDay, stopwatch } from '@/lib/dayPlan'
 import QuickHints from '@/components/QuickHints.vue'
@@ -29,6 +30,7 @@ const HOUR = 44
 
 const { offer, setDone } = useUndo()
 const today = ref<Today | null>(null)
+const yesterdayJournal = ref<{ date: string; intention: string } | null>(null)
 const goal = ref<Goal | null>(null)
 const cardsDue = ref(0)
 const now = ref(Date.now())
@@ -45,9 +47,14 @@ let tick: ReturnType<typeof setInterval> | undefined
 const { error, load, run } = useLoader(async () => {
   const t = await getToday()
   const from = new Date(`${t.date}T00:00:00`)
-  const [es, tasks, projects, g] = await Promise.all([listTimeEntries(from, new Date(from.getTime() + 864e5)), listTasks(), listProjects(), goalToday()])
+  const yesterday = shiftDate(t.date, -1)
+  const [es, tasks, projects, g, intention] = await Promise.all([
+    listTimeEntries(from, new Date(from.getTime() + 864e5)), listTasks(), listProjects(), goalToday(),
+    readNote(journalPath(yesterday)).then((note) => parseEntry(note.content).answers[2]?.trim() ?? '').catch(() => ''),
+  ])
   goal.value = g
   today.value = t
+  yesterdayJournal.value = intention ? { date: yesterday, intention } : null
   entries.value = es.reverse()
   tasksById.value = new Map(tasks.map((x) => [x.id, x]))
   projectNames.value = new Map(projects.map((x) => [x.id, x.name]))
@@ -356,6 +363,11 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 
       <div v-if="today.unestimated_tasks" class="v-sub">{{ $tn(today.unestimated_tasks, '{n} Aufgabe ohne Schätzung, gerechnet mit 30 Min.', '{n} Aufgaben ohne Schätzung, gerechnet mit 30 Min.') }}</div>
       <div v-if="today.overplanned_minutes" class="badge"><span class="cdot" style="background:var(--a-red)"></span>{{ $t('Überplant um {time} h', { time: hm(today.overplanned_minutes) }) }}</div>
+      <router-link v-if="yesterdayJournal" class="card st-journal" :to="{ name: 'journal', query: { date: yesterdayJournal.date } }">
+        <span class="st-journal-label">{{ $t('Gestern hast du dir vorgenommen:') }}</span>
+        <b class="st-journal-intention">{{ yesterdayJournal.intention }}</b>
+        <span class="st-journal-link">{{ $t('Zum Journaleintrag') }}<svg class="ic"><use href="#i-right" /></svg></span>
+      </router-link>
 
       <div class="start-grid">
         <section class="start-col">
@@ -496,6 +508,11 @@ function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) 
 
 <style scoped>
 .st-cards-due { display: flex; align-items: center; gap: 10px; margin-top: 24px; padding: 10px 12px; color: var(--tx-primary); text-decoration: none; font: 500 14px/1.3 var(--font-ui); }
+.st-journal { display: grid; gap: 5px; max-width: 720px; margin: 0 0 20px; padding: 14px 16px; color: inherit; text-decoration: none; }
+.st-journal-label { font: 500 12px/1.3 var(--font-ui); color: var(--tx-muted); }
+.st-journal-intention { max-width: 70ch; font: 500 14px/1.5 var(--font-ui); color: var(--tx-primary); white-space: pre-line; }
+.st-journal-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font: 500 12px/1.3 var(--font-ui); color: var(--a-blue); }
+.st-journal:hover .st-journal-link { text-decoration: underline; }
 .st-goal { display: flex; gap: 14px; align-items: center; padding: 12px; color: inherit; text-decoration: none; }
 .st-goal img { flex: none; width: 72px; height: 72px; border-radius: var(--r-s); object-fit: cover; }
 .st-goal-t { display: grid; gap: 6px; min-width: 0; flex: 1; }

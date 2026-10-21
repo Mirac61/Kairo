@@ -16,6 +16,7 @@ import (
 type Services struct {
 	Projects  ProjectService
 	Tasks     TaskService
+	Journal   JournalSummaryService
 	Calendar  CalendarService
 	Habits    HabitService
 	Resources ResourceService
@@ -51,6 +52,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	}
 	if svc.Tasks != nil {
 		taskHandlers{svc.Tasks}.register(mux)
+	}
+	if svc.Journal != nil {
+		journalHandlers{svc.Journal}.register(mux)
 	}
 	if svc.Calendar != nil {
 		calendarHandlers{svc.Calendar}.register(mux)

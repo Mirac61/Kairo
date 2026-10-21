@@ -1,7 +1,7 @@
 // Prüfung der Termin-Formularlogik und der Datumshelfer: npm test (Node ≥ 22.18 führt TypeScript direkt aus)
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { dur, entryMinutes, weekStart, ymd } from '../src/lib/dates.ts'
+import { dur, entryMinutes, shiftDate, weekStart, ymd } from '../src/lib/dates.ts'
 import { editForm, isAllDay, newForm, requestOf, ruleOf } from '../src/lib/eventForm.ts'
 
 const ev = (over: object) => ({
@@ -55,6 +55,8 @@ test('Mehrtägiger Termin mit Uhrzeit behält seine Zeiten', () => {
 test('Datumshelfer', () => {
   assert.equal(ymd(weekStart(new Date(2026, 9, 7))), '2026-10-05') // Mittwoch -> Montag
   assert.equal(ymd(weekStart(new Date(2026, 9, 11))), '2026-10-05') // Sonntag -> Montag davor
+  assert.equal(shiftDate('2026-10-31', 1), '2026-11-01')
+  assert.equal(shiftDate('2026-03-29', -1), '2026-03-28') // DST-Wechsel bleibt ein lokaler Kalendertag
   assert.equal(dur(45), '45 Min')
   assert.equal(dur(90), '1 Std 30 Min')
   assert.equal(entryMinutes({ started_at: '2026-10-07T10:00:00Z', ended_at: '2026-10-07T11:15:30Z' }), 75)

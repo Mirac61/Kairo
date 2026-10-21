@@ -7,6 +7,11 @@ export const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${p
 export const hhmm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
 
 export const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
+// Verschiebt ein lokales YYYY-MM-DD als Kalenderdatum, ohne Zeitzonen-/DST-Versatz.
+export const shiftDate = (day: string, amount: number) => {
+  const [year, month, date] = day.split('-').map(Number)
+  return new Date(Date.UTC(year!, month! - 1, date! + amount)).toISOString().slice(0, 10)
+}
 // Montag der Woche von d, 00:00 Ortszeit.
 export const weekStart = (d = new Date()) => addDays(d, -((d.getDay() + 6) % 7))
 

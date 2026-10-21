@@ -655,6 +655,7 @@ const en: Record<string, string> = {
   'Heute schreiben': 'Write today',
   'Heute weiterschreiben': 'Continue today',
   'Fällig am {date}': 'Due {date}',
+  'Gestern hast du dir vorgenommen:': 'Yesterday you planned:',
   'Letzte Einträge': 'Recent entries',
   'Was lief gut, was lernst du daraus, was ist morgen wichtig. Zwei Minuten reichen.': 'What went well, what you learn from it, what matters tomorrow. Two minutes is enough.',
   'Was würdest du beim nächsten Mal anders machen?': 'What would you do differently next time?',
@@ -668,6 +669,7 @@ const en: Record<string, string> = {
   'Was lerne ich daraus?': 'What do I learn from it?',
   'Was ist morgen wichtig?': 'What matters tomorrow?',
   'Wähle die Aufgaben aus und passe Titel bei Bedarf an.': 'Select the tasks to import and edit their titles if needed.',
+  'Zum Journaleintrag': 'View journal entry',
   'Wird angelegt …': 'Creating…',
   // Lernkarten
   'Alle Fächer': 'All subjects',

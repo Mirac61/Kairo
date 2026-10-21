@@ -154,7 +154,7 @@ test('Ziel mit Bild anlegen', async () => {
 
 test('Journal speichern', async () => {
   await page.goto(`${base}/journal`)
-  await page.getByRole('button', { name: 'Ersten Eintrag schreiben' }).click()
+  await page.getByRole('button', { name: 'Heute schreiben' }).click()
   await page.getByLabel('Was lief gut?').fill('Smoke grün')
   await page.getByLabel('Was ist morgen wichtig?').fill('Weiter so')
   const saved = page.waitForResponse((r) => r.url().includes('/api/notes/Journal/') && r.request().method() === 'PUT')
@@ -162,11 +162,34 @@ test('Journal speichern', async () => {
   await saved
   await page.locator('.jr-read').filter({ hasText: 'Smoke grün' }).waitFor()
   await page.getByRole('button', { name: 'Alle Einträge' }).click()
-  await page.locator('.jr-entry', { hasText: 'Smoke grün' }).waitFor()
+  const entry = page.locator('.jr-entry.today', { hasText: 'Smoke grün' })
+  await entry.waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Heute schreiben' }).count(), 0)
+  await entry.locator('.jr-entry-open').click()
+  await page.getByRole('heading', { name: 'Heute' }).waitFor()
+  await page.getByRole('button', { name: 'Alle Einträge' }).click()
   const d = new Date()
   const file = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.md`
   const md = readFileSync(join(env.KAIRO_NOTES_DIR, 'Journal', file), 'utf8')
   assert.match(md, /## Was lief gut\?\n\nSmoke grün\n\n## Was lerne ich daraus\?\n\n## Was ist morgen wichtig\?\n\nWeiter so\n/)
+})
+
+test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => {
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  const date = yesterday.toLocaleDateString('sv')
+  const dir = join(env.KAIRO_NOTES_DIR, 'Journal')
+  mkdirSync(dir, { recursive: true })
+
+  await page.goto(`${base}/today`)
+  assert.equal(await page.locator('.st-journal').count(), 0, 'ohne Eintrag von gestern bleibt der Block verborgen')
+
+  writeFileSync(join(dir, `${date}.md`), `# Journal ${date}\n\n## Was ist morgen wichtig?\n\nMorgen Abgabe vorbereiten.\n`)
+  await page.reload()
+  const reminder = page.locator('.st-journal')
+  await reminder.getByText('Morgen Abgabe vorbereiten.').waitFor()
+  await reminder.click()
+  await page.locator('.jr-read').getByText('Morgen Abgabe vorbereiten.').waitFor()
 })
 
 test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
