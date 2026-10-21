@@ -20,6 +20,7 @@ const error = ref('')
 
 // Editor
 const editing = ref<string | null>(null) // Datum des Eintrags im Editor
+const reading = ref<string | null>(null) // Datum des Eintrags in der Leseansicht
 const answers = ref<string[]>(QUESTIONS.map(() => ''))
 let other = ''
 let mtime = '' // leer: Eintrag gibt es noch nicht
@@ -30,8 +31,22 @@ const fields = ref<HTMLTextAreaElement[]>([])
 
 const longFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
 const dayFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'short', day: 'numeric', month: 'short' }))
+const monthFmt = computed(() => new Intl.DateTimeFormat(locale.value, { month: 'long', year: 'numeric' }))
 const fmt = (f: Intl.DateTimeFormat, d: string) => f.format(new Date(d + 'T00:00'))
-const label = (d: string) => (d === todayStr ? t('Heute') : d === ymd(addDays(new Date(), -1)) ? t('Gestern') : fmt(dayFmt.value, d))
+const relativeLabel = (d: string) => (d === todayStr ? t('Heute') : d === ymd(addDays(new Date(), -1)) ? t('Gestern') : '')
+const label = (d: string) => relativeLabel(d) || fmt(dayFmt.value, d)
+const monthLabel = (m: string) => fmt(monthFmt.value, `${m}-01`)
+const groups = computed(() => {
+  const out: { month: string; rows: Row[] }[] = []
+  for (const r of rows.value) {
+    const month = r.date.slice(0, 7)
+    const last = out[out.length - 1]
+    if (last?.month === month) last.rows.push(r)
+    else out.push({ month, rows: [r] })
+  }
+  return out
+})
+const readRow = computed(() => rows.value.find((r) => r.date === reading.value) ?? null)
 
 const hasToday = computed(() => rows.value[0]?.date === todayStr)
 // Tage in Folge mit Eintrag, bis heute oder (falls heute noch fehlt) bis gestern.
@@ -68,7 +83,14 @@ async function load() {
 }
 onMounted(load)
 
-async function open(date: string) {
+const scrollTop = () => (document.querySelector('.content') as HTMLElement | null)?.scrollTo({ top: 0 })
+
+function openRead(date: string) {
+  reading.value = date
+  scrollTop()
+}
+
+async function open(date: string, keepReading = false) {
   try {
     const n = await readNote(journalPath(date))
     const e = parseEntry(n.content)
@@ -86,7 +108,9 @@ async function open(date: string) {
   }
   saved.value = answers.value.join('\u0000')
   editing.value = date
+  reading.value = keepReading ? date : null
   error.value = ''
+  scrollTop()
   await nextTick()
   fields.value.forEach(grow)
   fields.value[answers.value.findIndex((a) => !a.trim())]?.focus()
@@ -111,6 +135,8 @@ async function save() {
     saved.value = answers.value.join('\u0000')
     editing.value = null
     await load()
+    reading.value = date
+    scrollTop()
   } catch (e) {
     error.value = e instanceof ApiError && e.status === 409
       ? t('Der Eintrag wurde inzwischen woanders geändert. Lade ihn neu, bevor du speicherst.')
@@ -146,7 +172,7 @@ useShortcuts((e) => {
   <div class="view-inner">
     <!-- Editor -->
     <template v-if="editing">
-      <button type="button" class="col-link jr-back" @click="close"><svg class="ic"><use href="#i-left" /></svg>{{ $t('Alle Einträge') }}</button>
+      <button type="button" class="col-link jr-back" @click="close"><svg class="ic"><use href="#i-left" /></svg>{{ reading ? $t('Zurück zum Eintrag') : $t('Alle Einträge') }}</button>
       <div class="v-head">
         <h1 class="v-title">{{ label(editing) }}</h1>
         <div class="v-sub">{{ fmt(longFmt, editing) }}</div>
@@ -165,6 +191,29 @@ useShortcuts((e) => {
           <button class="btn btn-primary" type="submit" :disabled="!dirty || saving">{{ $t('Speichern') }}</button>
         </div>
       </form>
+    </template>
+
+    <!-- Leseansicht eines Eintrags -->
+    <template v-else-if="readRow">
+      <button type="button" class="col-link jr-back" @click="reading = null"><svg class="ic"><use href="#i-left" /></svg>{{ $t('Alle Einträge') }}</button>
+      <div class="v-head v-head-row">
+        <div>
+          <h1 class="v-title">{{ fmt(longFmt, readRow.date) }}</h1>
+          <div v-if="relativeLabel(readRow.date)" class="v-sub jr-read-sub"><span class="badge">{{ relativeLabel(readRow.date) }}</span></div>
+        </div>
+        <button class="btn btn-primary" type="button" @click="open(readRow.date, true)">
+          <svg class="ic"><use href="#i-journal" /></svg>{{ $t('Bearbeiten') }}
+        </button>
+      </div>
+      <div v-if="error" class="badge" role="alert">{{ error }}</div>
+
+      <article class="card jr-read">
+        <section v-for="(q, i) in QUESTIONS" :key="q" class="jr-read-q">
+          <h2 class="jr-read-head">{{ $t(q) }}</h2>
+          <p v-if="readRow.answers[i]" class="jr-read-a">{{ readRow.answers[i] }}</p>
+          <p v-else class="jr-read-a empty">–</p>
+        </section>
+      </article>
     </template>
 
     <!-- Übersicht -->
@@ -188,17 +237,30 @@ useShortcuts((e) => {
         <button class="btn btn-primary" type="button" @click="open(todayStr)">{{ $t('Ersten Eintrag schreiben') }}</button>
       </div>
 
-      <div v-else-if="rows.length" class="card jr-table" role="table" :aria-label="$t('Letzte Einträge')">
-        <div class="jr-row jr-th" role="row">
-          <span role="columnheader">{{ $t('Tag') }}</span>
-          <span v-for="q in QUESTIONS" :key="q" role="columnheader">{{ $t(q) }}</span>
-        </div>
-        <button v-for="r in rows" :key="r.date" type="button" class="jr-row" role="row" @click="open(r.date)">
-          <span class="jr-date" role="cell"><b>{{ label(r.date) }}</b></span>
-          <span v-for="(a, i) in r.answers" :key="i" class="jr-cell" role="cell" :data-q="$t(QUESTIONS[i]!)">
-            <template v-if="a">{{ a }}</template><i v-else>–</i>
-          </span>
-        </button>
+      <div v-else-if="rows.length" class="jr-months">
+        <section v-for="g in groups" :key="g.month" class="jr-month-group">
+          <h2 class="jr-month">{{ monthLabel(g.month) }}</h2>
+          <div class="jr-feed">
+            <button
+              v-for="r in g.rows" :key="r.date" type="button" class="jr-entry" :class="{ today: r.date === todayStr }"
+              @click="openRead(r.date)"
+            >
+              <span class="jr-entry-head">
+                <span class="jr-entry-date">
+                  <b>{{ label(r.date) }}</b>
+                  <span>{{ fmt(longFmt, r.date) }}</span>
+                </span>
+                <svg class="ic jr-chev"><use href="#i-right" /></svg>
+              </span>
+              <span class="jr-entry-answers">
+                <span v-for="(a, i) in r.answers" :key="i" class="jr-preview" :class="{ empty: !a }">
+                  <span class="jr-q-lbl">{{ $t(QUESTIONS[i]!) }}</span>
+                  <span class="jr-a">{{ a || '–' }}</span>
+                </span>
+              </span>
+            </button>
+          </div>
+        </section>
       </div>
       <p v-if="total > rows.length" class="v-sub jr-more">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</p>
     </template>
@@ -206,23 +268,51 @@ useShortcuts((e) => {
 </template>
 
 <style scoped>
-/* Übersicht */
-.jr-table { padding: 0; overflow: hidden; }
-.jr-row {
-  display: grid; grid-template-columns: 120px repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start;
-  width: 100%; padding: 14px 18px; border: 0; border-top: 1px solid var(--br-default); background: none;
+/* Übersicht: eine Zeitleiste aus Tageskarten statt einer Tabelle. */
+.jr-months { display: grid; gap: 28px; margin-top: 8px; }
+.jr-month-group { display: grid; gap: 10px; }
+.jr-month { font: 600 12px/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); padding-left: 2px; }
+.jr-feed { position: relative; display: grid; gap: 10px; }
+.jr-feed::before { content: ''; position: absolute; left: 13px; top: 18px; bottom: 18px; width: 1px; background: var(--br-default); }
+.jr-entry {
+  position: relative; display: grid; gap: 14px; margin-left: 30px; padding: 18px 20px;
+  border: 1px solid var(--br-default); border-radius: var(--r-m); background: var(--bg-1);
   color: inherit; font: inherit; text-align: left; cursor: pointer;
+  transition: border-color var(--dur) ease-out, background var(--dur) ease-out;
 }
-.jr-row:first-child { border-top: 0; }
-button.jr-row:hover { background: var(--bg-hover); }
-.jr-th { cursor: default; padding-top: 12px; padding-bottom: 12px; font: 500 12px/1.3 var(--font-ui); color: var(--tx-muted); background: var(--bg-2); }
-.jr-date b { font: 600 14px/1.4 var(--font-ui); color: var(--tx-primary); }
-.jr-cell {
-  font: 400 13px/1.5 var(--font-ui); color: var(--tx-secondary); white-space: pre-line;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+.jr-entry::before {
+  content: ''; position: absolute; left: -21px; top: 24px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--br-strong); box-shadow: 0 0 0 4px var(--bg-0);
 }
-.jr-cell i { font-style: normal; color: var(--tx-disabled); }
+.jr-entry.today { border-color: color-mix(in srgb, var(--a-blue-hi) 55%, var(--br-default)); background: color-mix(in srgb, var(--a-blue) 5%, var(--bg-1)); }
+.jr-entry.today::before { background: var(--a-blue-hi); }
+.jr-entry:hover { border-color: var(--br-strong); background: var(--bg-hover); }
+.jr-entry.today:hover { border-color: var(--a-blue-hi); }
+.jr-entry-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.jr-entry-date { display: grid; gap: 3px; min-width: 0; }
+.jr-entry-date b { font: 600 16px/1.25 var(--font-ui); color: var(--tx-primary); }
+.jr-entry-date span { font: 400 12px/1.4 var(--font-ui); color: var(--tx-muted); }
+.jr-chev { color: var(--tx-muted); margin-top: 3px; transition: transform var(--dur) ease-out, color var(--dur) ease-out; }
+.jr-entry:hover .jr-chev { color: var(--tx-secondary); transform: translateX(2px); }
+.jr-entry-answers { display: grid; gap: 9px; }
+.jr-preview { display: grid; gap: 2px; min-width: 0; }
+.jr-q-lbl { font: 500 11px/1.3 var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--tx-muted); }
+.jr-a {
+  font: 400 13px/1.55 var(--font-ui); color: var(--tx-secondary); white-space: pre-line;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.jr-preview.empty .jr-a { color: var(--tx-disabled); }
 .jr-more { margin-top: 12px; }
+
+/* Leseansicht */
+.jr-read { max-width: 720px; padding: 4px 32px; margin-top: 4px; }
+.jr-read-sub { display: flex; align-items: center; gap: 8px; }
+.jr-read-q { display: grid; gap: 8px; padding: 22px 0; border-top: 1px solid var(--br-subtle); }
+.jr-read-q:first-child { border-top: 0; }
+.jr-read-head { font: 500 11px/1.3 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); }
+.jr-read-a { margin: 0; font: 400 15px/1.7 var(--font-ui); color: var(--tx-primary); white-space: pre-line; }
+.jr-read-a.empty { color: var(--tx-disabled); }
+
 .jr-empty { display: grid; justify-items: start; gap: 8px; max-width: 560px; padding: 28px; }
 .jr-empty p { margin: 0; }
 .jr-empty-t { font: 600 17px/1.3 var(--font-ui); color: var(--tx-primary); }
@@ -249,11 +339,11 @@ button.jr-row:hover { background: var(--bg-hover); }
 .jr-keys kbd { font: 400 11px/1 var(--font-mono); }
 
 @media (max-width: 760px) {
-  .jr-th { display: none; }
-  .jr-row { grid-template-columns: 1fr; gap: 6px; padding: 14px 16px; }
-  .jr-cell { -webkit-line-clamp: 2; }
-  .jr-cell::before { content: attr(data-q) ' '; color: var(--tx-muted); font-weight: 500; }
-  .jr-cell:has(i) { display: none; }
+  .jr-feed::before, .jr-entry::before { display: none; }
+  .jr-entry { margin-left: 0; padding: 16px; }
+  .jr-a { -webkit-line-clamp: 3; }
+  .jr-read { padding: 2px 18px; }
+  .jr-read-q { padding: 18px 0; }
   .jr-q { padding: 16px; }
   .jr-area { padding-left: 0; }
   .jr-keys { display: none; }

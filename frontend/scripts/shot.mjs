@@ -20,7 +20,7 @@ const { values: o } = parseArgs({
     click: { type: 'string' }, // CSS-Selektor, der vor dem Screenshot angeklickt wird (z. B. '.task-row .row-title')
     time: { type: 'string' }, // HH:MM: setzt die Uhrzeit fest (z. B. 10:30), damit Bilder zu jeder Tageszeit gleich aussehen
     out: { type: 'string' },
-    store: { type: 'string' }, // weitere localStorage-Werte, z. B. kairo-accent=violet,kairo-week-start=0
+    store: { type: 'string' }, // weitere localStorage-Werte, z. B. kairo-palette=plum,kairo-accent=violet,kairo-week-start=0
   },
 })
 const VIEWS = { week: 'timeGrid7', work: 'timeGrid5', day: 'timeGridDay', month: 'dayGridMonth' }

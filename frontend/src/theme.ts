@@ -1,36 +1,79 @@
 import { definePreset } from '@primeuix/themes'
 import Aura from '@primeuix/themes/aura'
 
-// Vercel x Kanagawa Dragon: warm near-black surfaces, softened dragon accents.
-const neutral = {
-  50: '#f4f2ee', 100: '#ece9e3', 200: '#dedad2', 300: '#c9c4ba', 400: '#a39f95',
-  500: '#6f6c64', 600: '#55534d', 700: '#2b2a27', 800: '#1f1e1c', 900: '#151413', 950: '#0b0a0a',
+// Alle Farben kommen aus design.css (--bg-*, --br-*, --tx-*, --a-*). So folgen auch
+// PrimeVue-Flächen (Bestätigung, Hinweise) dem Theme und der Farbstimmung.
+const ramp = {
+  50: 'var(--tx-primary)',
+  100: 'var(--tx-primary)',
+  200: 'var(--tx-secondary)',
+  300: 'var(--tx-secondary)',
+  400: 'var(--tx-muted)',
+  500: 'var(--tx-muted)',
+  600: 'var(--tx-disabled)',
+  700: 'var(--br-strong)',
+  800: 'var(--br-default)',
+  900: 'var(--br-subtle)',
+  950: 'var(--bg-1)',
+}
+
+const highlight = {
+  background: 'color-mix(in srgb, var(--a-blue-hi) 14%, transparent)',
+  focusBackground: 'color-mix(in srgb, var(--a-blue-hi) 20%, transparent)',
+  color: 'var(--a-blue-tx)',
+  focusColor: 'var(--a-blue-tx)',
 }
 
 export default definePreset(Aura, {
   semantic: {
-    primary: neutral,
+    primary: ramp,
     formField: { borderRadius: '6px' },
     colorScheme: {
       dark: {
         surface: {
-          0: '#c5c9c5', 50: '#b5b8b2', 100: '#a6a69c', 200: '#8f9489', 300: '#7d857b', 400: '#737c73',
-          500: '#5a5f58', 600: '#403f3b', 700: '#2e2d2a', 800: '#1c1b19', 900: '#121110', 950: '#0b0a0a',
+          0: 'var(--tx-primary)',
+          50: 'var(--tx-primary)',
+          100: 'var(--tx-secondary)',
+          200: 'var(--tx-secondary)',
+          300: 'var(--tx-muted)',
+          400: 'var(--tx-muted)',
+          500: 'var(--tx-disabled)',
+          600: 'var(--br-strong)',
+          700: 'var(--br-default)',
+          800: 'var(--bg-3)',
+          900: 'var(--bg-1)',
+          950: 'var(--bg-0)',
         },
         primary: {
-          color: '#c5c9c5', contrastColor: '#0b0a0a', hoverColor: '#dfe2de', activeColor: '#ffffff',
+          color: 'var(--tx-primary)',
+          contrastColor: 'var(--bg-0)',
+          hoverColor: 'var(--tx-primary)',
+          activeColor: 'var(--tx-primary)',
         },
-        highlight: { background: 'rgba(139,164,176,0.14)', focusBackground: 'rgba(139,164,176,0.2)', color: '#8ba4b0', focusColor: '#8ba4b0' },
+        highlight,
       },
       light: {
         surface: {
-          0: '#ffffff', 50: '#f4f2ee', 100: '#ece9e3', 200: '#dedad2', 300: '#c9c4ba', 400: '#a39f95',
-          500: '#6f6c64', 600: '#55534d', 700: '#2b2a27', 800: '#1f1e1c', 900: '#151413', 950: '#0b0a0a',
+          0: 'var(--bg-1)',
+          50: 'var(--bg-0)',
+          100: 'var(--bg-2)',
+          200: 'var(--bg-3)',
+          300: 'var(--br-strong)',
+          400: 'var(--tx-disabled)',
+          500: 'var(--tx-muted)',
+          600: 'var(--tx-secondary)',
+          700: 'var(--tx-primary)',
+          800: 'var(--tx-primary)',
+          900: 'var(--tx-primary)',
+          950: 'var(--tx-primary)',
         },
         primary: {
-          color: '#1f1e1c', contrastColor: '#f4f2ee', hoverColor: '#000000', activeColor: '#000000',
+          color: 'var(--tx-primary)',
+          contrastColor: 'var(--bg-1)',
+          hoverColor: 'var(--tx-primary)',
+          activeColor: 'var(--tx-primary)',
         },
-        highlight: { background: 'rgba(77,112,128,0.12)', focusBackground: 'rgba(77,112,128,0.18)', color: '#4d7080', focusColor: '#4d7080' },
+        highlight,
       },
     },
   },

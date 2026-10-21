@@ -327,22 +327,21 @@ useShortcuts((e) => {
 .cd-decks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .cd-tile {
   position: relative; display: grid; border-radius: var(--r-m); overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--dc) 35%, var(--br-default));
-  background: linear-gradient(160deg, color-mix(in srgb, var(--dc) 22%, var(--bg-1)), var(--bg-1) 70%);
+  border: 1px solid var(--br-default); background: var(--bg-1);
 }
 .cd-tile-open { display: grid; gap: 6px; padding: 16px 16px 14px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .cd-tile-open:hover .cd-tile-name { text-decoration: underline; }
 .cd-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.cd-tile-name { font: 600 15px/1.3 var(--font-ui); color: var(--dc); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-tile-name { font: 600 15px/1.3 var(--font-ui); color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cd-tile-top kbd { font: 500 11px/1 var(--font-mono); padding: 3px 6px; border-radius: 4px; color: var(--tx-muted); background: var(--bg-2); }
 .cd-tile-num { display: flex; align-items: baseline; gap: 6px; font: 400 13px/1 var(--font-ui); color: var(--tx-muted); }
 .cd-tile-num b { font: 600 34px/1 var(--font-ui); letter-spacing: -0.02em; color: var(--tx-primary); font-variant-numeric: tabular-nums; }
 .cd-tile-sub { font: 400 12px/1.3 var(--font-ui); color: var(--tx-secondary); }
-.cd-tile-bar { display: block; height: 4px; margin-top: 6px; border-radius: 2px; background: color-mix(in srgb, var(--dc) 18%, transparent); }
+.cd-tile-bar { display: block; height: 3px; margin-top: 6px; border-radius: 2px; background: var(--bg-3); }
 .cd-tile-bar i { display: block; height: 100%; border-radius: inherit; background: var(--dc); }
 .cd-tile-learn {
   position: absolute; right: 12px; bottom: 22px; padding: 6px 12px; border: 0; border-radius: 999px; cursor: pointer;
-  font: 600 12px/1 var(--font-ui); color: var(--bg-0); background: var(--dc);
+  font: 500 12px/1 var(--font-ui); color: var(--tx-primary); background: var(--bg-3);
 }
 .cd-tile-new { --dc: var(--tx-muted); align-content: center; gap: 8px; padding: 16px; border-style: dashed; background: none; }
 .cd-empty { margin-top: 16px; }
@@ -363,11 +362,10 @@ useShortcuts((e) => {
 /* Lernen */
 .cd-progress { max-width: 680px; margin-bottom: 20px; }
 .cd-card {
-  display: grid; gap: 18px; max-width: 680px; padding: 28px; border-top: 4px solid var(--dc);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--dc) 10%, var(--bg-1)), var(--bg-1) 40%);
+  display: grid; gap: 18px; max-width: 680px; padding: 28px;
 }
 .cd-meta { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.cd-deck { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font: 600 12px/1 var(--font-ui); color: var(--dc); background: color-mix(in srgb, var(--dc) 15%, transparent); }
+.cd-deck { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font: 500 12px/1 var(--font-ui); color: var(--tx-secondary); background: var(--bg-2); }
 .cd-deck i { width: 7px; height: 7px; border-radius: 50%; background: var(--dc); }
 .cd-new { font: 600 11px/1 var(--font-ui); text-transform: uppercase; letter-spacing: 0.06em; color: var(--a-blue); }
 .cd-src { min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -378,11 +376,11 @@ useShortcuts((e) => {
 .cd-grades { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .cd-grade {
   display: grid; justify-items: center; gap: 4px; padding: 10px 6px; border-radius: var(--r-s); cursor: pointer;
-  border: 1px solid color-mix(in srgb, var(--gc) 40%, transparent); background: color-mix(in srgb, var(--gc) 12%, transparent);
+  border: 1px solid var(--br-default); background: var(--bg-2);
   color: var(--tx-primary); font: 500 13px/1 var(--font-ui);
 }
 .cd-grade b { font: 600 20px/1 var(--font-ui); color: var(--gc); }
-.cd-grade:hover:not(:disabled) { background: color-mix(in srgb, var(--gc) 24%, transparent); }
+.cd-grade:hover:not(:disabled) { background: var(--bg-3); }
 .cd-finish { display: grid; justify-items: start; gap: 12px; max-width: 680px; padding: 24px; }
 .cd-finish-t { margin: 0; font: 600 16px/1.4 var(--font-ui); color: var(--tx-primary); }
 

@@ -160,7 +160,9 @@ test('Journal speichern', async () => {
   const saved = page.waitForResponse((r) => r.url().includes('/api/notes/Journal/') && r.request().method() === 'PUT')
   await page.getByRole('button', { name: 'Speichern' }).click()
   await saved
-  await page.getByRole('row').filter({ hasText: 'Smoke grün' }).waitFor()
+  await page.locator('.jr-read').filter({ hasText: 'Smoke grün' }).waitFor()
+  await page.getByRole('button', { name: 'Alle Einträge' }).click()
+  await page.locator('.jr-entry', { hasText: 'Smoke grün' }).waitFor()
   const d = new Date()
   const file = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.md`
   const md = readFileSync(join(env.KAIRO_NOTES_DIR, 'Journal', file), 'utf8')
@@ -274,22 +276,37 @@ test('Sprache umschalten', async () => {
   await page.getByRole('link', { name: 'Aufgaben' }).waitFor()
 })
 
-// Einstellungen gelten auf allen Geräten: ein zweiter Browser (eigener localStorage) übernimmt das Theme.
+// Einstellungen gelten auf allen Geräten: ein zweiter Browser (eigener localStorage) übernimmt Theme und Farbstimmung.
 test('Einstellungen auf allen Geräten', async () => {
+  // Der PUT ist entprellt; erst wenn der Server den Stand hat, darf das zweite Gerät ihn holen.
+  async function waitPrefs(want) {
+    for (let i = 0; i < 50; i++) {
+      const p = await page.evaluate(async () => await (await fetch('/api/prefs')).json())
+      if (Object.entries(want).every(([k, v]) => p[k] === v)) return
+      await page.waitForTimeout(100)
+    }
+    throw new Error(`Einstellungen nicht übernommen: ${JSON.stringify(want)}`)
+  }
   await page.goto(`${base}/settings`)
   await page.getByRole('button', { name: 'Darstellung' }).click()
   await page.getByRole('radio', { name: /Hell/ }).click()
-  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
+  await page.getByRole('radio', { name: 'Pflaume' }).click()
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light' && document.documentElement.dataset.palette === 'plum')
+  await waitPrefs({ theme: 'light', palette: 'plum' })
+  const themeColors = () => page.locator('meta[name="theme-color"]').evaluateAll((els) => els.map((e) => e.getAttribute('content')))
+  assert.deepEqual(await themeColors(), ['#f7f4fb', '#f7f4fb']) // Statusleiste folgt der Farbstimmung
   const other = await browser.newContext({ locale: 'de-DE' })
   try {
     const p2 = await other.newPage()
     await p2.goto(`${base}/today`)
-    await p2.waitForFunction(() => document.documentElement.dataset.theme === 'light', null, { timeout: 5000 })
+    await p2.waitForFunction(() => document.documentElement.dataset.theme === 'light' && document.documentElement.dataset.palette === 'plum', null, { timeout: 5000 })
   } finally {
     await other.close()
   }
   await page.getByRole('radio', { name: /Dunkel/ }).click()
-  await page.waitForFunction(async () => (await (await fetch('/api/prefs')).json()).theme === 'dark')
+  await page.getByRole('radio', { name: 'Warm' }).click()
+  await waitPrefs({ theme: 'dark', palette: 'warm' })
+  assert.deepEqual(await themeColors(), ['#0d0c0b', '#0d0c0b'])
 })
 
 // Handy (390×844): Tab-Leiste und „Neu“-Knopf liegen fest über dem Inhalt und dürfen nichts verdecken.

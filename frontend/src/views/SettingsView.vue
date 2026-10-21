@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { getHealth, getSettings, restartBackend, saveSettings, type Settings, type SettingsFile } from '@/api/client'
 import { useLoader } from '@/composables/useLoader'
 import { lang, t, type Lang } from '@/lib/i18n'
-import { ACCENTS, prefs, type Accent, type Theme } from '@/lib/prefs'
+import { ACCENTS, PALETTES, prefs, type Accent, type Palette, type Theme } from '@/lib/prefs'
 import { store } from '@/lib/storage'
 import { navItems } from '@/router'
 
@@ -21,6 +21,7 @@ watch(tab, (v) => store.set('kairo-settings-tab', v))
 const current = computed(() => SECTIONS.find((s) => s.id === tab.value)!)
 
 const THEMES: { id: Theme; label: string }[] = [{ id: 'dark', label: 'Dunkel' }, { id: 'light', label: 'Hell' }, { id: 'system', label: 'System' }]
+const PALETTE_NAMES: Record<Palette, string> = { neutral: 'Neutral', warm: 'Warm', slate: 'Kühl', plum: 'Pflaume' }
 const ACCENT_NAMES: Record<Accent, string> = { blue: 'Blau', violet: 'Violett', aqua: 'Türkis', pink: 'Rosa', orange: 'Orange' }
 const HOURS = Array.from({ length: 25 }, (_, h) => h)
 const startHours = computed(() => HOURS.filter((h) => h < prefs.dayEnd))
@@ -129,6 +130,18 @@ onMounted(() => {
                   </span>
                   <span class="th-name">{{ $t(th.label) }}</span>
                 </button>
+              </div>
+              <div class="st-row">
+                <div class="st-text"><div class="st-t">{{ $t('Farbstimmung') }}</div><div class="st-h">{{ $t('Temperatur der Flächen und Texte. Der Akzent bleibt separat.') }}</div></div>
+                <div class="st-palettes" role="radiogroup" :aria-label="$t('Farbstimmung')">
+                  <button
+                    v-for="p in PALETTES" :key="p" type="button" role="radio" class="st-palette" :class="`pal-${p}`"
+                    :aria-checked="prefs.palette === p" @click="prefs.palette = p"
+                  >
+                    <span class="pal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="pal-name">{{ $t(PALETTE_NAMES[p]) }}</span>
+                  </button>
+                </div>
               </div>
               <div class="st-row">
                 <div class="st-text"><div class="st-t">{{ $t('Akzentfarbe') }}</div><div class="st-h">{{ $t('Für Hauptaktionen, Auswahl, erfasste Zeit und die Jetzt-Linie.') }}</div></div>
@@ -342,6 +355,27 @@ onMounted(() => {
 .th-page .short { width: 60%; }
 .th-page .th-acc { position: absolute; right: 10px; bottom: 10px; width: 22px; height: 10px; background: var(--a-blue); }
 .th-system .th-page i:not(.th-acc) { background: #8f8f8f55; }
+
+/* Farbstimmung: drei Farbflächen als Vorschau, darunter der Name. */
+.st-palettes { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
+.st-palette { display: grid; gap: 6px; padding: 7px 8px 6px; border: 1px solid var(--br-default); border-radius: var(--r-s); background: var(--bg-1); transition: border-color var(--dur) ease-out, box-shadow var(--dur) ease-out; }
+.st-palette:hover { border-color: var(--br-strong); }
+.st-palette[aria-checked='true'] { border-color: var(--a-blue-hi); box-shadow: 0 0 0 1px var(--a-blue-hi); }
+.pal-dots { display: flex; gap: 3px; }
+.pal-dots i { width: 15px; height: 15px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
+.pal-neutral { --q1: #000; --q2: #2a2a2a; --q3: #f2f2f2; }
+.pal-warm { --q1: #0d0c0b; --q2: #332f2b; --q3: #d6d2c8; }
+.pal-slate { --q1: #080c12; --q2: #2a3745; --q3: #dce5ef; }
+.pal-plum { --q1: #191724; --q2: #3a3552; --q3: #e0def4; }
+:root[data-theme="light"] .pal-neutral { --q1: #fafafa; --q2: #d1d1d1; --q3: #171717; }
+:root[data-theme="light"] .pal-warm { --q1: #f3efe6; --q2: #d2caba; --q3: #2a2720; }
+:root[data-theme="light"] .pal-slate { --q1: #f3f6fa; --q2: #cfd8e3; --q3: #1c2530; }
+:root[data-theme="light"] .pal-plum { --q1: #f7f4fb; --q2: #d5cbe5; --q3: #241f2e; }
+.pal-dots i:nth-child(1) { background: var(--q1); }
+.pal-dots i:nth-child(2) { background: var(--q2); }
+.pal-dots i:nth-child(3) { background: var(--q3); }
+.pal-name { font: 500 12px/1 var(--font-ui); color: var(--tx-secondary); }
+.st-palette[aria-checked='true'] .pal-name { color: var(--tx-primary); }
 
 .st-swatches { display: flex; gap: 10px; flex-shrink: 0; }
 .st-swatch { width: 24px; height: 24px; border-radius: 50%; background: var(--sw); box-shadow: 0 0 0 1px var(--br-default); transition: box-shadow var(--dur) ease-out; }
