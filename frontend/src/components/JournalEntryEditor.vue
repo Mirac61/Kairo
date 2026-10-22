@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ApiError, createNote, errorMessage, importJournalTasks, readNote, saveNote, type JournalTaskImport } from '@/api/client'
 import { journalPath, normalizeTitle, parseEntry, splitPoints, toMarkdown } from '@/lib/journal'
 import { locale, t } from '@/lib/i18n'
@@ -34,11 +34,19 @@ let mtime = props.entry?.mtime ?? ''
 type Status = 'idle' | 'saving' | 'saved' | 'conflict' | 'error'
 const status = ref<Status>('idle')
 const error = ref('')
-let saving = false
+// Ein Speichervorgang läuft; weitere Änderungen währenddessen werden in der Schleife nachgeholt.
+let saving: Promise<void> | null = null
+let queued = false
+let alive = true
+// Was zuletzt geschrieben wurde: flush() schreibt nur, wenn sich seither etwas geändert hat.
+let version = 0
+let savedVersion = 0
 let timer: ReturnType<typeof setTimeout> | undefined
+const isDirty = () => version !== savedVersion
 
 // Feld zum Einfügen eines neuen Punkts; ein Punkt bleibt immer übrig.
 const pointList = ref<HTMLElement>()
+const formEl = ref<HTMLFormElement>()
 const canImport = computed(() => points.value.some((p) => p.trim()))
 
 function focusPoint(i: number) {
@@ -53,7 +61,13 @@ function grow(el: HTMLTextAreaElement) {
   el.style.height = el.scrollHeight + 'px'
 }
 
+// Beim Öffnen und beim Drehen des Geräts passen sich die Felder ihrem Inhalt an.
+function growAll() {
+  formEl.value?.querySelectorAll<HTMLTextAreaElement>('.je-area').forEach(grow)
+}
+
 function onChange() {
+  version++
   status.value = 'idle'
   error.value = ''
   if (timer) clearTimeout(timer)
@@ -85,33 +99,33 @@ function onPointKey(i: number, e: KeyboardEvent) {
   }
 }
 
-async function save() {
-  if (saving) return
-  saving = true
-  status.value = 'saving'
+function conflict(): false {
+  if (alive) {
+    status.value = 'conflict'
+    error.value = t('Der Eintrag wurde außerhalb von Kairo geändert und nicht überschrieben.')
+  }
+  return false
+}
+
+// Schreibt einmal; false bei Konflikt oder Fehler, damit die Schleife nicht weiterläuft.
+async function saveOnce(): Promise<boolean> {
+  if (alive) status.value = 'saving'
+  const v = version
   const answers = [q0.value, q1.value, points.value.join('\n')]
   try {
     // Vor dem Schreiben prüfen, ob die Datei seit dem Laden außerhalb geändert wurde.
     if (mtime) {
       try {
         const current = await readNote(journalPath(props.date))
-        if (current.mtime !== mtime) {
-          status.value = 'conflict'
-          error.value = t('Der Eintrag wurde außerhalb von Kairo geändert und nicht überschrieben.')
-          return
-        }
+        if (current.mtime !== mtime) return conflict()
       } catch (e) {
         if (!(e instanceof ApiError && e.status === 404)) throw e
-        status.value = 'conflict'
-        error.value = t('Der Eintrag wurde außerhalb von Kairo geändert und nicht überschrieben.')
-        return
+        return conflict()
       }
     } else {
       try {
         await readNote(journalPath(props.date))
-        status.value = 'conflict'
-        error.value = t('Der Eintrag wurde außerhalb von Kairo geändert und nicht überschrieben.')
-        return
+        return conflict()
       } catch (e) {
         if (!(e instanceof ApiError && e.status === 404)) throw e
       }
@@ -124,21 +138,55 @@ async function save() {
     }
     nextMtime = (await saveNote(journalPath(props.date), toMarkdown(props.date, { answers, other }), nextMtime)).mtime
     mtime = nextMtime
+    savedVersion = v
+    // Nach dem Unmount wird noch geschrieben, aber nichts mehr angezeigt oder gemeldet.
+    if (!alive) return true
     status.value = 'saved'
     error.value = ''
     emit('saved', { answers, other, mtime })
+    return true
   } catch (e) {
+    if (!alive) return false
     if (e instanceof ApiError && e.status === 409) {
-      status.value = 'conflict'
-      error.value = t('Der Eintrag wurde außerhalb von Kairo geändert und nicht überschrieben.')
+      conflict()
     } else {
       status.value = 'error'
       error.value = errorMessage(e)
     }
-  } finally {
-    saving = false
+    return false
   }
 }
+
+async function drain() {
+  do {
+    queued = false
+    if (!(await saveOnce())) return
+  } while (queued)
+}
+
+// Ein Vorgang zur Zeit; kommt währenddessen eine Änderung, läuft er danach noch einmal.
+function save(): Promise<void> {
+  if (saving) {
+    queued = true
+    return saving
+  }
+  saving = drain().finally(() => { saving = null })
+  return saving
+}
+
+// Vor dem Wechsel eines Eintrags oder beim Verlassen der Seite: Timer stoppen und fertig schreiben.
+async function flush() {
+  if (timer) {
+    clearTimeout(timer)
+    timer = undefined
+  }
+  if (!isDirty()) {
+    if (saving) await saving
+    return
+  }
+  await save()
+}
+defineExpose({ flush })
 
 async function reload() {
   try {
@@ -152,6 +200,7 @@ async function reload() {
     mtime = n.mtime
     status.value = 'idle'
     error.value = ''
+    void nextTick(growAll)
   } catch (e) {
     if (!(e instanceof ApiError && e.status === 404)) {
       status.value = 'error'
@@ -165,10 +214,20 @@ async function reload() {
     mtime = ''
     status.value = 'idle'
     error.value = ''
+    void nextTick(growAll)
   }
 }
 
-onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
+onMounted(() => {
+  window.addEventListener('resize', growAll)
+  void nextTick(growAll)
+})
+onBeforeUnmount(() => {
+  alive = false
+  window.removeEventListener('resize', growAll)
+  // Die Seite wird verlassen; die Anfrage läuft als SPA-Navigation weiter.
+  void flush()
+})
 
 // ---- Aufgaben übernehmen ----
 const importOpen = ref(false)
@@ -229,7 +288,7 @@ async function submitImport() {
     </div>
     <div v-else-if="status === 'error'" class="badge" role="alert">{{ error }}</div>
 
-    <form class="je-form" @submit.prevent>
+    <form ref="formEl" class="je-form" @submit.prevent>
       <section class="je-q">
         <label class="je-label" for="je-a">{{ $t('Was lief gut?') }}</label>
         <textarea id="je-a" v-model="q0" class="je-area" rows="1" :placeholder="HINTS[0]" @input="grow($event.target as HTMLTextAreaElement); onChange()"></textarea>

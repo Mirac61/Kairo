@@ -165,6 +165,43 @@ test('Journal speichern', async () => {
   assert.match(md, /## Was lief gut\?\n\nSmoke grün\n\n## Was lerne ich daraus\?\n\n## Was ist morgen wichtig\?\n\nWeiter so\n/)
 })
 
+// Kein Textverlust: Der Wechsel schreibt den offenen Eintrag, und geöffnete Felder sind sofort aufgeklappt.
+test('Journal: Autosave beim Verlassen und beim Eintragswechsel', async () => {
+  const journalDir = join(env.KAIRO_NOTES_DIR, 'Journal')
+  mkdirSync(journalDir, { recursive: true })
+  const dateOf = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('sv') }
+  const two = dateOf(-2)
+  const three = dateOf(-3)
+  writeFileSync(join(journalDir, `${two}.md`), `# Journal ${two}\n\n## Was lief gut?\n\nZeile eins\nZeile zwei\nZeile drei\n`)
+  writeFileSync(join(journalDir, `${three}.md`), `# Journal ${three}\n\n## Was lief gut?\n\nAnderer Tag\n`)
+
+  // Verlassen: Ein Klick auf die Navigation wechselt die Ansicht ohne Neuladen der Seite.
+  await page.goto(`${base}/journal`)
+  await page.getByLabel('Was lief gut?').fill('Kein Verlust beim Verlassen')
+  const leaving = page.waitForResponse((r) => r.url().includes('/api/notes/Journal/') && r.request().method() === 'PUT')
+  await page.locator('.sidebar').getByRole('link', { name: /^Aufgaben/ }).click()
+  await leaving
+  await page.waitForURL(/\/tasks$/)
+  assert.match(readFileSync(join(journalDir, `${dateOf(0)}.md`), 'utf8'), /Kein Verlust beim Verlassen/)
+
+  // Öffnen: drei Zeilen stehen sofort vollständig da, nicht abgeschnitten.
+  await page.goto(`${base}/journal`)
+  await page.locator(`.jr-entry[data-date="${two}"] .jr-row`).click()
+  const area = page.locator(`.jr-entry[data-date="${two}"] .je-area`).first()
+  await page.waitForFunction((sel) => {
+    const el = document.querySelector(sel)
+    return el && el.scrollHeight <= el.clientHeight + 1
+  }, `.jr-entry[data-date="${two}"] .je-area`)
+
+  // Wechsel: Erst wird der alte Eintrag geschrieben, dann der neue geöffnet.
+  await area.fill('Wechsel eins\nWechsel zwei')
+  const saving = page.waitForResponse((r) => r.url().includes(`/api/notes/Journal/${two}.md`) && r.request().method() === 'PUT')
+  await page.locator(`.jr-entry[data-date="${three}"] .jr-row`).click()
+  await saving
+  await page.locator(`.jr-entry[data-date="${two}"] .jr-row`).click()
+  assert.equal(await page.locator(`.jr-entry[data-date="${two}"] .je-area`).first().inputValue(), 'Wechsel eins\nWechsel zwei')
+})
+
 test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => {
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)

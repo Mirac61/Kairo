@@ -29,6 +29,8 @@ const taskImports = ref<Record<string, { count: number; titles: string[] }>>({})
 const allTasks = ref<DoneTask[]>([])
 const completedHabits = ref<string[]>([])
 const expandedDate = ref<string | null>(null)
+const todayEditor = ref<InstanceType<typeof JournalEntryEditor>>()
+const pastEditor = ref<InstanceType<typeof JournalEntryEditor>>()
 
 // Rechte Spalte an der linken ausrichten: Der Rückblick endet an der Heute-Karte,
 // „Noch offen“ beginnt auf Höhe des ersten vergangenen Eintrags.
@@ -157,11 +159,29 @@ async function load() {
 }
 onMounted(load)
 watch(() => route.query.date, (date) => {
-  if (typeof date === 'string' && date !== todayStr.value && pastRows.value.some((r) => r.date === date)) expandedDate.value = date
+  if (typeof date === 'string' && date !== todayStr.value && pastRows.value.some((r) => r.date === date)) void switchEntry(date)
 })
 
 function toggle(date: string) {
-  expandedDate.value = expandedDate.value === date ? null : date
+  void switchEntry(expandedDate.value === date ? null : date)
+}
+
+// Ohne Eingabe bleibt ein nachgetragener Tag ein leerer Entwurf; er verschwindet beim Schließen wieder.
+const isDraft = (r: Row) => !r.mtime && !r.other.trim() && r.answers.every((a) => !a.trim())
+
+// Erst den offenen Eintrag fertig speichern, dann wechseln: So ist die Zeile in pastRows aktuell,
+// bevor die Komponente unmountet.
+async function switchEntry(date: string | null) {
+  await Promise.all([todayEditor.value?.flush(), pastEditor.value?.flush()])
+  if (date === null && expandedDate.value) {
+    const closing = expandedDate.value
+    expandedDate.value = null
+    if (pastRows.value.some((r) => r.date === closing && isDraft(r))) {
+      pastRows.value = pastRows.value.filter((r) => r.date !== closing)
+    }
+    return
+  }
+  expandedDate.value = date
 }
 
 function onTodaySaved(entry: JournalEntryData) {
@@ -228,6 +248,7 @@ function completeTask(task: Task) {
             <span class="jr-today-date">{{ fmt(longFmt, todayStr) }}</span>
           </header>
           <JournalEntryEditor
+            ref="todayEditor"
             :date="todayStr"
             :entry="todayEntry"
             :imported-titles="importedTitles(todayStr)"
@@ -247,7 +268,7 @@ function completeTask(task: Task) {
             <section v-for="g in groups" :key="g.month" class="jr-month-group">
               <h3 v-if="g.rows.length > 1" class="jr-month">{{ monthLabel(g.month) }}</h3>
               <div class="jr-feed">
-                <article v-for="r in g.rows" :key="r.date" class="jr-entry">
+                <article v-for="r in g.rows" :key="r.date" class="jr-entry" :data-date="r.date">
                   <button type="button" class="jr-row" :aria-expanded="expandedDate === r.date" @click="toggle(r.date)">
                     <span class="jr-date">{{ label(r.date) }}</span>
                     <span class="jr-points" :class="{ empty: !previewPoints(r).length }">
@@ -258,6 +279,7 @@ function completeTask(task: Task) {
                   </button>
                   <JournalEntryEditor
                     v-if="expandedDate === r.date"
+                    ref="pastEditor"
                     :key="r.date"
                     :date="r.date"
                     :entry="r"
