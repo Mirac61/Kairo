@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -15,19 +16,34 @@ type memTasks struct {
 }
 
 func (s *memTasks) Create(_ context.Context, t domain.Task) error { s.m[t.ID] = t; return nil }
-func (s *memTasks) ImportFromJournal(_ context.Context, date string, tasks []domain.Task) (domain.JournalTaskImport, bool, error) {
-	if imported, ok := s.imports[date]; ok {
-		return imported, false, nil
+func (s *memTasks) JournalImportTitles(_ context.Context, date string) ([]string, time.Time, error) {
+	titles := make([]string, 0, len(s.m))
+	for _, t := range s.m {
+		if t.SourceJournalDate != nil && *t.SourceJournalDate == date {
+			titles = append(titles, t.Title)
+		}
 	}
+	sort.Strings(titles)
+	if imp, ok := s.imports[date]; ok {
+		return titles, imp.ImportedAt, nil
+	}
+	return titles, time.Time{}, nil
+}
+func (s *memTasks) ImportFromJournal(_ context.Context, date string, tasks []domain.Task, totalCount int) error {
 	if s.imports == nil {
 		s.imports = map[string]domain.JournalTaskImport{}
 	}
-	imported := domain.JournalTaskImport{JournalDate: date, TaskCount: len(tasks), ImportedAt: tasks[0].CreatedAt}
+	at := time.Time{}
+	if imp, ok := s.imports[date]; ok {
+		at = imp.ImportedAt
+	} else if len(tasks) > 0 {
+		at = tasks[0].CreatedAt
+	}
 	for _, task := range tasks {
 		s.m[task.ID] = task
 	}
-	s.imports[date] = imported
-	return imported, true, nil
+	s.imports[date] = domain.JournalTaskImport{JournalDate: date, TaskCount: totalCount, ImportedAt: at}
+	return nil
 }
 func (s *memTasks) ListJournalTaskImports(context.Context) ([]domain.JournalTaskImport, error) {
 	out := make([]domain.JournalTaskImport, 0, len(s.imports))
@@ -92,7 +108,7 @@ func TestTaskCreateDefaultsAndValidation(t *testing.T) {
 	}
 }
 
-func TestTaskImportFromJournalUsesLocalDayAndIsIdempotent(t *testing.T) {
+func TestTaskImportFromJournalUsesLocalDayAndDeduplicatesByTitle(t *testing.T) {
 	berlin, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +118,7 @@ func TestTaskImportFromJournalUsesLocalDayAndIsIdempotent(t *testing.T) {
 	svc := NewTaskService(store, func() time.Time { return clock }).WithLocation(berlin)
 
 	imported, created, err := svc.ImportFromJournal(context.Background(), "2026-10-24", []string{"  Abgabe vorbereiten  ", "Lesen"})
-	if err != nil || !created || imported.TaskCount != 2 {
+	if err != nil || !created || imported.TaskCount != 2 || len(imported.Titles) != 2 {
 		t.Fatalf("Import = %+v, created=%v, err=%v", imported, created, err)
 	}
 	for _, task := range store.m {
@@ -112,9 +128,38 @@ func TestTaskImportFromJournalUsesLocalDayAndIsIdempotent(t *testing.T) {
 		}
 	}
 
-	imported, created, err = svc.ImportFromJournal(context.Background(), "2026-10-24", []string{"Andere Task"})
+	// Gleicher Titel in anderer Schreibweise: kein neuer Task.
+	imported, created, err = svc.ImportFromJournal(context.Background(), "2026-10-24", []string{"  abgabe   vorbereiten ", "LESEN"})
 	if err != nil || created || imported.TaskCount != 2 || len(store.m) != 2 {
-		t.Fatalf("zweiter Import = %+v, created=%v, Tasks=%d, err=%v", imported, created, len(store.m), err)
+		t.Fatalf("Wiederholung = %+v, created=%v, Tasks=%d, err=%v", imported, created, len(store.m), err)
+	}
+
+	// Teilimport: ein bestehender und ein neuer Titel → nur der neue wird angelegt.
+	imported, created, err = svc.ImportFromJournal(context.Background(), "2026-10-24", []string{"Lesen", "Kapitel 7"})
+	if err != nil || !created || imported.TaskCount != 3 || len(store.m) != 3 {
+		t.Fatalf("Teilimport = %+v, created=%v, Tasks=%d, err=%v", imported, created, len(store.m), err)
+	}
+}
+
+func TestTaskImportFromJournalKeepsSoftDeletedAsImported(t *testing.T) {
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &memTasks{m: map[string]domain.Task{}, imports: map[string]domain.JournalTaskImport{}}
+	svc := NewTaskService(store, func() time.Time { return time.Date(2026, 10, 24, 12, 0, 0, 0, berlin) }).WithLocation(berlin)
+
+	// Ein bereits im Speicher stehender Titel zählt als importiert, auch wenn er „im Papierkorb“ ist:
+	// die Quelle dafür ist JournalImportTitles, das soft-gelöschte Tasks weiterhin liefert.
+	date := "2026-10-24"
+	store.m["alt"] = domain.Task{ID: "alt", Title: "Schon da", Status: domain.TaskBacklog, Priority: domain.PriorityMedium, SourceJournalDate: &date}
+
+	imported, created, err := svc.ImportFromJournal(context.Background(), date, []string{"SCHON  DA", "Neu dazu"})
+	if err != nil || !created || imported.TaskCount != 2 || len(store.m) != 2 {
+		t.Fatalf("Import = %+v, created=%v, Tasks=%d, err=%v", imported, created, len(store.m), err)
+	}
+	if len(imported.Titles) != 2 {
+		t.Errorf("Titles = %v", imported.Titles)
 	}
 }
 

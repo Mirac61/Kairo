@@ -71,32 +71,62 @@ func TestTaskRepositoryRoundTrip(t *testing.T) {
 	}
 }
 
-func TestTaskRepositoryJournalImportIsAtomicAndIdempotent(t *testing.T) {
+func TestTaskRepositoryJournalImportAtomicAndPartial(t *testing.T) {
 	ctx := context.Background()
 	tasks, _ := newTaskRepos(t)
 	date := "2026-10-21"
 	first, second := newTask("journal-1"), newTask("journal-2")
 	first.SourceJournalDate, second.SourceJournalDate = &date, &date
+	first.Title, second.Title = "Abgabe", "Lesen"
 
-	got, created, err := tasks.ImportFromJournal(ctx, date, []domain.Task{first, second})
-	if err != nil || !created || got.TaskCount != 2 || got.JournalDate != date {
-		t.Fatalf("Import = %+v, created=%v, err=%v", got, created, err)
+	if err := tasks.ImportFromJournal(ctx, date, []domain.Task{first, second}, 2); err != nil {
+		t.Fatalf("Import = %v", err)
 	}
 	stored, err := tasks.Get(ctx, first.ID)
 	if err != nil || stored.SourceJournalDate == nil || *stored.SourceJournalDate != date {
 		t.Fatalf("Task-Ursprung = %+v, err=%v", stored, err)
 	}
+	titles, at, err := tasks.JournalImportTitles(ctx, date)
+	if err != nil || len(titles) != 2 || at.IsZero() {
+		t.Fatalf("JournalImportTitles = %v, at=%v, err=%v", titles, at, err)
+	}
 
+	// Nachimport: ein neuer Titel, der Marker zählt auf 3 hoch.
 	retry := newTask("journal-retry")
 	retry.SourceJournalDate = &date
-	got, created, err = tasks.ImportFromJournal(ctx, date, []domain.Task{retry})
-	list, listErr := tasks.List(ctx, domain.TaskFilter{})
-	if err != nil || listErr != nil || created || got.TaskCount != 2 || len(list) != 2 {
-		t.Fatalf("Wiederholung = %+v, created=%v, Tasks=%d, err=%v, list err=%v", got, created, len(list), err, listErr)
+	retry.Title = "Kapitel 7"
+	if err := tasks.ImportFromJournal(ctx, date, []domain.Task{retry}, 3); err != nil {
+		t.Fatalf("Nachimport = %v", err)
+	}
+	list, err := tasks.List(ctx, domain.TaskFilter{})
+	if err != nil || len(list) != 3 {
+		t.Fatalf("Tasks = %d, err=%v", len(list), err)
 	}
 	imports, err := tasks.ListJournalTaskImports(ctx)
-	if err != nil || len(imports) != 1 || imports[0].JournalDate != date || imports[0].TaskCount != 2 {
+	if err != nil || len(imports) != 1 || imports[0].JournalDate != date || imports[0].TaskCount != 3 || len(imports[0].Titles) != 3 {
 		t.Fatalf("Importliste = %+v, err=%v", imports, err)
+	}
+}
+
+func TestTaskRepositoryJournalImportTitlesIncludeTrashed(t *testing.T) {
+	ctx := context.Background()
+	tasks, _ := newTaskRepos(t)
+	date := "2026-10-21"
+	t1 := newTask("journal-1")
+	t1.SourceJournalDate = &date
+	if err := tasks.ImportFromJournal(ctx, date, []domain.Task{t1}, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := tasks.Trash(ctx, t1.ID, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	titles, _, err := tasks.JournalImportTitles(ctx, date)
+	if err != nil || len(titles) != 1 || titles[0] != t1.Title {
+		t.Fatalf("JournalImportTitles nach Trash = %v, err=%v", titles, err)
+	}
+	imports, err := tasks.ListJournalTaskImports(ctx)
+	if err != nil || len(imports) != 1 || imports[0].TaskCount != 1 || len(imports[0].Titles) != 1 {
+		t.Fatalf("Importliste nach Trash = %+v, err=%v", imports, err)
 	}
 }
 
@@ -106,7 +136,7 @@ func TestTaskRepositoryJournalImportRollsBackOnTaskFailure(t *testing.T) {
 	date := "2026-10-21"
 	a, b := newTask("duplicate"), newTask("duplicate")
 	a.SourceJournalDate, b.SourceJournalDate = &date, &date
-	if _, _, err := tasks.ImportFromJournal(ctx, date, []domain.Task{a, b}); err == nil {
+	if err := tasks.ImportFromJournal(ctx, date, []domain.Task{a, b}, 2); err == nil {
 		t.Fatal("doppelte Task-ID wurde akzeptiert")
 	}
 	if got, _ := tasks.List(ctx, domain.TaskFilter{}); len(got) != 0 {
@@ -114,8 +144,8 @@ func TestTaskRepositoryJournalImportRollsBackOnTaskFailure(t *testing.T) {
 	}
 	valid := newTask("valid")
 	valid.SourceJournalDate = &date
-	if _, created, err := tasks.ImportFromJournal(ctx, date, []domain.Task{valid}); err != nil || !created {
-		t.Fatalf("Import nach Rollback: created=%v, err=%v", created, err)
+	if err := tasks.ImportFromJournal(ctx, date, []domain.Task{valid}, 1); err != nil {
+		t.Fatalf("Import nach Rollback: %v", err)
 	}
 }
 

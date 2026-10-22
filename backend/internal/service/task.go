@@ -14,7 +14,11 @@ import (
 // TaskStore ist der Speicher, den der TaskService braucht.
 type TaskStore interface {
 	Create(ctx context.Context, t domain.Task) error
-	ImportFromJournal(ctx context.Context, date string, tasks []domain.Task) (domain.JournalTaskImport, bool, error)
+	// JournalImportTitles liefert die bereits importierten Titel eines Journaltags
+	// (auch aus dem Papierkorb) und den Zeitpunkt des ersten Imports (Null, wenn keiner).
+	JournalImportTitles(ctx context.Context, date string) (titles []string, importedAt time.Time, err error)
+	// ImportFromJournal legt die (neuen) Tasks an und setzt den Marker auf totalCount.
+	ImportFromJournal(ctx context.Context, date string, tasks []domain.Task, totalCount int) error
 	ListJournalTaskImports(ctx context.Context) ([]domain.JournalTaskImport, error)
 	Get(ctx context.Context, id string) (domain.Task, error)
 	List(ctx context.Context, f domain.TaskFilter) ([]domain.Task, error)
@@ -141,13 +145,22 @@ func (s *TaskService) Create(ctx context.Context, in CreateTaskInput) (domain.Ta
 	return t, nil
 }
 
-// ImportFromJournal legt die ausgewählten Antworten eines Journaltags einmalig als Tasks an.
-// Die Fälligkeit liegt am folgenden lokalen Kalendertag um 23:59.
+// ImportFromJournal legt die gewählten Punkte eines Journaltags als Tasks an.
+// Bereits importierte Titel (auch im Papierkorb) werden übersprungen; verglichen
+// wird normalisiert (ohne Groß-/Kleinschreibung und Mehrfach-Leerraum). Die
+// Fälligkeit liegt am auf das Journal-Datum folgenden Kalendertag um 23:59.
 func (s *TaskService) ImportFromJournal(ctx context.Context, date string, titles []string) (domain.JournalTaskImport, bool, error) {
 	if err := validateDate("journal_date", date); err != nil {
 		return domain.JournalTaskImport{}, false, err
 	}
-	if len(titles) == 0 {
+	hasValid := false
+	for _, raw := range titles {
+		if strings.TrimSpace(raw) != "" {
+			hasValid = true
+			break
+		}
+	}
+	if !hasValid {
 		return domain.JournalTaskImport{}, false, fmt.Errorf("%w: mindestens eine Task auswählen", domain.ErrInvalid)
 	}
 	day, err := time.ParseInLocation("2006-01-02", date, s.loc)
@@ -158,11 +171,47 @@ func (s *TaskService) ImportFromJournal(ctx context.Context, date string, titles
 	due := time.Date(day.Year(), day.Month(), day.Day()+1, 23, 59, 0, 0, s.loc).UTC()
 	now := s.now().UTC()
 
-	tasks := make([]domain.Task, 0, len(titles))
-	for _, title := range titles {
+	existing, importedAt, err := s.store.JournalImportTitles(ctx, date)
+	if err != nil {
+		return domain.JournalTaskImport{}, false, err
+	}
+	have := make(map[string]struct{}, len(existing))
+	for _, t := range existing {
+		have[normalizeJournalTitle(t)] = struct{}{}
+	}
+
+	// Neue Titel: innerhalb der Anfrage und gegen bereits Importierte dedupliziert.
+	seen := make(map[string]struct{}, len(titles))
+	newTitles := make([]string, 0, len(titles))
+	for _, raw := range titles {
+		title := strings.TrimSpace(raw)
+		if title == "" {
+			continue
+		}
+		key := normalizeJournalTitle(title)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		if _, ok := have[key]; ok {
+			continue
+		}
+		newTitles = append(newTitles, title)
+	}
+
+	all := make([]string, 0, len(existing)+len(newTitles))
+	all = append(all, existing...)
+	all = append(all, newTitles...)
+
+	if len(newTitles) == 0 {
+		return domain.JournalTaskImport{JournalDate: date, TaskCount: len(all), ImportedAt: importedAt, Titles: all}, false, nil
+	}
+
+	tasks := make([]domain.Task, 0, len(newTitles))
+	for _, title := range newTitles {
 		t := domain.Task{
 			ID:                domain.NewID(),
-			Title:             strings.TrimSpace(title),
+			Title:             title,
 			Status:            domain.TaskBacklog,
 			Priority:          domain.PriorityMedium,
 			DueAt:             &due,
@@ -176,16 +225,21 @@ func (s *TaskService) ImportFromJournal(ctx context.Context, date string, titles
 		tasks = append(tasks, t)
 	}
 
-	result, created, err := s.store.ImportFromJournal(ctx, date, tasks)
-	if err != nil {
+	if err := s.store.ImportFromJournal(ctx, date, tasks, len(all)); err != nil {
 		return domain.JournalTaskImport{}, false, err
 	}
-	if created {
-		for _, task := range tasks {
-			s.emit(domain.Event{Type: domain.EventTaskCreated, ID: task.ID})
-		}
+	if importedAt.IsZero() {
+		importedAt = now
 	}
-	return result, created, nil
+	for _, task := range tasks {
+		s.emit(domain.Event{Type: domain.EventTaskCreated, ID: task.ID})
+	}
+	return domain.JournalTaskImport{JournalDate: date, TaskCount: len(all), ImportedAt: importedAt, Titles: all}, true, nil
+}
+
+// normalizeJournalTitle vergleicht Titel unabhängig von Groß-/Kleinschreibung und Leerraum.
+func normalizeJournalTitle(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
 }
 
 // ListJournalTaskImports liefert die bereits importierten Journaltage.

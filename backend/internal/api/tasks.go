@@ -89,9 +89,10 @@ func (h taskHandlers) register(mux *http.ServeMux) {
 }
 
 type journalTaskImportDTO struct {
-	JournalDate string `json:"journal_date"`
-	TaskCount   int    `json:"task_count"`
-	ImportedAt  string `json:"imported_at"`
+	JournalDate string   `json:"journal_date"`
+	TaskCount   int      `json:"task_count"`
+	ImportedAt  string   `json:"imported_at"`
+	Titles      []string `json:"titles"`
 }
 
 func toJournalTaskImportDTO(i domain.JournalTaskImport) journalTaskImportDTO {
@@ -99,6 +100,7 @@ func toJournalTaskImportDTO(i domain.JournalTaskImport) journalTaskImportDTO {
 		JournalDate: i.JournalDate,
 		TaskCount:   i.TaskCount,
 		ImportedAt:  i.ImportedAt.UTC().Format(time.RFC3339),
+		Titles:      i.Titles,
 	}
 }
 

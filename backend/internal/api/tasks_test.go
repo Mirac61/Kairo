@@ -125,7 +125,7 @@ func TestTasksErrors(t *testing.T) {
 	}
 }
 
-func TestJournalTaskImportIsIdempotentAndDueNextLocalDay(t *testing.T) {
+func TestJournalTaskImportIsPartialAndDueNextLocalDay(t *testing.T) {
 	h := newTasksRouter(t)
 	body := `{"titles":["Abgabe vorbereiten","Kapitel lesen"]}`
 	rec := call(h, "POST", "/api/journal/2026-10-21/tasks", body)
@@ -133,7 +133,7 @@ func TestJournalTaskImportIsIdempotentAndDueNextLocalDay(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &imported); err != nil {
 		t.Fatal(err)
 	}
-	if rec.Code != http.StatusCreated || imported.JournalDate != "2026-10-21" || imported.TaskCount != 2 {
+	if rec.Code != http.StatusCreated || imported.JournalDate != "2026-10-21" || imported.TaskCount != 2 || len(imported.Titles) != 2 {
 		t.Fatalf("Import = %d %+v %s", rec.Code, imported, rec.Body)
 	}
 
@@ -159,25 +159,30 @@ func TestJournalTaskImportIsIdempotentAndDueNextLocalDay(t *testing.T) {
 		}
 	}
 
-	rec = call(h, "POST", "/api/journal/2026-10-21/tasks", `{"titles":["Andere Task"]}`)
+	// Gleicher Titel in anderer Schreibweise: nichts Neues.
+	rec = call(h, "POST", "/api/journal/2026-10-21/tasks", `{"titles":["ABGABE vorbereiten"]}`)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("zweiter Import = %d %s", rec.Code, rec.Body)
+		t.Fatalf("Wiederholung = %d %s", rec.Code, rec.Body)
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &imported)
-	if imported.TaskCount != 2 {
-		t.Errorf("zweiter Import meldet %d Tasks statt 2", imported.TaskCount)
+	if imported.TaskCount != 2 || len(imported.Titles) != 2 {
+		t.Errorf("Wiederholung meldet %+v statt 2", imported)
 	}
-	list = nil
-	rec = call(h, "GET", "/api/tasks", "")
-	_ = json.Unmarshal(rec.Body.Bytes(), &list)
-	if len(list) != 2 {
-		t.Errorf("zweiter Import hat Duplikate erzeugt: %d Tasks", len(list))
+
+	// Neuer Titel: wird zusätzlich angelegt, der Marker zählt hoch.
+	rec = call(h, "POST", "/api/journal/2026-10-21/tasks", `{"titles":["Andere Task"]}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("Teilimport = %d %s", rec.Code, rec.Body)
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &imported)
+	if imported.TaskCount != 3 || len(imported.Titles) != 3 {
+		t.Errorf("Teilimport meldet %+v statt 3", imported)
 	}
 
 	rec = call(h, "GET", "/api/journal/task-imports", "")
 	var imports []journalTaskImportDTO
 	_ = json.Unmarshal(rec.Body.Bytes(), &imports)
-	if rec.Code != http.StatusOK || len(imports) != 1 || imports[0].TaskCount != 2 {
+	if rec.Code != http.StatusOK || len(imports) != 1 || imports[0].TaskCount != 3 || len(imports[0].Titles) != 3 {
 		t.Errorf("Importstatus = %d %+v", rec.Code, imports)
 	}
 }
