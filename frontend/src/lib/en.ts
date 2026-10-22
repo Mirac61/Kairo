@@ -686,6 +686,9 @@ const en: Record<string, string> = {
   'Erledigte Gewohnheiten': 'Habits done',
   'Keine Einträge.': 'No entries yet.',
   'Noch offen aus dem Journal': 'Still open from the journal',
+  'Aus Journal': 'From journal',
+  '+{n} weitere Aufgabe': '+{n} more task',
+  '+{n} weitere Aufgaben': '+{n} more tasks',
   // Lernkarten
   'Alle Fächer': 'All subjects',
   'Alle lernen': 'Study all',

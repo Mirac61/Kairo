@@ -31,8 +31,8 @@ const STATUS_LABEL: Record<Task['status'], string> = {
 const PRIO_LABEL: Record<string, string> = { URGENT: t('Dringend'), HIGH: t('Hoch'), MEDIUM: t('Mittel'), LOW: t('Niedrig') }
 const FILTERS = [
   { id: 'alle', label: t('Offen') }, { id: 'heute', label: t('Heute') }, { id: 'woche', label: t('Diese Woche') },
-  { id: 'ueber', label: t('Überfällig') }, { id: 'prio', label: t('Prio hoch') }, { id: 'erledigt', label: t('Erledigt') },
-  { id: 'abgebrochen', label: t('Abgebrochen') },
+  { id: 'ueber', label: t('Überfällig') }, { id: 'prio', label: t('Prio hoch') }, { id: 'journal', label: t('Aus Journal') },
+  { id: 'erledigt', label: t('Erledigt') }, { id: 'abgebrochen', label: t('Abgebrochen') },
 ]
 // Per Auswahl setzbar; Läuft, Pausiert und Erledigt ergeben sich aus Timer und Häkchen.
 const SETTABLE: Task['status'][] = ['BACKLOG', 'PLANNED', 'CANCELLED']
@@ -90,6 +90,7 @@ const matches = (t: Task, f: string) => {
     case 'woche': return isOpen(t) && d !== null && d >= todayStr() && d < weekEnd()
     case 'ueber': return isOpen(t) && d !== null && d < todayStr()
     case 'prio': return isOpen(t) && (t.priority === 'HIGH' || t.priority === 'URGENT')
+    case 'journal': return isOpen(t) && !!t.source_journal_date
     default: return isOpen(t)
   }
 }
@@ -284,6 +285,13 @@ function focusNew() {
   void router.replace({ query: {} })
 }
 watch(() => route.query.new, focusNew)
+
+// Aus dem Journal: /tasks?filter=journal wählt den Filter; unbekannte IDs bleiben wirkungslos.
+function filterFromRoute() {
+  const f = route.query.filter
+  if (typeof f === 'string' && FILTERS.some((x) => x.id === f)) filter.value = f
+}
+watch(() => route.query.filter, filterFromRoute, { immediate: true })
 
 onMounted(() => {
   focusNew()

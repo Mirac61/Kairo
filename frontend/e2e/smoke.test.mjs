@@ -268,6 +268,55 @@ test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
   assert.equal((await api('/tasks')).find((task) => task.title === 'Kapitel 7 lesen').status, 'COMPLETED')
 })
 
+test('Journal: Rückblick bleibt bei vielen Einträgen bündig', async () => {
+  const today = new Date().toLocaleDateString('sv')
+  for (let i = 1; i <= 8; i++) {
+    const task = await api('/tasks', { method: 'POST', body: JSON.stringify({ title: `Rückblick ${i}`, planned_date: today }) })
+    await api(`/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'COMPLETED' }) })
+  }
+  await page.goto(`${base}/journal`)
+  await page.waitForFunction(() => {
+    const recap = document.querySelector('.jr-recap-box')
+    const today = document.querySelector('.jr-today')
+    return recap && today && Math.abs(recap.getBoundingClientRect().bottom - today.getBoundingClientRect().bottom) <= 1
+  })
+  assert.ok(await page.locator('.jr-recap-body').evaluate((el) => el.scrollHeight > el.clientHeight), 'Rückblick scrollt innen')
+})
+
+test('Journal: „Alle Aufgaben“ filtert nach Journal', async () => {
+  await page.goto(`${base}/journal`)
+  const open = await api('/tasks')
+  const expected = open.filter((task) => task.source_journal_date && !['COMPLETED', 'CANCELLED'].includes(task.status))
+  assert.ok(expected.length, 'mindestens eine offene Journal-Aufgabe')
+  await page.locator('.jr-open-all').click()
+  await page.waitForURL(/\/tasks\?filter=journal$/)
+  const tab = page.locator('.tk-tabs button', { hasText: 'Aus Journal' })
+  await tab.waitFor()
+  assert.equal(await tab.getAttribute('aria-pressed'), 'true')
+  assert.match(await tab.innerText(), new RegExp(`\\b${expected.length}\\b`))
+  assert.equal(await page.locator('.task-row').count(), expected.length)
+  await page.locator('.task-row', { hasText: 'Abgabe einreichen. Kapitel lesen' }).waitFor()
+})
+
+test('Journal am Handy: Rückblick und offene Aufgaben vor den Einträgen', async () => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  try {
+    await page.goto(`${base}/journal`)
+    await page.locator('.jr-open-box').waitFor()
+    const box = await page.evaluate(() => {
+      const rect = (sel) => document.querySelector(sel)?.getBoundingClientRect()
+      return {
+        tops: ['.jr-today', '.jr-side-top', '.jr-open-box', '.jr-past'].map((sel) => rect(sel)?.top ?? -1),
+        overflow: document.documentElement.scrollWidth - window.innerWidth,
+      }
+    })
+    assert.ok(box.tops.every((top, i) => i === 0 || top > box.tops[i - 1]), `Reihenfolge: ${box.tops}`)
+    assert.ok(box.overflow <= 1, `kein Überlauf: ${box.overflow}px`)
+  } finally {
+    await page.setViewportSize({ width: 1400, height: 900 })
+  }
+})
+
 test('Lernkarte bewerten', async () => {
   mkdirSync(env.KAIRO_NOTES_DIR, { recursive: true })
   writeFileSync(join(env.KAIRO_NOTES_DIR, 'Karten.md'), '- Smoke-Frage :: Smoke-Antwort\n')

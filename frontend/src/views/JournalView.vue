@@ -297,7 +297,7 @@ function completeTask(task: Task) {
 
       <!-- Seitenleiste -->
       <aside class="jr-side">
-        <div ref="topEl" class="jr-side-top" :style="{ minHeight: todayH ? `${todayH}px` : undefined }">
+        <div ref="topEl" class="jr-side-top" :style="{ '--today-h': todayH ? `${todayH}px` : undefined }">
           <section class="jr-side-box">
           <div class="jr-side-head">
             <h2 class="jr-side-title">{{ $t('Letzte 12 Wochen') }}</h2>
@@ -307,22 +307,24 @@ function completeTask(task: Task) {
             <i v-for="c in heatCells" :key="c.s" :class="{ on: c.has, future: c.future }" :title="c.label"></i>
           </div>
         </section>
-        <section class="jr-side-box">
+        <section class="jr-side-box jr-recap-box">
           <h2 class="jr-side-title">{{ $t('Tagesrückblick') }}</h2>
-          <template v-if="completedTasks.length || completedHabits.length">
-            <div v-if="completedTasks.length" class="jr-recap-group">
-              <span class="jr-recap-label">{{ $t('Erledigte Aufgaben') }}</span>
-              <ul class="jr-recap-list"><li v-for="t in completedTasks" :key="t.id">{{ t.title }}</li></ul>
-            </div>
-            <div v-if="completedHabits.length" class="jr-recap-group">
-              <span class="jr-recap-label">{{ $t('Erledigte Gewohnheiten') }}</span>
-              <ul class="jr-recap-list"><li v-for="h in completedHabits" :key="h">{{ h }}</li></ul>
-            </div>
-          </template>
-          <p v-else class="jr-recap-empty">{{ $t('Nichts erledigt.') }}</p>
+          <div class="jr-recap-body">
+            <template v-if="completedTasks.length || completedHabits.length">
+              <div v-if="completedTasks.length" class="jr-recap-group">
+                <span class="jr-recap-label">{{ $t('Erledigte Aufgaben') }}</span>
+                <ul class="jr-recap-list"><li v-for="t in completedTasks" :key="t.id">{{ t.title }}</li></ul>
+              </div>
+              <div v-if="completedHabits.length" class="jr-recap-group">
+                <span class="jr-recap-label">{{ $t('Erledigte Gewohnheiten') }}</span>
+                <ul class="jr-recap-list"><li v-for="h in completedHabits" :key="h">{{ h }}</li></ul>
+              </div>
+            </template>
+            <p v-else class="jr-recap-empty">{{ $t('Nichts erledigt.') }}</p>
+          </div>
         </section>
         </div>
-        <section v-if="openJournalTasks.length" class="jr-side-box" :style="{ marginTop: `${openGap}px` }">
+        <section v-if="openJournalTasks.length" class="jr-side-box jr-open-box" :style="{ '--open-gap': `${openGap}px` }">
           <h2 class="jr-side-title">{{ $t('Noch offen aus dem Journal') }}</h2>
           <ul class="jr-recap-list jr-open-list">
             <li v-for="t in openJournalTasks.slice(0, 5)" :key="t.id" class="jr-open-item">
@@ -338,7 +340,10 @@ function completeTask(task: Task) {
               <RouterLink class="jr-open-link" :to="`/tasks?task=${t.id}`">{{ t.title }}</RouterLink>
             </li>
           </ul>
-          <RouterLink class="jr-open-all" to="/tasks">{{ $t('Alle Aufgaben') }}<svg class="ic"><use href="#i-right" /></svg></RouterLink>
+          <RouterLink v-if="openJournalTasks.length > 5" class="jr-open-more" :to="{ path: '/tasks', query: { filter: 'journal' } }">
+            {{ $tn(openJournalTasks.length - 5, '+{n} weitere Aufgabe', '+{n} weitere Aufgaben') }}
+          </RouterLink>
+          <RouterLink class="jr-open-all" :to="{ path: '/tasks', query: { filter: 'journal' } }">{{ $t('Alle Aufgaben') }}<svg class="ic"><use href="#i-right" /></svg></RouterLink>
         </section>
       </aside>
       </div>
@@ -397,9 +402,10 @@ function completeTask(task: Task) {
 
 /* Seitenleiste */
 .jr-side { position: sticky; top: 0; display: flex; flex-direction: column; min-width: 0; }
-.jr-side-top { display: flex; flex-direction: column; gap: 20px; }
+.jr-side-top { display: flex; flex-direction: column; gap: 20px; min-height: var(--today-h, 0px); height: var(--today-h, auto); }
 .jr-side-top .jr-side-box:last-child { flex: 1; }
 .jr-side-box { padding: 16px; border: 1px solid var(--br-subtle); border-radius: var(--r-m); background: var(--bg-1); }
+.jr-open-box { margin-top: var(--open-gap, 0px); }
 .jr-side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .jr-side-title { font: 600 13px/1.3 var(--font-ui); color: var(--tx-secondary); margin-bottom: 12px; }
 .jr-side-head .jr-side-title { margin-bottom: 0; }
@@ -417,12 +423,20 @@ function completeTask(task: Task) {
 .jr-recap-list { list-style: none; display: grid; gap: 4px; }
 .jr-recap-list li { font: 400 14px/1.5 var(--font-ui); color: var(--tx-primary); overflow-wrap: anywhere; }
 .jr-recap-empty { font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
+/* Bei vielen Einträgen scrollt nur der Inhalt; die Karte bleibt bündig zur Heute-Karte. */
+.jr-recap-box { display: flex; flex-direction: column; min-height: 0; }
+.jr-recap-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .jr-open-list { gap: 7px; }
 .jr-open-item { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 8px; }
 .jr-open-cb { margin-top: 3px; cursor: pointer; }
 .jr-open-cb:hover:not(:disabled) { border-color: var(--a-blue-hi); }
 .jr-open-link { color: var(--tx-secondary); text-decoration: none; }
 .jr-open-link:hover { color: var(--tx-primary); text-decoration: underline; }
+.jr-open-more {
+  display: inline-block; margin-top: 10px; color: var(--tx-muted);
+  font: 400 12px/1.3 var(--font-ui); text-decoration: none;
+}
+.jr-open-more:hover { color: var(--tx-secondary); text-decoration: underline; }
 .jr-open-all {
   display: inline-flex; align-items: center; gap: 4px; margin-top: 12px;
   color: var(--a-blue-tx); font: 500 12px/1 var(--font-ui); text-decoration: none;
@@ -432,7 +446,12 @@ function completeTask(task: Task) {
 .jr-open-all .ic { width: 13px; height: 13px; }
 
 @media (max-width: 1000px) {
-  .jr-layout { grid-template-columns: minmax(0, 1fr); }
-  .jr-side { position: static; }
+  /* display: contents löst die beiden Spalten auf; die vier Blöcke ordnen sich direkt im Fluss. */
+  .jr-layout { display: flex; flex-direction: column; gap: 20px; }
+  .jr-main, .jr-side { display: contents; }
+  .jr-today { order: 1; margin-bottom: 0; }
+  .jr-side-top { order: 2; min-height: 0; height: auto; }
+  .jr-open-box { order: 3; margin-top: 0; }
+  .jr-past { order: 4; margin-top: 0; }
 }
 </style>
