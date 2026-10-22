@@ -202,6 +202,18 @@ test('Journal: Autosave beim Verlassen und beim Eintragswechsel', async () => {
   assert.equal(await page.locator(`.jr-entry[data-date="${two}"] .je-area`).first().inputValue(), 'Wechsel eins\nWechsel zwei')
 })
 
+// Die 12 Wochen sind für Screenreader ein Bild mit Text, die Tage bleiben ohne Tab-Stopps.
+test('Journal: Heatmap mit Legende und Screenreader-Text', async () => {
+  await page.goto(`${base}/journal`)
+  const heat = page.locator('.jr-heat')
+  await heat.waitFor()
+  assert.equal(await heat.getAttribute('role'), 'img')
+  assert.match(await heat.getAttribute('aria-label'), /Eintr(ag|äge) in den letzten 12 Wochen$/)
+  await page.getByText('Tag mit Eintrag').waitFor()
+  assert.equal(await page.locator('.jr-heat i[tabindex]').count(), 0)
+  assert.equal(await page.locator('.jr-heat i[aria-hidden="true"]').count(), 84)
+})
+
 test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => {
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)

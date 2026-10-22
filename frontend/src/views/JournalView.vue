@@ -110,6 +110,16 @@ const heatCells = computed(() => {
     return { s, has: set.has(s), future: s > today, label: heatLabel.value.format(d) }
   })
 })
+const heatCount = computed(() => heatCells.value.filter((c) => c.has).length)
+const heatMonthFmt = computed(() => new Intl.DateTimeFormat(locale.value, { month: 'short' }))
+// Kurze Monatsspanne des Rasters, z. B. „Aug. – Okt.“.
+const heatRange = computed(() => {
+  const cells = heatCells.value
+  if (!cells.length) return ''
+  const first = cells[0]!.s
+  const last = cells[cells.length - 1]!.s
+  return `${heatMonthFmt.value.format(new Date(`${first}T00:00`))} – ${heatMonthFmt.value.format(new Date(`${last}T00:00`))}`
+})
 
 const importedTitles = (date: string) => taskImports.value[date]?.titles ?? []
 
@@ -303,8 +313,12 @@ function completeTask(task: Task) {
             <h2 class="jr-side-title">{{ $t('Letzte 12 Wochen') }}</h2>
             <span v-if="streak" class="jr-streak">{{ $tn(streak, '{n} Tag in Folge', '{n} Tage in Folge') }}</span>
           </div>
-          <div class="jr-heat" role="group" :aria-label="$t('Letzte 12 Wochen')">
-            <i v-for="c in heatCells" :key="c.s" :class="{ on: c.has, future: c.future }" :title="c.label"></i>
+          <div class="jr-heat" role="img" :aria-label="$tn(heatCount, '{n} Eintrag in den letzten 12 Wochen', '{n} Einträge in den letzten 12 Wochen')">
+            <i v-for="c in heatCells" :key="c.s" aria-hidden="true" :class="{ on: c.has, future: c.future }" :title="c.label"></i>
+          </div>
+          <div class="jr-heat-foot">
+            <span class="jr-heat-legend"><i class="on"></i>{{ $t('Tag mit Eintrag') }}</span>
+            <span class="jr-heat-range">{{ heatRange }}</span>
           </div>
         </section>
         <section class="jr-side-box jr-recap-box">
@@ -416,6 +430,10 @@ function completeTask(task: Task) {
 .jr-heat i.on { background: var(--a-blue-hi); }
 /* Künftige Tage bleiben als leise Kästchen sichtbar, damit das Raster ein geschlossenes Rechteck bleibt. */
 .jr-heat i.future { background: var(--bg-2); opacity: .3; }
+.jr-heat-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; font: 400 10px/1.3 var(--font-ui); color: var(--tx-muted); }
+.jr-heat-legend { display: inline-flex; align-items: center; gap: 5px; }
+.jr-heat-legend i { width: 8px; height: 8px; border-radius: 2px; background: var(--bg-2); }
+.jr-heat-legend i.on { background: var(--a-blue-hi); }
 
 .jr-recap-group { display: grid; gap: 6px; }
 .jr-recap-group + .jr-recap-group { margin-top: 12px; }
