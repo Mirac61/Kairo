@@ -202,16 +202,66 @@ test('Journal: Autosave beim Verlassen und beim Eintragswechsel', async () => {
   assert.equal(await page.locator(`.jr-entry[data-date="${two}"] .je-area`).first().inputValue(), 'Wechsel eins\nWechsel zwei')
 })
 
-// Die 12 Wochen sind für Screenreader ein Bild mit Text, die Tage bleiben ohne Tab-Stopps.
-test('Journal: Heatmap mit Legende und Screenreader-Text', async () => {
+// Die 12 Wochen öffnen den passenden Tag; ein Tab-Stopp, Pfeiltasten wandern durchs Raster.
+test('Journal: Heatmap öffnet Einträge', async () => {
+  const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('sv') }
+  const two = day(-2)
   await page.goto(`${base}/journal`)
   const heat = page.locator('.jr-heat')
   await heat.waitFor()
-  assert.equal(await heat.getAttribute('role'), 'img')
+  assert.equal(await heat.getAttribute('role'), 'group')
   assert.match(await heat.getAttribute('aria-label'), /Eintr(ag|äge) in den letzten 12 Wochen$/)
   await page.getByText('Tag mit Eintrag').waitFor()
-  assert.equal(await page.locator('.jr-heat i[tabindex]').count(), 0)
-  assert.equal(await page.locator('.jr-heat i[aria-hidden="true"]').count(), 84)
+  assert.equal(await page.locator('.jr-heat-cell').count(), 84)
+  assert.equal(await page.locator('.jr-heat-cell[tabindex="0"]').count(), 1)
+
+  // Ein Tag mit Eintrag klappt genau diese Zeile auf.
+  const cell = page.locator(`.jr-heat-cell[data-date="${two}"]`)
+  assert.match(await cell.getAttribute('class'), /\bon\b/)
+  await cell.click()
+  await page.locator(`.jr-entry[data-date="${two}"] .je-area`).first().waitFor()
+  assert.equal(await page.locator(`.jr-entry[data-date="${two}"] .jr-row`).getAttribute('aria-expanded'), 'true')
+
+  // Pfeiltasten verschieben den Fokus: hoch = ein Tag zurück, links = eine Woche zurück.
+  await cell.focus()
+  await page.keyboard.press('ArrowUp')
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-date')), day(-3))
+  await page.keyboard.press('ArrowLeft')
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-date')), day(-10))
+
+  // Ein leerer Tag öffnet den Nachtragen-Dialog mit diesem Datum.
+  const empty = day(-40)
+  await page.locator(`.jr-heat-cell[data-date="${empty}"]`).click()
+  const dialog = page.getByRole('dialog', { name: 'Eintrag nachtragen' })
+  await dialog.waitFor()
+  assert.equal(await dialog.getByLabel('Datum').inputValue(), empty)
+  await dialog.getByRole('button', { name: 'Abbrechen' }).click()
+})
+
+test('Journal: Einträge durchsuchen und sortieren', async () => {
+  const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('sv') }
+  const two = day(-2)
+  await page.goto(`${base}/journal`)
+  await page.locator('.jr-entry').first().waitFor()
+  const dates = () => page.locator('.jr-entry').evaluateAll((els) => els.map((e) => e.getAttribute('data-date')))
+  const descending = await dates()
+  assert.ok(descending.length >= 2)
+  assert.deepEqual(descending, [...descending].sort().reverse(), 'neueste zuerst')
+
+  // Suche nach dem Text eines Eintrags; die Liste zeigt nur noch diesen Tag.
+  const search = page.getByLabel('Einträge durchsuchen')
+  await search.fill('Wechsel eins')
+  await page.waitForFunction(() => document.querySelectorAll('.jr-entry').length === 1)
+  assert.deepEqual(await dates(), [two])
+  await search.fill('gibt es nicht')
+  await page.getByText('Keine Treffer für „gibt es nicht“.').waitFor()
+
+  // Sortierung umdrehen: ältester Tag oben.
+  await search.fill('')
+  await page.getByRole('button', { name: 'Älteste zuerst' }).click()
+  const ascending = await dates()
+  assert.deepEqual(ascending, [...ascending].sort(), 'älteste zuerst')
+  assert.equal(ascending[0], [...descending].sort()[0])
 })
 
 test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => {
@@ -337,7 +387,7 @@ test('Journal: verpassten Tag nachtragen', async () => {
   assert.ok(!existsSync(join(dir, `${date}.md`)))
 
   await page.goto(`${base}/journal`)
-  await page.getByRole('button', { name: 'Nachtragen' }).click()
+  await page.getByRole('button', { name: 'Nachtragen', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Eintrag nachtragen' })
   await dialog.getByLabel('Datum').fill(date)
   await dialog.getByRole('button', { name: 'Öffnen' }).click()
@@ -355,7 +405,7 @@ test('Journal: verpassten Tag nachtragen', async () => {
   await page.locator(`.jr-entry[data-date="${date}"]`).waitFor()
 
   // Leerer Entwurf: keine Datei, und beim Schließen verschwindet die Zeile wieder.
-  await page.getByRole('button', { name: 'Nachtragen' }).click()
+  await page.getByRole('button', { name: 'Nachtragen', exact: true }).click()
   await dialog.getByLabel('Datum').fill(empty)
   await dialog.getByRole('button', { name: 'Öffnen' }).click()
   const draft = page.locator(`.jr-entry[data-date="${empty}"]`)

@@ -8,6 +8,7 @@ import { locale, t } from '@/lib/i18n'
 import { vDialog } from '@/lib/dialog'
 import { useUndo } from '@/composables/useUndo'
 import JournalEntryEditor, { type JournalEntryData } from '@/components/JournalEntryEditor.vue'
+import SearchField from '@/components/SearchField.vue'
 
 // Kompakte Liste der letzten Einträge; der Heute-Eintrag steht separat oben.
 const RECENT = 60
@@ -81,9 +82,23 @@ const monthLabel = (m: string) => fmt(monthFmt.value, `${m}-01`)
 // Vorschau: je beantworteter Frage der erste Punkt, damit jeder Tag als kurze Stichpunkte lesbar bleibt.
 const previewPoints = (r: Row) => r.answers.map((a) => splitPoints(a)[0] ?? '').filter(Boolean)
 
+// Suche und Reihenfolge der Liste; die Heatmap öffnet denselben Eintrag.
+const pastSearch = ref('')
+const pastAsc = ref(false)
+const searchTerm = computed(() => pastSearch.value.trim().toLowerCase())
+const pastMatches = (r: Row) => {
+  const q = searchTerm.value
+  if (!q) return true
+  return `${r.date} ${label(r.date)} ${r.answers.join(' ')} ${r.other}`.toLowerCase().includes(q)
+}
+const visiblePast = computed(() => {
+  const rows = pastRows.value.filter(pastMatches)
+  return pastAsc.value ? [...rows].reverse() : rows
+})
+
 const groups = computed(() => {
   const out: { month: string; rows: Row[] }[] = []
-  for (const r of pastRows.value) {
+  for (const r of visiblePast.value) {
     const month = r.date.slice(0, 7)
     const last = out[out.length - 1]
     if (last?.month === month) last.rows.push(r)
@@ -91,7 +106,8 @@ const groups = computed(() => {
   }
   return out
 })
-const shownCount = computed(() => pastRows.value.length + (todayEntry.value ? 1 : 0))
+const shownCount = computed(() => visiblePast.value.length + (todayEntry.value ? 1 : 0))
+const hasOlder = computed(() => !searchTerm.value && total.value > shownCount.value)
 
 const completedTasks = computed(() => allTasks.value
   .filter((t) => t.status === 'COMPLETED' && t.completed_at && ymd(new Date(t.completed_at)) === todayStr.value)
@@ -101,7 +117,8 @@ const openJournalTasks = computed(() => allTasks.value
   .filter((t) => t.source_journal_date && isOpen(t))
   .sort((a, b) => (a.due_at ?? '').localeCompare(b.due_at ?? '')))
 
-const heatCells = computed(() => {
+interface HeatCell { s: string; has: boolean; future: boolean; label: string }
+const heatCells = computed<HeatCell[]>(() => {
   if (!todayStr.value) return []
   const set = new Set(allDates.value)
   const today = todayStr.value
@@ -112,6 +129,8 @@ const heatCells = computed(() => {
     return { s, has: set.has(s), future: s > today, label: heatLabel.value.format(d) }
   })
 })
+// Ein Tab-Stopp fürs Raster; Pfeiltasten wandern tag- und wochenweise.
+const heatFocus = ref('')
 const heatCount = computed(() => heatCells.value.filter((c) => c.has).length)
 const heatMonthFmt = computed(() => new Intl.DateTimeFormat(locale.value, { month: 'short' }))
 // Kurze Monatsspanne des Rasters, z. B. „Aug. – Okt.“.
@@ -149,6 +168,7 @@ async function load() {
     // damit der Heute-Editor direkt mit seinem Eintrag montiert.
     const rows = await readEntries(dates.slice(0, RECENT))
     todayStr.value = summary.date
+    heatFocus.value = summary.date
     total.value = summary.total
     streak.value = summary.streak
     allDates.value = dates
@@ -213,17 +233,21 @@ function closeBackfill() {
   backfillOpen.value = false
 }
 
+function scrollToEl(el: HTMLElement | null | undefined, block: ScrollLogicalPosition = 'center') {
+  if (!el) return
+  const reduce = document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches
+  el.scrollIntoView({ block, behavior: reduce ? 'auto' : 'smooth' })
+}
+
 async function reveal(date: string) {
   await switchEntry(date)
   await nextTick()
-  pastEl.value?.querySelector<HTMLElement>(`[data-date="${date}"]`)?.scrollIntoView({ block: 'center' })
+  scrollToEl(pastEl.value?.querySelector<HTMLElement>(`[data-date="${date}"]`))
 }
 
-// Öffnet den Tag; fehlt er, entsteht ein leerer Entwurf. Eine Datei schreibt erst der Editor beim Tippen.
-async function startBackfill() {
-  const date = backfillDate.value
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayStr.value) return
-  backfillOpen.value = false
+// Öffnet einen Tag: vorhandene Zeile aufklappen, ältere aus dem Notizordner nachladen
+// oder einen leeren Entwurf anlegen. Eine Datei schreibt erst der Editor beim Tippen.
+async function openDay(date: string) {
   if (!pastRows.value.some((r) => r.date === date)) {
     if (allDates.value.includes(date)) {
       try {
@@ -241,6 +265,54 @@ async function startBackfill() {
     }
   }
   await reveal(date)
+}
+
+async function startBackfill() {
+  const date = backfillDate.value
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayStr.value) return
+  backfillOpen.value = false
+  await openDay(date)
+}
+
+// ---- Heatmap: Tag antippen ----
+function heatAction(c: HeatCell) {
+  return c.has ? t('Eintrag öffnen') : t('Eintrag nachtragen')
+}
+function heatTitle(c: HeatCell) {
+  return c.future ? c.label : `${c.label} · ${heatAction(c)}`
+}
+function heatAria(c: HeatCell) {
+  return c.future ? c.label : `${c.label}: ${heatAction(c)}`
+}
+
+async function openHeat(c: HeatCell) {
+  if (c.future) return
+  if (c.s === todayStr.value) {
+    scrollToEl(todayEl.value, 'start')
+    return
+  }
+  if (!c.has) {
+    // Leerer Tag: erst bestätigen, dann als Entwurf öffnen.
+    backfillDate.value = c.s
+    backfillOpen.value = true
+    return
+  }
+  await openDay(c.s)
+}
+
+function onHeatKey(e: KeyboardEvent, c: HeatCell) {
+  // Das Raster läuft spaltenweise: eine Spalte ist eine Woche, eine Zeile ein Wochentag.
+  const step = e.key === 'ArrowLeft' ? -7 : e.key === 'ArrowRight' ? 7 : e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0
+  if (!step) return
+  e.preventDefault()
+  const cells = heatCells.value
+  const from = cells.findIndex((x) => x.s === c.s)
+  let max = cells.length - 1
+  while (max > 0 && cells[max]!.future) max--
+  const to = Math.min(max, Math.max(0, from + step))
+  heatFocus.value = cells[to]!.s
+  const buttons = (e.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('.jr-heat-cell')
+  buttons?.[to]?.focus()
 }
 
 function onTodayImported(result: JournalTaskImport) {
@@ -322,11 +394,19 @@ function completeTask(task: Task) {
             <h2 class="jr-past-title">{{ $t('Letzte Einträge') }}</h2>
             <button type="button" class="col-link" @click="openBackfill">{{ $t('Nachtragen') }}</button>
           </div>
+          <div v-if="pastRows.length" class="jr-past-tools">
+            <SearchField v-model="pastSearch" :label="$t('Einträge durchsuchen')" />
+            <div class="seg jr-past-sort" role="group" :aria-label="$t('Sortierung')">
+              <button type="button" :aria-pressed="!pastAsc" @click="pastAsc = false">{{ $t('Neueste zuerst') }}</button>
+              <button type="button" :aria-pressed="pastAsc" @click="pastAsc = true">{{ $t('Älteste zuerst') }}</button>
+            </div>
+          </div>
           <div v-if="loaded && !pastRows.length" class="jr-empty">
             <p class="jr-empty-t">{{ $t('Drei kurze Fragen am Abend.') }}</p>
             <p class="v-sub">{{ $t('Was lief gut, was lernst du daraus, was ist morgen wichtig. Zwei Minuten reichen.') }}</p>
           </div>
-          <div v-else-if="pastRows.length" class="jr-months" :class="{ 'has-timeline': pastRows.length >= 3 }">
+          <p v-else-if="pastRows.length && !visiblePast.length" class="v-sub jr-nohit">{{ $t('Keine Treffer für „{q}“.', { q: pastSearch.trim() }) }}</p>
+          <div v-else-if="pastRows.length" class="jr-months" :class="{ 'has-timeline': visiblePast.length >= 3 }">
             <section v-for="g in groups" :key="g.month" class="jr-month-group">
               <h3 class="jr-month">{{ monthLabel(g.month) }}</h3>
               <div class="jr-feed">
@@ -353,7 +433,7 @@ function completeTask(task: Task) {
               </div>
             </section>
           </div>
-          <RouterLink v-if="total > shownCount" class="v-sub jr-more" to="/notes">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</RouterLink>
+          <RouterLink v-if="hasOlder" class="v-sub jr-more" to="/notes">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</RouterLink>
         </section>
       </div>
 
@@ -365,8 +445,13 @@ function completeTask(task: Task) {
             <h2 class="jr-side-title">{{ $t('Letzte 12 Wochen') }}</h2>
             <span v-if="streak" class="jr-streak">{{ $tn(streak, '{n} Tag in Folge', '{n} Tage in Folge') }}</span>
           </div>
-          <div class="jr-heat" role="img" :aria-label="$tn(heatCount, '{n} Eintrag in den letzten 12 Wochen', '{n} Einträge in den letzten 12 Wochen')">
-            <i v-for="c in heatCells" :key="c.s" aria-hidden="true" :class="{ on: c.has, future: c.future }" :title="c.label"></i>
+          <div class="jr-heat" role="group" :aria-label="$tn(heatCount, '{n} Eintrag in den letzten 12 Wochen', '{n} Einträge in den letzten 12 Wochen')">
+            <button
+              v-for="c in heatCells" :key="c.s" type="button" class="jr-heat-cell" :data-date="c.s"
+              :class="{ on: c.has, future: c.future }" :disabled="c.future" :tabindex="c.s === heatFocus ? 0 : -1"
+              :title="heatTitle(c)" :aria-label="heatAria(c)"
+              @focus="heatFocus = c.s" @click="openHeat(c)" @keydown="onHeatKey($event, c)"
+            ></button>
           </div>
           <div class="jr-heat-foot">
             <span class="jr-heat-legend"><i class="on"></i>{{ $t('Tag mit Eintrag') }}</span>
@@ -450,6 +535,10 @@ function completeTask(task: Task) {
 .jr-past-title { font: 600 13px/1.3 var(--font-ui); color: var(--tx-secondary); }
 .jr-past-head .jr-past-title { margin-bottom: 0; }
 button.col-link { padding: 0; border: 0; background: none; cursor: pointer; }
+.jr-past-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: -2px 0 14px; }
+.jr-past-tools input[type="search"] { flex: 1 1 180px; max-width: 280px; height: 28px; padding: 0 12px; font-size: 12px; border-radius: 999px; }
+.jr-past-sort button { height: 24px; padding: 0 10px; font-size: 11px; border-radius: 999px; }
+.jr-nohit { margin: 0 0 4px; }
 .jr-months { display: grid; gap: 22px; }
 .jr-month-group { display: grid; gap: 8px; }
 .jr-month { font: 600 11px/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); padding-left: 2px; }
@@ -498,10 +587,15 @@ button.col-link { padding: 0; border: 0; background: none; cursor: pointer; }
 .jr-streak { flex: none; font: 400 11px/1.3 var(--font-ui); color: var(--tx-muted); white-space: nowrap; }
 
 .jr-heat { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-template-columns: repeat(12, 1fr); gap: 3px; justify-content: center; }
-.jr-heat i { aspect-ratio: 1; border-radius: 3px; background: var(--bg-2); }
-.jr-heat i.on { background: var(--a-blue-hi); }
+.jr-heat-cell {
+  aspect-ratio: 1; padding: 0; border: 0; border-radius: 3px; background: var(--bg-2);
+  cursor: pointer; transition: box-shadow var(--dur) ease-out, filter var(--dur) ease-out;
+}
+.jr-heat-cell.on { background: var(--a-blue-hi); }
 /* Künftige Tage bleiben als leise Kästchen sichtbar, damit das Raster ein geschlossenes Rechteck bleibt. */
-.jr-heat i.future { background: var(--bg-2); opacity: .3; }
+.jr-heat-cell.future { background: var(--bg-2); opacity: .3; cursor: default; }
+.jr-heat-cell:not(.future):hover,
+.jr-heat-cell:focus-visible { box-shadow: 0 0 0 2px var(--bg-1), 0 0 0 3px var(--tx-secondary); outline: none; }
 .jr-heat-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; font: 400 10px/1.3 var(--font-ui); color: var(--tx-muted); }
 .jr-heat-legend { display: inline-flex; align-items: center; gap: 5px; }
 .jr-heat-legend i { width: 8px; height: 8px; border-radius: 2px; background: var(--bg-2); }
@@ -523,7 +617,7 @@ button.col-link { padding: 0; border: 0; background: none; cursor: pointer; }
 .jr-open-link { color: var(--tx-secondary); text-decoration: none; }
 .jr-open-link:hover { color: var(--tx-primary); text-decoration: underline; }
 .jr-open-more {
-  display: inline-block; margin-top: 10px; color: var(--tx-muted);
+  display: block; margin-top: 10px; color: var(--tx-muted);
   font: 400 12px/1.3 var(--font-ui); text-decoration: none;
 }
 .jr-open-more:hover { color: var(--tx-secondary); text-decoration: underline; }
