@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { errorMessage, getJournalSummary, getToday, isOpen, listJournalTaskImports, listNotes, listTasks, readNote, type JournalTaskImport, type Task } from '@/api/client'
 import { addDays, shiftDate, weekStart, ymd } from '@/lib/dates'
@@ -29,6 +29,42 @@ const taskImports = ref<Record<string, { count: number; titles: string[] }>>({})
 const allTasks = ref<DoneTask[]>([])
 const completedHabits = ref<string[]>([])
 const expandedDate = ref<string | null>(null)
+
+// Rechte Spalte an der linken ausrichten: Der Rückblick endet an der Heute-Karte,
+// „Noch offen“ beginnt auf Höhe des ersten vergangenen Eintrags.
+const todayEl = ref<HTMLElement>()
+const topEl = ref<HTMLElement>()
+const pastEl = ref<HTMLElement>()
+const todayH = ref(0)
+const openGap = ref(20)
+let todayObserver: ResizeObserver | undefined
+
+async function alignSidebar() {
+  await nextTick()
+  const today = todayEl.value
+  const top = topEl.value
+  const past = pastEl.value
+  if (!today || !top || !past) return
+  if (!todayObserver) {
+    todayObserver = new ResizeObserver(() => { void alignSidebar() })
+    todayObserver.observe(today)
+  }
+  todayH.value = today.getBoundingClientRect().height
+  await nextTick()
+  const first = past.querySelector<HTMLElement>('.jr-entry')
+  openGap.value = first ? Math.max(20, first.getBoundingClientRect().top - top.getBoundingClientRect().bottom) : 20
+}
+
+const onResize = () => { void alignSidebar() }
+onMounted(() => {
+  window.addEventListener('resize', onResize)
+  void alignSidebar()
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
+  todayObserver?.disconnect()
+})
+watch(locale, () => { void alignSidebar() })
 
 const longFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
 const dayFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'short', day: 'numeric', month: 'short' }))
@@ -117,6 +153,7 @@ async function load() {
     error.value = errorMessage(e)
   }
   loaded.value = true
+  void alignSidebar()
 }
 onMounted(load)
 watch(() => route.query.date, (date) => {
@@ -185,7 +222,7 @@ function completeTask(task: Task) {
       <div class="jr-layout">
         <div class="jr-main">
         <!-- Heute -->
-        <section v-if="todayStr" class="jr-today">
+        <section v-if="todayStr" ref="todayEl" class="jr-today">
           <header class="jr-today-head">
             <h2 class="jr-today-title">{{ $t('Heute') }}</h2>
             <span class="jr-today-date">{{ fmt(longFmt, todayStr) }}</span>
@@ -200,7 +237,7 @@ function completeTask(task: Task) {
         </section>
 
         <!-- Vergangene Einträge -->
-        <section class="jr-past">
+        <section ref="pastEl" class="jr-past">
           <h2 class="jr-past-title">{{ $t('Letzte Einträge') }}</h2>
           <div v-if="loaded && !pastRows.length" class="jr-empty">
             <p class="jr-empty-t">{{ $t('Drei kurze Fragen am Abend.') }}</p>
@@ -238,7 +275,8 @@ function completeTask(task: Task) {
 
       <!-- Seitenleiste -->
       <aside class="jr-side">
-        <section class="jr-side-box">
+        <div ref="topEl" class="jr-side-top" :style="{ minHeight: todayH ? `${todayH}px` : undefined }">
+          <section class="jr-side-box">
           <div class="jr-side-head">
             <h2 class="jr-side-title">{{ $t('Letzte 12 Wochen') }}</h2>
             <span v-if="streak" class="jr-streak">{{ $tn(streak, '{n} Tag in Folge', '{n} Tage in Folge') }}</span>
@@ -261,7 +299,8 @@ function completeTask(task: Task) {
           </template>
           <p v-else class="jr-recap-empty">{{ $t('Nichts erledigt.') }}</p>
         </section>
-        <section v-if="openJournalTasks.length" class="jr-side-box">
+        </div>
+        <section v-if="openJournalTasks.length" class="jr-side-box" :style="{ marginTop: `${openGap}px` }">
           <h2 class="jr-side-title">{{ $t('Noch offen aus dem Journal') }}</h2>
           <ul class="jr-recap-list jr-open-list">
             <li v-for="t in openJournalTasks.slice(0, 5)" :key="t.id" class="jr-open-item">
@@ -335,7 +374,9 @@ function completeTask(task: Task) {
 .jr-empty-t { font: 600 16px/1.3 var(--font-ui); color: var(--tx-primary); }
 
 /* Seitenleiste */
-.jr-side { position: sticky; top: 0; display: grid; gap: 20px; min-width: 0; }
+.jr-side { position: sticky; top: 0; display: flex; flex-direction: column; min-width: 0; }
+.jr-side-top { display: flex; flex-direction: column; gap: 20px; }
+.jr-side-top .jr-side-box:last-child { flex: 1; }
 .jr-side-box { padding: 16px; border: 1px solid var(--br-subtle); border-radius: var(--r-m); background: var(--bg-1); }
 .jr-side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .jr-side-title { font: 600 13px/1.3 var(--font-ui); color: var(--tx-secondary); margin-bottom: 12px; }
