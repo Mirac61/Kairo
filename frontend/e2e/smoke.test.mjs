@@ -329,6 +329,43 @@ test('Journal am Handy: Rückblick und offene Aufgaben vor den Einträgen', asyn
   }
 })
 
+test('Journal: verpassten Tag nachtragen', async () => {
+  const dir = join(env.KAIRO_NOTES_DIR, 'Journal')
+  const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('sv') }
+  const date = day(-4)
+  const empty = day(-5)
+  assert.ok(!existsSync(join(dir, `${date}.md`)))
+
+  await page.goto(`${base}/journal`)
+  await page.getByRole('button', { name: 'Nachtragen' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Eintrag nachtragen' })
+  await dialog.getByLabel('Datum').fill(date)
+  await dialog.getByRole('button', { name: 'Öffnen' }).click()
+
+  const entry = page.locator(`.jr-entry[data-date="${date}"]`)
+  const area = entry.locator('.je-area').first()
+  await area.waitFor()
+  const saved = page.waitForResponse((r) => r.url().includes(`/api/notes/Journal/${date}.md`) && r.request().method() === 'PUT')
+  await area.fill('Nachgetragen')
+  await entry.locator('.je-saved').waitFor()
+  await saved
+  assert.match(readFileSync(join(dir, `${date}.md`), 'utf8'), /Nachgetragen/)
+  // Mit Datei bleibt die Zeile beim Schließen stehen.
+  await entry.locator('.jr-row').click()
+  await page.locator(`.jr-entry[data-date="${date}"]`).waitFor()
+
+  // Leerer Entwurf: keine Datei, und beim Schließen verschwindet die Zeile wieder.
+  await page.getByRole('button', { name: 'Nachtragen' }).click()
+  await dialog.getByLabel('Datum').fill(empty)
+  await dialog.getByRole('button', { name: 'Öffnen' }).click()
+  const draft = page.locator(`.jr-entry[data-date="${empty}"]`)
+  await draft.locator('.je-area').first().waitFor()
+  assert.ok(!existsSync(join(dir, `${empty}.md`)))
+  await draft.locator('.jr-row').click()
+  await draft.waitFor({ state: 'detached' })
+  assert.ok(!existsSync(join(dir, `${empty}.md`)))
+})
+
 test('Lernkarte bewerten', async () => {
   mkdirSync(env.KAIRO_NOTES_DIR, { recursive: true })
   writeFileSync(join(env.KAIRO_NOTES_DIR, 'Karten.md'), '- Smoke-Frage :: Smoke-Antwort\n')

@@ -5,6 +5,7 @@ import { errorMessage, getJournalSummary, getToday, isOpen, listJournalTaskImpor
 import { addDays, shiftDate, weekStart, ymd } from '@/lib/dates'
 import { journalPath, parseEntry, splitPoints } from '@/lib/journal'
 import { locale, t } from '@/lib/i18n'
+import { vDialog } from '@/lib/dialog'
 import { useUndo } from '@/composables/useUndo'
 import JournalEntryEditor, { type JournalEntryData } from '@/components/JournalEntryEditor.vue'
 
@@ -30,7 +31,8 @@ const allTasks = ref<DoneTask[]>([])
 const completedHabits = ref<string[]>([])
 const expandedDate = ref<string | null>(null)
 const todayEditor = ref<InstanceType<typeof JournalEntryEditor>>()
-const pastEditor = ref<InstanceType<typeof JournalEntryEditor>>()
+// In der Liste steht der Ref wegen v-for als Array; es ist immer nur ein Eintrag aufgeklappt.
+const pastEditor = ref<InstanceType<typeof JournalEntryEditor>[]>()
 
 // Rechte Spalte an der linken ausrichten: Der Rückblick endet an der Heute-Karte,
 // „Noch offen“ beginnt auf Höhe des ersten vergangenen Eintrags.
@@ -182,7 +184,7 @@ const isDraft = (r: Row) => !r.mtime && !r.other.trim() && r.answers.every((a) =
 // Erst den offenen Eintrag fertig speichern, dann wechseln: So ist die Zeile in pastRows aktuell,
 // bevor die Komponente unmountet.
 async function switchEntry(date: string | null) {
-  await Promise.all([todayEditor.value?.flush(), pastEditor.value?.flush()])
+  await Promise.all([todayEditor.value?.flush(), pastEditor.value?.[0]?.flush()])
   if (date === null && expandedDate.value) {
     const closing = expandedDate.value
     expandedDate.value = null
@@ -199,6 +201,48 @@ function onTodaySaved(entry: JournalEntryData) {
   if (!allDates.value.includes(todayStr.value)) allDates.value = [...allDates.value, todayStr.value].sort().reverse()
 }
 
+// ---- Verpasste Tage nachtragen ----
+const backfillOpen = ref(false)
+const backfillDate = ref('')
+
+function openBackfill() {
+  backfillDate.value = shiftDate(todayStr.value, -1)
+  backfillOpen.value = true
+}
+function closeBackfill() {
+  backfillOpen.value = false
+}
+
+async function reveal(date: string) {
+  await switchEntry(date)
+  await nextTick()
+  pastEl.value?.querySelector<HTMLElement>(`[data-date="${date}"]`)?.scrollIntoView({ block: 'center' })
+}
+
+// Öffnet den Tag; fehlt er, entsteht ein leerer Entwurf. Eine Datei schreibt erst der Editor beim Tippen.
+async function startBackfill() {
+  const date = backfillDate.value
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayStr.value) return
+  backfillOpen.value = false
+  if (!pastRows.value.some((r) => r.date === date)) {
+    if (allDates.value.includes(date)) {
+      try {
+        const n = await readNote(journalPath(date))
+        const e = parseEntry(n.content)
+        const row = { date, answers: e.answers, other: e.other, mtime: n.mtime }
+        pastRows.value = [...pastRows.value, row].sort((a, b) => b.date.localeCompare(a.date))
+      } catch (e) {
+        error.value = errorMessage(e)
+        return
+      }
+    } else {
+      const row = { date, answers: ['', '', ''], other: '', mtime: '' }
+      pastRows.value = [...pastRows.value, row].sort((a, b) => b.date.localeCompare(a.date))
+    }
+  }
+  await reveal(date)
+}
+
 function onTodayImported(result: JournalTaskImport) {
   taskImports.value = { ...taskImports.value, [result.journal_date]: { count: result.task_count, titles: result.titles } }
   void refreshTasks()
@@ -206,6 +250,11 @@ function onTodayImported(result: JournalTaskImport) {
 
 function onPastSaved(date: string, entry: JournalEntryData) {
   pastRows.value = pastRows.value.map((r) => (r.date === date ? { ...r, ...entry } : r))
+  // Ein nachgetragener Tag erscheint sofort in Zähler und Heatmap.
+  if (!allDates.value.includes(date)) {
+    allDates.value = [...allDates.value, date].sort().reverse()
+    total.value++
+  }
 }
 
 function onPastImported(result: JournalTaskImport) {
@@ -269,7 +318,10 @@ function completeTask(task: Task) {
 
         <!-- Vergangene Einträge -->
         <section ref="pastEl" class="jr-past">
-          <h2 class="jr-past-title">{{ $t('Letzte Einträge') }}</h2>
+          <div class="jr-past-head">
+            <h2 class="jr-past-title">{{ $t('Letzte Einträge') }}</h2>
+            <button type="button" class="col-link" @click="openBackfill">{{ $t('Nachtragen') }}</button>
+          </div>
           <div v-if="loaded && !pastRows.length" class="jr-empty">
             <p class="jr-empty-t">{{ $t('Drei kurze Fragen am Abend.') }}</p>
             <p class="v-sub">{{ $t('Was lief gut, was lernst du daraus, was ist morgen wichtig. Zwei Minuten reichen.') }}</p>
@@ -361,6 +413,22 @@ function completeTask(task: Task) {
         </section>
       </aside>
       </div>
+
+      <div v-if="backfillOpen" v-dialog="closeBackfill" class="overlay open" @mousedown.self="closeBackfill">
+        <form class="dialog jr-backfill" :aria-label="$t('Eintrag nachtragen')" @submit.prevent="startBackfill">
+          <div class="dlg-head">
+            <h3>{{ $t('Eintrag nachtragen') }}</h3>
+            <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="closeBackfill"><svg class="ic"><use href="#i-x" /></svg></button>
+          </div>
+          <div class="dlg-body">
+            <label class="field"><span>{{ $t('Datum') }}</span><input v-model="backfillDate" class="input" type="date" :max="todayStr" required /></label>
+          </div>
+          <div class="dlg-foot">
+            <button class="btn btn-ghost" type="button" @click="closeBackfill">{{ $t('Abbrechen') }}</button>
+            <button class="btn btn-primary" type="submit">{{ $t('Öffnen') }}</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </template>
@@ -378,7 +446,10 @@ function completeTask(task: Task) {
 
 /* Vergangene Einträge */
 .jr-past { margin-top: 4px; }
-.jr-past-title { font: 600 13px/1.3 var(--font-ui); color: var(--tx-secondary); margin-bottom: 12px; }
+.jr-past-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.jr-past-title { font: 600 13px/1.3 var(--font-ui); color: var(--tx-secondary); }
+.jr-past-head .jr-past-title { margin-bottom: 0; }
+button.col-link { padding: 0; border: 0; background: none; cursor: pointer; }
 .jr-months { display: grid; gap: 22px; }
 .jr-month-group { display: grid; gap: 8px; }
 .jr-month { font: 600 11px/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); padding-left: 2px; }
@@ -462,6 +533,7 @@ function completeTask(task: Task) {
 }
 .jr-open-all:hover { color: var(--a-blue-hi); gap: 7px; }
 .jr-open-all .ic { width: 13px; height: 13px; }
+.jr-backfill { width: 320px; max-width: calc(100vw - 32px); }
 
 @media (max-width: 1000px) {
   /* display: contents löst die beiden Spalten auf; die vier Blöcke ordnen sich direkt im Fluss. */
