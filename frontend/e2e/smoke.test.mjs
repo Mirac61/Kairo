@@ -222,6 +222,13 @@ test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
   const retry = await api(`/journal/${date}/tasks`, { method: 'POST', body: JSON.stringify({ titles: ['Abgabe einreichen. Kapitel lesen'] }) })
   assert.equal(retry.task_count, 2)
   assert.equal((await api('/tasks')).filter((task) => task.source_journal_date === date).length, 2)
+
+  // Seitenleiste: offene Journal-Aufgaben stehen dort mit Checkbox und lassen sich direkt abhaken.
+  const sideTask = page.locator('.jr-open-item', { hasText: 'Kapitel 7 lesen' })
+  await sideTask.waitFor()
+  await sideTask.getByRole('checkbox').click()
+  await sideTask.waitFor({ state: 'detached' })
+  assert.equal((await api('/tasks')).find((task) => task.title === 'Kapitel 7 lesen').status, 'COMPLETED')
 })
 
 test('Lernkarte bewerten', async () => {

@@ -5,6 +5,7 @@ import { errorMessage, getJournalSummary, getToday, isOpen, listJournalTaskImpor
 import { addDays, shiftDate, weekStart, ymd } from '@/lib/dates'
 import { journalPath, parseEntry, splitPoints } from '@/lib/journal'
 import { locale, t } from '@/lib/i18n'
+import { useUndo } from '@/composables/useUndo'
 import JournalEntryEditor, { type JournalEntryData } from '@/components/JournalEntryEditor.vue'
 
 // Kompakte Liste der letzten Einträge; der Heute-Eintrag steht separat oben.
@@ -133,6 +134,7 @@ function onTodaySaved(entry: JournalEntryData) {
 
 function onTodayImported(result: JournalTaskImport) {
   taskImports.value = { ...taskImports.value, [result.journal_date]: { count: result.task_count, titles: result.titles } }
+  void refreshTasks()
 }
 
 function onPastSaved(date: string, entry: JournalEntryData) {
@@ -141,6 +143,33 @@ function onPastSaved(date: string, entry: JournalEntryData) {
 
 function onPastImported(result: JournalTaskImport) {
   onTodayImported(result)
+}
+
+// Nach Import oder Erledigen die Aufgabenliste neu laden (und Fehler sichtbar machen).
+async function refreshTasks() {
+  try {
+    allTasks.value = (await listTasks()) as DoneTask[]
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
+// Aufgabe direkt aus der Seitenleiste erledigen; danach wandert sie in den Tagesrückblick.
+const { setDone } = useUndo()
+const completing = ref('')
+function completeTask(task: Task) {
+  if (completing.value) return
+  completing.value = task.id
+  setDone(task, 'COMPLETED', async (fn) => {
+    try {
+      await fn()
+      await refreshTasks()
+    } catch (e) {
+      error.value = errorMessage(e)
+    } finally {
+      completing.value = ''
+    }
+  })
 }
 </script>
 
@@ -234,12 +263,21 @@ function onPastImported(result: JournalTaskImport) {
         </section>
         <section v-if="openJournalTasks.length" class="jr-side-box">
           <h2 class="jr-side-title">{{ $t('Noch offen aus dem Journal') }}</h2>
-          <ul class="jr-recap-list">
-            <li v-for="t in openJournalTasks.slice(0, 5)" :key="t.id">
+          <ul class="jr-recap-list jr-open-list">
+            <li v-for="t in openJournalTasks.slice(0, 5)" :key="t.id" class="jr-open-item">
+              <button
+                type="button"
+                class="cb jr-open-cb"
+                role="checkbox"
+                :aria-checked="false"
+                :aria-label="$t('{title} erledigt', { title: t.title })"
+                :disabled="completing === t.id"
+                @click="completeTask(t)"
+              ></button>
               <RouterLink class="jr-open-link" :to="`/tasks?task=${t.id}`">{{ t.title }}</RouterLink>
             </li>
           </ul>
-          <RouterLink class="col-link jr-open-all" to="/tasks">{{ $t('Alle Aufgaben') }}</RouterLink>
+          <RouterLink class="jr-open-all" to="/tasks">{{ $t('Alle Aufgaben') }}<svg class="ic"><use href="#i-right" /></svg></RouterLink>
         </section>
       </aside>
       </div>
@@ -297,27 +335,38 @@ function onPastImported(result: JournalTaskImport) {
 .jr-empty-t { font: 600 16px/1.3 var(--font-ui); color: var(--tx-primary); }
 
 /* Seitenleiste */
-.jr-side { position: sticky; top: 0; display: grid; gap: 16px; min-width: 0; }
+.jr-side { position: sticky; top: 0; display: grid; gap: 20px; min-width: 0; }
 .jr-side-box { padding: 16px; border: 1px solid var(--br-subtle); border-radius: var(--r-m); background: var(--bg-1); }
 .jr-side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .jr-side-title { font: 600 13px/1.3 var(--font-ui); color: var(--tx-secondary); margin-bottom: 12px; }
 .jr-side-head .jr-side-title { margin-bottom: 0; }
 .jr-streak { flex: none; font: 400 11px/1.3 var(--font-ui); color: var(--tx-muted); white-space: nowrap; }
 
-.jr-heat { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-template-columns: repeat(12, 1fr); gap: 3px; }
+.jr-heat { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-template-columns: repeat(12, 1fr); gap: 3px; justify-content: center; }
 .jr-heat i { aspect-ratio: 1; border-radius: 3px; background: var(--bg-2); }
 .jr-heat i.on { background: var(--a-blue-hi); }
-.jr-heat i.future { background: var(--bg-1); opacity: .6; }
+/* Künftige Tage bleiben als leise Kästchen sichtbar, damit das Raster ein geschlossenes Rechteck bleibt. */
+.jr-heat i.future { background: var(--bg-2); opacity: .3; }
 
 .jr-recap-group { display: grid; gap: 6px; }
 .jr-recap-group + .jr-recap-group { margin-top: 12px; }
-.jr-recap-label { font: 500 11px/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); }
+.jr-recap-label { font: 500 10px/1.2 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--tx-muted); }
 .jr-recap-list { list-style: none; display: grid; gap: 4px; }
-.jr-recap-list li { font: 400 13px/1.4 var(--font-ui); color: var(--tx-secondary); overflow-wrap: anywhere; }
+.jr-recap-list li { font: 400 14px/1.5 var(--font-ui); color: var(--tx-primary); overflow-wrap: anywhere; }
 .jr-recap-empty { font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
+.jr-open-list { gap: 7px; }
+.jr-open-item { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 8px; }
+.jr-open-cb { margin-top: 3px; cursor: pointer; }
+.jr-open-cb:hover:not(:disabled) { border-color: var(--a-blue-hi); }
 .jr-open-link { color: var(--tx-secondary); text-decoration: none; }
 .jr-open-link:hover { color: var(--tx-primary); text-decoration: underline; }
-.jr-open-all { display: inline-block; margin-top: 10px; }
+.jr-open-all {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 12px;
+  color: var(--a-blue-tx); font: 500 12px/1 var(--font-ui); text-decoration: none;
+  transition: color var(--dur) ease-out, gap var(--dur) ease-out;
+}
+.jr-open-all:hover { color: var(--a-blue-hi); gap: 7px; }
+.jr-open-all .ic { width: 13px; height: 13px; }
 
 @media (max-width: 1000px) {
   .jr-layout { grid-template-columns: minmax(0, 1fr); }
