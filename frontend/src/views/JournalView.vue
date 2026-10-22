@@ -328,7 +328,7 @@ function completeTask(task: Task) {
           </div>
           <div v-else-if="pastRows.length" class="jr-months" :class="{ 'has-timeline': pastRows.length >= 3 }">
             <section v-for="g in groups" :key="g.month" class="jr-month-group">
-              <h3 v-if="g.rows.length > 1" class="jr-month">{{ monthLabel(g.month) }}</h3>
+              <h3 class="jr-month">{{ monthLabel(g.month) }}</h3>
               <div class="jr-feed">
                 <article v-for="r in g.rows" :key="r.date" class="jr-entry" :data-date="r.date">
                   <button type="button" class="jr-row" :aria-expanded="expandedDate === r.date" @click="toggle(r.date)">
@@ -353,7 +353,7 @@ function completeTask(task: Task) {
               </div>
             </section>
           </div>
-          <p v-if="total > shownCount" class="v-sub jr-more">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</p>
+          <RouterLink v-if="total > shownCount" class="v-sub jr-more" to="/notes">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</RouterLink>
         </section>
       </div>
 
@@ -479,7 +479,8 @@ button.col-link { padding: 0; border: 0; background: none; cursor: pointer; }
 .jr-chev { flex: none; margin-top: 3px; color: var(--tx-muted); transition: transform var(--dur) ease-out, color var(--dur) ease-out; }
 .jr-entry:hover .jr-chev { color: var(--tx-secondary); transform: translateX(2px); }
 .jr-entry .je { padding: 0 14px 14px; border-top: 1px solid var(--br-subtle); }
-.jr-more { margin-top: 12px; }
+.jr-more { display: inline-block; margin-top: 12px; text-decoration: none; }
+.jr-more:hover { color: var(--tx-secondary); text-decoration: underline; }
 
 .jr-empty { display: grid; justify-items: start; gap: 8px; padding: 20px; border: 1px solid var(--br-default); border-radius: var(--r-m); background: var(--bg-1); }
 .jr-empty p { margin: 0; }

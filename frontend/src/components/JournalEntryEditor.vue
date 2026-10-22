@@ -22,7 +22,7 @@ const emit = defineEmits<{
   imported: [result: JournalTaskImport]
 }>()
 
-const HINTS = [t('Etwas, das heute geklappt hat, auch Kleines'), t('Was würdest du beim nächsten Mal anders machen?'), t('Punkt …')]
+const HINTS = computed(() => [t('Etwas, das heute geklappt hat, auch Kleines'), t('Was würdest du beim nächsten Mal anders machen?'), t('Punkt …')])
 
 const q0 = ref(props.entry?.answers[0] ?? '')
 const q1 = ref(props.entry?.answers[1] ?? '')
@@ -42,6 +42,7 @@ let alive = true
 let version = 0
 let savedVersion = 0
 let timer: ReturnType<typeof setTimeout> | undefined
+let savedTimer: ReturnType<typeof setTimeout> | undefined
 const isDirty = () => version !== savedVersion
 
 // Feld zum Einfügen eines neuen Punkts; ein Punkt bleibt immer übrig.
@@ -71,6 +72,10 @@ function onChange() {
   status.value = 'idle'
   error.value = ''
   if (timer) clearTimeout(timer)
+  if (savedTimer) {
+    clearTimeout(savedTimer)
+    savedTimer = undefined
+  }
   timer = setTimeout(() => { timer = undefined; void save() }, 800)
 }
 
@@ -144,6 +149,11 @@ async function saveOnce(): Promise<boolean> {
     status.value = 'saved'
     error.value = ''
     emit('saved', { answers, other, mtime })
+    if (savedTimer) clearTimeout(savedTimer)
+    savedTimer = setTimeout(() => {
+      savedTimer = undefined
+      if (alive && status.value === 'saved') status.value = 'idle'
+    }, 2000)
     return true
   } catch (e) {
     if (!alive) return false
@@ -224,6 +234,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   alive = false
+  if (savedTimer) clearTimeout(savedTimer)
   window.removeEventListener('resize', growAll)
   // Die Seite wird verlassen; die Anfrage läuft als SPA-Navigation weiter.
   void flush()
