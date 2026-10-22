@@ -154,20 +154,11 @@ test('Ziel mit Bild anlegen', async () => {
 
 test('Journal speichern', async () => {
   await page.goto(`${base}/journal`)
-  await page.getByRole('button', { name: 'Heute schreiben' }).click()
   await page.getByLabel('Was lief gut?').fill('Smoke grün')
   await page.getByLabel('Was ist morgen wichtig?').fill('Weiter so')
   const saved = page.waitForResponse((r) => r.url().includes('/api/notes/Journal/') && r.request().method() === 'PUT')
-  await page.getByRole('button', { name: 'Speichern' }).click()
+  await page.locator('.je-saved').waitFor()
   await saved
-  await page.locator('.jr-read').filter({ hasText: 'Smoke grün' }).waitFor()
-  await page.getByRole('button', { name: 'Alle Einträge' }).click()
-  const entry = page.locator('.jr-entry.today', { hasText: 'Smoke grün' })
-  await entry.waitFor()
-  assert.equal(await page.getByRole('button', { name: 'Heute schreiben' }).count(), 0)
-  await entry.locator('.jr-entry-open').click()
-  await page.getByRole('heading', { name: 'Heute' }).waitFor()
-  await page.getByRole('button', { name: 'Alle Einträge' }).click()
   const d = new Date()
   const file = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.md`
   const md = readFileSync(join(env.KAIRO_NOTES_DIR, 'Journal', file), 'utf8')
@@ -189,7 +180,9 @@ test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => 
   const reminder = page.locator('.st-journal')
   await reminder.getByText('Morgen Abgabe vorbereiten.').waitFor()
   await reminder.click()
-  await page.locator('.jr-read').getByText('Morgen Abgabe vorbereiten.').waitFor()
+  const point = page.locator('.jr-entry .je-point-input').first()
+  await point.waitFor()
+  assert.equal(await point.inputValue(), 'Morgen Abgabe vorbereiten.')
 })
 
 test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
@@ -206,27 +199,27 @@ test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
   ].join('\n'))
 
   await page.goto(`${base}/journal`)
-  const entry = page.locator('.jr-entry', { hasText: 'Abgabe einreichen' })
-  await entry.getByRole('button', { name: 'Als Aufgaben übernehmen' }).click()
+  await page.locator('.jr-today .je-point-input').first().waitFor()
+  await page.getByRole('button', { name: 'Als Aufgaben übernehmen' }).click()
   const dialog = page.getByRole('dialog', { name: 'Als Aufgaben übernehmen' })
-  const candidates = dialog.locator('.jr-task-candidate')
+  const candidates = dialog.locator('.je-task-candidate')
   await candidates.nth(1).locator('input[type="text"]').fill('Kapitel 7 lesen')
-  await candidates.nth(2).locator('input[type="checkbox"]').uncheck()
   const created = page.waitForResponse((response) => response.url().endsWith(`/api/journal/${date}/tasks`) && response.request().method() === 'POST')
   await dialog.getByRole('button', { name: 'Aufgaben anlegen' }).click()
   const response = await created
   assert.equal(response.status(), 201, await response.text())
 
-  await entry.getByRole('button', { name: '2 Aufgaben übernommen' }).waitFor()
+  await page.getByText('2 Aufgaben übernommen').waitFor()
   const imported = (await api('/tasks')).filter((task) => task.source_journal_date === date)
-  assert.deepEqual(imported.map((task) => task.title).sort(), ['Abgabe einreichen', 'Kapitel 7 lesen'])
+  assert.deepEqual(imported.map((task) => task.title).sort(), ['Abgabe einreichen. Kapitel lesen', 'Kapitel 7 lesen'])
   const expectedDue = new Date(`${date}T12:00:00`)
   expectedDue.setDate(expectedDue.getDate() + 1)
   for (const task of imported) {
     assert.equal(new Date(task.due_at).toLocaleDateString('sv'), expectedDue.toLocaleDateString('sv'))
   }
 
-  const retry = await api(`/journal/${date}/tasks`, { method: 'POST', body: JSON.stringify({ titles: ['Duplikat'] }) })
+  // Dedup: ein bereits importierter Titel wird nicht doppelt angelegt.
+  const retry = await api(`/journal/${date}/tasks`, { method: 'POST', body: JSON.stringify({ titles: ['Abgabe einreichen. Kapitel lesen'] }) })
   assert.equal(retry.task_count, 2)
   assert.equal((await api('/tasks')).filter((task) => task.source_journal_date === date).length, 2)
 })

@@ -68,6 +68,12 @@ const tasks = [
 ]
 for (const [id, priority] of [['t5', 'HIGH'], ['t15', 'URGENT'], ['t7', 'LOW'], ['t4', 'HIGH']]) tasks.find((t) => t.id === id).priority = priority
 for (const t of tasks) if (t.status === 'COMPLETED') t.completed_at = t.planned_start_at ?? at(0, '12:00') // die API liefert es für Rückblick und Woche
+// Aus dem Journal übernommene, noch offene Aufgaben: füllt den Kasten in der Seitenleiste.
+for (const [id, offset] of [['t9', -1], ['t5', -2], ['t7', -3]]) {
+  const t = tasks.find((x) => x.id === id)
+  t.source_journal_date = day(todayIdx + offset)
+  t.due_at = at(todayIdx + offset + 1, '23:59')
+}
 const times = [ // der letzte Eintrag läuft seit 23 Minuten
   { id: 'x1', task_id: 't3', project_id: 'p3', started_at: at(2, '13:05'), ended_at: at(2, '14:40') },
   { id: 'x2', task_id: 't1', project_id: 'p1', started_at: at(0, '14:05'), ended_at: at(0, '15:20') },

@@ -1,54 +1,48 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ApiError, createNote, errorMessage, getJournalSummary, importJournalTasks, listJournalTaskImports, listNotes, readNote, saveNote } from '@/api/client'
-import { shiftDate } from '@/lib/dates'
-import { journalPath, parseEntry, QUESTIONS, splitTaskCandidates, toMarkdown } from '@/lib/journal'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { errorMessage, getJournalSummary, getToday, isOpen, listJournalTaskImports, listNotes, listTasks, readNote, type JournalTaskImport, type Task } from '@/api/client'
+import { addDays, shiftDate, weekStart, ymd } from '@/lib/dates'
+import { journalPath, parseEntry, splitPoints } from '@/lib/journal'
 import { locale, t } from '@/lib/i18n'
-import { useShortcuts } from '@/composables/useShortcuts'
-import { vDialog } from '@/lib/dialog'
+import JournalEntryEditor, { type JournalEntryData } from '@/components/JournalEntryEditor.vue'
 
-// Übersicht der letzten Einträge; Schreiben in einem eigenen Editor.
-const RECENT = 30
-const HINTS = [t('Etwas, das heute geklappt hat, auch Kleines'), t('Was würdest du beim nächsten Mal anders machen?'), t('Die eine Sache, die morgen zählt')]
+// Kompakte Liste der letzten Einträge; der Heute-Eintrag steht separat oben.
+const RECENT = 60
+const HEAT_WEEKS = 12
+
 const route = useRoute()
-const router = useRouter()
 
-interface Row { date: string; answers: string[] }
-interface TaskCandidate { title: string; selected: boolean }
+interface Row { date: string; answers: string[]; other: string; mtime: string }
+type DoneTask = Task & { completed_at: string | null }
 
 const todayStr = ref('')
-const rows = ref<Row[]>([])
 const total = ref(0)
 const streak = ref(0)
 const loaded = ref(false)
 const error = ref('')
-const taskImports = ref<Record<string, number>>({})
-const importDate = ref<string | null>(null)
-const candidates = ref<TaskCandidate[]>([])
-const importingTasks = ref(false)
-
-// Editor
-const editing = ref<string | null>(null) // Datum des Eintrags im Editor
-const reading = ref<string | null>(null) // Datum des Eintrags in der Leseansicht
-const answers = ref<string[]>(QUESTIONS.map(() => ''))
-let other = ''
-let mtime = '' // leer: Eintrag gibt es noch nicht
-const saved = ref('')
-const dirty = computed(() => answers.value.join('\u0000') !== saved.value)
-const saving = ref(false)
-const fields = ref<HTMLTextAreaElement[]>([])
+const allDates = ref<string[]>([])
+const pastRows = ref<Row[]>([])
+const todayEntry = ref<JournalEntryData | null>(null)
+const taskImports = ref<Record<string, { count: number; titles: string[] }>>({})
+const allTasks = ref<DoneTask[]>([])
+const completedHabits = ref<string[]>([])
+const expandedDate = ref<string | null>(null)
 
 const longFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
 const dayFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'short', day: 'numeric', month: 'short' }))
 const monthFmt = computed(() => new Intl.DateTimeFormat(locale.value, { month: 'long', year: 'numeric' }))
+const heatLabel = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }))
 const fmt = (f: Intl.DateTimeFormat, d: string) => f.format(new Date(d + 'T00:00'))
-const relativeLabel = (d: string) => (todayStr.value && d === todayStr.value ? t('Heute') : todayStr.value && d === shiftDate(todayStr.value, -1) ? t('Gestern') : '')
+const relativeLabel = (d: string) => (d === todayStr.value ? t('Heute') : d === shiftDate(todayStr.value, -1) ? t('Gestern') : '')
 const label = (d: string) => relativeLabel(d) || fmt(dayFmt.value, d)
 const monthLabel = (m: string) => fmt(monthFmt.value, `${m}-01`)
+// Vorschau: je beantworteter Frage der erste Punkt, damit jeder Tag als kurze Stichpunkte lesbar bleibt.
+const previewPoints = (r: Row) => r.answers.map((a) => splitPoints(a)[0] ?? '').filter(Boolean)
+
 const groups = computed(() => {
   const out: { month: string; rows: Row[] }[] = []
-  for (const r of rows.value) {
+  for (const r of pastRows.value) {
     const month = r.date.slice(0, 7)
     const last = out[out.length - 1]
     if (last?.month === month) last.rows.push(r)
@@ -56,36 +50,67 @@ const groups = computed(() => {
   }
   return out
 })
-const readRow = computed(() => rows.value.find((r) => r.date === reading.value) ?? null)
-const taskImportCount = (date: string) => taskImports.value[date] ?? 0
-const selectedTaskTitles = computed(() => candidates.value.filter((c) => c.selected && c.title.trim()).map((c) => c.title.trim()))
-const importDueLabel = computed(() => {
-  if (!importDate.value) return ''
-  const [year = 0, month = 1, day = 1] = importDate.value.split('-').map(Number)
-  const date = new Date(Date.UTC(year, month - 1, day + 1))
-  return new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date)
+const shownCount = computed(() => pastRows.value.length + (todayEntry.value ? 1 : 0))
+
+const completedTasks = computed(() => allTasks.value
+  .filter((t) => t.status === 'COMPLETED' && t.completed_at && ymd(new Date(t.completed_at)) === todayStr.value)
+  .sort((a, b) => (a.completed_at ?? '').localeCompare(b.completed_at ?? '')))
+// Aus dem Journal übernommen und noch offen: der einzige Ort, an dem der Import sichtbar weiterlebt.
+const openJournalTasks = computed(() => allTasks.value
+  .filter((t) => t.source_journal_date && isOpen(t))
+  .sort((a, b) => (a.due_at ?? '').localeCompare(b.due_at ?? '')))
+
+const heatCells = computed(() => {
+  if (!todayStr.value) return []
+  const set = new Set(allDates.value)
+  const today = todayStr.value
+  const start = addDays(weekStart(new Date(`${today}T00:00:00`)), -7 * (HEAT_WEEKS - 1))
+  return Array.from({ length: HEAT_WEEKS * 7 }, (_, i) => {
+    const d = addDays(start, i)
+    const s = ymd(d)
+    return { s, has: set.has(s), future: s > today, label: heatLabel.value.format(d) }
+  })
 })
 
-const hasToday = computed(() => rows.value.some((r) => r.date === todayStr.value))
+const importedTitles = (date: string) => taskImports.value[date]?.titles ?? []
 
-// shortcut: liest die letzten RECENT Einträge einzeln; für mehr bräuchte es Blättern oder einen Endpunkt.
+async function readEntries(dates: string[]): Promise<Row[]> {
+  return Promise.all(dates.map(async (date) => {
+    const n = await readNote(journalPath(date))
+    const e = parseEntry(n.content)
+    return { date, answers: e.answers, other: e.other, mtime: n.mtime }
+  }))
+}
+
 async function load() {
   try {
-    const [notes, imports, summary] = await Promise.all([listNotes(), listJournalTaskImports(), getJournalSummary()])
+    const [notes, imports, summary, today, tasks] = await Promise.all([
+      listNotes(), listJournalTaskImports(), getJournalSummary(), getToday(), listTasks(),
+    ])
     const dir = notes.find((n) => n.dir && n.path === 'Journal')
     const dates = (dir?.children ?? [])
       .map((n) => /^(\d{4}-\d{2}-\d{2})\.md$/.exec(n.name)?.[1])
       .filter((d): d is string => !!d)
       .sort()
       .reverse()
+
+    // Erst die Einträge lesen, dann alle reaktiven Werte synchron setzen,
+    // damit der Heute-Editor direkt mit seinem Eintrag montiert.
+    const rows = await readEntries(dates.slice(0, RECENT))
     todayStr.value = summary.date
     total.value = summary.total
     streak.value = summary.streak
-    rows.value = await Promise.all(dates.slice(0, RECENT).map(async (date) => ({
-      date, answers: parseEntry((await readNote(journalPath(date))).content).answers,
-    })))
-    taskImports.value = Object.fromEntries(imports.map((item) => [item.journal_date, item.task_count]))
-    if (typeof route.query.date === 'string' && rows.value.some((r) => r.date === route.query.date)) reading.value = route.query.date
+    allDates.value = dates
+    taskImports.value = Object.fromEntries(imports.map((i) => [i.journal_date, { count: i.task_count, titles: i.titles }]))
+    todayEntry.value = rows.find((r) => r.date === summary.date) ?? null
+    pastRows.value = rows.filter((r) => r.date !== summary.date)
+
+    allTasks.value = tasks as DoneTask[]
+    completedHabits.value = today.habits.filter((h) => h.done).map((h) => h.name)
+
+    if (typeof route.query.date === 'string' && route.query.date !== summary.date && pastRows.value.some((r) => r.date === route.query.date)) {
+      expandedDate.value = route.query.date
+    }
     error.value = ''
   } catch (e) {
     error.value = errorMessage(e)
@@ -94,346 +119,208 @@ async function load() {
 }
 onMounted(load)
 watch(() => route.query.date, (date) => {
-  if (typeof date === 'string' && rows.value.some((r) => r.date === date)) reading.value = date
-  else if (!date) reading.value = null
+  if (typeof date === 'string' && date !== todayStr.value && pastRows.value.some((r) => r.date === date)) expandedDate.value = date
 })
 
-function openTaskImport(row: Row) {
-  if (taskImportCount(row.date)) return
-  importDate.value = row.date
-  candidates.value = splitTaskCandidates(row.answers[2] ?? '').map((title) => ({ title, selected: true }))
+function toggle(date: string) {
+  expandedDate.value = expandedDate.value === date ? null : date
 }
 
-function closeTaskImport() {
-  if (importingTasks.value) return
-  importDate.value = null
-  candidates.value = []
+function onTodaySaved(entry: JournalEntryData) {
+  todayEntry.value = entry
+  if (!allDates.value.includes(todayStr.value)) allDates.value = [...allDates.value, todayStr.value].sort().reverse()
 }
 
-async function submitTaskImport() {
-  const date = importDate.value
-  if (!date || importingTasks.value || !selectedTaskTitles.value.length) return
-  importingTasks.value = true
-  try {
-    const imported = await importJournalTasks(date, selectedTaskTitles.value)
-    taskImports.value = { ...taskImports.value, [date]: imported.task_count }
-    error.value = ''
-    importDate.value = null
-    candidates.value = []
-  } catch (e) {
-    error.value = errorMessage(e)
-  } finally {
-    importingTasks.value = false
-  }
+function onTodayImported(result: JournalTaskImport) {
+  taskImports.value = { ...taskImports.value, [result.journal_date]: { count: result.task_count, titles: result.titles } }
 }
 
-const scrollTop = () => (document.querySelector('.content') as HTMLElement | null)?.scrollTo({ top: 0 })
-
-function openRead(date: string) {
-  reading.value = date
-  scrollTop()
+function onPastSaved(date: string, entry: JournalEntryData) {
+  pastRows.value = pastRows.value.map((r) => (r.date === date ? { ...r, ...entry } : r))
 }
 
-function showAll() {
-  reading.value = null
-  const query = { ...route.query }
-  delete query.date
-  void router.replace({ query })
+function onPastImported(result: JournalTaskImport) {
+  onTodayImported(result)
 }
-
-async function open(date: string, keepReading = false) {
-  try {
-    const n = await readNote(journalPath(date))
-    const e = parseEntry(n.content)
-    answers.value = e.answers
-    other = e.other
-    mtime = n.mtime
-  } catch (e) {
-    if (!(e instanceof ApiError && e.status === 404)) {
-      error.value = errorMessage(e)
-      return
-    }
-    answers.value = QUESTIONS.map(() => '')
-    other = ''
-    mtime = ''
-  }
-  saved.value = answers.value.join('\u0000')
-  editing.value = date
-  reading.value = keepReading ? date : null
-  error.value = ''
-  scrollTop()
-  await nextTick()
-  fields.value.forEach(grow)
-  fields.value[answers.value.findIndex((a) => !a.trim())]?.focus()
-}
-
-function close() {
-  if (dirty.value && !confirm(t('Ungespeicherte Änderungen verwerfen?'))) return
-  editing.value = null
-}
-
-async function save() {
-  const date = editing.value
-  if (!date || saving.value) return
-  saving.value = true
-  const path = journalPath(date)
-  try {
-    if (!mtime) {
-      await createNote('Journal', true).catch((e) => { if (!(e instanceof ApiError && e.status === 409)) throw e })
-      mtime = (await createNote(path)).mtime ?? ''
-    }
-    mtime = (await saveNote(path, toMarkdown(date, { answers: answers.value, other }), mtime)).mtime
-    saved.value = answers.value.join('\u0000')
-    editing.value = null
-    await load()
-    reading.value = date
-    scrollTop()
-  } catch (e) {
-    error.value = e instanceof ApiError && e.status === 409
-      ? t('Der Eintrag wurde inzwischen woanders geändert. Lade ihn neu, bevor du speicherst.')
-      : errorMessage(e)
-  }
-  saving.value = false
-}
-
-// Textfelder wachsen mit dem Text.
-function grow(el: HTMLTextAreaElement) {
-  el.style.height = 'auto'
-  el.style.height = el.scrollHeight + 'px'
-}
-
-function onKey(e: KeyboardEvent) {
-  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-    e.preventDefault()
-    void save()
-  } else if (e.key === 'Escape') {
-    close()
-  }
-}
-// n: heute schreiben (nur in der Übersicht).
-useShortcuts((e) => {
-  if (e.key === 'n' && !editing.value && todayStr.value) {
-    e.preventDefault()
-    void open(todayStr.value)
-  }
-})
 </script>
 
 <template>
   <div class="view-inner">
-    <!-- Editor -->
-    <template v-if="editing">
-      <button type="button" class="col-link jr-back" @click="close"><svg class="ic"><use href="#i-left" /></svg>{{ reading ? $t('Zurück zum Eintrag') : $t('Alle Einträge') }}</button>
+    <div class="jr-page">
       <div class="v-head">
-        <h1 class="v-title">{{ label(editing) }}</h1>
-        <div class="v-sub">{{ fmt(longFmt, editing) }}</div>
+        <h1 class="v-title">{{ $t('Journal') }}</h1>
+        <div class="v-sub">{{ $tn(total, '{n} Eintrag', '{n} Einträge') }}</div>
       </div>
       <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-      <form class="card jr-editor" @submit.prevent="save" @keydown="onKey">
-        <section v-for="(q, i) in QUESTIONS" :key="q" class="jr-q">
-          <label :for="`jr-${i}`" class="jr-q-head"><span class="jr-num">{{ i + 1 }}</span>{{ $t(q) }}</label>
-          <textarea :id="`jr-${i}`" :ref="(el) => el && (fields[i] = el as HTMLTextAreaElement)" v-model="answers[i]" class="jr-area" rows="2"
-            :placeholder="HINTS[i]" @input="grow($event.target as HTMLTextAreaElement)"></textarea>
+      <div class="jr-layout">
+        <div class="jr-main">
+        <!-- Heute -->
+        <section v-if="todayStr" class="jr-today">
+          <header class="jr-today-head">
+            <h2 class="jr-today-title">{{ $t('Heute') }}</h2>
+            <span class="jr-today-date">{{ fmt(longFmt, todayStr) }}</span>
+          </header>
+          <JournalEntryEditor
+            :date="todayStr"
+            :entry="todayEntry"
+            :imported-titles="importedTitles(todayStr)"
+            @saved="onTodaySaved"
+            @imported="onTodayImported"
+          />
         </section>
-        <div class="jr-foot">
-          <span class="jr-keys"><kbd>⌘S</kbd> {{ $t('speichern') }} · <kbd>Esc</kbd> {{ $t('zurück') }}</span>
-          <button class="btn btn-ghost" type="button" @click="close">{{ $t('Abbrechen') }}</button>
-          <button class="btn btn-primary" type="submit" :disabled="!dirty || saving">{{ $t('Speichern') }}</button>
-        </div>
-      </form>
-    </template>
 
-    <!-- Leseansicht eines Eintrags -->
-    <template v-else-if="readRow">
-      <button type="button" class="col-link jr-back" @click="showAll"><svg class="ic"><use href="#i-left" /></svg>{{ $t('Alle Einträge') }}</button>
-      <div class="v-head v-head-row">
-        <div>
-          <h1 class="v-title">{{ fmt(longFmt, readRow.date) }}</h1>
-          <div v-if="relativeLabel(readRow.date)" class="v-sub jr-read-sub"><span class="badge">{{ relativeLabel(readRow.date) }}</span></div>
-        </div>
-        <button class="btn btn-primary" type="button" @click="open(readRow.date, true)">
-          <svg class="ic"><use href="#i-journal" /></svg>{{ $t('Bearbeiten') }}
-        </button>
-      </div>
-      <div v-if="error" class="badge" role="alert">{{ error }}</div>
-
-      <article class="card jr-read">
-        <section v-for="(q, i) in QUESTIONS" :key="q" class="jr-read-q">
-          <h2 class="jr-read-head">{{ $t(q) }}</h2>
-          <p v-if="readRow.answers[i]" class="jr-read-a">{{ readRow.answers[i] }}</p>
-          <p v-else class="jr-read-a empty">–</p>
-        </section>
-      </article>
-    </template>
-
-    <!-- Übersicht -->
-    <template v-else>
-      <div class="v-head v-head-row jr-overview-head">
-        <div>
-          <h1 class="v-title">{{ $t('Journal') }}</h1>
-          <div class="v-sub">
-            <template v-if="streak">{{ $tn(streak, '{n} Tag in Folge', '{n} Tage in Folge') }} · </template>{{ $tn(total, '{n} Eintrag', '{n} Einträge') }}
+        <!-- Vergangene Einträge -->
+        <section class="jr-past">
+          <h2 class="jr-past-title">{{ $t('Letzte Einträge') }}</h2>
+          <div v-if="loaded && !pastRows.length" class="jr-empty">
+            <p class="jr-empty-t">{{ $t('Drei kurze Fragen am Abend.') }}</p>
+            <p class="v-sub">{{ $t('Was lief gut, was lernst du daraus, was ist morgen wichtig. Zwei Minuten reichen.') }}</p>
           </div>
-        </div>
-        <button v-if="loaded && todayStr && !hasToday" class="btn btn-primary" type="button" aria-keyshortcuts="n" @click="open(todayStr)">
-          <svg class="ic"><use href="#i-plus" /></svg>{{ $t('Heute schreiben') }}
-        </button>
-      </div>
-      <div v-if="error" class="badge" role="alert">{{ error }}</div>
-
-      <div v-if="loaded && !rows.length" class="card jr-empty">
-        <p class="jr-empty-t">{{ $t('Drei kurze Fragen am Abend.') }}</p>
-        <p class="v-sub">{{ $t('Was lief gut, was lernst du daraus, was ist morgen wichtig. Zwei Minuten reichen.') }}</p>
-      </div>
-
-      <div v-else-if="rows.length" class="jr-months">
-        <section v-for="g in groups" :key="g.month" class="jr-month-group">
-          <h2 class="jr-month">{{ monthLabel(g.month) }}</h2>
-          <div class="jr-feed">
-            <article v-for="r in g.rows" :key="r.date" class="jr-entry" :class="{ today: r.date === todayStr }">
-              <button type="button" class="jr-entry-open" @click="r.date === todayStr ? open(r.date) : openRead(r.date)">
-                <span class="jr-entry-head">
-                  <span class="jr-entry-date">
-                    <b>{{ label(r.date) }}</b>
-                    <span>{{ fmt(longFmt, r.date) }}</span>
-                  </span>
-                  <svg class="ic jr-chev"><use href="#i-right" /></svg>
-                </span>
-                <span class="jr-entry-answers">
-                  <span v-for="(a, i) in r.answers" :key="i" class="jr-preview" :class="{ empty: !a }">
-                    <span class="jr-q-lbl">{{ $t(QUESTIONS[i]!) }}</span>
-                    <span class="jr-a">{{ a || '–' }}</span>
-                  </span>
-                </span>
-              </button>
-              <button v-if="r.answers[2]?.trim() || taskImportCount(r.date)" type="button" class="btn btn-ghost jr-import-btn"
-                :disabled="!!taskImportCount(r.date)" @click="openTaskImport(r)">
-                <template v-if="taskImportCount(r.date)"><span aria-hidden="true">✓ </span>{{ $tn(taskImportCount(r.date), '{n} Aufgabe übernommen', '{n} Aufgaben übernommen') }}</template>
-                <template v-else>{{ $t('Als Aufgaben übernehmen') }}</template>
-              </button>
-            </article>
+          <div v-else-if="pastRows.length" class="jr-months" :class="{ 'has-timeline': pastRows.length >= 3 }">
+            <section v-for="g in groups" :key="g.month" class="jr-month-group">
+              <h3 v-if="g.rows.length > 1" class="jr-month">{{ monthLabel(g.month) }}</h3>
+              <div class="jr-feed">
+                <article v-for="r in g.rows" :key="r.date" class="jr-entry">
+                  <button type="button" class="jr-row" :aria-expanded="expandedDate === r.date" @click="toggle(r.date)">
+                    <span class="jr-date">{{ label(r.date) }}</span>
+                    <span class="jr-points" :class="{ empty: !previewPoints(r).length }">
+                      <span v-for="(p, i) in previewPoints(r)" :key="i" class="jr-point">{{ p }}</span>
+                      <span v-if="!previewPoints(r).length" class="jr-point">–</span>
+                    </span>
+                    <svg class="ic jr-chev"><use href="#i-right" /></svg>
+                  </button>
+                  <JournalEntryEditor
+                    v-if="expandedDate === r.date"
+                    :key="r.date"
+                    :date="r.date"
+                    :entry="r"
+                    :imported-titles="importedTitles(r.date)"
+                    @saved="onPastSaved(r.date, $event)"
+                    @imported="onPastImported"
+                  />
+                </article>
+              </div>
+            </section>
           </div>
+          <p v-if="total > shownCount" class="v-sub jr-more">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</p>
         </section>
       </div>
-      <p v-if="total > rows.length" class="v-sub jr-more">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</p>
-    </template>
 
-    <div v-if="importDate" v-dialog="closeTaskImport" class="overlay open" @mousedown.self="closeTaskImport">
-      <form class="dialog jr-import-dialog" aria-labelledby="jr-import-title" @submit.prevent="submitTaskImport">
-        <div class="dlg-head">
-          <div>
-            <h3 id="jr-import-title">{{ $t('Als Aufgaben übernehmen') }}</h3>
-            <div class="v-sub">{{ $t('Fällig am {date}', { date: importDueLabel }) }}</div>
+      <!-- Seitenleiste -->
+      <aside class="jr-side">
+        <section class="jr-side-box">
+          <div class="jr-side-head">
+            <h2 class="jr-side-title">{{ $t('Letzte 12 Wochen') }}</h2>
+            <span v-if="streak" class="jr-streak">{{ $tn(streak, '{n} Tag in Folge', '{n} Tage in Folge') }}</span>
           </div>
-          <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="closeTaskImport"><svg class="ic"><use href="#i-x" /></svg></button>
-        </div>
-        <div class="dlg-body">
-          <p class="v-sub">{{ $t('Wähle die Aufgaben aus und passe Titel bei Bedarf an.') }}</p>
-          <div class="jr-task-candidates">
-            <label v-for="(candidate, i) in candidates" :key="i" class="jr-task-candidate">
-              <input v-model="candidate.selected" type="checkbox" :aria-label="$t('Aufgabe übernehmen: {title}', { title: candidate.title })" />
-              <input v-model="candidate.title" class="input" type="text" :aria-label="$t('Aufgabentitel {n}', { n: i + 1 })" />
-            </label>
+          <div class="jr-heat" role="group" :aria-label="$t('Letzte 12 Wochen')">
+            <i v-for="c in heatCells" :key="c.s" :class="{ on: c.has, future: c.future }" :title="c.label"></i>
           </div>
-        </div>
-        <div class="dlg-foot">
-          <button class="btn btn-ghost" type="button" :disabled="importingTasks" @click="closeTaskImport">{{ $t('Abbrechen') }}</button>
-          <button class="btn btn-primary" type="submit" :disabled="importingTasks || !selectedTaskTitles.length">
-            {{ importingTasks ? $t('Wird angelegt …') : $t('Aufgaben anlegen') }}
-          </button>
-        </div>
-      </form>
+        </section>
+        <section class="jr-side-box">
+          <h2 class="jr-side-title">{{ $t('Tagesrückblick') }}</h2>
+          <template v-if="completedTasks.length || completedHabits.length">
+            <div v-if="completedTasks.length" class="jr-recap-group">
+              <span class="jr-recap-label">{{ $t('Erledigte Aufgaben') }}</span>
+              <ul class="jr-recap-list"><li v-for="t in completedTasks" :key="t.id">{{ t.title }}</li></ul>
+            </div>
+            <div v-if="completedHabits.length" class="jr-recap-group">
+              <span class="jr-recap-label">{{ $t('Erledigte Gewohnheiten') }}</span>
+              <ul class="jr-recap-list"><li v-for="h in completedHabits" :key="h">{{ h }}</li></ul>
+            </div>
+          </template>
+          <p v-else class="jr-recap-empty">{{ $t('Nichts erledigt.') }}</p>
+        </section>
+        <section v-if="openJournalTasks.length" class="jr-side-box">
+          <h2 class="jr-side-title">{{ $t('Noch offen aus dem Journal') }}</h2>
+          <ul class="jr-recap-list">
+            <li v-for="t in openJournalTasks.slice(0, 5)" :key="t.id">
+              <RouterLink class="jr-open-link" :to="`/tasks?task=${t.id}`">{{ t.title }}</RouterLink>
+            </li>
+          </ul>
+          <RouterLink class="col-link jr-open-all" to="/tasks">{{ $t('Alle Aufgaben') }}</RouterLink>
+        </section>
+      </aside>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Übersicht: eine Zeitleiste aus Tageskarten statt einer Tabelle. */
-.jr-overview-head, .jr-months, .jr-more { max-width: 1040px; }
-.jr-months { display: grid; gap: 28px; margin-top: 8px; }
-.jr-month-group { display: grid; gap: 10px; }
-.jr-month { font: 600 12px/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); padding-left: 2px; }
-.jr-feed { position: relative; display: grid; gap: 10px; }
-.jr-feed::before { content: ''; position: absolute; left: 13px; top: 18px; bottom: 18px; width: 1px; background: var(--br-default); }
-.jr-entry {
-  position: relative; display: grid; gap: 12px; margin-left: 30px; padding: 18px 20px;
-  border: 1px solid var(--br-default); border-radius: var(--r-m); background: var(--bg-1);
-  color: inherit;
-  transition: border-color var(--dur) ease-out, background var(--dur) ease-out;
+.jr-page { max-width: 1040px; margin: 0 auto; }
+.jr-layout { display: grid; grid-template-columns: minmax(0, 700px) minmax(0, 260px); gap: 40px; align-items: start; justify-content: space-between; }
+.jr-main { min-width: 0; }
+
+/* Heute */
+.jr-today { padding: 18px 20px 20px; border: 1px solid var(--br-default); border-radius: var(--r-m); background: var(--bg-1); margin-bottom: 28px; }
+.jr-today-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.jr-today-title { font: 600 16px/1.3 var(--font-ui); letter-spacing: -0.01em; color: var(--tx-primary); }
+.jr-today-date { font: 400 13px/1 var(--font-ui); color: var(--tx-muted); }
+
+/* Vergangene Einträge */
+.jr-past { margin-top: 4px; }
+.jr-past-title { font: 600 13px/1.3 var(--font-ui); color: var(--tx-secondary); margin-bottom: 12px; }
+.jr-months { display: grid; gap: 22px; }
+.jr-month-group { display: grid; gap: 8px; }
+.jr-month { font: 600 11px/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); padding-left: 2px; }
+.jr-feed { position: relative; display: grid; gap: 8px; }
+.jr-feed::before { content: none; }
+.has-timeline .jr-feed { padding-left: 18px; }
+.has-timeline .jr-feed::before {
+  content: ''; position: absolute; left: 5px; top: 14px; bottom: 14px; width: 1px; background: var(--br-default);
 }
-.jr-entry-open { display: grid; gap: 14px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.jr-entry::before {
-  content: ''; position: absolute; left: -21px; top: 24px; width: 9px; height: 9px; border-radius: 50%;
-  background: var(--br-strong); box-shadow: 0 0 0 4px var(--bg-0);
+.has-timeline .jr-entry { position: relative; }
+.has-timeline .jr-entry::before {
+  content: ''; position: absolute; left: -17px; top: 16px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--br-strong); box-shadow: 0 0 0 3px var(--bg-0);
 }
-.jr-entry.today { border-color: var(--br-default); }
-.jr-entry.today::before { background: var(--a-blue-hi); }
-.jr-entry:hover, .jr-entry:focus-within:has(:focus-visible) { border-color: color-mix(in srgb, var(--a-blue-hi) 65%, var(--br-default)); background: var(--bg-hover); }
-.jr-entry-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.jr-entry-date { display: grid; gap: 3px; min-width: 0; }
-.jr-entry-date b { font: 600 16px/1.25 var(--font-ui); color: var(--tx-primary); }
-.jr-entry-date span { font: 400 12px/1.4 var(--font-ui); color: var(--tx-muted); }
-.jr-chev { color: var(--tx-muted); margin-top: 3px; transition: transform var(--dur) ease-out, color var(--dur) ease-out; }
+.jr-entry { border: 1px solid var(--br-default); border-radius: var(--r-m); background: var(--bg-1); transition: border-color var(--dur) ease-out, background var(--dur) ease-out; }
+.jr-entry:hover { border-color: var(--br-strong); }
+.jr-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 12px 14px; color: inherit; text-align: left; }
+.jr-date { flex: none; min-width: 86px; font: 500 13px/1.5 var(--font-ui); color: var(--tx-secondary); }
+.jr-points { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.jr-point {
+  position: relative; padding-left: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 400 13px/1.5 var(--font-ui); color: var(--tx-secondary);
+}
+.jr-point::before { content: ''; position: absolute; left: 1px; top: .62em; width: 4px; height: 4px; border-radius: 50%; background: var(--br-strong); }
+.jr-points.empty .jr-point { color: var(--tx-disabled); }
+.jr-points.empty .jr-point::before { background: var(--br-default); }
+.jr-chev { flex: none; margin-top: 3px; color: var(--tx-muted); transition: transform var(--dur) ease-out, color var(--dur) ease-out; }
 .jr-entry:hover .jr-chev { color: var(--tx-secondary); transform: translateX(2px); }
-.jr-entry-answers { display: grid; gap: 16px; }
-.jr-preview { display: grid; gap: 2px; min-width: 0; }
-.jr-q-lbl { font: 500 11px/1.3 var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--tx-muted); }
-.jr-a {
-  max-width: 70ch; font: 400 13px/1.55 var(--font-ui); color: var(--tx-secondary); white-space: pre-line;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-}
-.jr-preview.empty .jr-a { color: var(--tx-disabled); }
-.jr-import-btn { justify-self: start; }
+.jr-entry .je { padding: 0 14px 14px; border-top: 1px solid var(--br-subtle); }
 .jr-more { margin-top: 12px; }
 
-.jr-import-dialog { max-width: 520px; }
-.jr-import-dialog .dlg-head .v-sub { margin-top: 6px; }
-.jr-import-dialog .dlg-body > .v-sub { margin: 0; }
-.jr-task-candidates { display: grid; gap: 8px; max-height: 42vh; overflow-y: auto; }
-.jr-task-candidate { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 10px; }
-.jr-task-candidate input[type='checkbox'] { margin: 0; }
-
-/* Leseansicht */
-.jr-read { max-width: 720px; padding: 4px 32px; margin-top: 4px; }
-.jr-read-sub { display: flex; align-items: center; gap: 8px; }
-.jr-read-q { display: grid; gap: 8px; padding: 22px 0; border-top: 1px solid var(--br-subtle); }
-.jr-read-q:first-child { border-top: 0; }
-.jr-read-head { font: 500 11px/1.3 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); }
-.jr-read-a { max-width: 70ch; margin: 0; font: 400 15px/1.7 var(--font-ui); color: var(--tx-primary); white-space: pre-line; }
-.jr-read-a.empty { color: var(--tx-disabled); }
-
-.jr-empty { display: grid; justify-items: start; gap: 8px; max-width: 560px; padding: 28px; }
+.jr-empty { display: grid; justify-items: start; gap: 8px; padding: 20px; border: 1px solid var(--br-default); border-radius: var(--r-m); background: var(--bg-1); }
 .jr-empty p { margin: 0; }
-.jr-empty-t { font: 600 17px/1.3 var(--font-ui); color: var(--tx-primary); }
+.jr-empty-t { font: 600 16px/1.3 var(--font-ui); color: var(--tx-primary); }
 
-/* Editor */
-.jr-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 12px; padding: 0; border: 0; background: none; cursor: pointer; }
-.jr-editor { max-width: 720px; padding: 8px 0 0; }
-.jr-editor, .jr-empty { margin-top: 4px; }
-.jr-q { display: grid; gap: 8px; padding: 20px 28px; border-bottom: 1px solid var(--br-default); }
-.jr-q-head { display: flex; align-items: center; gap: 12px; font: 600 16px/1.3 var(--font-ui); color: var(--tx-primary); }
-.jr-num {
-  display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%;
-  font: 600 12px/1 var(--font-ui); color: var(--a-blue); background: color-mix(in srgb, var(--a-blue) 16%, transparent);
-}
-.jr-area {
-  width: 100%; min-height: 52px; padding: 4px 0 0 36px; border: 0; outline: none; resize: none; overflow: hidden;
-  background: none; color: var(--tx-primary); font: 400 15px/1.6 var(--font-ui);
-}
-.jr-area::placeholder { color: var(--tx-disabled); }
-.jr-q:focus-within .jr-num { color: var(--bg-0); background: var(--a-blue); }
-.jr-foot { display: flex; align-items: center; gap: 8px; padding: 14px 20px; }
-.jr-keys { flex: 1; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
-.jr-keys kbd { font: 400 11px/1 var(--font-mono); }
+/* Seitenleiste */
+.jr-side { position: sticky; top: 0; display: grid; gap: 16px; min-width: 0; }
+.jr-side-box { padding: 16px; border: 1px solid var(--br-subtle); border-radius: var(--r-m); background: var(--bg-1); }
+.jr-side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.jr-side-title { font: 600 13px/1.3 var(--font-ui); color: var(--tx-secondary); margin-bottom: 12px; }
+.jr-side-head .jr-side-title { margin-bottom: 0; }
+.jr-streak { flex: none; font: 400 11px/1.3 var(--font-ui); color: var(--tx-muted); white-space: nowrap; }
 
-@media (max-width: 760px) {
-  .jr-feed::before, .jr-entry::before { display: none; }
-  .jr-entry { margin-left: 0; padding: 16px; }
-  .jr-read { padding: 2px 18px; }
-  .jr-read-q { padding: 18px 0; }
-  .jr-q { padding: 16px; }
-  .jr-area { padding-left: 0; }
-  .jr-keys { display: none; }
+.jr-heat { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-template-columns: repeat(12, 1fr); gap: 3px; }
+.jr-heat i { aspect-ratio: 1; border-radius: 3px; background: var(--bg-2); }
+.jr-heat i.on { background: var(--a-blue-hi); }
+.jr-heat i.future { background: var(--bg-1); opacity: .6; }
+
+.jr-recap-group { display: grid; gap: 6px; }
+.jr-recap-group + .jr-recap-group { margin-top: 12px; }
+.jr-recap-label { font: 500 11px/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); }
+.jr-recap-list { list-style: none; display: grid; gap: 4px; }
+.jr-recap-list li { font: 400 13px/1.4 var(--font-ui); color: var(--tx-secondary); overflow-wrap: anywhere; }
+.jr-recap-empty { font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
+.jr-open-link { color: var(--tx-secondary); text-decoration: none; }
+.jr-open-link:hover { color: var(--tx-primary); text-decoration: underline; }
+.jr-open-all { display: inline-block; margin-top: 10px; }
+
+@media (max-width: 1000px) {
+  .jr-layout { grid-template-columns: minmax(0, 1fr); }
+  .jr-side { position: static; }
 }
 </style>

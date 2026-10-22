@@ -1,7 +1,7 @@
 // Journal-Notizen lesen und schreiben: node --test test/journal.test.ts
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { journalPath, parseEntry, splitTaskCandidates, toMarkdown } from '../src/lib/journal.ts'
+import { journalPath, parseEntry, splitPoints, toMarkdown } from '../src/lib/journal.ts'
 
 test('Journal hin und zurück', () => {
   const md = toMarkdown('2026-10-21', { answers: ['Sport gemacht', 'Früher anfangen\n- wirklich', ''], other: '' })
@@ -28,8 +28,8 @@ test('Fragen werden auch bei abweichender Schreibweise der Überschrift erkannt'
   assert.deepEqual(e, { answers: ['Viel geschafft.', 'Kleine Schritte.', 'Abgabe einreichen.'], other: '' })
 })
 
-test('Aufgabenvorschläge entstehen an Satzenden und Zeilenumbrüchen', () => {
-  assert.deepEqual(splitTaskCandidates('Abgabe einreichen. Kapitel lesen!\n- Sport machen\r\n2. Pause planen?'), [
-    'Abgabe einreichen', 'Kapitel lesen', 'Sport machen', 'Pause planen',
+test('Punkte entstehen nur an Zeilenumbrüchen, nicht an Satzenden', () => {
+  assert.deepEqual(splitPoints('Abgabe einreichen. Kapitel lesen!\n- Sport machen\r\n2. Pause planen?\n\nNoch etwas'), [
+    'Abgabe einreichen. Kapitel lesen!', 'Sport machen', 'Pause planen?', 'Noch etwas',
   ])
 })

@@ -166,6 +166,7 @@ export interface JournalTaskImport {
   journal_date: string
   task_count: number
   imported_at: string
+  titles: string[]
 }
 
 export const listJournalTaskImports = () => api<JournalTaskImport[]>('/journal/task-imports')

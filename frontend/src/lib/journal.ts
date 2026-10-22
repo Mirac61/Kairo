@@ -35,12 +35,15 @@ export function parseEntry(md: string): Entry {
   return { answers, other: other.join('\n\n') }
 }
 
-// Teilt eine Antwort an Zeilenumbrüchen und Satzenden in bearbeitbare Task-Vorschläge.
-export function splitTaskCandidates(text: string): string[] {
+// Teilt eine Antwort in eine Punktliste: ein Punkt je Zeile (bewusst nicht an Satzenden).
+// Führende Aufzählungszeichen werden entfernt, leere Zeilen fallen weg.
+export function splitPoints(text: string): string[] {
   return text
     .replace(/\r\n?/g, '\n')
-    .split(/\n+/)
-    .flatMap((line) => line.replace(/^\s*(?:[-*+•]\s+|\d+[.)]\s+)/, '').trim().split(/(?<=[.!?])\s+/u))
-    .map((part) => part.trim().replace(/[.!?]+$/g, '').trim())
+    .split('\n')
+    .map((line) => line.replace(/^\s*(?:[-*+•]\s+|\d+[.)]\s+)/, '').trim())
     .filter(Boolean)
 }
+
+// Vergleicht Titel wie das Backend: ohne Groß-/Kleinschreibung und Mehrfach-Leerraum.
+export const normalizeTitle = (s: string) => s.toLowerCase().split(/\s+/).filter(Boolean).join(' ')
