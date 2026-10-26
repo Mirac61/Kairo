@@ -80,6 +80,7 @@ type File struct {
 	WorkStart string `json:"work_start,omitempty"`
 	WorkEnd   string `json:"work_end,omitempty"`
 	Timezone  string `json:"timezone,omitempty"`
+	NtfyLead  string `json:"ntfy_lead,omitempty"`
 }
 
 // legacyFile sind die Namen bis Oktober 2026; ReadFile liest sie weiter, damit vorhandene Dateien gelten.
@@ -92,11 +93,13 @@ type legacyFile struct {
 // FileKeys ordnet jedem Feld von File die Umgebungsvariable zu, die es überschreibt.
 var FileKeys = map[string]string{
 	"notes_dir": "KAIRO_NOTES_DIR", "work_start": "KAIRO_WORK_START", "work_end": "KAIRO_WORK_END", "timezone": "KAIRO_TIMEZONE",
+	"ntfy_lead": "KAIRO_NTFY_LEAD",
 }
 
 func (f File) lookup(key string) string {
 	return map[string]string{
 		"KAIRO_NOTES_DIR": f.NotesDir, "KAIRO_WORK_START": f.WorkStart, "KAIRO_WORK_END": f.WorkEnd, "KAIRO_TIMEZONE": f.Timezone,
+		"KAIRO_NTFY_LEAD": f.NtfyLead,
 	}[key]
 }
 
@@ -156,7 +159,7 @@ func WriteFile(path string, f File) error {
 // File liefert die laufenden Werte in der Form von config.json.
 // Die Systemzeitzone ist leer.
 func (c Config) File() File {
-	f := File{NotesDir: c.NotesDir, WorkStart: clock(c.WorkStart), WorkEnd: clock(c.WorkEnd)}
+	f := File{NotesDir: c.NotesDir, WorkStart: clock(c.WorkStart), WorkEnd: clock(c.WorkEnd), NtfyLead: c.NtfyLead.String()}
 	if c.Location != time.Local {
 		f.Timezone = c.Location.String()
 	}
@@ -242,8 +245,8 @@ func resolve(getenv func(string) string) (Config, error) {
 	cfg.NtfyTopic = getenv("KAIRO_NTFY_TOPIC")
 	cfg.NtfyLead = 10 * time.Minute
 	if v := getenv("KAIRO_NTFY_LEAD"); v != "" {
-		if d, err := time.ParseDuration(v); err != nil || d <= 0 {
-			errs = append(errs, &Error{"KAIRO_NTFY_LEAD", v, "erwartet positive Dauer (z. B. 10m)"})
+		if d, err := time.ParseDuration(v); err != nil || d < 0 {
+			errs = append(errs, &Error{"KAIRO_NTFY_LEAD", v, "erwartet Dauer ≥ 0 (z. B. 10m, 0 = bei Beginn)"})
 		} else {
 			cfg.NtfyLead = d
 		}

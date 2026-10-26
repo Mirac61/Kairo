@@ -101,6 +101,7 @@ func TestLoadWorkWindow(t *testing.T) {
 		{"KAIRO_WORK_START": "9"},
 		{"KAIRO_WORK_END": "25:00"},
 		{"KAIRO_WORK_START": "18:00"}, // Ende 17:00 liegt davor
+		{"KAIRO_NTFY_LEAD": "-5m"},
 	} {
 		if _, err := Load(env(bad)); err == nil {
 			t.Errorf("%v sollte ungültig sein", bad)
@@ -111,7 +112,7 @@ func TestLoadWorkWindow(t *testing.T) {
 func TestLoadFileUnderEnv(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "kairo", "config.json")
-	if err := WriteFile(path, File{NotesDir: dir, WorkStart: "08:00", Timezone: "Europe/Berlin"}); err != nil {
+	if err := WriteFile(path, File{NotesDir: dir, WorkStart: "08:00", Timezone: "Europe/Berlin", NtfyLead: "0s"}); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(env(map[string]string{"KAIRO_CONFIG_PATH": path, "KAIRO_WORK_START": "07:00"}))
@@ -119,10 +120,10 @@ func TestLoadFileUnderEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Datei gilt, die Umgebung schlägt sie.
-	if cfg.NotesDir != dir || cfg.WorkStart != 420 || cfg.Location.String() != "Europe/Berlin" || cfg.ConfigPath != path {
+	if cfg.NotesDir != dir || cfg.WorkStart != 420 || cfg.Location.String() != "Europe/Berlin" || cfg.ConfigPath != path || cfg.NtfyLead != 0 {
 		t.Errorf("unerwartet: %+v", cfg)
 	}
-	if got := cfg.File(); got != (File{NotesDir: dir, WorkStart: "07:00", WorkEnd: "17:00", Timezone: "Europe/Berlin"}) {
+	if got := cfg.File(); got != (File{NotesDir: dir, WorkStart: "07:00", WorkEnd: "17:00", Timezone: "Europe/Berlin", NtfyLead: "0s"}) {
 		t.Errorf("File() = %+v", got)
 	}
 }

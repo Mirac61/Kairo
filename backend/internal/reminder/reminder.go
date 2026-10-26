@@ -140,7 +140,12 @@ func (r *Runner) tick(ctx context.Context) {
 		r.log.Warn("Erinnerung: Termine lesen", "err", err)
 	} else {
 		for _, e := range es {
-			items = append(items, item{key: "event:" + e.Event.ID, title: e.Event.Title, detail: e.Event.Location, at: e.Start})
+			// Occurrences liefert auch laufende Termine; die würden sonst nach prune erneut gemeldet.
+			if e.Start.Before(lo) {
+				continue
+			}
+			key := "event:" + e.Event.ID + "@" + e.Start.UTC().Format(time.RFC3339)
+			items = append(items, item{key: key, title: e.Event.Title, detail: e.Event.Location, at: e.Start})
 		}
 	}
 

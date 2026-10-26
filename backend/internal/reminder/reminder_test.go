@@ -91,6 +91,32 @@ func TestTickWindowAndDedup(t *testing.T) {
 	}
 }
 
+// Ein laufender Termin (Occurrences liefert Überlappungen) darf nicht alle paar Minuten erneut melden.
+func TestTickOngoingEventOnce(t *testing.T) {
+	start := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
+	ev := domain.EventInstance{Event: domain.CalendarEvent{ID: "e1", Title: "VL"}, Start: start, End: start.Add(2 * time.Hour)}
+	store := &fakeStore{}
+	var posts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { posts++ }))
+	defer srv.Close()
+
+	for _, lead := range []time.Duration{0, 5 * time.Minute} {
+		posts = 0
+		r := New(store, srv.URL, "kairo", lead, time.Minute, time.UTC, nil)
+		for now := start.Add(-15 * time.Minute); now.Before(ev.End); now = now.Add(time.Minute) {
+			r.now = func() time.Time { return now }
+			store.events = nil
+			if ev.Start.Before(now.Add(lead)) && ev.End.After(now.Add(-time.Minute)) {
+				store.events = []domain.EventInstance{ev}
+			}
+			r.tick(context.Background())
+		}
+		if posts != 1 {
+			t.Fatalf("Vorlauf %v: %d Meldungen, erwartet genau eine", lead, posts)
+		}
+	}
+}
+
 func ptr[T any](v T) *T { return &v }
 
 func TestDueDigest(t *testing.T) {

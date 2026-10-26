@@ -36,7 +36,7 @@ const version = ref('')
 const restarting = ref(false)
 const zones = Intl.supportedValuesOf('timeZone')
 // Leere Felder im Formular bedeuten Standardwert, wie in config.json.
-const dirty = computed(() => !!data.value && (['notes_dir', 'work_start', 'work_end', 'timezone'] as const).some((k) => (form.value[k] ?? '') !== (data.value!.settings[k] ?? '')))
+const dirty = computed(() => !!data.value && (['notes_dir', 'work_start', 'work_end', 'timezone', 'ntfy_lead'] as const).some((k) => (form.value[k] ?? '') !== (data.value!.settings[k] ?? '')))
 
 const { error, load, run } = useLoader(async () => {
   data.value = await getSettings()
@@ -62,6 +62,15 @@ async function restart() {
 }
 
 const locked = (k: keyof SettingsFile) => data.value?.env[k]
+
+// Vorlauf der ntfy-Erinnerung in Minuten; das Backend liefert eine Go-Dauer wie „10m0s“, geschrieben wird dieselbe Form.
+const leadMin = computed({
+  get: () => [...(form.value.ntfy_lead ?? '').matchAll(/(\d+)([hm])/g)].reduce((n, [, v, u]) => n + Number(v) * (u === 'h' ? 60 : 1), 0),
+  set: (v: number) => {
+    const m = Math.max(0, Math.round(v || 0))
+    form.value.ntfy_lead = m === 0 ? '0s' : `${m >= 60 ? `${Math.floor(m / 60)}h` : ''}${m % 60}m0s`
+  },
+})
 
 // Die Sprache gilt sofort und auf allen Geräten (über /api/prefs); sie steht nicht in config.json.
 function setLang(v: Lang) {
@@ -215,6 +224,18 @@ onMounted(() => {
                 </div>
                 <input id="s-tz" v-model="form.timezone" class="input st-ctl" list="s-zones" :disabled="!!locked('timezone')" :placeholder="$t('Systemzeitzone')" />
                 <datalist id="s-zones"><option v-for="z in zones" :key="z" :value="z" /></datalist>
+              </div>
+            </div>
+
+            <div v-if="data" class="st-group">
+              <div class="st-ghead"><span class="lbl">{{ $t('Erinnerungen') }}</span><span class="st-scope">{{ $t('Nach Neustart') }}</span></div>
+              <div class="st-row">
+                <div class="st-text">
+                  <label class="st-t" for="s-lead">{{ $t('Vorlauf in Minuten') }}</label>
+                  <div class="st-h">{{ $t('So lange vor Beginn eines Termins oder einer geplanten Aufgabe kommt die ntfy-Meldung, einmal. 0 = bei Beginn.') }}</div>
+                  <div v-if="locked('ntfy_lead')" class="st-h">{{ $t('Festgelegt durch') }} <code>{{ locked('ntfy_lead') }}</code></div>
+                </div>
+                <input id="s-lead" v-model.number="leadMin" type="number" min="0" max="1440" step="1" class="input st-ctl" :disabled="!!locked('ntfy_lead')" />
               </div>
             </div>
           </template>

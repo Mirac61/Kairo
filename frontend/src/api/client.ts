@@ -466,6 +466,7 @@ export interface SettingsFile {
   work_start?: string
   work_end?: string
   timezone?: string
+  ntfy_lead?: string // Go-Dauer, z. B. „10m0s“
 }
 
 export interface Settings {
