@@ -5,16 +5,17 @@ import { store } from './storage'
 // Einstellungen der Oberfläche (dazu die Sprache). Sie stehen nicht in config.json, sondern unter /api/prefs,
 // damit Handy und Rechner gleich eingestellt sind; localStorage ist der Cache für den ersten Paint.
 export type Theme = 'dark' | 'light' | 'system'
-// Farbstimmung der Flächen; der Akzent bleibt eine eigene Wahl.
-export const PALETTES = ['neutral', 'warm', 'slate', 'plum'] as const
+// Farbstimmung; Graphit, Schiefer und Neutral nehmen die Akzentwahl, Carbonfox und Dragon bringen eigene Farben mit.
+export const PALETTES = ['graphit', 'slate2', 'neutral', 'carbonfox', 'dragon'] as const
 export type Palette = (typeof PALETTES)[number]
-const paletteOf = (v: string | null): Palette => (PALETTES.includes(v as Palette) ? (v as Palette) : 'warm')
+const paletteOf = (v: string | null): Palette => (PALETTES.includes(v as Palette) ? (v as Palette) : 'graphit')
 // Statusleiste der installierten App; die Meta-Tags in index.html sind nur der erste Paint.
 const THEME_COLORS: Record<Palette, { dark: string; light: string }> = {
+  graphit: { dark: '#141517', light: '#f6f6f4' },
+  slate2: { dark: '#090c0d', light: '#f3f5f6' },
   neutral: { dark: '#000000', light: '#fafafa' },
-  warm: { dark: '#0d0c0b', light: '#f3efe6' },
-  slate: { dark: '#080c12', light: '#f3f6fa' },
-  plum: { dark: '#191724', light: '#f7f4fb' },
+  carbonfox: { dark: '#0c0c0c', light: '#f4f4f4' },
+  dragon: { dark: '#181616', light: '#f2ecbc' },
 }
 // Akzentfarben als Farbton für --a-hue; Rot und Grün fehlen, weil sie „überfällig“ und „läuft“ bedeuten.
 export const ACCENTS = { blue: 255, violet: 300, aqua: 200, pink: 350, orange: 60 } as const
@@ -24,6 +25,7 @@ const KEYS = {
   theme: 'kairo-theme', palette: 'kairo-palette', accent: 'kairo-accent', motion: 'kairo-motion', start: 'kairo-start',
   weekStart: 'kairo-week-start', dayStart: 'kairo-day-start', dayEnd: 'kairo-day-end', calDays: 'kairo-cal-days',
   calHabits: 'kairo-cal-habits', goalFocus: 'kairo-goal-focus', goalDays: 'kairo-goal-days',
+  name: 'kairo-name', homeDesktop: 'kairo-home-desktop', homeMobile: 'kairo-home-mobile', homeNote: 'kairo-home-note',
 } as const
 
 const hour = (key: string, def: number) => {
@@ -47,6 +49,11 @@ export const prefs = reactive({
   // Ziele-Board: Fokus der Woche und Tage, an denen etwas für die Ziele passiert ist (YYYY-MM-DD, durch Leerzeichen getrennt).
   goalFocus: store.get(KEYS.goalFocus) ?? '',
   goalDays: store.get(KEYS.goalDays) ?? '',
+  name: store.get(KEYS.name) ?? '', // für die Begrüßung auf der Startseite
+  // Widget-Raster der Startseite je Gerät als JSON [{id, size}] (lib/homeLayout.ts); leer = Standard.
+  homeDesktop: store.get(KEYS.homeDesktop) ?? '',
+  homeMobile: store.get(KEYS.homeMobile) ?? '',
+  homeNote: store.get(KEYS.homeNote) ?? '', // Pfad der angepinnten Notiz
 })
 if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
 
@@ -85,7 +92,7 @@ export async function pullPrefs() {
   const data = (await res.json()) as Record<string, unknown>
   const p = prefs as Record<string, unknown>
   for (const k of Object.keys(prefs)) if (typeof data[k] === typeof p[k]) p[k] = data[k]
-  prefs.palette = paletteOf(prefs.palette) // alte oder fremde Werte fallen auf Warm zurück
+  prefs.palette = paletteOf(prefs.palette) // alte oder fremde Werte fallen auf Graphit zurück
   if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
   if (data.lang === 'de' || data.lang === 'en') {
     lang.value = data.lang
