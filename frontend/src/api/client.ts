@@ -131,8 +131,21 @@ export const updateTimeEntry = (id: string, body: { started_at?: string; ended_a
 
 export const deleteTimeEntry = (id: string) => api<void>(`/time-entries/${id}`, { method: 'DELETE' })
 
-export const completeHabit = (id: string, date: string) =>
-  api<unknown>(`/habits/${id}/completions`, { method: 'POST', body: JSON.stringify({ date }) })
+// value setzt bei Mengen-Habits die Menge des Tages (ein zweiter Aufruf überschreibt sie); ohne value gilt der Tag als erledigt.
+export const completeHabit = (id: string, date: string, value?: number) =>
+  api<unknown>(`/habits/${id}/completions`, { method: 'POST', body: JSON.stringify({ date, value }) })
+
+// Pausen: an diesen Tagen ist nichts fällig, Serien brechen nicht. habit_id null = alle Gewohnheiten (Urlaub).
+export interface HabitPause {
+  id: string
+  habit_id: string | null
+  start_date: string
+  end_date: string
+}
+export const listHabitPauses = () => api<HabitPause[]>('/habits/pauses')
+export const createHabitPause = (body: { habit_id: string | null; start_date: string; end_date?: string }) =>
+  api<HabitPause>('/habits/pauses', { method: 'POST', body: JSON.stringify(body) })
+export const deleteHabitPause = (id: string) => api<void>(`/habits/pauses/${id}`, { method: 'DELETE' })
 
 export const uncompleteHabit = (id: string, date: string) =>
   api<unknown>(`/habits/${id}/completions/${date}`, { method: 'DELETE' })
@@ -207,6 +220,8 @@ export interface Habit {
   frequency_config: FrequencyConfig
   target_value: number | null
   unit: string
+  icon: string // Symbolname aus lib/habitIcons.ts, leer = aus dem Namen geraten
+  remind: boolean // ntfy zur Uhrzeit, solange offen
   preferred_time: string | null // HH:MM
   duration_minutes: number
   project_id: string | null // gesetzt: erledigt, sobald am Tag duration_minutes im Projekt erfasst sind
@@ -274,17 +289,23 @@ export interface Card {
   answer: string
   note_path: string | null
   new: boolean
+  learning: boolean // zuletzt „Nochmal“, noch nicht wieder gewusst
   due: boolean
   due_date: string | null
   interval_days: number
+  next_intervals: [number, number, number, number] // Tage bis zur nächsten Wiederholung je Bewertung
+  created_at: string | null
 }
 export type DueCard = Card
+export interface CardLog { key: string; grade: number; at: string }
 export interface Deck {
   name: string
   color: string // aus PROJECT_COLORS
   total: number
   due: number
   new_due: number
+  learn_due: number
+  new_per_day: number // neue Karten pro Tag (Tageslimit)
 }
 export const listCards = () => api<Card[]>('/cards')
 export const dueCards = () => api<Card[]>('/cards/due')
@@ -294,10 +315,16 @@ export const createCard = (body: { deck: string; question: string; answer: strin
 export const updateCard = (id: string, body: { deck: string; question: string; answer: string }) =>
   api<Card>(`/cards/${id}`, { method: 'PUT', body: JSON.stringify(body) })
 export const deleteCard = (id: string) => api<void>(`/cards/${id}`, { method: 'DELETE' })
-export const setDeckColor = (name: string, color: string) =>
-  api<void>(`/cards/decks/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ color }) })
+export const setDeck = (name: string, body: { color?: string; new_per_day?: number }) =>
+  api<void>(`/cards/decks/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify(body) })
+export const setDeckColor = (name: string, color: string) => setDeck(name, { color })
 export const reviewCard = (key: string, grade: number) =>
   api<{ due: string; interval_days: number }>(`/cards/${key}/review`, { method: 'POST', body: JSON.stringify({ grade }) })
+export const undoReview = () => api<{ key: string }>('/cards/undo', { method: 'POST' })
+export const cardLog = () => api<CardLog[]>('/cards/log')
+export const renameDeck = (name: string, to: string) =>
+  api<void>(`/cards/decks/${encodeURIComponent(name)}`, { method: 'PATCH', body: JSON.stringify({ name: to }) })
+export const deleteDeck = (name: string) => api<void>(`/cards/decks/${encodeURIComponent(name)}`, { method: 'DELETE' })
 
 export interface EventBody {
   title?: string
