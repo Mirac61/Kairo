@@ -60,15 +60,33 @@ test('Aufgabe anlegen', async () => {
   assert.equal(tasks.find((t) => t.title === 'Smoke-Aufgabe')?.estimated_minutes, 30)
 })
 
+test('Mehrere Zeilen einfügen legt mehrere Aufgaben an, Rückgängig löscht sie', async () => {
+  await page.goto(`${base}/tasks`)
+  await page.getByLabel('Neue Aufgabe hinzufügen').evaluate((el) => {
+    const dt = new DataTransfer()
+    dt.setData('text/plain', 'Paste-Eins 15m\nPaste-Zwei !hoch\n')
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+  })
+  await page.getByText('2 Aufgaben angelegt').waitFor()
+  const made = (await api('/tasks')).filter((t) => t.title.startsWith('Paste-'))
+  assert.deepEqual(made.map((t) => [t.title, t.estimated_minutes, t.priority]).sort(), [['Paste-Eins', 15, 'MEDIUM'], ['Paste-Zwei', 0, 'HIGH']])
+  await page.locator('#toasts').getByRole('button', { name: 'Rückgängig' }).click()
+  await page.locator('.task-row', { hasText: 'Paste-Eins' }).waitFor({ state: 'detached' })
+  assert.equal((await api('/tasks')).filter((t) => t.title.startsWith('Paste-')).length, 0)
+})
+
 test('Timer starten und stoppen', async () => {
+  // Die Karte oben bietet die nächste Aufgabe an; morgens (Planen) und abends (Rückblick) steht sie in der Liste.
   await page.goto(`${base}/today`)
-  // Die Knöpfe erscheinen erst, wenn die Maus über der Zeile ist.
-  const row = page.locator('.task-row', { hasText: 'Smoke-Aufgabe' })
-  await row.hover()
-  await page.getByRole('button', { name: 'Start: Smoke-Aufgabe' }).click()
-  await row.hover()
-  await page.getByRole('button', { name: 'Pause: Smoke-Aufgabe' }).click()
-  await page.getByRole('button', { name: 'Start: Smoke-Aufgabe' }).waitFor()
+  await page.getByText('Smoke-Aufgabe').first().waitFor()
+  const now = page.locator('.st-hero')
+  const row = page.locator('.st-row', { hasText: 'Smoke-Aufgabe' })
+  if (await row.count()) {
+    await row.hover()
+    await row.getByRole('button', { name: 'Starten' }).click()
+  } else await now.getByRole('button', { name: 'Starten' }).click()
+  await now.getByRole('button', { name: 'Pause' }).click()
+  await now.getByRole('button', { name: 'Fortsetzen' }).waitFor()
   const entries = await api('/time-entries')
   assert.equal(entries.length, 1)
   assert.ok(entries[0].ended_at, 'Zeiteintrag ist abgeschlossen')
@@ -96,6 +114,30 @@ test('Termin verschieben', async () => {
   assert.ok(new Date(moved) > new Date(ev.start_at), `verschoben: ${ev.start_at} → ${moved}`)
 })
 
+test('Gewohnheit: Menge zählt bis zum Ziel, Tag aussetzen', async () => {
+  const day = new Date().toLocaleDateString('sv')
+  const h = await api('/habits', { method: 'POST', body: JSON.stringify({ name: 'Smoke-Wasser', frequency_type: 'DAILY', target_value: 2, unit: 'Gläser' }) })
+  await page.goto(`${base}/habits`)
+  const row = page.locator('.hd-row', { hasText: 'Smoke-Wasser' })
+  await row.getByRole('button', { name: 'Mehr' }).click()
+  await row.locator('.hd-qring', { hasText: '1' }).waitFor()
+  assert.ok(!(await row.getAttribute('class')).includes('done'), '1 von 2 ist noch offen')
+  await row.getByRole('button', { name: 'Mehr' }).click()
+  await page.waitForFunction(() => document.querySelector('.hd-row.done .hd-qring.full') !== null)
+  const cs = await api(`/habits/${h.id}/completions`)
+  assert.deepEqual(cs.map((c) => [c.date, c.value]), [[day, 2]])
+
+  // Zurück auf 0 und aussetzen: dann ist sie heute nicht mehr fällig.
+  await row.getByRole('button', { name: 'Weniger' }).click()
+  await row.getByRole('button', { name: 'Weniger' }).click()
+  await row.locator('.hd-pick').click()
+  await page.getByRole('button', { name: 'Heute aussetzen' }).click()
+  await page.locator('.hd-row', { hasText: 'Smoke-Wasser' }).waitFor({ state: 'detached' })
+  const ps = await api('/habits/pauses')
+  assert.ok(ps.some((p) => p.habit_id === h.id && p.start_date === day && p.end_date === day))
+  await api(`/habits/${h.id}`, { method: 'DELETE' })
+})
+
 test('Gewohnheit mit Uhrzeit im Kalender abhaken', async () => {
   const day = new Date().toLocaleDateString('sv')
   const idx = (new Date().getDay() + 6) % 7
@@ -105,9 +147,9 @@ test('Gewohnheit mit Uhrzeit im Kalender abhaken', async () => {
   await page.getByRole('button', { name: 'Bestimmte Tage' }).click()
   // Montag ist vorausgewählt; heute dazunehmen, damit sie im Tageskalender erscheint.
   if (idx > 0) await page.getByRole('group', { name: 'Wochentage' }).getByRole('button').nth(idx).click()
-  await page.getByLabel('Uhrzeit').fill('10:00')
-  await page.getByRole('button', { name: 'Anlegen' }).click()
-  await page.locator('.hk-name', { hasText: 'Smoke-Gewohnheit' }).waitFor()
+  await page.getByLabel('Uhrzeit', { exact: true }).fill('10:00')
+  await page.getByRole('button', { name: 'Anlegen', exact: true }).click()
+  await page.locator('.hd-row', { hasText: 'Smoke-Gewohnheit' }).waitFor()
   const h = (await api('/habits')).find((x) => x.name === 'Smoke-Gewohnheit')
   assert.equal(h.frequency_type, 'SPECIFIC_WEEKDAYS')
   assert.equal(h.preferred_time, '10:00')
@@ -249,7 +291,8 @@ test('Journal: Einträge durchsuchen und sortieren', async () => {
   assert.deepEqual(descending, [...descending].sort().reverse(), 'neueste zuerst')
 
   // Suche nach dem Text eines Eintrags; die Liste zeigt nur noch diesen Tag.
-  const search = page.getByLabel('Einträge durchsuchen')
+  await page.getByRole('button', { name: 'Einträge durchsuchen' }).click() // eingeklappt als Lupe
+  const search = page.getByRole('searchbox', { name: 'Einträge durchsuchen' })
   await search.fill('Wechsel eins')
   await page.waitForFunction(() => document.querySelectorAll('.jr-entry').length === 1)
   assert.deepEqual(await dates(), [two])
@@ -270,7 +313,6 @@ test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => 
   const date = yesterday.toLocaleDateString('sv')
   const dir = join(env.KAIRO_NOTES_DIR, 'Journal')
   mkdirSync(dir, { recursive: true })
-
   await page.goto(`${base}/today`)
   assert.equal(await page.locator('.st-journal').count(), 0, 'ohne Eintrag von gestern bleibt der Block verborgen')
 
@@ -283,6 +325,7 @@ test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => 
   await point.waitFor()
   assert.equal(await point.inputValue(), 'Morgen Abgabe vorbereiten.')
 })
+
 
 test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
   const date = new Date().toLocaleDateString('sv')
@@ -352,9 +395,9 @@ test('Journal: „Alle Aufgaben“ filtert nach Journal', async () => {
   assert.ok(expected.length, 'mindestens eine offene Journal-Aufgabe')
   await page.locator('.jr-open-all').click()
   await page.waitForURL(/\/tasks\?filter=journal$/)
-  const tab = page.locator('.tk-tabs button', { hasText: 'Aus Journal' })
+  const tab = page.getByRole('tab', { name: /Aus Journal/ })
   await tab.waitFor()
-  assert.equal(await tab.getAttribute('aria-pressed'), 'true')
+  assert.equal(await tab.getAttribute('aria-selected'), 'true')
   assert.match(await tab.innerText(), new RegExp(`\\b${expected.length}\\b`))
   assert.equal(await page.locator('.task-row').count(), expected.length)
   await page.locator('.task-row', { hasText: 'Abgabe einreichen. Kapitel lesen' }).waitFor()
@@ -421,19 +464,32 @@ test('Lernkarte bewerten', async () => {
   writeFileSync(join(env.KAIRO_NOTES_DIR, 'Karten.md'), '- Smoke-Frage :: Smoke-Antwort\n')
   await page.goto(`${base}/cards`)
   // Eine direkt angelegte Karte in neuem Fach; gelernt wird nur das Fach der Notizkarte.
-  await page.getByLabel('Fach', { exact: true }).fill('Smoke-Fach')
-  await page.getByLabel('Frage', { exact: true }).fill('Eigene Frage')
-  await page.getByLabel('Antwort', { exact: true }).fill('Eigene Antwort')
-  await page.keyboard.press('Enter')
-  await page.locator('.cd-tile', { hasText: 'Smoke-Fach' }).waitFor()
-  await page.locator('.cd-tile', { hasText: 'Allgemein' }).getByRole('button', { name: 'Lernen' }).click()
+  await page.locator('.cv-tools').getByRole('button', { name: 'Hinzufügen' }).click()
+  const dlg = page.getByRole('dialog', { name: 'Karten hinzufügen' })
+  await dlg.getByLabel('Fach', { exact: true }).fill('Smoke-Fach')
+  await dlg.getByLabel('Vorderseite', { exact: true }).fill('Eigene Frage')
+  await dlg.getByLabel('Rückseite', { exact: true }).fill('Eigene Antwort')
+  await dlg.getByRole('button', { name: 'Hinzufügen', exact: true }).click()
+  await dlg.getByText('1 Karte hinzugefügt').waitFor()
+  await dlg.getByRole('button', { name: 'Fertig' }).click()
+  await page.locator('.cv-open', { hasText: 'Smoke-Fach' }).waitFor()
+  await page.locator('.cv-open', { hasText: 'Allgemein' }).click()
+  await page.getByRole('button', { name: 'Jetzt lernen' }).click()
   await page.getByText('Smoke-Frage').waitFor()
   await page.keyboard.press('Space')
   await page.getByText('Smoke-Antwort').waitFor()
-  const reviewed = page.waitForResponse((r) => r.url().includes('/api/cards/') && r.request().method() === 'POST')
+  const reviewed = page.waitForResponse((r) => r.url().includes('/review') && r.request().method() === 'POST')
   await page.keyboard.press('3')
   await reviewed
-  await page.getByText('Fertig für heute.').waitFor()
+  await page.getByText('Runde geschafft').waitFor()
+  // Rückgängig holt die Karte zurück und löscht die Bewertung; dann noch einmal bewerten.
+  const undone = page.waitForResponse((r) => r.url().endsWith('/api/cards/undo'))
+  await page.keyboard.press('z')
+  await undone
+  await page.getByText('Smoke-Antwort').waitFor()
+  assert.equal((await api('/cards/log')).length, 0)
+  await page.keyboard.press('3')
+  await page.getByText('Runde geschafft').waitFor()
   const due = await api('/cards/due')
   assert.deepEqual(due.map((c) => [c.deck, c.question]), [['Smoke-Fach', 'Eigene Frage']])
 })
@@ -537,23 +593,23 @@ test('Einstellungen auf allen Geräten', async () => {
   await page.goto(`${base}/settings`)
   await page.getByRole('button', { name: 'Darstellung' }).click()
   await page.getByRole('radio', { name: /Hell/ }).click()
-  await page.getByRole('radio', { name: 'Pflaume' }).click()
-  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light' && document.documentElement.dataset.palette === 'plum')
-  await waitPrefs({ theme: 'light', palette: 'plum' })
+  await page.getByRole('radio', { name: 'Carbonfox' }).click()
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light' && document.documentElement.dataset.palette === 'carbonfox')
+  await waitPrefs({ theme: 'light', palette: 'carbonfox' })
   const themeColors = () => page.locator('meta[name="theme-color"]').evaluateAll((els) => els.map((e) => e.getAttribute('content')))
-  assert.deepEqual(await themeColors(), ['#f7f4fb', '#f7f4fb']) // Statusleiste folgt der Farbstimmung
+  assert.deepEqual(await themeColors(), ['#f4f4f4', '#f4f4f4']) // Statusleiste folgt der Farbstimmung
   const other = await browser.newContext({ locale: 'de-DE' })
   try {
     const p2 = await other.newPage()
     await p2.goto(`${base}/today`)
-    await p2.waitForFunction(() => document.documentElement.dataset.theme === 'light' && document.documentElement.dataset.palette === 'plum', null, { timeout: 5000 })
+    await p2.waitForFunction(() => document.documentElement.dataset.theme === 'light' && document.documentElement.dataset.palette === 'carbonfox', null, { timeout: 5000 })
   } finally {
     await other.close()
   }
   await page.getByRole('radio', { name: /Dunkel/ }).click()
-  await page.getByRole('radio', { name: 'Warm' }).click()
-  await waitPrefs({ theme: 'dark', palette: 'warm' })
-  assert.deepEqual(await themeColors(), ['#0d0c0b', '#0d0c0b'])
+  await page.getByRole('radio', { name: 'Kanagawa Dragon' }).click()
+  await waitPrefs({ theme: 'dark', palette: 'dragon' })
+  assert.deepEqual(await themeColors(), ['#181616', '#181616'])
 })
 
 // Handy (390×844): Tab-Leiste und „Neu“-Knopf liegen fest über dem Inhalt und dürfen nichts verdecken.

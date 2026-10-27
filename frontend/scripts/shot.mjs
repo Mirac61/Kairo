@@ -20,7 +20,8 @@ const { values: o } = parseArgs({
     click: { type: 'string' }, // CSS-Selektor, der vor dem Screenshot angeklickt wird (z. B. '.task-row .row-title')
     time: { type: 'string' }, // HH:MM: setzt die Uhrzeit fest (z. B. 10:30), damit Bilder zu jeder Tageszeit gleich aussehen
     out: { type: 'string' },
-    store: { type: 'string' }, // weitere localStorage-Werte, z. B. kairo-palette=plum,kairo-accent=violet,kairo-week-start=0
+    store: { type: 'string' }, // weitere localStorage-Werte, z. B. kairo-palette=dragon,kairo-accent=violet,kairo-week-start=0
+    css: { type: 'string' }, // Pfad zu einer CSS-Datei, die nach dem Laden eingefügt wird (Farbvarianten vergleichen)
   },
 })
 const VIEWS = { week: 'timeGrid7', work: 'timeGrid5', day: 'timeGridDay', month: 'dayGridMonth' }
@@ -82,11 +83,16 @@ const times = [ // der letzte Eintrag läuft seit 23 Minuten
 ]
 // --- Mock-Daten für Gewohnheiten, Rückblick und Papierkorb
 const iso = (d, hm = '12:00') => at(d, hm)
-const habits = [['h1', 'lernen', 'DAILY', {}], ['h2', 'Lesen · 20 min', 'DAILY', {}], ['h3', 'sport', 'SPECIFIC_WEEKDAYS', { weekdays: ['MO', 'TH'] }], ['h4', 'Wochenrückblick', 'WEEKLY', { weekday: 'SU' }]]
-  .map(([id, name, frequency_type, frequency_config]) => ({ id, name, description: '', frequency_type, frequency_config, active: true, start_date: day(-40), end_date: null, target_value: null, unit: '', duration_minutes: 30, preferred_time: null }))
+const habits = [['h1', 'lernen', 'DAILY', {}], ['h2', 'Lesen · 20 min', 'DAILY', {}], ['h3', 'sport', 'SPECIFIC_WEEKDAYS', { weekdays: ['MO', 'TH'] }], ['h4', 'Wochenrückblick', 'WEEKLY', { weekday: 'SU' }], ['h5', 'Meditieren', 'DAILY', {}], ['h6', 'Wasser trinken', 'DAILY', {}], ['h7', 'Vokabeln', 'DAILY', {}], ['h8', 'Vitamine', 'DAILY', {}],
+  ['h9', 'Spanisch', 'TIMES_PER_WEEK', { times: 3 }], ['h10', 'Gitarre', 'DAILY', {}], ['h11', 'Kein Handy nach 22 Uhr', 'DAILY', {}], ['h12', 'Aufräumen', 'DAILY', {}]]
+  .map(([id, name, frequency_type, frequency_config]) => ({ id, name, description: '', frequency_type, frequency_config, active: true, start_date: day(-40), end_date: null, target_value: null, unit: '', icon: '', duration_minutes: 30, preferred_time: null }))
 Object.assign(habits[0], { preferred_time: '19:00', duration_minutes: 60, start_date: day(-400) })
 Object.assign(habits[1], { start_date: day(-200) })
 Object.assign(habits[2], { preferred_time: '17:00', duration_minutes: 45, target_value: 5, unit: 'km' })
+Object.assign(habits[4], { preferred_time: '07:00', duration_minutes: 10, start_date: day(-90) })
+Object.assign(habits[5], { target_value: 8, unit: 'Gläser', start_date: day(-60) })
+Object.assign(habits[7], { preferred_time: '08:00' })
+Object.assign(habits[10], { preferred_time: '22:00', icon: 'moon' })
 const WD = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
 // Fällige Gewohnheiten je Tag für den Kalender (vereinfachte Regel ohne X-mal pro Woche).
 const habitsDue = (q) => {
@@ -102,13 +108,15 @@ const habitsDue = (q) => {
   }
   return out
 }
-const completions = (id) => Array.from({ length: 370 }, (_, i) => i).filter((i) => (Number(id.slice(1)) * 7 + i) % 5 !== 0).map((i) => ({ date: day(-i) }))
+const completions = (id) => Array.from({ length: 370 }, (_, i) => i).filter((i) => (Number(id.slice(1)) * 7 + i) % 5 !== 0)
+  .map((i) => ({ date: day(todayIdx - i), value: id === 'h6' ? (i === 0 ? 5 : 8) : null })) // h6: Mengen-Gewohnheit, heute 5 von 8
+const habitPauses = [{ id: 'pz1', habit_id: 'h10', start_date: day(todayIdx), end_date: day(todayIdx) }, { id: 'pz2', habit_id: null, start_date: day(todayIdx + 12), end_date: day(todayIdx + 18) }]
 const review = (q) => ({
   from: q.get('from'), to: q.get('to'), timezone: 'Europe/Berlin', tracked_minutes: 440, completed_tasks: 4,
   days: [[225, 165], [210, 90], [210, 185], [225, 0], [270, 0], [150, 0], [0, 0]].map(([c, t], i) => ({ date: day(i), calendar_minutes: c, tracked_minutes: t, completed_tasks: i < 3 ? 1 : 0 })),
   projects: [['p3', 'Beispiel: App', 185, 2, 4, 6], ['p1', 'Beispiel: Studium', 180, 1, 3, 5], ['p2', 'Beispiel: Haus', 75, 1, 2, 4], ['p4', 'Beispiel: Privat', 0, 0, 1, 3]]
     .map(([project_id, name, tracked_minutes, completed_tasks, done_tasks, total_tasks]) => ({ project_id, name, tracked_minutes, completed_tasks, done_tasks, total_tasks })),
-  habits: habits.map((h, i) => ({ habit_id: h.id, name: h.name, done: 3 - (i % 2), streak: [14, 0, 6, 3][i] })),
+  habits: habits.map((h, i) => ({ habit_id: h.id, name: h.name, done: 3 - (i % 2), streak: [14, 0, 6, 3, 21, 2, 9, 4, 1, 0, 5, 7][i] })),
 })
 const trash = () => ({
   tasks: [{ ...task('x1', 'Laborübung vorbereiten 1h', 'uni', 0, null, 0), deleted_at: iso(0, '14:43') }, { ...task('x2', 'test', 'kairo', 0, null, 0), deleted_at: iso(0, '15:29') }],
@@ -146,11 +154,13 @@ Siehe auch [Skript](https://example.org) und \`git log --oneline\`.
 `
 const noteOf = /^\/api\/notes\/(.+)$/
 const journalText = '# Journal\n\n## Was lief gut?\n\nDen Kalender fürs Handy fertig gemacht, abends noch gelaufen.\n\n## Was lerne ich daraus?\n\nKleine Schritte mit Screenshot prüfen spart Zeit.\n\n## Was ist morgen wichtig?\n\nÜbungsblatt 3 abgeben.\n'
-const card = (deck, question, answer, due, extra = {}) => ({ key: question, id: extra.note ? null : question, deck, question, answer, note_path: extra.note ?? null, new: !!extra.new, due, due_date: extra.new ? null : day(todayIdx + (due ? 0 : 3)), interval_days: 3 })
+const card = (deck, question, answer, due, extra = {}) => ({ key: question, id: extra.note ? null : question, deck, question, answer, note_path: extra.note ?? null, new: !!extra.new, learning: !!extra.learning, due, due_date: extra.new ? null : day(todayIdx + (due ? 0 : extra.in ?? 3)), interval_days: extra.iv ?? 3, next_intervals: extra.new ? [0, 1, 1, 4] : [0, 4, 8, 11], created_at: extra.note ? null : iso(todayIdx - (extra.age ?? 5)) })
 const cards = [
   card('Computerarchitektur', 'Was ist ein CMOS?', 'Ein PMOS- und ein NMOS-Transistor im Paar; im Ruhezustand fließt kaum Strom.', true, { note: 'Computerarchitektur/2026-10-09_Fundamente.md' }),
   card('Computerarchitektur', 'Was macht ein Multiplexer?', 'Wählt einen von mehreren Eingängen über Steuerleitungen aus.', true, { new: true }),
-  card('Computerarchitektur', 'Big-Endian', 'Höchstwertiges Byte an der niedrigsten Adresse.', false),
+  card('Computerarchitektur', 'Big-Endian', 'Höchstwertiges Byte an der niedrigsten Adresse.', false, { in: 1, iv: 9 }),
+  card('Computerarchitektur', 'Ohmsches Gesetz', 'Spannung ist Widerstand mal Strom:\n\n$$U = R \\cdot I$$', true, { learning: true, iv: 0, age: 0 }),
+  card('Computerarchitektur', 'Zweierkomplement von −5 (8 Bit)', '`1111 1011` – invertieren, 1 addieren.', false, { in: 6, iv: 14 }),
   card('Mathe 2', 'Ableitung von sin(x)', 'cos(x)', true),
   card('Mathe 2', 'Eigenwert', 'λ mit Av = λv für ein v ≠ 0', false),
   card('Japanisch', '勉強', 'べんきょう – lernen', true, { new: true }),
@@ -159,8 +169,11 @@ const cards = [
 ]
 const decks = ['Computerarchitektur', 'Japanisch', 'Mathe 2'].map((name, i) => {
   const cs = cards.filter((c) => c.deck === name)
-  return { name, color: ['violet', 'pink', 'aqua'][i], total: cs.length, due: cs.filter((c) => c.due).length, new_due: cs.filter((c) => c.new).length }
-})
+  return { name, color: ['blue', 'green', 'yellow'][i], total: cs.length, due: cs.filter((c) => c.due).length, new_due: cs.filter((c) => c.new).length, learn_due: cs.filter((c) => c.learning).length, new_per_day: 20 }
+}).concat({ name: 'Softwaretechnik', color: 'pink', total: 0, due: 0, new_due: 0, learn_due: 0, new_per_day: 20 })
+// Lernverlauf: 26 Wochen mit Lücken, „Zweierkomplement“ oft vergessen.
+const cardLog = Array.from({ length: 180 }, (_, i) => i).filter((i) => (i * 7) % 5 !== 0).flatMap((i) =>
+  Array.from({ length: (i * 13) % 17 }, (_, j) => ({ key: cards[j % cards.length].key, grade: (i + j) % 6 === 0 ? 0 : 2, at: iso(todayIdx - i) }))).reverse() // wie die API: älteste zuerst
 const goal = (id, title, why, extra = {}) => ({ id, title, why, image_path: null, kind: 'NONE', project_id: null, habit_id: null, target: 0, start_date: day(0), due_date: null, archived: false, parent_id: null, progress: null, ...extra })
 const goals = [
   goal('g1', 'Ein Werkstudentenplatz bekommen', 'Ich will selber Geld verdienen und Arbeitserfahrung sammeln.', { image_path: 'Ziele/g1.svg', due_date: day(90), progress: { current: 1, target: 3, percent: 55 } }),
@@ -193,6 +206,7 @@ const mock = {
   '/api/journal/task-imports': () => [],
   '/api/habits': () => habits,
   '/api/habits/due': habitsDue,
+  '/api/habits/pauses': () => habitPauses,
   '/api/github/issues': () => [
     { title: 'Kalender: Habits per Drag verschieben', url: 'https://github.com/demo/kairo/issues/41', repo: 'demo/kairo', number: 41, labels: ['enhancement'], updated_at: iso(0), task_id: null },
     { title: 'Absturz beim ICS-Import ohne DTEND', url: 'https://github.com/demo/kairo/issues/38', repo: 'demo/kairo', number: 38, labels: ['bug'], updated_at: iso(-1), task_id: 't4' },
@@ -203,6 +217,7 @@ const mock = {
   '/api/cards': () => cards,
   '/api/cards/due': () => cards.filter((c) => c.due),
   '/api/cards/decks': () => decks,
+  '/api/cards/log': () => cardLog,
   '/api/goals/today': () => goals[0],
   '/api/trash': trash,
   '/api/notes': () => noteTree,
@@ -221,7 +236,7 @@ const mock = {
     }
   },
 }
-const completionsOf = /^\/api\/habits\/(h\d)\/completions$/
+const completionsOf = /^\/api\/habits\/(h\d+)\/completions$/
 const projectIssuesOf = /^\/api\/projects\/(p\d)\/github\/issues$/
 
 // --- Browser
@@ -251,7 +266,9 @@ await page.route('**/api/**', (route) => {
   const file = fileOf.exec(u.pathname)
   if (file) return route.fulfill({ contentType: 'image/svg+xml', body: svgImage(file[1]) })
   const f = gi ? () => (gi[1] === 'p3' ? { repo: 'demo/kairo', issues: mock['/api/github/issues']().filter((i) => i.repo === 'demo/kairo') } : { repo: '', issues: [] }) : c ? () => completions(c[1]) : n ? () => ({ path: decodeURIComponent(n[1]), content: n[1].startsWith('Journal/') ? journalText : noteText, mtime: '1' }) : mock[u.pathname]
-  return f && route.request().method() === 'GET' ? route.fulfill({ json: f(u.searchParams) }) : route.continue()
+  // Schreibende Requests nie ans echte Backend (z. B. PUT /api/prefs nach dem leeren Mock).
+  if (route.request().method() !== 'GET') return route.fulfill({ status: 204 })
+  return f ? route.fulfill({ json: f(u.searchParams) }) : route.continue()
 })
 try {
   await page.goto(`${base}/${o.route}`)
@@ -259,11 +276,15 @@ try {
   await browser.close()
   throw new Error(`${base} nicht erreichbar: erst „pnpm dev“ starten (oder KAIRO_URL setzen)`)
 }
+page.on('pageerror', (e) => console.log('PAGEERROR', e.message))
 await page.waitForSelector({ calendar: '.fc-view', notes: '.notes', settings: '.st', login: '.auth-page', setup: '.auth-page' }[o.route] ?? '.view-inner')
 await page.waitForLoadState('networkidle')
+if (o.css) await page.addStyleTag({ path: o.css })
 // Mehrere Klicks nacheinander mit „ && “ getrennt, z. B. '.cd-tile-learn && .cd-show'.
 if (o.click) for (const sel of o.click.split(' && ')) await page.locator(sel).first().click()
 await page.waitForTimeout(400)
+// EVAL='…' gibt einen Ausdruck im Browser aus (z. B. getBoundingClientRect), damit nicht jede Prüfung ein Bild braucht.
+if (process.env.EVAL) console.log('EVAL', JSON.stringify(await page.evaluate(process.env.EVAL)))
 mkdirSync(out.includes('/') ? out.slice(0, out.lastIndexOf('/')) : '.', { recursive: true })
 // Querformat-Überlauf (Handy): Seitenbreite und Elemente, die rechts über den Rand ragen.
 console.log(await page.evaluate(() => {
