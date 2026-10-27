@@ -59,3 +59,15 @@ export function findSlot<T extends { start: number; end: number }>(busy: T[], fr
 export function blockEndMinutes(startMin: number, endMin: number) {
   return endMin <= startMin ? endMin + 24 * 60 : endMin || 24 * 60
 }
+
+// Freie Lücken von mindestens minLen Minuten in [from, to] zwischen den Blöcken (nach Beginn sortiert).
+export function gaps(blocks: { start: number; end: number }[], from: number, to: number, minLen: number) {
+  const out: { start: number; end: number }[] = []
+  let at = from
+  for (const b of blocks) {
+    if (b.start - at >= minLen && at < to) out.push({ start: at, end: Math.min(b.start, to) })
+    at = Math.max(at, b.end)
+  }
+  if (to - at >= minLen) out.push({ start: at, end: to })
+  return out.filter((g) => g.end - g.start >= minLen)
+}

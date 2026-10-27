@@ -1,7 +1,7 @@
 // Rechenteile der Startseite: node --test test/dayPlan.test.ts
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { blockEndMinutes, columns, doneSeconds, findSlot, minutesOfDay, stopwatch } from '../src/lib/dayPlan.ts'
+import { blockEndMinutes, columns, doneSeconds, findSlot, gaps, minutesOfDay, stopwatch } from '../src/lib/dayPlan.ts'
 
 test('Uhrzeit, Stoppuhr und erfasste Zeit', () => {
   assert.equal(minutesOfDay(Date.parse('2026-10-09T08:30:00Z'), 'Europe/Berlin'), 10 * 60 + 30)
@@ -54,4 +54,12 @@ test('Block-Ende über Mitternacht', () => {
   assert.equal(blockEndMinutes(h(23), h(1)), h(25)) // 23:00 → 01:00
   assert.equal(blockEndMinutes(h(23), 0), h(24)) // endet genau um Mitternacht
   assert.equal(blockEndMinutes(0, 0), h(24)) // ganztägig
+})
+
+test('freie Lücken', () => {
+  const b = (start: number, end: number) => ({ start, end })
+  assert.deepEqual(gaps([b(600, 660), b(630, 700), b(720, 740)], 540, 1020, 30), [b(540, 600), b(740, 1020)])
+  assert.deepEqual(gaps([], 540, 600, 30), [b(540, 600)])
+  assert.deepEqual(gaps([b(500, 1100)], 540, 1020, 30), [])
+  assert.deepEqual(gaps([b(1000, 1100)], 540, 600, 30), [b(540, 600)], 'Blöcke nach dem Fenster kürzen nichts')
 })

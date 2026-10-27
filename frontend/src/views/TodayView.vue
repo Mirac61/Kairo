@@ -1,591 +1,592 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import {
-  completeHabit, createTask, dueCards, goalToday, taskAction, createTimeEntry, deleteTimeEntry, getToday, listProjects, listTasks, listTimeEntries, readNote, uncompleteHabit, updateTask, updateTimeEntry,
-  isOpen, type Goal, type Project, type Task, type TimeEntry, type Today,
-} from '@/api/client'
-import { useLiveEvents } from '@/composables/useLiveEvents'
-import { useLoader } from '@/composables/useLoader'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { completeHabit, dueCards, goalToday, isOpen, readNote, reviewCard, taskAction, uncompleteHabit, updateTask, type Card, type Goal, type Task } from '@/api/client'
+import { provideHome } from '@/composables/useHome'
 import { useShortcuts } from '@/composables/useShortcuts'
-import { useTaskSelection } from '@/composables/useTaskSelection'
-import { useUndo } from '@/composables/useUndo'
-import { useFreeSlot } from '@/composables/useFreeSlot'
-import { daysAgo, dur, entryMinutes, hhmm, hm, shiftDate, ymd } from '@/lib/dates'
-import { journalPath, parseEntry } from '@/lib/journal'
-import { parseQuickAdd, taskBody } from '@/lib/quickAdd'
-import { columns, doneSeconds, minutesOfDay, stopwatch } from '@/lib/dayPlan'
-import QuickHints from '@/components/QuickHints.vue'
-import SelectionBar from '@/components/SelectionBar.vue'
-import { habitColor, projectColor } from '@/lib/projectColor'
-import TaskActions from '@/components/TaskActions.vue'
-import { locale, t } from '@/lib/i18n'
-import { prefs } from '@/lib/prefs'
-import DeleteButton from '@/components/DeleteButton.vue'
-import { filesUrl } from '@/lib/noteFiles'
+import { columns, findSlot, stopwatch } from '@/lib/dayPlan'
+import { dur, hm, shiftDate } from '@/lib/dates'
 import { goalProgressText } from '@/lib/goals'
+import { locale, t, tn } from '@/lib/i18n'
+import { journalPath, parseEntry } from '@/lib/journal'
+import { prefs } from '@/lib/prefs'
+import { projectColor } from '@/lib/projectColor'
+import { store } from '@/lib/storage'
 
-// Planungsfenster der Tagesleiste und des Tagesplans (Einstellungen, „Sichtbarer Tagesbereich“).
-const { dayStart: START_H, dayEnd: END_H } = prefs
-const HOUR = 44
+// Startseite: oben eine Karte mit dem, was jetzt dran ist, darunter Gewohnheiten, Lernkarte und Ziel,
+// dann die Aufgaben nach Überfällig/Heute/Demnächst; rechts der Zeitplan mit freien Lücken zum Einplanen.
+const home = provideHome()
+const { today, tasks, tasksById, projectNames, now, nowMin, error, blocks, allDay, freeGaps, runEntry, runningTaskId, pausedTask, runSecs, run, offer, setDone, scheduleAt } = home
 
-const { offer, setDone } = useUndo()
-const today = ref<Today | null>(null)
-const yesterdayJournal = ref<{ date: string; intention: string } | null>(null)
+const dateLabel = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(now.value)))
+const events = computed(() => blocks.value.filter((b) => b.kind === 'event'))
+const sub = computed(() => {
+  const cur = events.value.find((b) => b.start <= nowMin.value && nowMin.value < b.end)
+  const next = events.value.find((b) => b.start >= nowMin.value)
+  const line = cur ? t('Aktuell: {title} bis {time}', { title: cur.title, time: hm(cur.end) })
+    : next ? t('Als Nächstes im Kalender: {title} um {time}', { title: next.title, time: hm(next.start) })
+    : t('Keine weiteren Termine heute')
+  return allDay.value.length ? `${line} · ${allDay.value.map((b) => b.title).join(', ')}` : line
+})
+const freeMin = computed(() => freeGaps.value.reduce((s, g) => s + g.end - g.start, 0))
+const est = (x: Task) => x.estimated_minutes || 30
+const estLabel = (x: Task) => (x.estimated_minutes ? dur(x.estimated_minutes) : '–')
+const startOf = (x: Task) => blocks.value.find((b) => b.task?.id === x.id)?.start
+
+// Aufgaben: Überfälliges, heute Offenes, Demnächst (nach Datum). Erledigtes von heute klappt unten auf.
+const overdue = computed(() => (today.value?.overdue ?? []).filter(isOpen))
+const todays = computed(() => (today.value?.tasks ?? []).filter(isOpen))
+const doneToday = computed(() => (today.value?.tasks ?? []).filter((x) => x.status === 'COMPLETED'))
+const dayOf = (x: Task) => x.planned_date || x.due_at?.slice(0, 10) || null
+const upcoming = computed(() => {
+  const shown = new Set([...overdue.value, ...todays.value].map((x) => x.id))
+  return tasks.value.filter((x) => isOpen(x) && !x.parent_task_id && !shown.has(x.id))
+    .sort((a, b) => (dayOf(a) ?? '~').localeCompare(dayOf(b) ?? '~')).slice(0, 6)
+})
+const shortDay = (d: string | null) => (d ? new Intl.DateTimeFormat(locale.value, { weekday: 'short', day: 'numeric', month: 'numeric' }).format(new Date(`${d}T12:00:00`)) : '')
+
+// Karte oben: laufende/pausierte Aufgabe, morgens ohne Plan die Auswahl, ab 18 Uhr der Rückblick,
+// sonst die nächste offene Aufgabe von heute, und wenn nichts mehr offen ist „Alles erledigt“.
+const current = computed(() => (runningTaskId.value ? tasksById.value.get(runningTaskId.value) : undefined) ?? pausedTask.value)
+const heroTask = computed(() => [...overdue.value, ...todays.value][0] ?? null)
+const planSkip = ref(store.get('kairo-plan-skip'))
+const candidates = computed(() => [...overdue.value, ...todays.value, ...upcoming.value].filter((x) => !x.planned_start_at).slice(0, 4))
+const kind = computed(() => {
+  const day = today.value?.date
+  if (current.value || runEntry.value) return 'run'
+  if (nowMin.value >= 18 * 60) return 'review'
+  if (nowMin.value < 12 * 60 && planSkip.value !== day && candidates.value.length && !blocks.value.some((b) => b.kind === 'task')) return 'plan'
+  return heroTask.value ? 'task' : 'done'
+})
+
+const fitGap = (x: Task) => freeGaps.value.find((g) => g.end - g.start >= est(x))
+const heroFit = computed(() => {
+  const x = heroTask.value
+  if (!x) return ''
+  const at = startOf(x)
+  if (at !== undefined) return t('Eingeplant um {time} Uhr.', { time: hm(at) })
+  const g = fitGap(x)
+  if (!g) return t('Heute ist keine Lücke groß genug.')
+  return g.start <= nowMin.value + 5 ? t('Passt jetzt in deine freie Zeit.') : t('Passt in deine freie Lücke um {time} Uhr.', { time: hm(g.start) })
+})
+
+const runTitle = computed(() => current.value?.title ?? projectNames.value.get(runEntry.value?.project_id ?? '') ?? t('Projektzeit'))
+const runEst = computed(() => (current.value ? est(current.value) * 60 : 0))
+const runPct = computed(() => (runEst.value ? Math.min(100, (runSecs.value / runEst.value) * 100) : 0))
+const runRest = computed(() => {
+  const over = runSecs.value - runEst.value
+  return over > 0 ? t('{n} min über der Schätzung', { n: Math.floor(over / 60) }) : t('noch {n} min', { n: Math.ceil(-over / 60) })
+})
+const toggleTimer = (x: Task) => run(() => taskAction(x.id, runningTaskId.value === x.id ? 'pause' : 'start'))
+
+const tracked = computed(() => today.value?.tracked_minutes ?? 0)
+const pull = computed(() => upcoming.value[0])
+const pullForward = (x: Task) => run(() => updateTask(x.id, { planned_date: today.value!.date }))
+const openToday = computed(() => [...overdue.value, ...todays.value])
+const reviewText = computed(() => {
+  const [first, ...rest] = openToday.value
+  if (!first) return t('Alles abgehakt. Zwei Sätze ins Journal, dann ist der Tag rund.')
+  return rest.length ? t('„{title}“ ist offen geblieben, dazu {n} weitere.', { title: first.title, n: rest.length }) : t('„{title}“ ist offen geblieben.', { title: first.title })
+})
+function moveOpen() {
+  const moved = openToday.value.map(({ id, planned_date, planned_start_at }) => ({ id, planned_date, planned_start_at }))
+  const tomorrow = shiftDate(today.value!.date, 1)
+  void run(async () => {
+    await Promise.all(moved.map((x) => updateTask(x.id, { planned_date: tomorrow, planned_start_at: '' })))
+    offer(tn(moved.length, '{n} Aufgabe auf morgen gelegt', '{n} Aufgaben auf morgen gelegt'), () =>
+      run(() => Promise.all(moved.map((x) => updateTask(x.id, { planned_date: x.planned_date ?? '', planned_start_at: x.planned_start_at ?? '' })))))
+  })
+}
+
+// Morgens ohne Plan: bis zu drei Aufgaben wählen, sie landen nacheinander in den ersten passenden Lücken.
+const picks = ref(new Set<string>())
+function togglePick(id: string) {
+  const s = new Set(picks.value)
+  if (s.has(id)) s.delete(id)
+  else if (s.size < 3) s.add(id)
+  picks.value = s
+}
+function planDay() {
+  const busy = blocks.value.filter((b) => !b.done).map((b) => ({ start: b.start, end: b.end }))
+  const from = Math.max(nowMin.value, prefs.dayStart * 60)
+  const plan: { task: Task; at: number }[] = []
+  for (const x of candidates.value.filter((c) => picks.value.has(c.id))) {
+    const slot = findSlot(busy.sort((a, b) => a.start - b.start), from, prefs.dayStart * 60, prefs.dayEnd * 60, est(x))
+    if (!slot) continue
+    plan.push({ task: x, at: slot.start })
+    busy.push({ start: slot.start, end: slot.start + est(x) + 15 }) // 15 Minuten Luft zwischen den Blöcken
+  }
+  plan.forEach((p) => scheduleAt(p.task, p.at))
+  picks.value = new Set()
+}
+function skipPlan() {
+  planSkip.value = today.value?.date ?? ''
+  store.set('kairo-plan-skip', planSkip.value)
+}
+
+// Einplanen/Ausplanen: ohne Uhrzeit in die erste passende Lücke, mit Uhrzeit wieder heraus.
+function togglePlan(x: Task, at?: number) {
+  if (at === undefined && x.planned_start_at) return run(() => updateTask(x.id, { planned_start_at: '' }))
+  const start = at ?? fitGap(x)?.start
+  if (start === undefined) error.value = t('Heute ist keine Lücke groß genug.')
+  else scheduleAt(x, start)
+}
+
+// Gewohnheiten, Lernkarte, Ziel. Fehler beim Nachladen lassen die Karte nur leer.
+const habits = computed(() => today.value?.habits ?? [])
+// Offene zuerst, höchstens vier; der Rest steht unter Gewohnheiten.
+const habitsShown = computed(() => [...habits.value].sort((a, b) => Number(a.done) - Number(b.done)).slice(0, 4))
+const toggleHabit = (id: string, done: boolean) => run(() => (done ? uncompleteHabit(id, today.value!.date) : completeHabit(id, today.value!.date)))
+const RING = 2 * Math.PI * 12
+const cards = ref<Card[] | null>(null)
+const flip = ref(false)
 const goal = ref<Goal | null>(null)
-const cardsDue = ref(0)
-const now = ref(Date.now())
-const quick = ref('')
-const quickEl = ref<HTMLInputElement>()
-const manualOpen = ref(false)
-const entries = ref<TimeEntry[]>([])
-const tasksById = ref(new Map<string, Task>())
-const taskTitles = computed(() => new Map([...tasksById.value].map(([id, t]) => [id, t.title])))
-const projectNames = ref(new Map<string, string>())
-const projectList = ref<Project[]>([])
-let tick: ReturnType<typeof setInterval> | undefined
-
-const { error, load, run } = useLoader(async () => {
-  const t = await getToday()
-  const from = new Date(`${t.date}T00:00:00`)
-  const yesterday = shiftDate(t.date, -1)
-  const [es, tasks, projects, g, intention] = await Promise.all([
-    listTimeEntries(from, new Date(from.getTime() + 864e5)), listTasks(), listProjects(), goalToday(),
-    readNote(journalPath(yesterday)).then((note) => parseEntry(note.content).answers[2]?.trim() ?? '').catch(() => ''),
-  ])
-  goal.value = g
-  today.value = t
-  yesterdayJournal.value = intention ? { date: yesterday, intention } : null
-  entries.value = es.reverse()
-  tasksById.value = new Map(tasks.map((x) => [x.id, x]))
-  projectNames.value = new Map(projects.map((x) => [x.id, x.name]))
-  projectList.value = projects.filter((p) => p.status !== 'ARCHIVED') // für #name in der Schnelleingabe
-})
-
-// n springt in die Schnelleingabe.
-useShortcuts((e) => {
-  if (e.key !== 'n') return
-  e.preventDefault()
-  quickEl.value?.focus()
-})
-
-useLiveEvents(load)
 onMounted(() => {
-  void load()
-  // Fehler hier nur verschlucken: ohne Karten fehlt bloß der Hinweis.
-  dueCards().then((cs) => (cardsDue.value = cs.length), () => {})
-  tick = setInterval(() => (now.value = Date.now()), 1000)
+  dueCards().then((cs) => (cards.value = cs), () => (cards.value = []))
+  goalToday().then((g) => (goal.value = g), () => {})
 })
-onUnmounted(() => clearInterval(tick))
-
-// Das Backend meldet ohne konfigurierte Zeitzone "Local"; das ist kein gültiger IANA-Name.
-const tz = computed(() => (today.value?.timezone === 'Local' ? undefined : today.value?.timezone))
-const fmt = (iso: string) => new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit', timeZone: tz.value }).format(new Date(iso))
-// Minuten seit Mitternacht in der Zeitzone des Backends.
-const minsOf = (ms: number) => minutesOfDay(ms, tz.value)
-// Ende eines Termins in Minuten seit Mitternacht; über Mitternacht reicht es in den nächsten Tag (z. B. 23:00→25:00),
-// damit der Block nicht rückwärts läuft, sondern im Raster korrekt nach unten ragt.
-const blockEnd = (start: string, end: string) => {
-  const s = minsOf(Date.parse(start))
-  const e = minsOf(Date.parse(end))
-  return e <= s ? e + 24 * 60 : e || 24 * 60
-}
-
-const dateLabel = computed(() =>
-  new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(now.value)))
-
-const nowMin = computed(() => minsOf(now.value))
-const runEntry = computed(() => today.value?.running_time_entry ?? null)
-const runningTaskId = computed(() => runEntry.value?.task_id ?? null)
-// Zuletzt pausierte Task von heute: bleibt in der Karte, damit man sie fortsetzen kann.
-const pausedTask = computed(() => {
-  if (runEntry.value) return undefined
-  const e = [...entries.value].reverse().find((x) => x.task_id && tasksById.value.get(x.task_id)?.status === 'PAUSED')
-  return e ? tasksById.value.get(e.task_id!) : undefined
-})
-// Heute schon abgeschlossene Zeit der Task, damit der Timer nach Pause und Fortsetzen weiterzählt.
-const doneSecs = (id: string) => doneSeconds(entries.value, id)
-const runSecs = computed(() => {
-  const e = runEntry.value
-  if (e) return (e.task_id ? doneSecs(e.task_id) : 0) + Math.max(0, (now.value - Date.parse(e.started_at)) / 1000)
-  return pausedTask.value ? doneSecs(pausedTask.value.id) : 0
-})
-const elapsed = computed(() => stopwatch(runSecs.value))
-
-interface Block { key: string; title: string; start: number; end: number; kind: 'event' | 'task'; done: boolean; running?: boolean; color: string; sub: string }
-
-// Termine und Tasks mit Uhrzeit als Blöcke; Tasks ohne Dauer zählen 30 Minuten.
-const allBlocks = computed<Block[]>(() => {
-  const t = today.value
-  if (!t) return []
-  const out: Block[] = t.events.map((e) => ({
-    key: `e${e.id}${e.occurrence_start}`, title: e.title, kind: 'event', done: false, color: 'var(--p-neutral)', sub: e.location,
-    start: minsOf(Date.parse(e.occurrence_start)), end: blockEnd(e.occurrence_start, e.occurrence_end),
-  }))
-  for (const task of t.tasks) {
-    if (!task.planned_start_at) continue
-    const start = minsOf(Date.parse(task.planned_start_at))
-    out.push({
-      key: `t${task.id}`, title: task.title, kind: 'task', done: task.status === 'COMPLETED', running: task.id === runningTaskId.value, sub: '',
-      color: task.project_id ? projectColor(task.project_id) : 'var(--p-neutral)', start, end: start + (task.estimated_minutes || 30),
-    })
-  }
-  return out.sort((a, b) => a.start - b.start)
-})
-
-// Ganztägige Termine stehen im Kopf, nicht im Raster (und zählen nicht für die Spalten bei Überlappung).
-const isAllDay = (b: Block) => b.kind === 'event' && b.start === 0 && b.end >= 24 * 60
-const allDay = computed(() => allBlocks.value.filter(isAllDay))
-const blocks = computed(() => allBlocks.value.filter((b) => !isAllDay(b)))
-const upcoming = computed(() => blocks.value.filter((b) => b.kind === 'event' && !b.done))
-const nextEvent = computed(() => upcoming.value.find((b) => b.start > nowMin.value))
-
-const openTasks = computed(() => (today.value?.tasks ?? []).filter(isOpen))
-const runningTask = computed(() => (runningTaskId.value ? tasksById.value.get(runningTaskId.value) : undefined))
-const cardTask = computed(() => runningTask.value ?? pausedTask.value)
-const runProject = computed(() => cardTask.value?.project_id ?? runEntry.value?.project_id ?? null)
-const runGoal = computed(() => cardTask.value?.estimated_minutes || 0)
-const runPct = computed(() => (runGoal.value ? Math.min(100, (runSecs.value / 60 / runGoal.value) * 100) : 0))
-
-// „Als Nächstes“: die nächste offene Aufgabe (das Backend sortiert nach Uhrzeit), oder ein Termin, der vorher beginnt.
-const queue = computed(() => openTasks.value.filter((t) => t.id !== cardTask.value?.id))
-const lead = (start: number | null) => (start === null ? '' : start > nowMin.value ? t('in {time}', { time: dur(start - nowMin.value) }) : t('geplant {time}', { time: hm(start) }))
-const nextItem = computed(() => {
-  const next = queue.value[0]
-  const tStart = next?.planned_start_at ? minsOf(Date.parse(next.planned_start_at)) : null
-  const ev = nextEvent.value
-  if (ev && (!next || (tStart !== null && ev.start < tStart))) {
-    return { kind: t('Termin'), title: ev.title, project: '', color: ev.color, when: `${hm(ev.start)}–${hm(ev.end)}`, lead: lead(ev.start), task: undefined, then: '' }
-  }
-  if (!next) return null
-  const after = queue.value[1]
-  return {
-    kind: t('Aufgabe'), title: next.title, project: projectNames.value.get(next.project_id ?? '') ?? '', color: projectColor(next.project_id), task: next, lead: lead(tStart),
-    when: [next.planned_start_at ? `${hm(tStart!)}–${hm(tStart! + (next.estimated_minutes || 30))}` : '', next.estimated_minutes ? hm(next.estimated_minutes) : ''].filter(Boolean).join(' · '),
-    then: after ? `${t('danach')} ${after.planned_start_at ? `${fmt(after.planned_start_at)} ` : ''}${after.title}` : '',
-  }
-})
-
-// „Heute fällig“: erst Überfälliges, dann der Tag; Aktives ohne Plan für heute folgt darunter.
-const dueRows = computed(() => [
-  ...(today.value?.overdue ?? []).map((t) => ({ t, od: true })),
-  ...openTasks.value.map((t) => ({ t, od: false })),
-])
-const selection = useTaskSelection(() => [...dueRows.value.map((r) => r.t), ...(today.value?.active_tasks ?? [])], run, () => {
-  const d = new Date(`${today.value!.date}T12:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + 1)
-  return d.toISOString().slice(0, 10)
-})
-const { picked, onClick: pickRow, onPointerDown, onPointerUp } = selection
-const whenOf = (r: { t: Task; od: boolean }) => (r.od ? daysAgo(r.t.planned_date!, today.value!.date) : r.t.planned_start_at ? fmt(r.t.planned_start_at) : t('Heute'))
-const activeOnly = computed(() => today.value?.active_tasks ?? [])
-const doneCount = computed(() => (today.value?.tasks ?? []).filter((t) => t.status === 'COMPLETED').length)
-
-const y = (m: number) => ((m - START_H * 60) / 60) * HOUR
-// Kürzere Blöcke zeichnet das Raster mit Mindesthöhe (22 px = 30 Minuten).
-const MIN_BLOCK = 30
-
-// Überlappende Blöcke stehen nebeneinander.
-const layout = computed(() => columns(blocks.value, MIN_BLOCK))
-
-const style = (b: Block) => {
-  const top = Math.max(y(b.start), 0)
-  const height = Math.max(y(Math.min(b.end, END_H * 60)) - top, 22)
-  const { col, cols } = layout.value.get(b.key) ?? { col: 0, cols: 1 }
-  // Nutzbreite: 100 % abzüglich der Ränder (6 px links, 10 px rechts).
-  return {
-    top: `${top}px`, height: `${height}px`, '--acc': b.color,
-    left: `calc(6px + (100% - 16px) * ${col / cols})`, width: `calc((100% - 16px) / ${cols} - 2px)`, right: 'auto',
-  }
-}
-const hours = Array.from({ length: END_H - START_H + 1 }, (_, i) => START_H + i)
-const nowTop = computed(() => (nowMin.value >= START_H * 60 && nowMin.value <= END_H * 60 ? y(nowMin.value) : null))
-
-// Aufgaben aus der Liste lassen sich in den Plan ziehen (HTML-Drag-and-drop; das Raster ist kein FullCalendar).
-const dragTask = (e: DragEvent, t: Task) => {
-  e.dataTransfer!.setData('text/plain', t.id)
-  e.dataTransfer!.effectAllowed = 'move'
-}
-
-// Minuten seit Mitternacht am Tag der Ansicht als Zeitpunkt, in der Zeitzone des Backends.
-function instantAt(min: number) {
-  const guess = Date.parse(`${today.value!.date}T00:00:00Z`) + min * 60_000
-  const off = (((minsOf(guess) - min + 720) % 1440) + 1440) % 1440 - 720 // Zeitzonenversatz in Minuten
-  return new Date(guess - off * 60_000)
-}
-
-// Plan einer Task ändern; Rückgängig stellt den bisherigen Tag und die Uhrzeit wieder her.
-function reschedule(task: Task, plan: { planned_date: string; planned_start_at: string }, done: string) {
-  const { id, title, planned_date, planned_start_at } = task
+const card = computed(() => cards.value?.[0])
+function grade(g: number) {
+  const c = card.value
+  if (!c) return
+  flip.value = false
   void run(async () => {
-    await updateTask(id, plan)
-    offer(t(done, { title }), () => run(() => updateTask(id, { planned_date: planned_date ?? '', planned_start_at: planned_start_at ?? '' })))
+    await reviewCard(c.key, g)
+    cards.value = cards.value!.slice(1)
   })
 }
+// Vorhaben von gestern (dritte Journal-Frage) als Erinnerung mit Link auf den Eintrag.
+const yesterday = ref<{ date: string; intention: string } | null>(null)
+watch(() => today.value?.date, (day) => {
+  if (!day) return
+  const prev = shiftDate(day, -1)
+  readNote(journalPath(prev)).then((n) => {
+    const intention = parseEntry(n.content).answers[2]?.trim()
+    yesterday.value = intention ? { date: prev, intention } : null
+  }, () => (yesterday.value = null))
+}, { immediate: true })
+const goalSegs = computed(() => Math.round((goal.value?.progress?.percent ?? 0) / 12.5))
 
-function dropTask(e: DragEvent) {
-  const task = tasksById.value.get(e.dataTransfer?.getData('text/plain') ?? '')
-  if (!task || !today.value) return
-  const top = (e.currentTarget as HTMLElement).getBoundingClientRect().top
-  const snapped = START_H * 60 + Math.round(((e.clientY - top) / HOUR) * 4) * 15 // auf 15 Minuten
-  const min = Math.min(Math.max(snapped, START_H * 60), END_H * 60 - 15)
-  reschedule(task, { planned_date: today.value.date, planned_start_at: instantAt(min).toISOString() }, '„{title}“ eingeplant')
-}
+// Liste mit Tastatur: J/K bewegen, X abhaken, S starten, P einplanen, Leertaste dreht die Lernkarte.
+const heroId = computed(() => (kind.value === 'task' ? heroTask.value?.id : kind.value === 'run' ? current.value?.id : undefined))
+const groups = computed(() => [
+  { key: 'over', label: t('Überfällig'), rows: overdue.value },
+  { key: 'today', label: t('Heute'), rows: todays.value },
+  { key: 'soon', label: t('Demnächst'), rows: upcoming.value },
+].map((g) => ({ ...g, rows: g.rows.filter((x) => x.id !== heroId.value).sort((a, b) => Number(!!a.planned_start_at) - Number(!!b.planned_start_at)) }))
+  .filter((g) => g.rows.length))
+const ids = computed(() => groups.value.flatMap((g) => g.rows.map((x) => x.id)))
+const sel = ref<string | null>(null)
+const showDone = ref(false)
+const dueLabel = (key: string, x: Task) => (x.planned_start_at ? '' : key === 'today' ? '' : shortDay(dayOf(x)))
 
-const quickParsed = computed(() => parseQuickAdd(quick.value, projectList.value, today.value?.date))
-// Zeitvorschlag, solange die Eingabe weder Uhrzeit noch Titel vermissen lässt; Tasks ohne Schätzung zählen 30 Minuten.
-// Für @morgen und andere Tage wird der jeweilige Tag vom Backend geholt.
-const slotDay = computed(() => {
-  const q = quickParsed.value
-  const td = today.value
-  return q.title && !q.time && td ? (q.date ?? td.date) : null
+useShortcuts((e) => {
+  const k = e.key.toLowerCase()
+  const i = sel.value ? ids.value.indexOf(sel.value) : -1
+  const x = sel.value ? tasksById.value.get(sel.value) : undefined
+  const hero = current.value ?? heroTask.value
+  if (k === 'j' || k === 'arrowdown') sel.value = ids.value[Math.min(ids.value.length - 1, i + 1)] ?? null
+  else if (k === 'k' || k === 'arrowup') sel.value = ids.value[Math.max(0, i - 1)] ?? null
+  else if (k === 'x' && x) {
+    sel.value = ids.value[i + 1] ?? ids.value[i - 1] ?? null
+    setDone(x, 'COMPLETED', run)
+  } else if (k === 's' && (x || hero)) void toggleTimer((x ?? hero)!)
+  else if (k === 'p' && (x || heroTask.value)) void togglePlan((x ?? heroTask.value)!)
+  else if (k === 'escape' && sel.value) sel.value = null
+  else if (k === ' ' && card.value && !(e.target as HTMLElement).closest('button, a')) flip.value = !flip.value
+  else return
+  e.preventDefault()
 })
-const { hint: slotHint } = useFreeSlot(() => slotDay.value, () => quickParsed.value.minutes, () => today.value?.date ?? '', () => nowMin.value)
-const takeSlot = (time: string) => { quick.value = `${quick.value.trimEnd()} @${time.padStart(5, '0')}`; quickEl.value?.focus() }
 
-// Ohne Tag in der Eingabe landet die Task heute.
-function addQuick() {
-  const q = quickParsed.value
-  if (!q.title || !today.value) return
-  void run(async () => {
-    await createTask({ ...taskBody(q, today.value!.date), title: q.title })
-    quick.value = ''
+// Zeitplan: senkrechte Schiene über den sichtbaren Tagesbereich, 1,35 px je Minute.
+const r0 = computed(() => prefs.dayStart * 60)
+const r1 = computed(() => Math.max(prefs.dayEnd * 60, r0.value + 60))
+// Zeitplan passt in die Fensterhöhe: Lagen in Prozent der Schiene, deren Höhe misst ein ResizeObserver (für kurze Blöcke).
+const ry = (m: number) => ((Math.min(Math.max(m, r0.value), r1.value) - r0.value) / (r1.value - r0.value)) * 100
+const rail = ref<HTMLElement | null>(null)
+const railH = ref(0)
+const ro = new ResizeObserver(([e]) => (railH.value = e!.contentRect.height))
+watch(rail, (el, old) => { if (old) ro.unobserve(old); if (el) ro.observe(el) })
+onUnmounted(() => ro.disconnect())
+const isShort = (b: { start: number; end: number }) => ((b.end - b.start) / (r1.value - r0.value)) * railH.value < 44
+const hours = computed(() => Array.from({ length: prefs.dayEnd - prefs.dayStart + 1 }, (_, i) => prefs.dayStart + i))
+const railBlocks = computed(() => blocks.value.filter((b) => b.end > r0.value && b.start < r1.value))
+// Überlappende Blöcke nebeneinander; kurze zählen mit 30 Minuten, so hoch sind sie mindestens lesbar.
+const railCols = computed(() => columns(railBlocks.value, 30))
+const colStyle = (key: string) => {
+  const c = railCols.value.get(key) ?? { col: 0, cols: 1 }
+  return { left: `calc(52px + (100% - 52px) * ${c.col / c.cols})`, width: `calc((100% - 52px) / ${c.cols} - ${c.cols > 1 ? 3 : 0}px)` }
+}
+// Je Lücke ein Vorschlag: die erste noch nicht verplante offene Aufgabe, die hineinpasst.
+const gapSugs = computed(() => {
+  const used = new Set<string>()
+  return freeGaps.value.map((g) => {
+    const s = openToday.value.concat(upcoming.value).find((x) => !x.planned_start_at && !used.has(x.id) && est(x) <= g.end - g.start)
+    if (s) used.add(s.id)
+    return s
   })
-}
-
-// Überfällige Task auf heute (0) oder morgen (1) verschieben; die alte Uhrzeit entfällt.
-function moveTo(t: Task, days: number) {
-  const d = new Date(`${today.value!.date}T12:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + days)
-  reschedule(t, { planned_date: d.toISOString().slice(0, 10), planned_start_at: '' }, '„{title}“ verschoben')
-}
-
-function removeEntry(e: TimeEntry) {
-  const { task_id, started_at, ended_at } = e
-  void run(async () => {
-    await deleteTimeEntry(e.id)
-    if (task_id && ended_at) offer(t('Zeiteintrag gelöscht'), () => run(() => createTimeEntry({ task_id, started_at, ended_at })))
-  })
-}
-
-// Dauer eines Eintrags in Minuten; ein laufender zählt bis jetzt.
-const entryMin = (e: TimeEntry) => entryMinutes(e, now.value)
-const entryProject = (e: TimeEntry) => e.project_id ?? tasksById.value.get(e.task_id ?? '')?.project_id ?? null
-const entryLabel = (e: TimeEntry) =>
-  (e.task_id && taskTitles.value.get(e.task_id)) || (e.project_id && projectNames.value.get(e.project_id)) || t('Projektzeit')
-
-// Zeit nachtragen: Task, Tag und Uhrzeiten in der Zeitzone des Browsers.
-const manual = ref({ task: '', date: ymd(new Date()), from: '', to: '' })
-const saved = ref(false)
-function addEntry() {
-  const m = manual.value
-  void run(async () => {
-    await createTimeEntry({ task_id: m.task, started_at: new Date(`${m.date}T${m.from}`).toISOString(), ended_at: new Date(`${m.date}T${m.to}`).toISOString() })
-    saved.value = true
-  })
-}
-
-// Zeiteinträge: HH:MM-Felder in der Zeitzone des Browsers, der Tag bleibt der des Eintrags.
-const clock = (iso: string) => hhmm(new Date(iso))
-function setTime(e: TimeEntry, field: 'started_at' | 'ended_at', value: string) {
-  const old = e[field]
-  if (!old || !value || value === clock(old)) return
-  const d = new Date(old)
-  const [h, m] = value.split(':').map(Number)
-  d.setHours(h!, m!, 0, 0)
-  void run(() => updateTimeEntry(e.id, { [field]: d.toISOString() }))
+})
+const drag = ref<Task | null>(null)
+const dropAt = ref<number | null>(null)
+const fits = (g: { start: number; end: number }) => !!drag.value && est(drag.value) <= g.end - g.start
+function drop(g: { start: number; end: number }) {
+  if (drag.value && fits(g)) scheduleAt(drag.value, g.start)
+  drag.value = null
+  dropAt.value = null
 }
 </script>
 
 <template>
-  <div class="view-inner start">
+  <div class="view-inner st">
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
+    <div class="st-grid">
+      <div class="st-main">
+        <h1 class="v-title">{{ dateLabel }}</h1>
+        <p class="v-sub">{{ sub }}</p>
+        <RouterLink v-if="yesterday" class="st-journal" :to="{ name: 'journal', query: { date: yesterday.date } }">
+          <span>{{ $t('Gestern hast du dir vorgenommen:') }}</span><b>{{ yesterday.intention }}</b>
+        </RouterLink>
 
-    <template v-if="today">
-      <header class="st-head">
-        <div>
-          <h1 class="day-title">{{ dateLabel }}</h1>
-          <div v-if="allDay.length" class="st-allday">
-            <span class="cdot" :style="{ background: allDay[0]!.color }"></span>{{ $t('Ganztags') }}: {{ allDay.map((b) => b.title).join(', ') }}
-          </div>
-        </div>
-        <div class="st-stats">
-          <div><span>{{ $t('geplant') }}</span><b>{{ hm(today.planned_minutes) }}</b></div>
-          <div><span>{{ $t('erfasst') }}</span><b>{{ hm(today.tracked_minutes) }}</b></div>
-          <div :title="$t('Frei ab jetzt')"><span>{{ $t('frei') }}</span><b>{{ hm(today.free_minutes) }}</b></div>
-        </div>
-      </header>
-
-      <div class="st-cards">
-        <section class="st-card" :aria-label="$t('Läuft')">
-          <template v-if="runEntry || pausedTask">
-            <div class="st-top"><span class="st-lbl"><i class="run-dot" :class="{ off: !runEntry }"></i>{{ runEntry ? $t('Läuft') : $t('Pausiert') }}</span><span v-if="runGoal" class="st-aside">{{ $t('Ziel') }} {{ hm(runGoal) }}</span></div>
-            <div class="st-run">
-              <div class="st-main">
-                <div class="st-t">{{ cardTask?.title ?? entryLabel(runEntry!) }}</div>
-                <div class="st-meta"><span class="chip" :style="{ '--chip-c': projectColor(runProject) }"><span class="cdot"></span>{{ projectNames.get(runProject ?? '') ?? $t('Ohne Projekt') }}<template v-if="runEntry"> · {{ $t('seit {time}', { time: fmt(runEntry.started_at) }) }}</template></span></div>
+        <section class="st-hero" :aria-label="$t('Jetzt')">
+          <template v-if="kind === 'run'">
+            <div class="st-eyebrow">
+              <span class="st-dot" :class="{ off: !runEntry }"></span><b>{{ runEntry ? $t('Läuft') : $t('Pausiert') }}</b>
+              <template v-if="current?.project_id"><span>·</span><span :style="{ color: projectColor(current.project_id) }">{{ projectNames.get(current.project_id) }}</span></template>
+              <span v-if="current" class="st-pill">{{ $t('Schätzung {time}', { time: estLabel(current) }) }}</span>
+            </div>
+            <div class="st-title">{{ runTitle }}</div>
+            <div class="st-clock mono">{{ stopwatch(runSecs) }}</div>
+            <template v-if="current">
+              <div class="st-prog" aria-hidden="true"><i :style="{ width: runPct + '%' }"></i></div>
+              <div class="st-progt"><span>{{ $t('{n} von {m} min', { n: Math.floor(runSecs / 60), m: est(current) }) }}</span><span>{{ runRest }}</span></div>
+              <div class="st-acts">
+                <button type="button" class="btn btn-primary" @click="setDone(current!, 'COMPLETED', run)">{{ $t('Fertig') }}</button>
+                <button type="button" class="btn btn-secondary" @click="toggleTimer(current!)">{{ runEntry ? $t('Pause') : $t('Fortsetzen') }}<kbd aria-hidden="true">S</kbd></button>
               </div>
-              <span class="st-timer mono">{{ elapsed }}</span>
-            </div>
-            <div v-if="runGoal" class="st-bar" aria-hidden="true"><i :style="{ width: runPct + '%', background: projectColor(runProject) }"></i></div>
-            <div v-if="cardTask" class="st-btns">
-              <button v-if="runningTask" type="button" class="btn btn-secondary" @click="run(() => taskAction(runningTask!.id, 'pause'))">{{ $t('Pause') }}</button>
-              <button v-else type="button" class="btn btn-primary" @click="run(() => taskAction(cardTask!.id, 'start'))">{{ $t('Fortsetzen') }}</button>
-              <button type="button" class="btn btn-secondary" @click="setDone(cardTask!, 'COMPLETED', run)">{{ $t('Fertig') }}</button>
-            </div>
-          </template>
-          <template v-else>
-            <div class="st-top"><span class="st-lbl"><i class="run-dot off"></i>{{ $t('Kein Timer') }}</span></div>
-            <div class="st-t is-free">{{ $t('Es läuft gerade nichts.') }}</div>
-            <div class="st-meta">{{ $t('Starte eine Aufgabe, um Zeit zu erfassen.') }}</div>
-          </template>
-        </section>
-
-        <section class="st-card" :aria-label="$t('Als Nächstes')">
-          <template v-if="nextItem">
-            <div class="st-top"><span class="st-lbl">{{ $t('Als Nächstes') }}<span v-if="nextItem.lead" class="st-lead">· {{ nextItem.lead }}</span></span><span class="st-aside">{{ nextItem.kind }}</span></div>
-            <div class="st-t">{{ nextItem.title }}</div>
-            <div class="st-meta">
-              <span v-if="nextItem.project" class="chip" :style="{ '--chip-c': nextItem.color }"><span class="cdot"></span>{{ nextItem.project }}</span>
-              <span v-if="nextItem.when">{{ nextItem.when }}</span>
-            </div>
-            <div v-if="nextItem.task" class="st-btns">
-              <button type="button" class="btn btn-primary" @click="run(() => taskAction(nextItem!.task!.id, 'start'))"><svg class="ic" viewBox="0 0 24 24" style="fill:currentColor;stroke:none;width:11px;height:11px"><path d="M7 4.5v15l12-7.5z" /></svg>{{ $t('Jetzt starten') }}</button>
-              <button type="button" class="btn btn-secondary" @click="moveTo(nextItem.task, 1)">{{ $t('Verschieben') }}</button>
-              <span v-if="nextItem.then" class="st-then">{{ nextItem.then }}</span>
-            </div>
-          </template>
-          <template v-else>
-            <div class="st-top"><span class="st-lbl">{{ $t('Als Nächstes') }}</span></div>
-            <div class="st-t is-free">{{ $t('Keine offene Aufgabe für heute.') }}</div>
-          </template>
-        </section>
-      </div>
-
-      <div v-if="today.unestimated_tasks" class="v-sub">{{ $tn(today.unestimated_tasks, '{n} Aufgabe ohne Schätzung, gerechnet mit 30 Min.', '{n} Aufgaben ohne Schätzung, gerechnet mit 30 Min.') }}</div>
-      <div v-if="today.overplanned_minutes" class="badge"><span class="cdot" style="background:var(--a-red)"></span>{{ $t('Überplant um {time} h', { time: hm(today.overplanned_minutes) }) }}</div>
-      <router-link v-if="yesterdayJournal" class="card st-journal" :to="{ name: 'journal', query: { date: yesterdayJournal.date } }">
-        <span class="st-journal-label">{{ $t('Gestern hast du dir vorgenommen:') }}</span>
-        <b class="st-journal-intention">{{ yesterdayJournal.intention }}</b>
-        <span class="st-journal-link">{{ $t('Zum Journaleintrag') }}<svg class="ic"><use href="#i-right" /></svg></span>
-      </router-link>
-
-      <div class="start-grid">
-        <section class="start-col">
-          <div class="col-head"><h2 class="col-title">{{ $t('Heute fällig') }} <span class="count">{{ dueRows.length }}</span></h2><span class="col-links">
-            <button v-if="dueRows.length" type="button" class="col-link" @click="selection.toTomorrow(dueRows.map((r) => r.t))">{{ $t('Unerledigtes auf morgen') }}</button>
-            <button v-if="dueRows.length" type="button" class="col-link" :aria-pressed="selection.mode.value" @click="selection.mode.value = !selection.mode.value">{{ $t('Auswählen') }}</button>
-            <router-link class="col-link" to="/tasks">{{ $t('Alle Aufgaben') }}</router-link>
-          </span></div>
-          <div v-if="dueRows.length" class="tasklist">
-            <div v-for="r in dueRows" :key="r.t.id" class="task-row" :class="{ picked: picked.includes(r.t.id) }" draggable="true" @dragstart="dragTask($event, r.t)" @click.capture="pickRow($event, r.t.id)" @pointerdown="onPointerDown($event, r.t.id)" @pointerup="onPointerUp" @pointercancel="onPointerUp">
-              <button type="button" class="cb ring" :style="{ '--rc': projectColor(r.t.project_id) }" role="checkbox" aria-checked="false" :aria-label="$t('{title} erledigt', { title: r.t.title })" @click="setDone(r.t, 'COMPLETED', run)"></button>
-              <span class="t">{{ r.t.title }}</span>
-              <span class="chip st-proj" :style="{ '--chip-c': projectColor(r.t.project_id) }"><template v-if="r.t.project_id"><span class="cdot"></span>{{ projectNames.get(r.t.project_id) }}</template></span>
-              <span class="due" :class="{ od: r.od, now: !r.od && !!r.t.planned_start_at }">{{ whenOf(r) }}</span>
-              <span class="dur">{{ r.t.estimated_minutes ? hm(r.t.estimated_minutes) : '' }}</span>
-              <span v-if="r.od" class="row-act"><button type="button" class="btn btn-ghost" @click="moveTo(r.t, 0)">{{ $t('→ Heute') }}</button><button type="button" class="btn btn-ghost" @click="moveTo(r.t, 1)">{{ $t('→ Morgen') }}</button></span>
-              <TaskActions v-else class="row-act" :task="r.t" :running="runningTaskId === r.t.id" @run="run" />
-            </div>
-          </div>
-          <div v-else class="v-sub">{{ $t('Keine offenen Aufgaben für heute.') }}</div>
-          <div v-if="doneCount" class="v-sub">{{ $t('{n} erledigt', { n: doneCount }) }}</div>
-          <form class="addrow" @submit.prevent="addQuick">
-            <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-            <input ref="quickEl" v-model="quick" type="text" :placeholder="$t('Aufgabe hinzufügen, z. B. Sport 30m @morgen #Kairo')" :aria-label="$t('Aufgabe für heute hinzufügen')" aria-keyshortcuts="n" />
-            <kbd class="key" aria-hidden="true">N</kbd>
-          </form>
-          <QuickHints :q="quickParsed" :today="today.date" />
-          <button v-if="slotHint?.time" type="button" class="qa-hint qa-slot" @click="takeSlot(slotHint.time)">{{ slotHint.text }}</button>
-          <div v-else-if="slotHint" class="qa-hints"><span class="qa-hint">{{ slotHint.text }}</span></div>
-
-          <template v-if="activeOnly.length">
-            <div class="col-head st-gap"><h2 class="col-title">{{ $t('Aktiv, nicht für heute geplant') }} <span class="count">{{ activeOnly.length }}</span></h2></div>
-            <div class="tasklist">
-              <div v-for="t in activeOnly" :key="t.id" class="task-row" :class="{ picked: picked.includes(t.id) }" draggable="true" @dragstart="dragTask($event, t)" @click.capture="pickRow($event, t.id)" @pointerdown="onPointerDown($event, t.id)" @pointerup="onPointerUp" @pointercancel="onPointerUp">
-                <button type="button" class="cb ring" :style="{ '--rc': projectColor(t.project_id) }" role="checkbox" aria-checked="false" :aria-label="$t('{title} erledigt', { title: t.title })" @click="setDone(t, 'COMPLETED', run)"></button>
-                <span class="t">{{ t.title }}</span>
-                <TaskActions class="row-act" :task="t" :running="runningTaskId === t.id" @run="run" />
-              </div>
-            </div>
+            </template>
           </template>
 
-          <router-link v-if="cardsDue" to="/cards" class="card st-cards-due">
-            <svg class="ic"><use href="#i-cards" /></svg>{{ $tn(cardsDue, '{n} Lernkarte fällig', '{n} Lernkarten fällig') }}
-          </router-link>
-
-          <template v-if="goal">
-            <div class="col-head st-gap"><h2 class="col-title">{{ $t('Dein Ziel') }}</h2><router-link class="col-link" to="/goals">{{ $t('Alle Ziele') }}</router-link></div>
-            <router-link to="/goals" class="card st-goal">
-              <img v-if="goal.image_path" :src="filesUrl(goal.image_path)" alt="" />
-              <span class="st-goal-t">
-                <b>{{ goal.title }}</b>
-                <q v-if="goal.why">{{ goal.why }}</q>
-                <template v-if="goal.progress">
-                  <span class="pbar" aria-hidden="true"><span class="pbar-fill" :style="{ width: goal.progress.percent + '%' }"></span></span>
-                  <small>{{ goal.progress.percent }} % · {{ goalProgressText(goal) }}</small>
-                </template>
-              </span>
-            </router-link>
-          </template>
-
-          <template v-if="today.habits.length">
-            <div class="col-head st-gap"><h2 class="col-title">{{ $t('Gewohnheiten') }}</h2><router-link class="col-link" to="/habits">{{ $t('Alle ansehen') }}</router-link></div>
-            <div class="st-habits">
-              <button
-                v-for="h in today.habits" :key="h.id" type="button" class="st-hab" :class="{ 'is-done': h.done }" role="checkbox" :aria-checked="h.done"
-                @click="run(() => (h.done ? uncompleteHabit(h.id, today!.date) : completeHabit(h.id, today!.date)))"
-              >
-                <span class="cb sq" :style="{ '--rc': habitColor(h.id) }" :aria-checked="h.done" aria-hidden="true"></span>
-                <span class="st-hab-t"><b>{{ h.name }}</b><small>{{ h.done ? $t('erledigt') : $t('offen') }}<template v-if="h.week_progress"> · {{ h.week_progress.done }}/{{ h.week_progress.target }}</template></small></span>
+          <template v-else-if="kind === 'plan'">
+            <div class="st-eyebrow"><b>{{ $t('Noch kein Plan') }}</b></div>
+            <div class="st-title">{{ $t('Was soll heute passieren?') }}</div>
+            <p class="st-text">{{ $t('Wähle bis zu drei Aufgaben, Kairo legt sie in die Lücken.') }}</p>
+            <div class="st-picks">
+              <button v-for="x in candidates" :key="x.id" type="button" class="st-pick" role="checkbox" :aria-checked="picks.has(x.id)" @click="togglePick(x.id)">
+                <span class="cb" :aria-checked="picks.has(x.id)"></span>
+                <span class="st-pick-t">{{ x.title }}</span>
+                <span v-if="x.project_id" class="st-pill" :style="{ color: projectColor(x.project_id) }">{{ projectNames.get(x.project_id) }}</span>
+                <span class="st-est">{{ estLabel(x) }}</span>
               </button>
             </div>
+            <div class="st-acts">
+              <button type="button" class="btn btn-primary" :disabled="!picks.size" @click="planDay">{{ picks.size ? $t('Tag planen · {n}', { n: picks.size }) : $t('Tag planen') }}</button>
+              <button type="button" class="btn btn-secondary" @click="skipPlan">{{ $t('Ohne Plan beginnen') }}</button>
+            </div>
           </template>
 
-          <div class="col-head st-gap">
-            <h2 class="col-title">{{ $t('Zeiterfassung') }} <span class="count">{{ hm(today.tracked_minutes) }} {{ $t('heute') }}</span></h2>
-            <button type="button" class="col-link" :aria-expanded="manualOpen" @click="manualOpen = !manualOpen">{{ $t('Zeit nachtragen') }}</button>
-          </div>
-          <form v-if="manualOpen" class="manual-form" @submit.prevent="addEntry" @input="saved = false">
-            <label class="field wide"><span>{{ $t('Aufgabe') }}</span>
-              <select v-model="manual.task" class="input" required>
-                <option value="" disabled>{{ $t('Aufgabe wählen') }}</option>
-                <option v-for="[id, title] in taskTitles" :key="id" :value="id">{{ title }}</option>
-              </select>
-            </label>
-            <label class="field"><span>{{ $t('Datum') }}</span><input v-model="manual.date" class="input" type="date" required /></label>
-            <label class="field"><span>{{ $t('Start') }}</span><input v-model="manual.from" class="input" type="time" required /></label>
-            <label class="field"><span>{{ $t('Ende') }}</span><input v-model="manual.to" class="input" type="time" required /></label>
-            <button type="submit" class="btn btn-secondary">{{ $t('Eintragen') }}</button>
-            <span v-if="saved" class="v-sub" role="status">{{ $t('Gespeichert.') }}</span>
-          </form>
-          <div v-if="entries.length" class="tasklist">
-            <div v-for="e in entries" :key="e.id" class="task-row te-row" :style="{ '--acc': projectColor(entryProject(e)) }">
-              <span class="te-bar"></span>
-              <span class="t">{{ entryLabel(e) }}</span>
-              <span class="st-proj te-proj">{{ projectNames.get(entryProject(e) ?? '') ?? '' }}</span>
-              <span class="te-range">
-                <input class="input te-time" type="time" :value="clock(e.started_at)" :aria-label="$t('Start')" @change="setTime(e, 'started_at', ($event.target as HTMLInputElement).value)" />
-                <span>–</span>
-                <input v-if="e.ended_at" class="input te-time" type="time" :value="clock(e.ended_at)" :aria-label="$t('Ende')" @change="setTime(e, 'ended_at', ($event.target as HTMLInputElement).value)" />
-                <span v-else class="te-run">{{ $t('läuft') }}</span>
-              </span>
-              <span class="dur te-dur">{{ hm(entryMin(e)) }}</span>
-              <span v-if="e.ended_at" class="row-act"><DeleteButton ghost :text="$t('Zeiteintrag löschen?')" @confirm="removeEntry(e)" /></span>
+          <template v-else-if="kind === 'review'">
+            <div class="st-eyebrow"><b>{{ $t('Tagesrückblick · {time}', { time: hm(nowMin) }) }}</b></div>
+            <div class="st-title">{{ $t('{n} erledigt, {time} erfasst', { n: doneToday.length, time: dur(tracked) }) }}</div>
+            <p class="st-text">{{ reviewText }}</p>
+            <div class="st-acts">
+              <RouterLink :to="{ name: 'journal', query: { date: today?.date } }" class="btn btn-primary">{{ $t('Journal schreiben') }}</RouterLink>
+              <button v-if="openToday.length" type="button" class="btn btn-secondary" @click="moveOpen">{{ $t('Offenes auf morgen') }}</button>
             </div>
-          </div>
-          <div v-else class="v-sub">{{ $t('Noch keine Zeit erfasst.') }}</div>
+          </template>
+
+          <template v-else-if="kind === 'task' && heroTask">
+            <div class="st-eyebrow">
+              <b>{{ $t('Als Nächstes') }}</b>
+              <template v-if="heroTask.project_id"><span>·</span><span :style="{ color: projectColor(heroTask.project_id) }">{{ projectNames.get(heroTask.project_id) }}</span></template>
+              <span>·</span><span>{{ estLabel(heroTask) }}</span>
+              <span class="st-pill" :class="{ red: overdue.includes(heroTask) }">{{ overdue.includes(heroTask) ? $t('Überfällig') : $t('Heute fällig') }}</span>
+            </div>
+            <div class="st-title">{{ heroTask.title }}</div>
+            <p class="st-text">{{ heroFit }}</p>
+            <div class="st-acts">
+              <button type="button" class="btn btn-primary" @click="toggleTimer(heroTask)"><svg class="ic" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8v8.4L10 6z" fill="currentColor" /></svg>{{ $t('Starten') }}<kbd aria-hidden="true">S</kbd></button>
+              <button type="button" class="btn btn-secondary" @click="togglePlan(heroTask)">{{ startOf(heroTask) !== undefined ? $t('Geplant {time}', { time: hm(startOf(heroTask)!) }) : $t('In Lücke legen') }}<kbd aria-hidden="true">P</kbd></button>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="st-eyebrow"><b>{{ $t('Heute') }}</b></div>
+            <div class="st-title">{{ $t('Alles erledigt für heute.') }}</div>
+            <p class="st-text">{{ $t('{n} abgehakt, {time} erfasst, noch {free} frei.', { n: doneToday.length, time: dur(tracked), free: dur(freeMin) }) }}</p>
+            <div v-if="pull" class="st-acts"><button type="button" class="btn btn-secondary" @click="pullForward(pull)">{{ $t('„{title}“ vorziehen', { title: pull.title }) }}</button></div>
+          </template>
         </section>
 
-        <section class="start-col">
-          <div class="col-head"><h2 class="col-title">{{ $t('Tagesplan') }}</h2><router-link class="col-link" to="/calendar">{{ $t('Kalender') }}<svg class="ic" aria-hidden="true"><use href="#i-right" /></svg></router-link></div>
-          <div class="dayplan">
-            <div class="dp-scroll">
-              <div class="dp-body">
-                <div class="hourcol" :style="{ '--hour': HOUR + 'px' }">
-                  <div v-for="h in hours" :key="h" class="hl"><span class="mono">{{ String(h).padStart(2, '0') }}</span></div>
-                </div>
-                <div class="dp-grid" :style="{ height: (END_H - START_H) * HOUR + 'px' }" @dragover.prevent @drop.prevent="dropTask">
-                  <div v-for="h in hours" :key="h" class="hline" :style="{ top: (h - START_H) * HOUR + 'px' }"></div>
-                  <div v-if="nowTop !== null" class="now-line" :style="{ top: nowTop + 'px' }"><span class="mono">{{ hm(nowMin) }}</span></div>
-                  <div
-                    v-for="b in blocks" :key="b.key" class="dp-ev" :class="[`kind-${b.kind}`, { done: b.done, now: b.running, short: b.end - b.start <= 30 }]" :style="style(b)"
-                  >
-                    <div class="dp-t"><span class="cdot"></span><span class="dp-n">{{ b.title }}</span><span v-if="b.end - b.start <= 30" class="dp-m">{{ hm(b.start) }}</span></div>
-                    <div v-if="b.end - b.start > 30" class="dp-m">{{ hm(b.start) }}–{{ hm(b.end) }}<template v-if="b.sub"> · {{ b.sub }}</template></div>
-                  </div>
+        <div class="st-cards">
+          <section class="st-card" :aria-label="$t('Gewohnheiten')">
+            <div class="st-card-h"><RouterLink to="/habits">{{ $t('Gewohnheiten') }}</RouterLink><span class="st-pill">{{ habits.filter((h) => h.done).length }} / {{ habits.length }}</span></div>
+            <button v-for="h in habitsShown" :key="h.id" type="button" class="st-habit" :aria-pressed="h.done" @click="toggleHabit(h.id, h.done)">
+              <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+                <circle cx="15" cy="15" r="12" class="st-ring-bg" />
+                <circle cx="15" cy="15" r="12" class="st-ring" :stroke-dasharray="RING" :stroke-dashoffset="h.done ? 0 : RING" transform="rotate(-90 15 15)" />
+                <path d="M10.5 15.3l3 3 6-6.4" class="st-ring-chk" :style="{ opacity: h.done ? 1 : 0 }" />
+              </svg>
+              <span class="st-habit-n">{{ h.name }}</span>
+              <span class="st-habit-m">{{ h.week_progress ? $t('{n} von {m} erledigt', { n: h.week_progress.done, m: h.week_progress.target }) : h.preferred_time ?? '' }}</span>
+            </button>
+            <RouterLink v-if="habits.length > 4" to="/habits" class="st-more">{{ $t('{n} weitere', { n: habits.length - 4 }) }}</RouterLink>
+            <span v-if="!habits.length" class="st-empty">{{ $t('Heute keine Gewohnheiten.') }}</span>
+          </section>
+
+          <section class="st-card" :aria-label="$t('Lernkarte')">
+            <div class="st-card-h"><RouterLink to="/cards">{{ $t('Lernkarte') }}</RouterLink><span class="st-pill">{{ cards?.length ? $t('{n} fällig', { n: cards.length }) : $t('erledigt') }}</span></div>
+            <div v-if="card" class="st-flip" :class="{ on: flip }" @click="flip = !flip">
+              <div class="st-face st-front" :aria-hidden="flip">
+                <span class="st-deck">{{ card.deck || $t('Ohne Stapel') }}</span>
+                <span class="st-q">{{ card.question }}</span>
+                <span class="st-hint">{{ $t('Klicken oder') }} <kbd>{{ $t('Leertaste') }}</kbd> {{ $t('zum Umdrehen') }}</span>
+              </div>
+              <div class="st-face st-back" :aria-hidden="!flip">
+                <span class="st-a">{{ card.answer }}</span>
+                <div class="st-grade">
+                  <button type="button" class="btn btn-secondary" @click.stop="grade(0)">{{ $t('Nochmal') }}</button>
+                  <button type="button" class="btn btn-primary" @click.stop="grade(2)">{{ $t('Gewusst') }}</button>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="v-sub st-hint">{{ $t('Aufgaben aus der Liste in den Plan ziehen, um sie einzuplanen.') }}</div>
-        </section>
+            <div v-else-if="cards" class="st-empty"><b>{{ $t('Für heute gelernt.') }}</b>{{ $t('Die nächste Karte kommt, wenn sie fällig ist.') }}</div>
+          </section>
+
+          <section class="st-card" :aria-label="$t('Ziel')">
+            <div class="st-card-h"><RouterLink to="/goals">{{ $t('Ziel') }}</RouterLink><span v-if="goal?.progress" class="st-pill">{{ goal.progress.percent }} %</span></div>
+            <template v-if="goal">
+              <span class="st-goal-t">{{ goal.title }}</span>
+              <div v-if="goal.progress" class="st-segs" aria-hidden="true"><i v-for="n in 8" :key="n" :class="{ on: n <= goalSegs }"></i></div>
+              <div v-if="goal.progress" class="st-goal-f"><span>{{ $t('Fortschritt') }}</span><b>{{ goalProgressText(goal) }}</b></div>
+            </template>
+            <span v-else class="st-empty">{{ $t('Noch kein Ziel.') }} <RouterLink to="/goals">{{ $t('Ziel anlegen ›') }}</RouterLink></span>
+          </section>
+        </div>
+
+        <div class="st-groups">
+          <section v-for="g in groups" :key="g.key" class="st-group" :aria-label="g.label">
+            <div class="st-group-h"><span>{{ g.label }}</span><span class="st-count">{{ g.rows.length }}</span><span class="st-sum">{{ dur(g.rows.reduce((s, x) => s + (x.estimated_minutes || 0), 0)) }}</span></div>
+            <div
+              v-for="x in g.rows" :key="x.id" class="st-row" :class="{ sel: sel === x.id, dragging: drag?.id === x.id }" draggable="true"
+              @click="sel = x.id" @dragstart="(e) => { drag = x; e.dataTransfer?.setData('text/plain', x.id) }" @dragend="drag = null; dropAt = null"
+            >
+              <button type="button" class="cb" role="checkbox" aria-checked="false" :aria-label="$t('{title} erledigt', { title: x.title })" @click.stop="setDone(x, 'COMPLETED', run)"></button>
+              <span class="st-row-t"><span>{{ x.title }}</span><span v-if="startOf(x) !== undefined" class="st-planned mono">{{ hm(startOf(x)!) }}</span></span>
+              <span class="st-proj"><span v-if="x.project_id" class="st-pill" :style="{ color: projectColor(x.project_id) }">{{ projectNames.get(x.project_id) }}</span></span>
+              <span class="st-est">{{ estLabel(x) }}</span>
+              <span class="st-due" :class="{ red: g.key === 'over' }">{{ dueLabel(g.key, x) }}</span>
+              <div class="st-row-acts">
+                <button type="button" class="btn btn-secondary" @click.stop="toggleTimer(x)"><kbd aria-hidden="true">S</kbd>{{ $t('Starten') }}</button>
+                <button type="button" class="btn btn-secondary" @click.stop="togglePlan(x)"><kbd aria-hidden="true">P</kbd>{{ x.planned_start_at ? $t('Aus dem Plan') : $t('Einplanen') }}</button>
+              </div>
+            </div>
+          </section>
+          <section v-if="doneToday.length" class="st-group">
+            <button type="button" class="st-done-h" :aria-expanded="showDone" @click="showDone = !showDone">
+              <svg class="ic" :class="{ open: showDone }" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>{{ $t('Erledigt') }}<span class="st-count">{{ doneToday.length }}</span>
+            </button>
+            <template v-if="showDone">
+              <div v-for="x in doneToday" :key="x.id" class="st-row done">
+                <button type="button" class="cb" role="checkbox" aria-checked="true" :aria-label="$t('Wieder öffnen')" :title="$t('Wieder öffnen')" @click="run(() => updateTask(x.id, { status: 'PLANNED' }))"></button>
+                <span class="st-row-t"><span>{{ x.title }}</span></span>
+                <span class="st-proj"><span v-if="x.project_id" class="st-pill">{{ projectNames.get(x.project_id) }}</span></span>
+              </div>
+            </template>
+          </section>
+          <div v-if="!groups.length && !doneToday.length" class="st-empty">{{ $t('Nichts für heute geplant.') }}</div>
+        </div>
+
+        <div class="st-keys" aria-hidden="true">
+          <span><kbd>J</kbd><kbd>K</kbd>{{ $t('bewegen') }}</span>
+          <span><kbd>X</kbd>{{ $t('erledigt') }}</span>
+          <span><kbd>S</kbd>{{ $t('starten') }}</span>
+          <span><kbd>P</kbd>{{ $t('einplanen') }}</span>
+          <span>{{ $t('Zeile in eine Lücke ziehen') }}</span>
+        </div>
       </div>
-    </template>
-    <SelectionBar v-if="picked.length || selection.mode.value" :count="picked.length" :projects="projectList"
-      @tomorrow="selection.toTomorrow()" @project="selection.toProject" @trash="selection.trash" @clear="selection.clear" />
+
+      <aside class="st-side" :aria-label="$t('Zeitplan')">
+        <div class="st-side-h"><span>{{ $t('Zeitplan') }}</span><span class="st-pill">{{ $t('{time} frei', { time: dur(freeMin) }) }}</span></div>
+        <div ref="rail" class="st-rail" :style="{ '--mins': r1 - r0 }">
+          <div v-for="h in hours" :key="h" class="st-hour" :style="{ top: ry(h * 60) + '%' }"><span class="mono">{{ String(h).padStart(2, '0') }}:00</span><i></i></div>
+          <div
+            v-for="(g, i) in freeGaps" :key="g.start" class="st-gap" :class="{ can: fits(g), on: dropAt === g.start && fits(g) }"
+            :style="{ top: ry(g.start) + '%', height: ry(g.end) - ry(g.start) + '%' }"
+            @dragover="(e) => { if (fits(g)) { e.preventDefault(); dropAt = g.start } }" @dragleave="dropAt = null" @drop.prevent="drop(g)"
+          >
+            <div>
+              <span>{{ drag ? (fits(g) ? $t('Hier ablegen') : $t('Zu kurz')) : $t('{time} frei', { time: dur(g.end - g.start) }) }}</span>
+              <button v-if="gapSugs[i] && !drag" type="button" class="st-gap-add" :title="$t('{title} um {time} einplanen', { title: gapSugs[i]!.title, time: hm(g.start) })" @click="scheduleAt(gapSugs[i]!, g.start)">+ {{ $t('Einplanen') }}</button>
+            </div>
+          </div>
+          <div
+            v-for="b in railBlocks" :key="b.key" class="st-block" :class="[b.kind, { short: isShort(b), past: b.end <= nowMin, cur: b.start <= nowMin && nowMin < b.end }]"
+            :style="{ ...colStyle(b.key), top: ry(b.start) + '%', height: ry(b.end) - ry(b.start) + '%', '--c': b.kind === 'event' ? 'var(--a-event)' : b.color }"
+          >
+            <div>
+              <span class="st-block-t" :class="{ done: b.done }">{{ b.title }}</span>
+              <span class="st-block-m mono">{{ isShort(b) ? hm(b.start) : b.start <= nowMin && nowMin < b.end ? $t('bis {time} · noch {left}', { time: hm(b.end), left: dur(b.end - nowMin) }) : `${hm(b.start)}–${hm(b.end)}` }}</span>
+              <button v-if="b.task && !b.done && b.start >= nowMin" type="button" class="st-block-x" :aria-label="$t('Aus dem Plan nehmen')" :title="$t('Aus dem Plan nehmen')" @click="togglePlan(b.task)">×</button>
+            </div>
+          </div>
+          <div v-if="nowMin >= r0 && nowMin <= r1" class="st-now" :style="{ top: ry(nowMin) + '%' }"><span class="mono">{{ hm(nowMin) }}</span></div>
+        </div>
+      </aside>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.st-cards-due { display: flex; align-items: center; gap: 10px; margin-top: 24px; padding: 10px 12px; color: var(--tx-primary); text-decoration: none; font: 500 14px/1.3 var(--font-ui); }
-.st-journal { display: grid; gap: 5px; max-width: 720px; margin: 0 0 20px; padding: 14px 16px; color: inherit; text-decoration: none; }
-.st-journal-label { font: 500 12px/1.3 var(--font-ui); color: var(--tx-muted); }
-.st-journal-intention { max-width: 70ch; font: 500 14px/1.5 var(--font-ui); color: var(--tx-primary); white-space: pre-line; }
-.st-journal-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font: 500 12px/1.3 var(--font-ui); color: var(--a-blue); }
-.st-journal:hover .st-journal-link { text-decoration: underline; }
-.st-goal { display: flex; gap: 14px; align-items: center; padding: 12px; color: inherit; text-decoration: none; }
-.st-goal img { flex: none; width: 72px; height: 72px; border-radius: var(--r-s); object-fit: cover; }
-.st-goal-t { display: grid; gap: 6px; min-width: 0; flex: 1; }
-.st-goal-t b { font: 600 15px/1.3 var(--font-ui); color: var(--tx-primary); }
-.st-goal-t q { font: italic 400 13px/1.4 var(--font-ui); color: var(--tx-secondary); }
-.st-goal-t small { font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
-.st-goal .pbar { display: block; }
-.st-goal .pbar-fill { display: block; }
-.task-row.picked { background: var(--bg-selected); }
-.day-title { font: 600 28px/1.2 var(--font-ui); letter-spacing: -0.02em; color: var(--tx-primary); }
-.st-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
-.st-allday { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 400 13px/1.3 var(--font-ui); color: var(--tx-secondary); }
-.st-allday .cdot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.st-stats { display: flex; gap: 28px; }
-.st-stats div { display: grid; gap: 4px; justify-items: end; }
-.st-stats span { font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
-.st-stats b { font: 500 18px/1.1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-primary); }
+.st { max-width: 1240px; padding-top: 36px; }
+.st-grid { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 48px; align-items: start; }
+.st-main { min-width: 0; display: flex; flex-direction: column; }
+.st .v-sub { margin-top: 8px; font-variant-numeric: tabular-nums; }
+kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 5px; background: color-mix(in oklab, currentColor 12%, transparent); font: 500 11px/1 var(--font-mono); }
+.st .btn kbd { margin-left: 4px; opacity: .8; }
+.st-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 6px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--br-subtle); font: 500 11.5px/1 var(--font-ui); color: var(--tx-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.st-journal { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); text-decoration: none; }
+.st-journal b { min-width: 0; font-weight: 500; color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-journal:hover b { text-decoration: underline; }
+.st-pill.red { color: var(--a-red); }
 
-.st-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 36px; }
-.st-card { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; background: var(--bg-1); border: 1px solid var(--br-subtle); border-radius: 14px; min-width: 0; }
-.st-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; font: 400 12.5px/1 var(--font-ui); color: var(--tx-muted); }
-.st-lbl { display: inline-flex; align-items: center; gap: 7px; }
-.st-lead { color: var(--tx-muted); }
-.run-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-run); }
-.run-dot.off { background: var(--br-strong); }
-.st-run { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
-.st-main { display: grid; gap: 8px; min-width: 0; }
-.st-t { font: 600 18px/1.3 var(--font-ui); letter-spacing: -0.01em; color: var(--tx-primary); text-wrap: pretty; }
-.st-t.is-free { color: var(--tx-secondary); font-weight: 500; }
-.st-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font: 400 13px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
-.st-timer { font: 500 30px/1 var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: var(--tx-primary); white-space: nowrap; }
-.st-bar { height: 3px; border-radius: 2px; background: var(--bg-3); overflow: hidden; }
-.st-bar i { display: block; height: 100%; border-radius: 2px; }
-.st-btns { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: auto; }
-.st-btns .btn { height: 30px; }
-.st-then { margin-left: auto; font: 400 12.5px/1.3 var(--font-ui); color: var(--tx-muted); }
+/* Karte oben */
+.st-hero { margin-top: 24px; padding: 26px 28px 24px; border-radius: 16px; background: linear-gradient(180deg, var(--bg-3), var(--bg-2) 60%); box-shadow: inset 0 0 0 1px var(--br-subtle); }
+.st-eyebrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font: 400 12.5px/1.3 var(--font-ui); color: var(--tx-muted); }
+.st-eyebrow b { font-weight: 500; color: var(--tx-secondary); }
+.st-eyebrow .st-pill { margin-left: auto; }
+.st-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-run); }
+.st-dot.off { background: var(--br-strong); }
+.st-title { margin-top: 10px; font: 600 24px/1.25 var(--font-ui); letter-spacing: -0.022em; color: var(--tx-primary); text-wrap: pretty; }
+.st-text { margin-top: 8px; font: 400 14px/1.5 var(--font-ui); color: var(--tx-secondary); text-wrap: pretty; }
+.st-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.st-acts .btn { height: 38px; padding: 0 14px; gap: 8px; text-decoration: none; }
+.st-acts .ic { width: 12px; height: 12px; }
+.st-clock { margin-top: 10px; font-size: 40px; font-weight: 500; letter-spacing: -0.02em; color: var(--tx-primary); }
+.st-prog { height: 4px; margin-top: 14px; border-radius: 2px; background: var(--br-subtle); }
+.st-prog i { display: block; height: 4px; border-radius: 2px; background: var(--a-blue-hi); transition: width 1s linear; }
+.st-progt { display: flex; justify-content: space-between; margin-top: 8px; font: 400 12.5px/1 var(--font-ui); color: var(--tx-muted); font-variant-numeric: tabular-nums; }
+.st-picks { display: grid; margin-top: 16px; }
+.st-pick { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto 56px; align-items: center; gap: 12px; height: 40px; padding: 0 10px; margin: 0 -10px; border: 0; border-radius: 8px; background: none; color: var(--tx-primary); font: 400 14px/1.3 var(--font-ui); text-align: left; cursor: pointer; }
+.st-pick:hover { background: var(--bg-hover); }
+.st-pick .cb { pointer-events: none; }
+.st-pick-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.col-title .count { margin-left: 4px; font: 400 14px/1 var(--font-ui); }
-.st-gap { margin-top: 32px; }
-button.col-link { background: none; }
-/* Der Titel ist das Wichtigste der Zeile: er behält mindestens gut ein Drittel, das Projekt gibt zuerst nach
-   (die Farbe steht schon am Kreis bzw. am Balken). */
-.start-col .task-row .t { flex: 1 0 35%; }
-.st-proj { flex: 0 1 118px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.task-row .due.now { color: var(--tx-primary); }
-.task-row .due { min-width: 64px; }
-.task-row[draggable='true'] { cursor: grab; }
-.addrow .key { margin-left: auto; }
+/* Drei Karten */
+.st-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.st-more { margin-top: auto; font: 400 12.5px/1.3 var(--font-ui); color: var(--tx-muted); text-decoration: none; }
+.st-more:hover { color: var(--tx-primary); }
+.st-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 15px 16px 14px; border-radius: 14px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--br-subtle); }
+.st-card-h { display: flex; align-items: center; justify-content: space-between; height: 20px; font: 500 12.5px/1 var(--font-ui); }
+.st-card-h a { color: var(--tx-muted); text-decoration: none; }
+.st-card-h a:hover { color: var(--tx-primary); }
+.st-empty { display: grid; gap: 4px; font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
+.st-empty b { font-weight: 500; color: var(--tx-primary); font-size: 14px; }
+.st-empty a { color: var(--a-blue-tx); }
+.st-habit { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px 0 4px; margin: 0 -8px 0 -4px; border: 0; border-radius: 10px; background: none; color: var(--tx-secondary); cursor: pointer; text-align: left; }
+.st-habit:hover { background: var(--bg-hover); }
+.st-habit svg { flex: none; }
+.st-ring-bg { fill: none; stroke: var(--br-default); stroke-width: 2.4; }
+.st-ring { fill: none; stroke: var(--a-blue-hi); stroke-width: 2.4; stroke-linecap: round; transition: stroke-dashoffset 520ms cubic-bezier(.3, .7, .2, 1); }
+.st-ring-chk { fill: none; stroke: var(--a-blue-hi); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: opacity 200ms; }
+.st-habit[aria-pressed="true"] .st-habit-n { color: var(--tx-primary); }
+.st-habit-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 14px/1.3 var(--font-ui); }
+.st-habit-m { margin-left: auto; font: 400 12.5px/1 var(--font-ui); color: var(--tx-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.st-flip { position: relative; flex: 1; min-height: 108px; perspective: 900px; cursor: pointer; }
+.st-face { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 4px; backface-visibility: hidden; transition: transform 520ms cubic-bezier(.3, .7, .2, 1); }
+.st-back { transform: rotateY(180deg); justify-content: space-between; }
+.st-flip.on .st-front { transform: rotateY(-180deg); }
+.st-flip.on .st-back { transform: none; }
+.st-deck { font: 400 12.5px/1.3 var(--font-ui); color: var(--tx-muted); }
+.st-q, .st-a { font: 500 15px/1.35 var(--font-ui); color: var(--tx-primary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.st-a { font-size: 14px; font-weight: 400; }
+.st-hint { margin-top: auto; display: flex; align-items: center; gap: 5px; font: 400 11.5px/1 var(--font-ui); color: var(--tx-disabled); }
+.st-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.st-grade .btn { height: 30px; font-size: 13px; }
+.st-goal-t { font: 500 14px/1.35 var(--font-ui); color: var(--tx-primary); }
+.st-segs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.st-segs i { height: 4px; border-radius: 2px; background: var(--br-default); transition: background 300ms; }
+.st-segs i.on { background: var(--tx-secondary); }
+.st-goal-f { display: grid; gap: 3px; padding-top: 10px; margin-top: auto; border-top: 1px solid var(--br-subtle); }
+.st-goal-f span { font: 500 11.5px/1.2 var(--font-ui); color: var(--tx-muted); }
+.st-goal-f b { font: 500 13.5px/1.35 var(--font-ui); color: var(--tx-primary); }
 
-.st-habits { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-.st-hab { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 12px; text-align: left; background: var(--bg-1); border: 1px solid var(--br-subtle); border-radius: 10px; transition: border-color var(--dur) ease-out, background var(--dur) ease-out; }
-.st-hab:hover { border-color: var(--br-default); background: var(--bg-2); }
-.st-hab .cb { width: 20px; height: 20px; border-radius: 6px; pointer-events: none; }
-.st-hab-t { display: grid; gap: 2px; min-width: 0; }
-.st-hab-t b { font: 600 13px/1.2 var(--font-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st-hab-t small { font: 400 12px/1.2 var(--font-ui); color: var(--tx-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Aufgaben */
+.st-groups { display: flex; flex-direction: column; gap: 30px; margin-top: 40px; }
+.st-group { display: flex; flex-direction: column; }
+.st-group-h, .st-done-h { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; margin-bottom: 4px; border-bottom: 1px solid var(--br-subtle); font: 600 15px/1.2 var(--font-ui); color: var(--tx-primary); }
+.st-count { min-width: 20px; padding: 1px 7px; border-radius: 10px; background: var(--bg-2); text-align: center; font: 500 12px/1.4 var(--font-ui); color: var(--tx-secondary); font-variant-numeric: tabular-nums; }
+.st-sum { margin-left: auto; font: 400 12.5px/1 var(--font-ui); color: var(--tx-muted); font-variant-numeric: tabular-nums; }
+.st-done-h { border: 0; border-bottom: 1px solid var(--br-subtle); background: none; cursor: pointer; text-align: left; font-size: 13.5px; font-weight: 500; color: var(--tx-secondary); }
+.st-done-h .ic { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform 160ms; }
+.st-done-h .ic.open { transform: rotate(90deg); }
+.st-row { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr) 120px 64px 72px; align-items: center; column-gap: 14px; height: 44px; padding: 0 12px; margin: 0 -12px; border-radius: 8px; cursor: grab; }
+.st-row:hover { background: var(--bg-hover); }
+.st-row.sel { background: var(--bg-selected); }
+.st-row.sel::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 2px; border-radius: 2px; background: var(--a-blue-hi); }
+.st-row.dragging { opacity: .45; }
+.st-row .cb { width: 16px; height: 16px; }
+.st-row-t { display: flex; align-items: center; gap: 10px; min-width: 0; font: 400 14px/1.3 var(--font-ui); color: var(--tx-primary); }
+.st-row-t > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-row.done .st-row-t { color: var(--tx-muted); text-decoration: line-through; }
+.st-planned { flex: none; font-size: 11.5px; color: var(--tx-muted); }
+.st-proj { display: flex; justify-content: flex-end; min-width: 0; }
+.st-proj .st-pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.st-est, .st-due { font: 400 12.5px/1 var(--font-ui); color: var(--tx-muted); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-due.red { color: var(--a-red); }
+.st-row-acts { position: absolute; right: 8px; top: 9px; bottom: 9px; display: flex; align-items: center; gap: 6px; padding-left: 28px; background: linear-gradient(90deg, transparent, var(--bg-1) 18px); opacity: 0; pointer-events: none; transition: opacity 120ms; }
+.st-row:hover .st-row-acts, .st-row.sel .st-row-acts, .st-row:focus-within .st-row-acts { opacity: 1; pointer-events: auto; }
+.st-row-acts .btn { height: 26px; padding: 0 9px 0 4px; gap: 6px; font-size: 12.5px; }
+.st-row-acts kbd { margin: 0 !important; }
+.st-keys { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 28px; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
+.st-keys span { display: flex; align-items: center; gap: 5px; }
 
-.te-row { position: relative; padding-left: 12px; }
-.te-bar { flex: none; width: 3px; height: 16px; border-radius: 2px; background: var(--acc); }
-.te-row .t { font-weight: 500; }
-.te-proj { font: 400 13px/1 var(--font-ui); color: var(--tx-secondary); }
-.te-range { display: inline-flex; align-items: center; gap: 2px; color: var(--tx-secondary); font: 400 13px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
-.te-time { width: 66px; flex: none; text-align: center; padding: 0 2px; background: transparent; border-color: transparent; font-size: 13px; color: var(--tx-secondary); }
-.te-time:hover, .te-time:focus-visible { background: var(--bg-2); }
-.te-time::-webkit-calendar-picker-indicator { display: none; }
-.te-run { width: 66px; text-align: center; color: var(--tx-muted); }
-.te-dur { min-width: 40px; color: var(--tx-primary); }
-.manual-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
-.manual-form .field { width: 140px; }
-.manual-form .field.wide { width: 100%; }
+/* Zeitplan */
+/* Ganze Fensterhöhe unter der Kopfleiste (56px) abzüglich Innenabstand, damit der Zeitplan ohne Scrollen passt */
+.st-side { position: sticky; top: 92px; display: flex; flex-direction: column; height: calc(100dvh - 56px - 36px - 32px); min-height: 420px; min-width: 0; }
+.st-side-h { display: flex; align-items: center; justify-content: space-between; height: 28px; padding-bottom: 8px; border-bottom: 1px solid var(--br-subtle); font: 600 15px/1 var(--font-ui); color: var(--tx-primary); }
+.st-rail { position: relative; flex: 1; margin: 18px 0 8px; }
+.st-hour { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 10px; transform: translateY(-50%); }
+.st-hour span { width: 40px; font-size: 12px; color: var(--tx-muted); }
+.st-hour i { flex: 1; height: 1px; background: var(--br-subtle); }
+.st-gap, .st-block { position: absolute; left: 52px; right: 0; padding: 2px 0; box-sizing: border-box; }
+.st-gap > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; height: 100%; box-sizing: border-box; padding: 5px 5px 0 11px; border: 1px dashed transparent; border-left: 1.5px dashed var(--br-default); border-radius: 4px 8px 8px 4px; font: 400 12px/1 var(--font-ui); color: var(--tx-disabled); transition: background 160ms, border-color 160ms; }
+.st-gap > div > span { padding-top: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.st-gap:hover > div { border-color: var(--br-default); background: color-mix(in oklab, var(--tx-primary) 2.5%, transparent); color: var(--tx-muted); }
+.st-gap.can > div { border-color: var(--br-strong); color: var(--tx-muted); }
+.st-gap.on > div { border-color: var(--a-blue-hi); background: color-mix(in oklab, var(--a-blue-hi) 14%, transparent); color: var(--a-blue-tx); }
+.st-gap-add { flex: none; height: 22px; padding: 0 9px; border: 0; border-radius: 11px; background: color-mix(in oklab, var(--a-blue) 84%, #000); color: #fff; font: 600 11.5px/1 var(--font-ui); cursor: pointer; white-space: nowrap; opacity: 0; transform: translateY(2px); transition: opacity 120ms, transform 120ms; }
+.st-gap:hover .st-gap-add, .st-gap-add:focus-visible { opacity: 1; transform: none; }
+.st-block > div { position: relative; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px; padding: 6px 10px; overflow: hidden; border-left: 3px solid var(--c); border-radius: 4px 8px 8px 4px; background: color-mix(in oklab, var(--c) 7%, var(--bg-2)); }
+.st-block.cur > div { background: color-mix(in oklab, var(--c) 11%, var(--bg-2)); }
+.st-block.past { opacity: .45; }
+.st-block.short > div { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; padding-top: 0; padding-bottom: 0; }
+.st-block.short .st-block-t { flex: 1; min-width: 0; padding-right: 0; }
+.st-block.short .st-block-x { position: static; flex: none; }
+.st-block-t { font: 500 13px/1.25 var(--font-ui); color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 18px; }
+.st-block-t.done { text-decoration: line-through; }
+.st-block-m { font-size: 11.5px; color: var(--tx-muted); white-space: nowrap; }
+.st-block-x { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--tx-muted); font-size: 14px; line-height: 1; cursor: pointer; opacity: 0; }
+.st-block:hover .st-block-x, .st-block-x:focus-visible { opacity: 1; }
+.st-block-x:hover { background: var(--bg-3); color: var(--tx-primary); }
+.st-now { position: absolute; left: 0; right: 0; height: 1.5px; margin-top: -0.75px; background: linear-gradient(90deg, transparent 44px, var(--a-blue-hi) 44px); pointer-events: none; z-index: 1; }
+.st-now span { position: absolute; left: 0; top: -8px; padding: 1px 4px; border-radius: 4px; background: var(--a-blue-hi); color: var(--bg-0); font-size: 11px; }
 
-.st-hint { margin-top: 10px; font-size: 12.5px; color: var(--tx-muted); }
-.now-line { position: absolute; left: 0; right: 0; height: 1.5px; background: var(--tx-primary); z-index: 3; pointer-events: none; }
-.now-line span { position: absolute; left: -52px; top: -8px; padding: 2px 5px; border-radius: 4px; background: var(--tx-primary); color: var(--bg-0); font: 600 11px/1.2 var(--font-mono); }
-@media (max-width: 900px) { .st-cards { grid-template-columns: 1fr; } .st-run { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) {
+  .st-face, .st-ring, .st-prog i { transition: none; }
+}
+@media (max-width: 1100px) {
+  .st-cards { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (max-width: 960px) {
+  .st-grid { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .st-side { position: static; height: auto; }
+  .st-rail { flex: none; height: calc(var(--mins) * 1.35px); }
+}
+@media (max-width: 640px) {
+  .st { padding-top: 20px; }
+  .st-hero { padding: 20px; }
+  .st-title { font-size: 20px; }
+  .st-cards { grid-template-columns: minmax(0, 1fr); }
+  .st-row { grid-template-columns: 16px minmax(0, 1fr) 56px; }
+  .st-proj, .st-due, .st-keys { display: none; }
+}
 </style>

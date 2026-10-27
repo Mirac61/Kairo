@@ -58,5 +58,5 @@ export function useFreeSlot(day: () => string | null, minutes: () => number, tod
     return { text, time }
   })
 
-  return { slot, hint }
+  return { slot, hint, blocks, win }
 }
