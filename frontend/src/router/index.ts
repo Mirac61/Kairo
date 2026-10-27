@@ -53,4 +53,14 @@ router.beforeEach(async (to) => {
   if (to.path !== target) return target
 })
 
+// Ein Tab von vor dem letzten Build kennt nur alte Chunk-Namen; ohne Neuladen lässt sich die Ansicht nicht öffnen.
+// Einmal pro Ziel, damit ein wirklich kaputter Build nicht endlos neu lädt.
+router.onError((err, to) => {
+  if (!/dynamically imported module|module script|Unable to preload/i.test(String(err?.message))) return
+  const key = 'kairo-chunk-reload'
+  if (sessionStorage.getItem(key) === to.fullPath) return
+  sessionStorage.setItem(key, to.fullPath)
+  location.assign(to.fullPath)
+})
+
 export default router
