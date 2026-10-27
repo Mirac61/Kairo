@@ -8,7 +8,7 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin, { Draggable, type EventResizeDoneArg } from '@fullcalendar/interaction'
 import deLocale from '@fullcalendar/core/locales/de'
 import enGbLocale from '@fullcalendar/core/locales/en-gb'
-import type { CalendarOptions, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
+import type { CalendarOptions, EventApi, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
 import Message from 'primevue/message'
 import {
   completeHabit, createEvent, createTask, deleteEvent, errorMessage, getOccurrences, habitsDue, importIcs, isOpen, listProjects, listTasks, listTimeEntries, restoreEvent, skipOccurrence, taskAction, uncompleteHabit, updateEvent, updateHabit, updateTask,
@@ -295,7 +295,7 @@ function setDays(n: 5 | 7) {
 
 // „Ungeplant“ lässt sich einklappen, damit die Woche die volle Breite bekommt.
 // Unter 1280px ist sie zunächst zu, sonst bleibt für sieben Tage zu wenig Breite.
-const upOpen = ref((store.get('kairo-cal-unplanned') ?? (innerWidth < 1280 ? '0' : '1')) !== '0')
+const upOpen = ref((store.get('kairo-cal-unplanned') ?? (innerWidth < 1440 ? '0' : '1')) !== '0') // unter 1440px wären die Tagesspalten ~95px schmal
 function toggleUp() {
   upOpen.value = !upOpen.value
   store.set('kairo-cal-unplanned', upOpen.value ? '1' : '0')
@@ -347,6 +347,7 @@ const loadProjects = () => listProjects().then((ps) => (projects.value = ps), ()
 // Ungeplante Tasks lassen sich in den Kalender ziehen; kein Termin wird angelegt, nur die Task geplant.
 const unplannedEl = ref<HTMLElement>()
 const fileInput = ref<HTMLInputElement>()
+const calMenu = ref(false) // „…“: Wochentage und ICS-Import, damit der Kopf einzeilig bleibt
 let draggable: Draggable | undefined
 // Aus der Suche: /calendar?date=YYYY-MM-DD zeigt diesen Tag (in der Woche mittig wie bei „Heute“).
 function gotoFromRoute() {
@@ -385,10 +386,19 @@ useShortcuts((e) => {
 // Der Start liegt auf :30, weil das Label einer vollen Stunde am oberen Rand sonst halb abgeschnitten wird.
 // Sichtbarer Bereich und Wochenbeginn kommen aus den Einstellungen.
 const { dayStart: SLOT_MIN_HOUR, dayEnd: SLOT_MAX_HOUR } = prefs
-const scrollStart = () => {
+// Ragt ein Eintrag über diesen Start, beginnt das Raster eine halbe Stunde vor seiner vollen Stunde, statt ihn oben abzuschneiden.
+const scrollStart = (evs: EventApi[] = []) => {
   const h = new Date().getHours() - 1
-  return h <= SLOT_MIN_HOUR ? `${String(SLOT_MIN_HOUR).padStart(2, '0')}:00:00` : `${String(h - 1).padStart(2, '0')}:30:00`
+  let m = h <= SLOT_MIN_HOUR ? SLOT_MIN_HOUR * 60 : (h - 1) * 60 + 30
+  for (const e of evs) {
+    if (e.allDay || !e.start || !e.end || e.extendedProps.kind === 'track') continue
+    const s = e.start.getHours() * 60 + e.start.getMinutes()
+    if (s < m && m < e.end.getHours() * 60 + e.end.getMinutes()) m = Math.floor(s / 60) * 60 - 30
+  }
+  m = Math.max(m, SLOT_MIN_HOUR * 60)
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00`
 }
+let scrollFitted = false // nur einmal je Zeitraum nachziehen, sonst springt das Raster bei jeder Änderung
 
 const options: CalendarOptions = {
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
@@ -415,6 +425,7 @@ const options: CalendarOptions = {
     view.value = a.view.type
     store.set('kairo-cal-view', a.view.type)
     a.view.calendar.scrollToTime(scrollStart()) // scrollTime stammt vom Seitenaufruf, die Seite kann länger offen sein
+    scrollFitted = false
   },
   dayHeaderContent: (a) => {
     const month = a.view.type === 'dayGridMonth'
@@ -430,11 +441,19 @@ const options: CalendarOptions = {
     const bar = el('div', 'kt-bar')
     bar.append(el('i', 'p'), el('i', 't'))
     const root = el('div', `kt-dh${a.isToday ? ' today' : ''}`)
-    root.append(el('small', '', wd), el('b', '', String(a.date.getDate())), row, bar)
+    // Lang und kurz; calendar.css zeigt je nach Spaltenbreite eins davon, damit kein Kopf umbricht
+    root.append(el('small', 'kt-wd-l', wd), el('small', 'kt-wd-s', a.date.toLocaleDateString(locale.value, { weekday: 'short' }).replace('.', '')), el('b', '', String(a.date.getDate())), row, bar)
     return { domNodes: [root] }
   },
   dayHeaderDidMount: (a) => paintDay(a.el),
-  eventsSet: () => (cal.value?.$el as HTMLElement | undefined)?.querySelectorAll<HTMLElement>('.fc-col-header-cell').forEach(paintDay),
+  eventsSet: (evs) => {
+    const root = cal.value?.$el as HTMLElement | undefined
+    root?.querySelectorAll<HTMLElement>('.fc-col-header-cell').forEach(paintDay)
+    if (scrollFitted || !evs.length) return
+    scrollFitted = true
+    const s = scrollStart(evs)
+    if (s !== scrollStart()) cal.value?.getApi().scrollToTime(s)
+  },
   slotLabelContent: (a) => String(a.date.getHours()).padStart(2, '0'),
   nowIndicatorContent: (a) => (a.isAxis ? hhmm(a.date) : ''),
   // Termin = Punkt, Aufgabe = Ring (gefüllt, wenn erledigt); in der Woche Titel, Zeit, Projekt · Ort, im Monat Zeit und Titel in einer Zeile.
@@ -536,11 +555,21 @@ useLiveEvents(() => {
         <div class="seg">
           <button v-for="[v, l, k] in views" :key="v" :aria-pressed="view === v || (v === SPAN && isWeek)" :title="`${l} (${k})`" :aria-keyshortcuts="k" @click="goView(v)">{{ l }}</button>
         </div>
-        <div v-if="isWeek" class="seg" role="group" :aria-label="$t('Tage in der Wochenansicht')">
-          <button v-for="n in ([5, 7] as const)" :key="n" type="button" :aria-pressed="prefs.calDays === n" @click="setDays(n)">{{ $t('{n} Tage', { n }) }}</button>
-        </div>
         <input ref="fileInput" type="file" accept=".ics,text/calendar" hidden @change="importFile" />
-        <button class="btn btn-secondary" @click="fileInput?.click()">{{ $t('ICS importieren') }}</button>
+        <div class="menu-wrap" @keydown.esc="calMenu = false">
+          <button class="icon-btn" type="button" :aria-label="$t('Weitere Aktionen')" :aria-expanded="calMenu" @click="calMenu = !calMenu"><svg class="ic"><use href="#i-more" /></svg></button>
+          <template v-if="calMenu">
+            <div class="menu-scrim" @click="calMenu = false"></div>
+            <div class="menu">
+              <div v-if="isWeek" class="menu-row">{{ $t('Tage in der Wochenansicht') }}
+                <span class="seg" role="group" :aria-label="$t('Tage in der Wochenansicht')">
+                  <button v-for="n in ([5, 7] as const)" :key="n" type="button" :aria-pressed="prefs.calDays === n" @click="setDays(n)">{{ n }}</button>
+                </span>
+              </div>
+              <button class="menu-i" type="button" @click="calMenu = false; fileInput?.click()">{{ $t('ICS importieren') }} …</button>
+            </div>
+          </template>
+        </div>
         <button class="btn btn-primary" :title="$t('Neuer Eintrag (n)')" aria-keyshortcuts="n" @click="openNew"><svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neuer Eintrag') }}</button>
       </div>
       <div v-if="isDay && dayStat" class="cal-stats">

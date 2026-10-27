@@ -337,7 +337,7 @@ const remove = () =>
 .gl-title em, .gl-motto em { font-style: italic; color: var(--gl-a); }
 .gl-focus { grid-column: 9 / 13; display: grid; gap: 8px; padding: 18px 20px; border-radius: 18px; border: 1px solid var(--br-default); background: var(--bg-1); --r: 1deg; }
 .gl-focus input { width: 100%; padding: 0; border: 0; outline: none; background: none; font: italic 400 26px/1.2 var(--serif); color: var(--tx-primary); }
-.gl-focus input::placeholder { color: var(--tx-disabled); }
+.gl-focus input::placeholder { color: var(--tx-muted); }
 
 /* Wand: je Ziel eine Reihe im 12er-Raster, Notizkarte überlappt das Bild */
 .gl-wall { display: grid; gap: clamp(32px, 4vw, 56px); }
@@ -385,12 +385,12 @@ const remove = () =>
 .done .gl-box { background: var(--gl-a); }
 .gl-step-t { flex: 1; min-width: 0; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: 400 15px/1.4 var(--font-ui); color: var(--tx-primary); }
 .gl-step-t small { color: var(--tx-muted); }
-.done .gl-step-t { color: var(--tx-disabled); text-decoration: line-through; }
-.gl-x { flex: none; padding: 0 4px; border: 0; background: none; cursor: pointer; font: 400 17px/1 var(--font-ui); color: var(--tx-disabled); }
+.done .gl-step-t { color: var(--tx-muted); text-decoration: line-through; }
+.gl-x { flex: none; padding: 0 4px; border: 0; background: none; cursor: pointer; font: 400 17px/1 var(--font-ui); color: var(--tx-muted); }
 .gl-x:hover { color: var(--tx-primary); }
 .gl-add { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--br-default); background: var(--bg-1); outline: none; font: 400 15px/1.2 var(--font-ui); color: var(--tx-primary); }
 .gl-add:focus { border-color: var(--gl-a); }
-.gl-add::placeholder { color: var(--tx-disabled); }
+.gl-add::placeholder { color: var(--tx-muted); }
 
 /* Countdown-Sticker */
 .gl-count {
@@ -407,7 +407,7 @@ const remove = () =>
 .gl-streak-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font: 600 16px/1.2 var(--font-ui); color: var(--tx-primary); }
 .gl-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .gl-days button { height: 44px; padding: 0; border-radius: 12px; border: 1.5px solid var(--br-strong); background: none; cursor: pointer; font: 600 13px/1 var(--font-ui); color: var(--tx-secondary); }
-.gl-days button.future { color: var(--tx-disabled); }
+.gl-days button.future { color: var(--tx-muted); }
 .gl-days button.today { border-color: var(--tx-primary); }
 .gl-days button[aria-pressed='true'] { border-color: var(--gl-a); background: var(--gl-a); color: var(--gl-ink); }
 .gl-motto { grid-column: 6 / 10; align-self: center; margin: 0 0 0 clamp(16px, 3vw, 40px); font: 400 clamp(40px, 4.6vw, 64px)/0.98 var(--serif); color: var(--tx-primary); text-wrap: balance; --r: -1.8deg; }

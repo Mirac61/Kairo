@@ -4,7 +4,7 @@
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: var(--bg-1);
   --fc-today-bg-color: transparent;
-  --fc-now-indicator-color: var(--a-red);
+  --fc-now-indicator-color: var(--a-now);
   --fc-event-bg-color: var(--bg-1);
   --fc-event-text-color: var(--tx-primary);
   font: 400 13px/1.3 var(--font-ui);
@@ -12,7 +12,7 @@
 }
 .fc a { color: inherit; text-decoration: none; }
 
-/* Akzent des Kalenders ist Rot (--a-red): Jetzt-Linie und der heutige Tag. */
+/* Akzent des Kalenders ist --a-now (wie im Tagesplan): Jetzt-Linie und der heutige Tag. Rot heißt nur „überfällig“. */
 /* Raster: ruhig, nur feine Stundenlinien; heute als leichte Fläche, Wochenende dunkler */
 .fc .fc-scrollgrid, .fc .fc-scrollgrid-section > td, .fc .fc-scrollgrid-section > th { border-color: var(--br-subtle); }
 .fc .fc-scrollgrid { border-width: 0; }
@@ -35,8 +35,11 @@
 .fc .kt-dh { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .fc .kt-dh small { font: 400 13px/1 var(--font-ui); color: var(--tx-secondary); text-transform: capitalize; }
 .fc .kt-dh b { display: grid; place-items: center; min-width: 26px; height: 26px; border-radius: 13px; font: 600 14px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-primary); }
-.fc .kt-dh.today b { background: var(--a-red); color: var(--bg-0); }
-.fc .kt-row { flex: 1 0 100%; display: flex; justify-content: space-between; min-height: 11px; font: 400 11px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-muted); }
+.fc .fc-col-header-cell .fc-scrollgrid-sync-inner { container-type: inline-size; }
+.fc .kt-wd-s { display: none; }
+@container (max-width: 125px) { .fc .kt-wd-l { display: none; } .fc .kt-wd-s { display: inline; } }
+.fc .kt-dh.today b { background: var(--a-now); color: var(--bg-0); }
+.fc .kt-row { flex: 1 0 100%; display: flex; justify-content: space-between; gap: 6px; white-space: nowrap; min-height: 11px; font: 400 11px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-muted); }
 .fc .kt-ist { color: var(--tx-primary); }
 .fc .kt-bar { flex: 1 0 100%; position: relative; height: 3px; border-radius: 2px; overflow: hidden; background: var(--bg-2); }
 .fc .kt-bar i { position: absolute; inset: 0 auto 0 0; width: 0; }
@@ -46,11 +49,11 @@
 /* Jetzt-Linie mit Uhrzeit im Achsen-Chip */
 .fc .fc-timegrid-now-indicator-line { border-width: 2px 0 0; }
 .fc .fc-timegrid-now-indicator-line::before {
-  content: ''; position: absolute; left: -4px; top: -4.5px; width: 7px; height: 7px; border-radius: 50%; background: var(--a-red);
+  content: ''; position: absolute; left: -4px; top: -4.5px; width: 7px; height: 7px; border-radius: 50%; background: var(--a-now);
 }
 .fc .fc-timegrid-now-indicator-arrow {
   border: 0; margin-top: -8px; right: 4px; left: auto; padding: 2px 5px; border-radius: 4px;
-  background: var(--a-red); color: var(--bg-0); font: 600 11px/1.2 var(--font-mono); font-variant-numeric: tabular-nums;
+  background: var(--a-now); color: var(--bg-0); font: 600 11px/1.2 var(--font-mono); font-variant-numeric: tabular-nums;
 }
 
 /* Erfasste Zeit: schmale Spur links im Tag in der Projektfarbe */
@@ -58,7 +61,7 @@
 .fc .fc-timegrid-col-events { margin: 0 2px 0 5px; }
 
 /* Einträge: neutrale Karte, Farbe nur als Punkt (Termin) bzw. Ring (Aufgabe) in der Projektfarbe (--acc, setzt CalendarView).
-   Termin = graue Fläche, Aufgabe = gestrichelter Umriss, läuft = Bernstein-Streifen, erledigt = blass. */
+   Termin = graue Fläche, Aufgabe = gestrichelter Umriss, läuft = Bernstein-Rahmen, erledigt = durchgestrichen. */
 .fc .fc-event {
   --acc: var(--p-neutral);
   border: 1px solid transparent;
@@ -70,10 +73,9 @@
 .fc .fc-event:hover { background: var(--bg-3); }
 .fc .fc-event.kt-task { border: 1px dashed var(--br-strong); background: transparent; }
 .fc .fc-event.kt-task:hover { background: var(--bg-hover); }
-.fc .fc-event.kt-running { box-shadow: inset 3px 0 0 var(--a-run); }
-.fc .fc-event.kt-done { opacity: .5; }
+.fc .fc-event.kt-running { box-shadow: inset 0 0 0 1.5px var(--a-run); }
 .fc .fc-event.kt-over .kt-title { color: var(--a-red); }
-.fc .fc-event.kt-done .kt-title { text-decoration: line-through; }
+.fc .fc-event.kt-done .kt-title { text-decoration: line-through; color: var(--tx-muted); }
 .fc .fc-event-selected, .fc .fc-event:focus-visible { outline: 1px solid var(--a-focus); outline-offset: 1px; }
 .fc .fc-highlight { background: var(--bg-selected); }
 
@@ -89,7 +91,7 @@
 .fc .kt-ring { flex: none; width: 10px; height: 10px; margin-top: 3px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--acc); }
 .fc .kt-done .kt-ring { background: var(--acc); }
 .fc .kt-habit .kt-ring { border-radius: 3px; } /* Gewohnheit = Quadrat wie in der Gewohnheiten-Liste */
-.fc .kt-title { min-width: 0; font: 500 12.5px/1.3 var(--font-ui); color: var(--tx-primary); overflow: hidden; overflow-wrap: break-word; hyphens: auto; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.fc .kt-title { min-width: 0; font: 500 12.5px/1.3 var(--font-ui); color: var(--tx-primary); overflow: hidden; overflow-wrap: break-word; hyphens: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .fc .kt-time { flex: none; font: 400 11.5px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-secondary); white-space: nowrap; }
 .fc .kt-meta { font: 400 11.5px/1.3 var(--font-ui); color: var(--tx-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Kurze Einträge (30 min): einzeilig, Titel und Zeit nebeneinander */
@@ -148,7 +150,7 @@
 .fc .fc-dayGridMonth-view .fc-col-header-cell { border-right: 0; }
 .fc .fc-dayGridMonth-view .fc-col-header-cell-cushion { display: block; padding: 0 10px 10px; text-align: left; font: 400 12.5px/1 var(--font-ui); text-transform: capitalize; color: var(--tx-secondary); }
 .fc .fc-dayGridMonth-view .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion,
-.fc .fc-dayGridMonth-view .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion { color: var(--tx-disabled); }
+.fc .fc-dayGridMonth-view .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion { color: var(--tx-muted); }
 .fc .fc-dayGridMonth-view .fc-daygrid-day { border-width: 0 0 1px 1px; border-color: var(--br-subtle); }
 .fc .fc-dayGridMonth-view .fc-daygrid-day:first-child, .fc .fc-dayGridMonth-view td[role=presentation] { border-left-width: 0; }
 .fc .fc-dayGridMonth-view .fc-day-today { background: color-mix(in srgb, var(--tx-primary) 4%, transparent); }
@@ -160,7 +162,7 @@
 }
 .fc .fc-day-past .fc-daygrid-day-number { color: var(--tx-muted); }
 .fc .fc-day-other .fc-daygrid-day-number { color: var(--tx-disabled); opacity: .6; }
-.fc .fc-day-today .fc-daygrid-day-number { background: var(--a-red); color: var(--bg-0); }
+.fc .fc-day-today .fc-daygrid-day-number { background: var(--a-now); color: var(--bg-0); }
 .fc .fc-daygrid-event-harness { margin-top: 0; }
 .fc .fc-dayGridMonth-view .fc-daygrid-event {
   height: 21px; margin: 0 0 3px; border: 0; border-radius: 4px; box-shadow: none;
@@ -170,8 +172,6 @@
 .fc .fc-dayGridMonth-view .fc-daygrid-event.kt-allday { background: var(--bg-3); }
 .fc .fc-dayGridMonth-view .fc-daygrid-event.kt-task { border: 0; background: transparent; }
 .fc .fc-dayGridMonth-view .fc-daygrid-event.kt-task:hover { background: var(--bg-2); }
-.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-done { opacity: .45; }
-.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-done .kt-title { text-decoration: none; }
 .fc .fc-dayGridMonth-view .kt-in { flex-direction: row; align-items: center; gap: 6px; padding: 0 6px; }
 .fc .fc-dayGridMonth-view .kt-ring { width: 9px; height: 9px; margin-top: 0; border-color: var(--acc); }
 .fc .fc-dayGridMonth-view .kt-time { color: var(--tx-muted); }

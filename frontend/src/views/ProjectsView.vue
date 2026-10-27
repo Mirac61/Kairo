@@ -143,8 +143,9 @@ useLiveEvents(load)
     <div v-if="error && !dialog" class="badge" role="alert">{{ error }}</div>
 
     <div class="filterbar">
-      <button v-for="t in tabs" :key="t.status" type="button" class="fchip" :aria-pressed="tab === t.status" :disabled="!t.n && tab !== t.status" @click="tab = t.status">{{ t.label }} <span class="count">{{ t.n }}</span></button>
-      <SearchField v-model="search" :label="$t('Projekte durchsuchen')" />
+      <div class="seg" role="group" :aria-label="$t('Filter')">
+        <button v-for="t in tabs" :key="t.status" type="button" :aria-pressed="tab === t.status" :disabled="!t.n && tab !== t.status" @click="tab = t.status">{{ t.label }} <span class="count">{{ t.n }}</span></button>
+      </div>
       <span class="spacer"></span>
       <select v-model="sort" class="input" :aria-label="$t('Sortieren nach')">
         <option value="recent">{{ $t('Zuletzt aktiv') }}</option>
@@ -154,8 +155,9 @@ useLiveEvents(load)
         <button type="button" :aria-label="$t('Kacheln')" :aria-pressed="layout === 'grid'" @click="setLayout('grid')"><svg class="ic"><use href="#i-grid" /></svg></button>
         <button type="button" :aria-label="$t('Liste')" :aria-pressed="layout === 'list'" @click="setLayout('list')"><svg class="ic"><use href="#i-list" /></svg></button>
       </span>
+      <SearchField v-model="search" :label="$t('Projekte durchsuchen')" />
     </div>
-    <div v-if="!projects.length" class="v-sub">{{ $t('Keine Projekte.') }}</div>
+    <div v-if="!projects.length" class="empty-cta"><p class="v-sub">{{ $t('Noch keine Projekte. Ein Projekt bündelt Aufgaben, Notizen und die Zeit dafür.') }}</p><button class="btn" type="button" @click="openDialog()">{{ $t('Erstes Projekt anlegen') }}</button></div>
     <div v-else-if="!list.length" class="v-sub">{{ search ? $t('Keine Projekte für „{q}“ in „{tab}“.', { q: search, tab: STATUS[tab] ?? '' }) : $t('Keine Projekte in „{tab}“.', { tab: STATUS[tab] ?? '' }) }}</div>
     <div v-else class="proj-list" :class="layout">
       <article v-for="p in list" :key="p.id" :data-project="p.id" class="proj-card" :class="{ open: openId === p.id }" :style="{ '--pc': projectColor(p.id) }">

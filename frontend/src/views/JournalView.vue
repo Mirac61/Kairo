@@ -395,11 +395,11 @@ function completeTask(task: Task) {
             <button type="button" class="col-link" @click="openBackfill">{{ $t('Nachtragen') }}</button>
           </div>
           <div v-if="pastRows.length" class="jr-past-tools">
-            <SearchField v-model="pastSearch" :label="$t('Einträge durchsuchen')" />
-            <div class="seg jr-past-sort" role="group" :aria-label="$t('Sortierung')">
+            <div class="seg" role="group" :aria-label="$t('Sortierung')">
               <button type="button" :aria-pressed="!pastAsc" @click="pastAsc = false">{{ $t('Neueste zuerst') }}</button>
               <button type="button" :aria-pressed="pastAsc" @click="pastAsc = true">{{ $t('Älteste zuerst') }}</button>
             </div>
+            <SearchField v-model="pastSearch" :label="$t('Einträge durchsuchen')" />
           </div>
           <div v-if="loaded && !pastRows.length" class="jr-empty">
             <p class="jr-empty-t">{{ $t('Drei kurze Fragen am Abend.') }}</p>
@@ -519,7 +519,7 @@ function completeTask(task: Task) {
 </template>
 
 <style scoped>
-.jr-page { max-width: 1040px; margin: 0 auto; }
+.jr-page { max-width: 1040px; } /* links bündig wie alle Ansichten, Breite begrenzt fürs Lesen */
 .jr-layout { display: grid; grid-template-columns: minmax(0, 700px) minmax(0, 260px); gap: 40px; align-items: start; justify-content: space-between; }
 .jr-main { min-width: 0; }
 
@@ -536,8 +536,8 @@ function completeTask(task: Task) {
 .jr-past-head .jr-past-title { margin-bottom: 0; }
 button.col-link { padding: 0; border: 0; background: none; cursor: pointer; }
 .jr-past-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: -2px 0 14px; }
-.jr-past-tools input[type="search"] { flex: 1 1 180px; max-width: 280px; height: 28px; padding: 0 12px; font-size: 12px; border-radius: 999px; }
-.jr-past-sort button { height: 24px; padding: 0 10px; font-size: 11px; border-radius: 999px; }
+.jr-past-tools .search-btn { margin-left: auto; }
+.jr-past-tools input[type="search"] { margin-left: auto; flex: 1 1 180px; max-width: 280px; height: 28px; padding: 0 12px; font-size: 12px; border-radius: 999px; }
 .jr-nohit { margin: 0 0 4px; }
 .jr-months { display: grid; gap: 22px; }
 .jr-month-group { display: grid; gap: 8px; }
@@ -563,7 +563,7 @@ button.col-link { padding: 0; border: 0; background: none; cursor: pointer; }
   font: 400 13px/1.5 var(--font-ui); color: var(--tx-secondary);
 }
 .jr-point::before { content: ''; position: absolute; left: 1px; top: .62em; width: 4px; height: 4px; border-radius: 50%; background: var(--br-strong); }
-.jr-points.empty .jr-point { color: var(--tx-disabled); }
+.jr-points.empty .jr-point { color: var(--tx-muted); }
 .jr-points.empty .jr-point::before { background: var(--br-default); }
 .jr-chev { flex: none; margin-top: 3px; color: var(--tx-muted); transition: transform var(--dur) ease-out, color var(--dur) ease-out; }
 .jr-entry:hover .jr-chev { color: var(--tx-secondary); transform: translateX(2px); }
@@ -596,14 +596,14 @@ button.col-link { padding: 0; border: 0; background: none; cursor: pointer; }
 .jr-heat-cell.future { background: var(--bg-2); opacity: .3; cursor: default; }
 .jr-heat-cell:not(.future):hover,
 .jr-heat-cell:focus-visible { box-shadow: 0 0 0 2px var(--bg-1), 0 0 0 3px var(--tx-secondary); outline: none; }
-.jr-heat-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; font: 400 10px/1.3 var(--font-ui); color: var(--tx-muted); }
+.jr-heat-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; font: 400 11px/1.3 var(--font-ui); color: var(--tx-muted); }
 .jr-heat-legend { display: inline-flex; align-items: center; gap: 5px; }
 .jr-heat-legend i { width: 8px; height: 8px; border-radius: 2px; background: var(--bg-2); }
 .jr-heat-legend i.on { background: var(--a-blue-hi); }
 
 .jr-recap-group { display: grid; gap: 6px; }
 .jr-recap-group + .jr-recap-group { margin-top: 12px; }
-.jr-recap-label { font: 500 10px/1.2 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--tx-muted); }
+.jr-recap-label { font: 500 11px/1.2 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--tx-muted); }
 .jr-recap-list { list-style: none; display: grid; gap: 4px; }
 .jr-recap-list li { font: 400 14px/1.5 var(--font-ui); color: var(--tx-primary); overflow-wrap: anywhere; }
 .jr-recap-empty { font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }

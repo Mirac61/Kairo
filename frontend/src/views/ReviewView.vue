@@ -135,7 +135,7 @@ useLiveEvents(load)
           <div class="col-head"><h2 class="col-title">{{ $t('Zeit pro Projekt') }}</h2></div>
           <div class="tasklist">
             <div v-for="p in projects" :key="p.project_id ?? ''" class="rv-proj">
-              <span class="rv-name"><span class="pdot" :style="{ background: projectColor(p.project_id) }"></span>{{ p.name }}</span>
+              <span class="rv-name" :title="p.name"><span class="pdot" :style="{ background: projectColor(p.project_id) }"></span>{{ p.name }}</span>
               <div class="dayload" aria-hidden="true"><span :style="{ width: `${(p.tracked_minutes / maxProject) * 100}%`, background: projectColor(p.project_id) }"></span></div>
               <span class="rv-n mono">{{ hm(p.tracked_minutes) }}</span>
               <span class="rv-n mono rv-pct">{{ Math.round((p.tracked_minutes / projectTotal) * 100) }} %</span>
@@ -159,7 +159,7 @@ useLiveEvents(load)
           <div class="col-head"><h2 class="col-title">{{ $t('Erledigt') }}</h2></div>
           <div class="tasklist">
             <div v-for="t in completed" :key="t.id" class="task-row">
-              <span class="rv-ck" :style="{ background: projectColor(t.project_id) }" aria-hidden="true"><svg viewBox="0 0 10 10"><path d="M2 5.2l2 2 4-4.4" /></svg></span>
+              <span class="rv-ck" aria-hidden="true"><svg viewBox="0 0 10 10"><path d="M2 5.2l2 2 4-4.4" /></svg></span>
               <span class="t">{{ t.title }}</span>
               <span class="due">{{ doneMeta(t) }}</span>
             </div>
@@ -190,7 +190,7 @@ useLiveEvents(load)
 .rv-big { font: 500 28px/1.1 var(--font-mono); color: var(--tx-primary); }
 .rv-big.od { color: var(--a-red); }
 .rv-note { font: 400 12px/1.3 var(--font-ui); color: var(--tx-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rv-day { padding: 8px 0; border-radius: var(--r-s); }
+.rv-day { padding: 8px 4px; border-radius: var(--r-s); }
 .rv-day.now { background: var(--bg-2); }
 .rv-day .lbl b { color: var(--tx-primary); font-weight: 600; }
 .pdot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; }
@@ -212,15 +212,15 @@ useLiveEvents(load)
 .rv-bars .k-soon { border-bottom: 0; }
 @media (max-width: 640px) {
   .rv-days { gap: 2px; }
-  .rv-day .rv-n { font-size: 10px; white-space: normal; text-align: center; }
+  .rv-day .rv-n { font-size: 11px; white-space: normal; text-align: center; }
 }
 .rv-big small { font-size: 15px; font-weight: 500; color: var(--tx-muted); }
-.rv-ck { display: grid; place-items: center; flex: none; width: 16px; height: 16px; border-radius: 50%; }
-.rv-ck svg { width: 9px; height: 9px; fill: none; stroke: var(--bg-0); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.rv-ck { display: grid; place-items: center; flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--br-strong); } /* neutral: Farbe ist für Fälliges reserviert */
+.rv-ck svg { width: 9px; height: 9px; fill: none; stroke: var(--tx-primary); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .rv-od .btn { color: var(--a-blue-tx); }
 .rv-od .btn:hover { background: transparent; text-decoration: underline; }
 .rv-n { font: 400 12px/1.2 var(--font-mono); color: var(--tx-secondary); white-space: nowrap; }
-.rv-proj { display: grid; grid-template-columns: 120px minmax(0, 1fr) 44px 40px; align-items: center; gap: 12px; padding: 8px 0; }
+.rv-proj { display: grid; grid-template-columns: minmax(120px, 200px) minmax(0, 1fr) 44px 40px; align-items: center; gap: 12px; padding: 8px 0; }
 .rv-pct { color: var(--tx-muted); text-align: right; }
 .rv-name { display: flex; align-items: center; gap: 8px; min-width: 0; font: 500 14px/1.4 var(--font-ui); color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rv-gap { margin-top: 28px; }

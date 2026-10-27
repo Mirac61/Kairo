@@ -52,8 +52,10 @@ useLiveEvents(load)
     <div v-if="!rows.length" class="v-sub">{{ $t('Der Papierkorb ist leer.') }}</div>
     <template v-else>
     <div class="filterbar">
-      <button type="button" class="fchip" :aria-pressed="kind === ''" @click="kind = ''">{{ $t('Alle') }} <span class="count">{{ count('') }}</span></button>
-      <button v-for="k in KINDS" :key="k" type="button" class="fchip" :aria-pressed="kind === k" :disabled="!count(k)" @click="kind = k">{{ $t(PLURAL[k]) }} <span class="count">{{ count(k) }}</span></button>
+      <div class="seg" role="group" :aria-label="$t('Filter')">
+        <button type="button" :aria-pressed="kind === ''" @click="kind = ''">{{ $t('Alle') }} <span class="count">{{ count('') }}</span></button>
+        <button v-for="k in KINDS" :key="k" type="button" :aria-pressed="kind === k" :disabled="!count(k)" @click="kind = k">{{ $t(PLURAL[k]) }} <span class="count">{{ count(k) }}</span></button>
+      </div>
       <SearchField v-model="search" :label="$t('Papierkorb durchsuchen')" />
     </div>
     <div v-if="!shown.length" class="v-sub">{{ $t('Keine Treffer für „{q}“.', { q: search }) }}</div>

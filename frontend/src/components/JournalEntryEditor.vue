@@ -378,7 +378,7 @@ async function submitImport() {
   width: 100%; min-height: 40px; padding: 2px 0; border: 0; outline: none; resize: none; overflow: hidden;
   background: none; color: var(--tx-primary); font: 400 15px/1.6 var(--font-ui);
 }
-.je-area::placeholder { color: var(--tx-disabled); }
+.je-area::placeholder { color: var(--tx-muted); }
 
 .je-points { display: grid; gap: 2px; }
 .je-point { display: flex; align-items: flex-start; gap: 10px; }
@@ -390,7 +390,7 @@ async function submitImport() {
   flex: 1; min-width: 0; height: 26px; padding: 0; border: 0; outline: none; background: none;
   color: var(--tx-primary); font: 400 15px/1.6 var(--font-ui);
 }
-.je-point-input::placeholder { color: var(--tx-disabled); }
+.je-point-input::placeholder { color: var(--tx-muted); }
 .je-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .je-import { height: 28px; padding: 0 10px; font-size: 13px; }
 .je-import .ic { width: 14px; height: 14px; }
@@ -414,6 +414,6 @@ async function submitImport() {
 .je-task-candidates { display: grid; gap: 8px; max-height: 42vh; overflow-y: auto; }
 .je-task-candidate { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .je-task-candidate input[type='checkbox'] { margin: 0; }
-.je-task-candidate.done .input { color: var(--tx-disabled); text-decoration: line-through; }
+.je-task-candidate.done .input { color: var(--tx-muted); text-decoration: line-through; }
 .je-done-mark { font: 400 12px/1 var(--font-ui); color: var(--tx-muted); white-space: nowrap; }
 </style>
