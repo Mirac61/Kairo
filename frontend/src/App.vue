@@ -13,6 +13,10 @@ import { useBackendStatus } from '@/composables/useBackendStatus'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { counts, loadSidebar, pins } from '@/composables/useSidebar'
 import { hm } from '@/lib/dates'
+import { vDialog } from '@/lib/dialog'
+import { GOTO } from '@/lib/shortcuts'
+import { useShortcuts } from '@/composables/useShortcuts'
+import ShortcutHelp from '@/components/ShortcutHelp.vue'
 import { store } from '@/lib/storage'
 import { dark, prefs } from '@/lib/prefs'
 import { projectColor } from '@/lib/projectColor'
@@ -39,11 +43,37 @@ const newEntry = () => router.push({ path: '/tasks', query: { new: String(Date.n
 // ⌘K und „Suchen …“: Suche über alles; ohne Treffer legt sie eine Aufgabe an.
 const searchOpen = ref(false)
 function onKey(e: KeyboardEvent) {
-  if (!(e.metaKey || e.ctrlKey) || e.key !== 'k' || hideSidebar.value) return
+  if (!(e.metaKey || e.ctrlKey) || hideSidebar.value) return
+  if (e.key === 'k') searchOpen.value = !searchOpen.value
+  else if (e.key === 'b') toggleSidebar()
+  else if (e.key === '[' && history.state?.back) router.back()
+  else return
   e.preventDefault()
-  searchOpen.value = !searchOpen.value
 }
+
+// Pfad in der Kopfleiste: wo man ist, wohin „Zurück“ führt (vue-router merkt sich die vorige Seite in history.state) und Sprung in jeden Bereich.
+const labelOf = (path: string) => (path.split('?')[0] === '/settings' ? 'Einstellungen' : navItems.find((n) => n.path === path.split('?')[0])?.label ?? '')
+const here = computed(() => labelOf(route.path) || 'Kairo')
+const backLabel = computed(() => (route.fullPath, typeof history.state?.back === 'string' ? labelOf(history.state.back) : ''))
+const crumbOpen = ref(false)
+const keyOf = Object.fromEntries(Object.entries(GOTO).map(([k, path]) => [path, k]))
+const jumpItems = [...navItems, { path: '/settings', label: 'Einstellungen', icon: 'gear' }].map((n) => ({ ...n, key: keyOf[n.path] }))
 onMounted(() => { window.addEventListener('keydown', onKey); void loadSidebar() })
+
+// ? zeigt alle Kürzel, g und ein Buchstabe springt in eine Ansicht (lib/shortcuts.ts).
+const helpOpen = ref(false)
+let gAt = 0
+useShortcuts((e) => {
+  if (hideSidebar.value) return
+  const go = Date.now() - gAt < 1500 && GOTO[e.key]
+  gAt = 0
+  if (e.key === '?') helpOpen.value = !helpOpen.value
+  else if (go) void router.push(go)
+  else if (e.key === 'g') gAt = Date.now()
+  else return
+  e.preventDefault()
+  e.stopImmediatePropagation() // sonst reagiert die Ansicht auch auf den Buchstaben
+}, true)
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 // Seitenleiste einklappen: nur Symbole, damit die Ansicht mehr Platz bekommt. Ohne gespeicherte Wahl startet sie im schmalen Fenster eingeklappt.
@@ -55,14 +85,14 @@ function toggleSidebar() {
   void nextTick(() => window.dispatchEvent(new Event('resize')))
 }
 
-// Handy: vier Tabs für den Alltag, der Rest (und Einstellungen) im „Mehr“-Blatt. Die Seitenleiste blendet design.css unter 760px aus.
-const tabPaths = ['/today', '/tasks', '/habits', '/calendar']
+// Handy: sechs Tabs für den Alltag, der Rest (und Einstellungen) im „Mehr“-Blatt. Die Seitenleiste blendet design.css unter 760px aus.
+const tabPaths = ['/today', '/tasks', '/habits', '/calendar', '/notes', '/projects']
 const tabs = tabPaths.map((p) => navItems.find((n) => n.path === p)!)
 const more = navItems.filter((n) => !tabPaths.includes(n.path))
 const moreOpen = ref(false)
 const showFab = computed(() => route.path === '/today' || route.path === '/tasks') // sonst verdeckt er Zeilenaktionen
 const inMore = computed(() => !tabPaths.includes(route.path))
-watch(() => route.path, () => { moreOpen.value = false })
+watch(() => route.path, () => { moreOpen.value = false; crumbOpen.value = false })
 
 // Theme: der Knopf wählt das Gegenteil des aktuellen; „System“ gibt es in den Einstellungen.
 const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
@@ -110,7 +140,27 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
     <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 4.5-4.5L15 5"/><path d="M19.5 9.5H9a4.5 4.5 0 0 0 0 9h3"/></symbol>
     <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18.5" cy="12" r="1.5"/></symbol>
+    <!-- Gewohnheiten (lib/habitIcons.ts) -->
+    <symbol id="hi-book" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></symbol>
+    <symbol id="hi-dumbbell" viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></symbol>
+    <symbol id="hi-run" viewBox="0 0 24 24"><circle cx="15" cy="4.5" r="1.8"/><path d="M8 20l3-5 3 2v5M6 11.5l3-3.5 4 1 2.5 3.5 3 .5M11 15l-1.5-5"/></symbol>
+    <symbol id="hi-bike" viewBox="0 0 24 24"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></symbol>
+    <symbol id="hi-droplet" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></symbol>
+    <symbol id="hi-leaf" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10z"/><path d="M2 21c0-3 1.9-5.4 5.1-6C9.5 14.5 12 13 13 12"/></symbol>
+    <symbol id="hi-bed" viewBox="0 0 24 24"><path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9"/></symbol>
+    <symbol id="hi-food" viewBox="0 0 24 24"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></symbol>
+    <symbol id="hi-coffee" viewBox="0 0 24 24"><path d="M10 2v2M14 2v2M6 2v2M17 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h12zM18 9h1a3 3 0 0 1 0 6h-1"/></symbol>
+    <symbol id="hi-pill" viewBox="0 0 24 24"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7zM8.5 8.5l7 7"/></symbol>
+    <symbol id="hi-heart" viewBox="0 0 24 24"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></symbol>
+    <symbol id="hi-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+    <symbol id="hi-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="hi-phone" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></symbol>
+    <symbol id="hi-sparkles" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
+    <symbol id="hi-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3c.5 3.5 5 5.6 5 10.5a5 5 0 0 1-10 0c0-2.2 1.1-3.6 2.3-4.6.2 1.6 1 2.6 2.2 2.9C11 9 10.6 6 12 3z"/></symbol>
     <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5 11 13"/><path d="M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></symbol>
+    <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3.5"/><path d="M9.5 4.5v15"/></symbol>
     <symbol id="i-split" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M12 4.5v15"/></symbol>
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9.5 6 15.5 12l-6 6"/></symbol>
     <symbol id="i-pen" viewBox="0 0 24 24"><path d="M15.5 4.5 19.5 8.5 8.5 19.5H4.5V15.5z"/><path d="M13 7l4 4"/></symbol>
@@ -122,10 +172,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
 </svg>
   <div class="app">
     <aside v-if="!hideSidebar" class="sidebar" :class="{ mini }">
-      <div class="logo" role="img" :aria-label="$t('Kairo')"><span class="logo-word" aria-hidden="true">K<i class="lw-a"></i>IR<i class="lw-o"></i></span><span class="logo-mark" aria-hidden="true"><i></i></span></div>
-      <button type="button" class="sb-new" aria-keyshortcuts="Meta+K Control+K" @click="searchOpen = true">
-        <svg class="ic"><use href="#i-search" /></svg><span class="sb-new-l">{{ $t('Suchen oder neu …') }}</span><kbd class="key" aria-hidden="true">⌘K</kbd>
-      </button>
+      <div class="brand"><span class="logo-mark" aria-hidden="true"><i></i></span><span class="brand-t"><b>Kairo</b><small>{{ $t('Persönliches OS') }}</small></span></div>
       <nav :aria-label="$t('Hauptnavigation')">
         <RouterLink v-for="item in navItems" :key="item.path" :to="item.path" class="nav-item" :aria-label="mini ? $t(item.label) : undefined" :data-tip="mini ? $t(item.label) : undefined">
           <svg class="ic"><use :href="`#i-${item.icon}`" /></svg><span class="nav-l">{{ $t(item.label) }}</span>
@@ -134,7 +181,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
       </nav>
       <div v-if="pins.length" class="pins">
         <div class="pins-head"><span>{{ $t('Aktiv') }}</span><span>{{ $t('diese Woche') }}</span></div>
-        <RouterLink v-for="p in pins" :key="p.id" to="/projects" class="nav-item pin">
+        <RouterLink v-for="p in pins" :key="p.id" :to="{ path: '/projects', query: { project: p.id } }" class="nav-item pin">
           <span class="pin-dot"><i :style="{ background: projectColor(p.id) }"></i></span><span class="nav-l">{{ p.name }}</span>
           <span v-if="p.minutes" class="nav-n">{{ hm(p.minutes) }}</span>
         </RouterLink>
@@ -145,21 +192,49 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
           <span :data-tip="online && version ? version : undefined">{{ online ? $t('Verbunden') : $t('Getrennt') }}</span>
         </div>
         <div class="sb-btns">
+          <button class="icon-btn" :aria-label="$t('Tastenkürzel')" :data-tip="`${$t('Tastenkürzel')} (?)`" aria-keyshortcuts="?" @click="helpOpen = true"><kbd class="key sb-help">?</kbd></button>
           <RouterLink to="/settings" class="icon-btn" :aria-label="$t('Einstellungen')" :data-tip="$t('Einstellungen')"><svg class="ic"><use href="#i-gear" /></svg></RouterLink>
-          <button class="icon-btn" :aria-label="$t('Theme wechseln')" :data-tip="$t('Theme wechseln')" @click="toggleTheme">
-            <svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg>
-          </button>
-          <button
-            class="icon-btn sb-toggle" :aria-expanded="!mini" :aria-label="mini ? $t('Seitenleiste ausklappen') : $t('Seitenleiste einklappen')"
-            :data-tip="mini ? $t('Ausklappen') : $t('Einklappen')" @click="toggleSidebar"
-          ><svg class="ic"><use :href="mini ? '#i-right' : '#i-left'" /></svg></button>
         </div>
       </div>
     </aside>
-    <main class="content" :class="{ 'content-full': hideSidebar }"><RouterView /></main>
+    <main class="content" :class="{ 'content-full': hideSidebar }">
+      <header v-if="!hideSidebar" class="topbar">
+        <button
+          type="button" class="tb-btn" :aria-expanded="!mini" aria-keyshortcuts="Meta+B Control+B"
+          :aria-label="mini ? $t('Seitenleiste ausklappen') : $t('Seitenleiste einklappen')" :data-tip="`${mini ? $t('Ausklappen') : $t('Einklappen')} (⌘B)`" @click="toggleSidebar"
+        ><svg class="ic"><use href="#i-sidebar" /></svg></button>
+        <span class="tb-sep" aria-hidden="true"></span>
+        <nav class="crumbs" :aria-label="$t('Pfad')">
+          <RouterLink to="/today" class="crumb">Kairo</RouterLink><span class="crumb-sl" aria-hidden="true">/</span>
+          <div class="menu-wrap" @keydown.esc="crumbOpen = false">
+            <button type="button" class="crumb cur" :aria-expanded="crumbOpen" aria-haspopup="menu" @click="crumbOpen = !crumbOpen">
+              {{ $t(here) }}<svg class="ic crumb-chev" aria-hidden="true"><use href="#i-chev" /></svg>
+            </button>
+            <template v-if="crumbOpen">
+              <div class="menu-scrim" @click="crumbOpen = false"></div>
+              <div class="menu crumb-menu" role="menu">
+                <button v-if="backLabel" type="button" class="menu-i crumb-back" role="menuitem" aria-keyshortcuts="Meta+BracketLeft" @click="crumbOpen = false; router.back()">
+                  <svg class="ic"><use href="#i-left" /></svg>{{ $t('Zurück zu {name}', { name: $t(backLabel) }) }}<kbd class="key">⌘[</kbd>
+                </button>
+                <div v-if="backLabel" class="crumb-hr"></div>
+                <RouterLink v-for="item in jumpItems" :key="item.path" :to="item.path" class="menu-i crumb-i" role="menuitem" :aria-current="item.path === route.path ? 'page' : undefined" @click="crumbOpen = false">
+                  <svg class="ic"><use :href="`#i-${item.icon}`" /></svg>{{ $t(item.label) }}<kbd v-if="item.key" class="key">G {{ item.key.toUpperCase() }}</kbd>
+                </RouterLink>
+              </div>
+            </template>
+          </div>
+        </nav>
+        <button type="button" class="tb-search" aria-keyshortcuts="Meta+K Control+K" @click="searchOpen = true">
+          <svg class="ic"><use href="#i-search" /></svg><span>{{ $t('Suchen oder neu …') }}</span><kbd class="key" aria-hidden="true">⌘K</kbd>
+        </button>
+        <button type="button" class="tb-btn" :aria-label="$t('Theme wechseln')" :data-tip="$t('Theme wechseln')" @click="toggleTheme"><svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg></button>
+        <button type="button" class="btn btn-primary tb-new" @click="newEntry"><svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neue Aufgabe') }}</button>
+      </header>
+      <RouterView />
+    </main>
     <template v-if="!hideSidebar">
       <button v-if="moreOpen" type="button" class="sheet-scrim" :aria-label="$t('Schließen')" @click="moreOpen = false"></button>
-      <div v-if="moreOpen" class="more-sheet" role="dialog" :aria-label="$t('Mehr')">
+      <div v-if="moreOpen" v-dialog="() => (moreOpen = false)" class="more-sheet" role="dialog" :aria-label="$t('Mehr')">
         <button type="button" class="nav-item" @click="moreOpen = false; searchOpen = true"><svg class="ic"><use href="#i-search" /></svg><span class="nav-l">{{ $t('Suche') }}</span></button>
         <RouterLink v-for="item in more" :key="item.path" :to="item.path" class="nav-item">
           <svg class="ic"><use :href="`#i-${item.icon}`" /></svg><span class="nav-l">{{ $t(item.label) }}</span>
@@ -183,6 +258,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
       <button v-if="showFab" type="button" class="fab" :aria-label="$t('Neu …')" @click="newEntry"><svg class="ic"><use href="#i-plus" /></svg></button>
     </template>
     <SearchPalette v-if="searchOpen" @close="searchOpen = false" />
+    <ShortcutHelp v-if="helpOpen" @close="helpOpen = false" />
     <ConfirmPopup />
     <UndoToast />
   </div>
