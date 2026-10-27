@@ -353,6 +353,14 @@ func run() error {
 				}
 				return fmt.Sprintf("Lernkarten fällig: %d", len(cs)), nil
 			}).
+			WithSource(func(ctx context.Context, lo, hi time.Time) ([]reminder.Item, error) {
+				rs, err := habits.Reminders(ctx, lo, hi)
+				out := make([]reminder.Item, 0, len(rs))
+				for _, x := range rs {
+					out = append(out, reminder.Item{Key: "habit:" + x.Habit.ID + "@" + x.Date, Title: x.Habit.Name, Detail: "Gewohnheit noch offen", At: x.At})
+				}
+				return out, err
+			}).
 			WithJob(time.Sunday, cfg.NtfyWeekly, review.Scorecard).
 			WithJob(reminder.Daily, cfg.NtfyJournal, func(_ context.Context, day time.Time) (string, string, error) {
 				// Wer heute schon geschrieben hat, wird nicht erinnert.

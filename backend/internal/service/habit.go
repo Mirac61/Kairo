@@ -23,6 +23,10 @@ type HabitStore interface {
 	CreateCompletion(ctx context.Context, c domain.HabitCompletion) error
 	DeleteCompletion(ctx context.Context, habitID, date string) error
 	ListCompletions(ctx context.Context, habitID, from, to string) ([]domain.HabitCompletion, error)
+	SetCompletionValue(ctx context.Context, c domain.HabitCompletion) error
+	ListPauses(ctx context.Context) ([]domain.HabitPause, error)
+	CreatePause(ctx context.Context, p domain.HabitPause) error
+	DeletePause(ctx context.Context, id string) error
 }
 
 // HabitService enthält die Regeln für Habits und Completions.
@@ -116,6 +120,8 @@ type CreateHabitInput struct {
 	FrequencyConfig domain.FrequencyConfig
 	TargetValue     *int
 	Unit            string
+	Icon            string
+	Remind          bool
 	PreferredTime   *string
 	DurationMinutes int // 0 = Standard (30)
 	ProjectID       *string
@@ -134,6 +140,8 @@ type UpdateHabitInput struct {
 	FrequencyConfig *domain.FrequencyConfig
 	TargetValue     *int
 	Unit            *string
+	Icon            *string
+	Remind          *bool
 	PreferredTime   *string
 	DurationMinutes *int
 	ProjectID       *string // "" entfernt das Projekt
@@ -166,6 +174,8 @@ func (s *HabitService) Create(ctx context.Context, in CreateHabitInput) (domain.
 		FrequencyType:   in.FrequencyType,
 		TargetValue:     in.TargetValue,
 		Unit:            strings.TrimSpace(in.Unit),
+		Icon:            strings.TrimSpace(in.Icon),
+		Remind:          in.Remind,
 		PreferredTime:   trimOrNil(in.PreferredTime),
 		DurationMinutes: in.DurationMinutes,
 		ProjectID:       trimOrNil(in.ProjectID),
@@ -194,11 +204,79 @@ func (s *HabitService) Create(ctx context.Context, in CreateHabitInput) (domain.
 }
 
 func (s *HabitService) Get(ctx context.Context, id string) (domain.Habit, error) {
-	return s.store.Get(ctx, id)
+	h, err := s.store.Get(ctx, id)
+	if err != nil {
+		return h, err
+	}
+	hs, err := s.withPauses(ctx, []domain.Habit{h})
+	if err != nil {
+		return h, err
+	}
+	return hs[0], nil
 }
 
+// List liefert alle Habits samt ihren Pausen (Habit.Pauses).
 func (s *HabitService) List(ctx context.Context) ([]domain.Habit, error) {
-	return s.store.List(ctx)
+	hs, err := s.store.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.withPauses(ctx, hs)
+}
+
+// withPauses hängt an jedes Habit seine eigenen und die globalen Pausen.
+func (s *HabitService) withPauses(ctx context.Context, hs []domain.Habit) ([]domain.Habit, error) {
+	ps, err := s.store.ListPauses(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range hs {
+		for _, p := range ps {
+			if p.HabitID == nil || *p.HabitID == hs[i].ID {
+				hs[i].Pauses = append(hs[i].Pauses, p)
+			}
+		}
+	}
+	return hs, nil
+}
+
+// Pauses liefert alle Pausen; Pause legt eine an (habitID nil = alle Habits), Unpause löscht sie.
+func (s *HabitService) Pauses(ctx context.Context) ([]domain.HabitPause, error) {
+	return s.store.ListPauses(ctx)
+}
+
+func (s *HabitService) Pause(ctx context.Context, habitID *string, start, end string) (domain.HabitPause, error) {
+	p := domain.HabitPause{ID: domain.NewID(), HabitID: trimOrNil(habitID), StartDate: strings.TrimSpace(start), EndDate: strings.TrimSpace(end)}
+	if p.EndDate == "" {
+		p.EndDate = p.StartDate
+	}
+	if err := validateDate("start_date", p.StartDate); err != nil {
+		return p, err
+	}
+	if err := validateDate("end_date", p.EndDate); err != nil {
+		return p, err
+	}
+	if p.EndDate < p.StartDate {
+		return p, fmt.Errorf("%w: end_date liegt vor start_date", domain.ErrInvalid)
+	}
+	if p.HabitID != nil {
+		if _, err := s.store.Get(ctx, *p.HabitID); err != nil {
+			return p, err
+		}
+	}
+	if err := s.store.CreatePause(ctx, p); err != nil {
+		return p, err
+	}
+	s.emit(domain.Event{Type: domain.EventHabitUpdated, ID: deref(p.HabitID)})
+	return p, nil
+}
+
+func (s *HabitService) Unpause(ctx context.Context, id string) error {
+	if err := s.store.DeletePause(ctx, id); err != nil {
+		return err
+	}
+	s.emit(domain.Event{Type: domain.EventHabitUpdated})
+	return nil
 }
 
 func (s *HabitService) Update(ctx context.Context, id string, in UpdateHabitInput) (domain.Habit, error) {
@@ -227,6 +305,12 @@ func (s *HabitService) Update(ctx context.Context, id string, in UpdateHabitInpu
 	}
 	if in.Unit != nil {
 		h.Unit = strings.TrimSpace(*in.Unit)
+	}
+	if in.Icon != nil {
+		h.Icon = strings.TrimSpace(*in.Icon)
+	}
+	if in.Remind != nil {
+		h.Remind = *in.Remind
 	}
 	if in.PreferredTime != nil {
 		h.PreferredTime = trimOrNil(in.PreferredTime)
@@ -322,7 +406,12 @@ func (s *HabitService) Complete(ctx context.Context, habitID string, in Complete
 		CompletedAt: s.now().UTC(),
 		Note:        in.Note,
 	}
-	if err := s.store.CreateCompletion(ctx, c); err != nil {
+	// Mit Wert (Mengen-Habits) überschreibt ein zweiter Aufruf die Menge des Tages; ohne Wert gilt: einmal pro Tag.
+	save := s.store.CreateCompletion
+	if in.Value != nil {
+		save = s.store.SetCompletionValue
+	}
+	if err := save(ctx, c); err != nil {
 		return domain.HabitCompletion{}, err
 	}
 	s.emit(domain.Event{Type: domain.EventHabitCompleted, ID: habitID})
@@ -384,7 +473,7 @@ func (s *HabitService) DueBetween(ctx context.Context, from, to string) ([]Habit
 	// TIMES_PER_WEEK braucht die ganzen Wochen am Rand.
 	monday, _, _ := domain.WeekRange(from)
 	_, sunday, _ := domain.WeekRange(to)
-	habits, err := s.store.List(ctx)
+	habits, err := s.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -393,11 +482,8 @@ func (s *HabitService) DueBetween(ctx context.Context, from, to string) ([]Habit
 		return nil, err
 	}
 	done := map[string]map[string]bool{}
-	for _, c := range cs {
-		if done[c.HabitID] == nil {
-			done[c.HabitID] = map[string]bool{}
-		}
-		done[c.HabitID][c.Date] = true
+	for _, h := range habits {
+		done[h.ID] = h.DoneDays(cs)
 	}
 	out := []HabitDay{}
 	for i := 0; i < days; i++ {
@@ -411,11 +497,43 @@ func (s *HabitService) DueBetween(ctx context.Context, from, to string) ([]Habit
 	return out, nil
 }
 
+// HabitReminder ist eine offene Gewohnheit mit Erinnerung zu ihrer Wunschzeit At.
+type HabitReminder struct {
+	Habit domain.Habit
+	Date  string
+	At    time.Time
+}
+
+// Reminders liefert die Gewohnheiten mit Remind, die im Fenster (lo, hi] ihre Wunschzeit haben
+// und an dem Tag fällig, aber noch nicht erledigt sind (ausgesetzte Tage sind nicht fällig).
+func (s *HabitService) Reminders(ctx context.Context, lo, hi time.Time) ([]HabitReminder, error) {
+	from, to := lo.In(s.loc).Format("2006-01-02"), hi.In(s.loc).Format("2006-01-02")
+	days, err := s.DueBetween(ctx, from, to)
+	if err != nil {
+		return nil, err
+	}
+	var out []HabitReminder
+	for _, d := range days {
+		h := d.Habit
+		if !h.Remind || h.PreferredTime == nil || d.Occurrence.Done {
+			continue
+		}
+		at, err := time.ParseInLocation("2006-01-02 15:04", d.Occurrence.Date+" "+*h.PreferredTime, s.loc)
+		if err != nil || !at.After(lo) || at.After(hi) {
+			continue
+		}
+		out = append(out, HabitReminder{Habit: h, Date: d.Occurrence.Date, At: at})
+	}
+	return out, nil
+}
+
 // normalizeHabit prüft h und setzt die kanonische FrequencyConfig.
 func normalizeHabit(h *domain.Habit, cfg domain.FrequencyConfig) error {
 	switch {
 	case h.Name == "":
 		return fmt.Errorf("%w: name darf nicht leer sein", domain.ErrInvalid)
+	case len(h.Icon) > 32:
+		return fmt.Errorf("%w: icon ist zu lang", domain.ErrInvalid)
 	case h.TargetValue != nil && *h.TargetValue < 1:
 		return fmt.Errorf("%w: target_value muss mindestens 1 sein", domain.ErrInvalid)
 	case h.DurationMinutes < 1 || h.DurationMinutes > 24*60:

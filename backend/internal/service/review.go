@@ -205,10 +205,9 @@ func (s *ReviewService) Get(ctx context.Context, from, to string) (Review, error
 		if err != nil {
 			return Review{}, err
 		}
-		done, inRange := map[string]bool{}, 0
-		for _, c := range cs {
-			done[c.Date] = true
-			if c.Date >= from && c.Date <= to {
+		done, inRange := h.DoneDays(cs), 0
+		for d := range done {
+			if d >= from && d <= to {
 				inRange++
 			}
 		}

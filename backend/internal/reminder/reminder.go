@@ -39,7 +39,17 @@ type Runner struct {
 	sent     map[string]time.Time
 	jobs     []*job
 	extras   []func(ctx context.Context) (string, error) // weitere Zeilen der Sammelmeldung
+	sources  []Source
 }
+
+// Item ist eine Erinnerung aus einer weiteren Quelle; Key macht sie eindeutig (eine Meldung pro Key).
+type Item struct {
+	Key, Title, Detail string
+	At                 time.Time
+}
+
+// Source liefert weitere Erinnerungen, die im Fenster (lo, hi] beginnen (z. B. offene Gewohnheiten).
+type Source func(ctx context.Context, lo, hi time.Time) ([]Item, error)
 
 // Daily ist der Wochentag eines Jobs, der jeden Tag läuft.
 const Daily time.Weekday = -1
@@ -98,6 +108,12 @@ func (r *Runner) WithJob(weekday time.Weekday, at time.Duration, build func(ctx 
 	return r
 }
 
+// WithSource nimmt eine weitere Quelle für Erinnerungen dazu.
+func (r *Runner) WithSource(src Source) *Runner {
+	r.sources = append(r.sources, src)
+	return r
+}
+
 // Enabled sagt, ob Erinnerungen konfiguriert sind.
 func (r *Runner) Enabled() bool { return r.url != "" && r.topic != "" }
 
@@ -146,6 +162,16 @@ func (r *Runner) tick(ctx context.Context) {
 			}
 			key := "event:" + e.Event.ID + "@" + e.Start.UTC().Format(time.RFC3339)
 			items = append(items, item{key: key, title: e.Event.Title, detail: e.Event.Location, at: e.Start})
+		}
+	}
+	for _, src := range r.sources {
+		xs, err := src(ctx, lo, hi)
+		if err != nil {
+			r.log.Warn("Erinnerung: Quelle lesen", "err", err)
+			continue
+		}
+		for _, x := range xs {
+			items = append(items, item{key: x.Key, title: x.Title, detail: x.Detail, at: x.At})
 		}
 	}
 

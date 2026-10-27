@@ -142,14 +142,51 @@ type Habit struct {
 	FrequencyConfig FrequencyConfig
 	TargetValue     *int
 	Unit            string
+	Icon            string  // Symbolname, leer = automatisch
 	PreferredTime   *string // lokale Uhrzeit HH:MM
 	DurationMinutes int     // Länge des Kalenderblocks
 	ProjectID       *string // gesetzt: erledigt, sobald am Tag DurationMinutes im Projekt erfasst sind
 	StartDate       string  // lokaler Tag
 	EndDate         *string // lokaler Tag, inklusive
 	Active          bool
+	Remind          bool // ntfy zur PreferredTime, solange offen
 	CreatedAt       time.Time
-	DeletedAt       *time.Time // UTC; nur in der Papierkorb-Liste gesetzt
+	DeletedAt       *time.Time   // UTC; nur in der Papierkorb-Liste gesetzt
+	Pauses          []HabitPause // eigene und globale Pausen; lädt der Service, nicht die Tabelle habits
+}
+
+// HabitPause setzt ein Habit (oder mit HabitID nil alle) von StartDate bis EndDate (inklusive) aus.
+type HabitPause struct {
+	ID        string
+	HabitID   *string
+	StartDate string
+	EndDate   string
+}
+
+// PausedOn meldet, ob date in einer Pause von h liegt.
+func (h Habit) PausedOn(date string) bool {
+	for _, p := range h.Pauses {
+		if date >= p.StartDate && date <= p.EndDate {
+			return true
+		}
+	}
+	return false
+}
+
+// Fulfilled meldet, ob c das Habit erfüllt: mit Zielmenge erst ab dieser, ein Haken ohne Wert immer.
+func (h Habit) Fulfilled(c HabitCompletion) bool {
+	return h.TargetValue == nil || c.Value == nil || *c.Value >= *h.TargetValue
+}
+
+// DoneDays sind die Tage aus cs, an denen h erfüllt ist (Eingabe für OccurrenceOn und Streak).
+func (h Habit) DoneDays(cs []HabitCompletion) map[string]bool {
+	done := map[string]bool{}
+	for _, c := range cs {
+		if (c.HabitID == "" || c.HabitID == h.ID) && h.Fulfilled(c) {
+			done[c.Date] = true
+		}
+	}
+	return done
 }
 
 // HabitCompletion ist das Abhaken eines Habits an einem lokalen Tag.
@@ -182,7 +219,7 @@ type HabitOccurrence struct {
 // bis das Wochenziel erreicht ist; ein an date abgehakter Tag bleibt sichtbar.
 func (h Habit) OccurrenceOn(date string, done map[string]bool) (HabitOccurrence, bool) {
 	day, err := ParseDate(date)
-	if err != nil || !h.Active || date < h.StartDate || (h.EndDate != nil && date > *h.EndDate) {
+	if err != nil || !h.Active || date < h.StartDate || (h.EndDate != nil && date > *h.EndDate) || h.PausedOn(date) {
 		return HabitOccurrence{}, false
 	}
 	occ := HabitOccurrence{HabitID: h.ID, Date: date, Done: done[date]}
@@ -244,15 +281,18 @@ func (h Habit) Streak(today string, done map[string]bool) int {
 			if start.Format("2006-01-02") < h.StartDate && w > 0 {
 				break
 			}
-			count := 0
+			count, paused := 0, false
 			for i := 0; i < 7; i++ {
-				if done[start.AddDate(0, 0, i).Format("2006-01-02")] {
+				d := start.AddDate(0, 0, i).Format("2006-01-02")
+				if done[d] {
 					count++
 				}
+				paused = paused || h.PausedOn(d)
 			}
 			switch {
 			case count >= h.FrequencyConfig.Times:
 				n++
+			case paused: // Woche mit Pause zählt nicht und bricht nicht
 			case w > 0:
 				return n
 			}

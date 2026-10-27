@@ -170,3 +170,39 @@ func TestStreak(t *testing.T) {
 		t.Errorf("times_per_week = %d, want 1", got)
 	}
 }
+
+func TestFulfilledAndDoneDays(t *testing.T) {
+	eight, three := 8, 3
+	h := Habit{ID: "h", TargetValue: &eight}
+	cs := []HabitCompletion{
+		{HabitID: "h", Date: "2026-10-05", Value: &eight}, // Ziel erreicht
+		{HabitID: "h", Date: "2026-10-06", Value: &three}, // nur teilweise
+		{HabitID: "h", Date: "2026-10-07"},                // Haken ohne Menge zählt voll
+		{HabitID: "x", Date: "2026-10-08"},                // anderes Habit
+	}
+	if got, want := h.DoneDays(cs), set("2026-10-05", "2026-10-07"); !reflect.DeepEqual(got, want) {
+		t.Errorf("DoneDays = %v, erwartet %v", got, want)
+	}
+	if !(Habit{}).Fulfilled(HabitCompletion{Value: &three}) {
+		t.Error("ohne Ziel erfüllt jeder Eintrag")
+	}
+}
+
+func TestPausesSkipWithoutBreakingStreak(t *testing.T) {
+	// 05.10.2026 ist ein Montag; Di und Mi ausgesetzt.
+	h := Habit{ID: "h", Active: true, StartDate: "2026-10-01", FrequencyType: FreqDaily,
+		Pauses: []HabitPause{{StartDate: "2026-10-06", EndDate: "2026-10-07"}}}
+	if _, due := h.OccurrenceOn("2026-10-06", nil); due {
+		t.Error("ausgesetzter Tag ist fällig")
+	}
+	if got := h.Streak("2026-10-08", set("2026-10-04", "2026-10-05", "2026-10-08")); got != 3 {
+		t.Errorf("Streak über Pause = %d, erwartet 3", got)
+	}
+
+	w := Habit{ID: "w", Active: true, StartDate: "2026-09-01", FrequencyType: FreqTimesPerWeek, FrequencyConfig: FrequencyConfig{Times: 2},
+		Pauses: []HabitPause{{StartDate: "2026-09-29", EndDate: "2026-09-29"}}}
+	// Woche 21.09. erfüllt, Woche 28.09. mit Pause nicht erfüllt, Woche 05.10. erfüllt.
+	if got := w.Streak("2026-10-07", set("2026-09-21", "2026-09-22", "2026-10-05", "2026-10-06")); got != 2 {
+		t.Errorf("Wochen-Streak über Pause = %d, erwartet 2", got)
+	}
+}

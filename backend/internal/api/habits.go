@@ -23,6 +23,9 @@ type HabitService interface {
 	Uncomplete(ctx context.Context, habitID, date string) error
 	Completions(ctx context.Context, habitID, from, to string) ([]domain.HabitCompletion, error)
 	DueBetween(ctx context.Context, from, to string) ([]service.HabitDay, error)
+	Pauses(ctx context.Context) ([]domain.HabitPause, error)
+	Pause(ctx context.Context, habitID *string, start, end string) (domain.HabitPause, error)
+	Unpause(ctx context.Context, id string) error
 }
 
 type habitDTO struct {
@@ -33,6 +36,8 @@ type habitDTO struct {
 	FrequencyConfig domain.FrequencyConfig `json:"frequency_config"`
 	TargetValue     *int                   `json:"target_value"`
 	Unit            string                 `json:"unit"`
+	Icon            string                 `json:"icon"`
+	Remind          bool                   `json:"remind"`
 	PreferredTime   *string                `json:"preferred_time"`
 	DurationMinutes int                    `json:"duration_minutes"`
 	ProjectID       *string                `json:"project_id"`
@@ -52,6 +57,8 @@ func toHabitDTO(h domain.Habit) habitDTO {
 		FrequencyConfig: h.FrequencyConfig,
 		TargetValue:     h.TargetValue,
 		Unit:            h.Unit,
+		Icon:            h.Icon,
+		Remind:          h.Remind,
 		PreferredTime:   h.PreferredTime,
 		DurationMinutes: h.DurationMinutes,
 		ProjectID:       h.ProjectID,
@@ -96,6 +103,9 @@ func (h habitHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/habits/{id}/completions", h.listCompletions)
 	mux.HandleFunc("POST /api/habits/{id}/completions", h.complete)
 	mux.HandleFunc("DELETE /api/habits/{id}/completions/{date}", h.uncomplete)
+	mux.HandleFunc("GET /api/habits/pauses", h.listPauses)
+	mux.HandleFunc("POST /api/habits/pauses", h.pause)
+	mux.HandleFunc("DELETE /api/habits/pauses/{pid}", h.unpause)
 }
 
 func (h habitHandlers) list(w http.ResponseWriter, r *http.Request) {
@@ -116,6 +126,8 @@ func (h habitHandlers) create(w http.ResponseWriter, r *http.Request) {
 		FrequencyConfig domain.FrequencyConfig `json:"frequency_config"`
 		TargetValue     *int                   `json:"target_value"`
 		Unit            string                 `json:"unit"`
+		Icon            string                 `json:"icon"`
+		Remind          bool                   `json:"remind"`
 		PreferredTime   *string                `json:"preferred_time"`
 		DurationMinutes int                    `json:"duration_minutes"`
 		ProjectID       *string                `json:"project_id"`
@@ -133,6 +145,8 @@ func (h habitHandlers) create(w http.ResponseWriter, r *http.Request) {
 		FrequencyConfig: in.FrequencyConfig,
 		TargetValue:     in.TargetValue,
 		Unit:            in.Unit,
+		Icon:            in.Icon,
+		Remind:          in.Remind,
 		PreferredTime:   in.PreferredTime,
 		DurationMinutes: in.DurationMinutes,
 		ProjectID:       in.ProjectID,
@@ -167,6 +181,8 @@ func (h habitHandlers) update(w http.ResponseWriter, r *http.Request) {
 		FrequencyConfig *domain.FrequencyConfig `json:"frequency_config"`
 		TargetValue     *int                    `json:"target_value"`
 		Unit            *string                 `json:"unit"`
+		Icon            *string                 `json:"icon"`
+		Remind          *bool                   `json:"remind"`
 		PreferredTime   *string                 `json:"preferred_time"`
 		DurationMinutes *int                    `json:"duration_minutes"`
 		ProjectID       *string                 `json:"project_id"`
@@ -183,6 +199,8 @@ func (h habitHandlers) update(w http.ResponseWriter, r *http.Request) {
 		FrequencyConfig: in.FrequencyConfig,
 		TargetValue:     in.TargetValue,
 		Unit:            in.Unit,
+		Icon:            in.Icon,
+		Remind:          in.Remind,
 		PreferredTime:   in.PreferredTime,
 		DurationMinutes: in.DurationMinutes,
 		ProjectID:       in.ProjectID,
@@ -268,4 +286,54 @@ func (h habitHandlers) due(w http.ResponseWriter, r *http.Request) {
 			DurationMinutes: d.Habit.DurationMinutes,
 		}
 	})
+}
+
+type habitPauseDTO struct {
+	ID        string  `json:"id"`
+	HabitID   *string `json:"habit_id"` // null = alle Gewohnheiten
+	StartDate string  `json:"start_date"`
+	EndDate   string  `json:"end_date"`
+}
+
+func toHabitPauseDTO(p domain.HabitPause) habitPauseDTO {
+	return habitPauseDTO{ID: p.ID, HabitID: p.HabitID, StartDate: p.StartDate, EndDate: p.EndDate}
+}
+
+func (h habitHandlers) listPauses(w http.ResponseWriter, r *http.Request) {
+	ps, err := h.svc.Pauses(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	out := make([]habitPauseDTO, 0, len(ps))
+	for _, p := range ps {
+		out = append(out, toHabitPauseDTO(p))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// pause legt eine Pause an; ohne end_date nur für start_date (einen Tag aussetzen).
+func (h habitHandlers) pause(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		HabitID   *string `json:"habit_id"`
+		StartDate string  `json:"start_date"`
+		EndDate   string  `json:"end_date"`
+	}
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	p, err := h.svc.Pause(r.Context(), in.HabitID, in.StartDate, in.EndDate)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, toHabitPauseDTO(p))
+}
+
+func (h habitHandlers) unpause(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.Unpause(r.Context(), r.PathValue("pid")); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

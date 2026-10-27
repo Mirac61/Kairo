@@ -13,6 +13,7 @@ import (
 type memHabits struct {
 	habits map[string]domain.Habit
 	comps  []domain.HabitCompletion
+	pauses []domain.HabitPause
 }
 
 func (s *memHabits) Create(_ context.Context, h domain.Habit) error { s.habits[h.ID] = h; return nil }
@@ -53,6 +54,30 @@ func (s *memHabits) DeleteCompletion(_ context.Context, habitID, date string) er
 	for i, x := range s.comps {
 		if x.HabitID == habitID && x.Date == date {
 			s.comps = append(s.comps[:i], s.comps[i+1:]...)
+			return nil
+		}
+	}
+	return domain.ErrNotFound
+}
+func (s *memHabits) SetCompletionValue(_ context.Context, c domain.HabitCompletion) error {
+	for i, x := range s.comps {
+		if x.HabitID == c.HabitID && x.Date == c.Date {
+			s.comps[i].Value = c.Value
+			return nil
+		}
+	}
+	s.comps = append(s.comps, c)
+	return nil
+}
+func (s *memHabits) ListPauses(context.Context) ([]domain.HabitPause, error) { return s.pauses, nil }
+func (s *memHabits) CreatePause(_ context.Context, p domain.HabitPause) error {
+	s.pauses = append(s.pauses, p)
+	return nil
+}
+func (s *memHabits) DeletePause(_ context.Context, id string) error {
+	for i, p := range s.pauses {
+		if p.ID == id {
+			s.pauses = append(s.pauses[:i], s.pauses[i+1:]...)
 			return nil
 		}
 	}
@@ -342,5 +367,61 @@ func TestHabitSyncTracked(t *testing.T) {
 	}
 	if err := svc.SyncTracked(ctx, at(9, 0)); err != nil { // schon erledigt: kein Fehler, keine zweite Completion
 		t.Fatal(err)
+	}
+}
+
+func TestHabitValueAndPauseAndReminders(t *testing.T) {
+	svc := newHabitSvc(t) // heute: 08.10.2026 (Berlin)
+	ctx := context.Background()
+	h, err := svc.Create(ctx, CreateHabitInput{Name: "Wasser", FrequencyType: domain.FreqDaily, TargetValue: ptr(8),
+		PreferredTime: ptr("09:00"), Remind: true, StartDate: ptr("2026-10-01")})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Menge: zweiter Aufruf überschreibt; erst ab Ziel erledigt.
+	for _, v := range []int{3, 5} {
+		if _, err := svc.Complete(ctx, h.ID, CompleteHabitInput{Date: "2026-10-08", Value: ptr(v)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	due, _ := svc.DueOn(ctx, "2026-10-08")
+	if len(due) != 1 || due[0].Occurrence.Done {
+		t.Fatalf("5 von 8 = erledigt? %+v", due)
+	}
+	loc := svc.loc
+	lo, hi := time.Date(2026, 10, 8, 8, 55, 0, 0, loc), time.Date(2026, 10, 8, 9, 5, 0, 0, loc)
+	if rs, _ := svc.Reminders(ctx, lo, hi); len(rs) != 1 || rs[0].Date != "2026-10-08" {
+		t.Errorf("Erinnerung bei offener Menge = %+v", rs)
+	}
+	if _, err := svc.Complete(ctx, h.ID, CompleteHabitInput{Date: "2026-10-08", Value: ptr(8)}); err != nil {
+		t.Fatal(err)
+	}
+	if due, _ := svc.DueOn(ctx, "2026-10-08"); !due[0].Occurrence.Done {
+		t.Error("8 von 8 nicht erledigt")
+	}
+	if rs, _ := svc.Reminders(ctx, lo, hi); len(rs) != 0 {
+		t.Errorf("Erinnerung trotz erledigt = %+v", rs)
+	}
+
+	// Urlaub (alle Habits): nichts fällig, keine Erinnerung; Pause löschen hebt es auf.
+	p, err := svc.Pause(ctx, nil, "2026-10-09", "2026-10-12")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if due, _ := svc.DueOn(ctx, "2026-10-10"); len(due) != 0 {
+		t.Errorf("im Urlaub fällig: %+v", due)
+	}
+	if rs, _ := svc.Reminders(ctx, lo.AddDate(0, 0, 2), hi.AddDate(0, 0, 2)); len(rs) != 0 {
+		t.Errorf("Erinnerung im Urlaub = %+v", rs)
+	}
+	if err := svc.Unpause(ctx, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if due, _ := svc.DueOn(ctx, "2026-10-10"); len(due) != 1 {
+		t.Errorf("nach Urlaub nicht fällig: %+v", due)
+	}
+	if _, err := svc.Pause(ctx, nil, "2026-10-12", "2026-10-09"); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("Ende vor Beginn = %v", err)
 	}
 }

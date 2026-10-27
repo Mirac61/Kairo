@@ -18,7 +18,7 @@ type HabitRepository struct{ db *sql.DB }
 func NewHabitRepository(db *sql.DB) *HabitRepository { return &HabitRepository{db: db} }
 
 const habitColumns = `id, name, description, frequency_type, frequency_config, target_value, unit,
-	preferred_time, start_date, end_date, active, created_at, duration_minutes, project_id`
+	preferred_time, start_date, end_date, active, created_at, duration_minutes, project_id, icon, remind`
 
 const completionColumns = `id, habit_id, date, value, completed_at, note`
 
@@ -36,10 +36,10 @@ func scanHabit(s scanner, extra ...any) (domain.Habit, error) {
 		target                sql.NullInt64
 		preferred, end, proj  sql.NullString
 		freq, config, created string
-		active                int
+		active, remind        int
 	)
 	if err := s.Scan(append([]any{&h.ID, &h.Name, &h.Description, &freq, &config, &target, &h.Unit,
-		&preferred, &h.StartDate, &end, &active, &created, &h.DurationMinutes, &proj}, extra...)...); err != nil {
+		&preferred, &h.StartDate, &end, &active, &created, &h.DurationMinutes, &proj, &h.Icon, &remind}, extra...)...); err != nil {
 		return domain.Habit{}, err
 	}
 	h.FrequencyType = domain.FrequencyType(freq)
@@ -51,7 +51,7 @@ func scanHabit(s scanner, extra ...any) (domain.Habit, error) {
 		v := int(target.Int64)
 		h.TargetValue = &v
 	}
-	h.PreferredTime, h.EndDate, h.Active = nullStr(preferred), nullStr(end), active == 1
+	h.PreferredTime, h.EndDate, h.Active, h.Remind = nullStr(preferred), nullStr(end), active == 1, remind == 1
 	var err error
 	if h.CreatedAt, err = parseTime(created); err != nil {
 		return domain.Habit{}, fmt.Errorf("created_at: %w", err)
@@ -93,9 +93,9 @@ func (r *HabitRepository) Create(ctx context.Context, h domain.Habit) error {
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO habits (`+habitColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO habits (`+habitColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		h.ID, h.Name, h.Description, string(h.FrequencyType), string(cfg), nullInt(h.TargetValue), h.Unit,
-		h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), formatTime(h.CreatedAt), h.DurationMinutes, h.ProjectID)
+		h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), formatTime(h.CreatedAt), h.DurationMinutes, h.ProjectID, h.Icon, boolInt(h.Remind))
 	if err != nil {
 		return fmt.Errorf("repository: Habit anlegen: %w", mapFK(err))
 	}
@@ -140,10 +140,10 @@ func (r *HabitRepository) Update(ctx context.Context, h domain.Habit) error {
 	}
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE habits SET name = ?, description = ?, frequency_type = ?, frequency_config = ?, target_value = ?,
-			unit = ?, preferred_time = ?, start_date = ?, end_date = ?, active = ?, duration_minutes = ?, project_id = ?
+			unit = ?, preferred_time = ?, start_date = ?, end_date = ?, active = ?, duration_minutes = ?, project_id = ?, icon = ?, remind = ?
 			WHERE id = ? AND deleted_at IS NULL`,
 		h.Name, h.Description, string(h.FrequencyType), string(cfg), nullInt(h.TargetValue),
-		h.Unit, h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), h.DurationMinutes, h.ProjectID, h.ID)
+		h.Unit, h.PreferredTime, h.StartDate, h.EndDate, boolInt(h.Active), h.DurationMinutes, h.ProjectID, h.Icon, boolInt(h.Remind), h.ID)
 	if err != nil {
 		return fmt.Errorf("repository: Habit ändern: %w", mapFK(err))
 	}
@@ -170,6 +170,18 @@ func (r *HabitRepository) CreateCompletion(ctx context.Context, c domain.HabitCo
 			return fmt.Errorf("%w: für diesen Tag ist das Habit schon abgehakt", domain.ErrConflict)
 		}
 		return fmt.Errorf("repository: Completion anlegen: %w", err)
+	}
+	return nil
+}
+
+// SetCompletionValue speichert die Menge eines Tages; ein vorhandener Eintrag bekommt den neuen Wert.
+func (r *HabitRepository) SetCompletionValue(ctx context.Context, c domain.HabitCompletion) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO habit_completions (`+completionColumns+`) VALUES (?, ?, ?, ?, ?, ?)
+			ON CONFLICT (habit_id, date) DO UPDATE SET value = excluded.value, completed_at = excluded.completed_at`,
+		c.ID, c.HabitID, c.Date, nullInt(c.Value), formatTime(c.CompletedAt), c.Note)
+	if err != nil {
+		return fmt.Errorf("repository: Menge speichern: %w", mapFK(err))
 	}
 	return nil
 }
@@ -217,4 +229,43 @@ func (r *HabitRepository) ListCompletions(ctx context.Context, habitID, from, to
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// ListPauses liefert alle Pausen nach Beginn sortiert.
+func (r *HabitRepository) ListPauses(ctx context.Context) ([]domain.HabitPause, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, habit_id, start_date, end_date FROM habit_pauses ORDER BY start_date, id`)
+	if err != nil {
+		return nil, fmt.Errorf("repository: Pausen lesen: %w", err)
+	}
+	defer rows.Close()
+	out := []domain.HabitPause{}
+	for rows.Next() {
+		var (
+			p   domain.HabitPause
+			hid sql.NullString
+		)
+		if err := rows.Scan(&p.ID, &hid, &p.StartDate, &p.EndDate); err != nil {
+			return nil, fmt.Errorf("repository: Pause lesen: %w", err)
+		}
+		p.HabitID = nullStr(hid)
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (r *HabitRepository) CreatePause(ctx context.Context, p domain.HabitPause) error {
+	_, err := r.db.ExecContext(ctx, `INSERT INTO habit_pauses (id, habit_id, start_date, end_date) VALUES (?, ?, ?, ?)`,
+		p.ID, p.HabitID, p.StartDate, p.EndDate)
+	if err != nil {
+		return fmt.Errorf("repository: Pause anlegen: %w", mapFK(err))
+	}
+	return nil
+}
+
+func (r *HabitRepository) DeletePause(ctx context.Context, id string) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM habit_pauses WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("repository: Pause löschen: %w", err)
+	}
+	return requireAffected(res)
 }

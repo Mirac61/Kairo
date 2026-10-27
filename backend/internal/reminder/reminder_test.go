@@ -208,3 +208,20 @@ func TestJobs(t *testing.T) {
 		}
 	}
 }
+
+func TestSourceOnce(t *testing.T) {
+	now := time.Date(2026, 10, 19, 8, 0, 0, 0, time.UTC)
+	var posts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { posts++ }))
+	defer srv.Close()
+	r := New(&fakeStore{}, srv.URL, "kairo", 10*time.Minute, time.Minute, time.UTC, nil).
+		WithSource(func(_ context.Context, lo, hi time.Time) ([]Item, error) {
+			return []Item{{Key: "habit:h@2026-10-19", Title: "Lesen", At: now.Add(5 * time.Minute)}}, nil
+		})
+	r.now = func() time.Time { return now }
+	r.tick(context.Background())
+	r.tick(context.Background())
+	if posts != 1 {
+		t.Fatalf("posts = %d, erwartet 1", posts)
+	}
+}

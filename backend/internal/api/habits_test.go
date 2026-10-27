@@ -28,13 +28,13 @@ func TestHabitsCRUD(t *testing.T) {
 	h := newHabitsRouter(t)
 
 	rec := call(h, "POST", "/api/habits", `{"name":"Sport","frequency_type":"TIMES_PER_WEEK",
-		"frequency_config":{"times":3},"preferred_time":"18:00","start_date":"2026-01-05"}`)
+		"frequency_config":{"times":3},"preferred_time":"18:00","start_date":"2026-01-05","icon":"dumbbell"}`)
 	if rec.Code != 201 {
 		t.Fatalf("POST = %d %s", rec.Code, rec.Body)
 	}
 	var x habitDTO
 	_ = json.Unmarshal(rec.Body.Bytes(), &x)
-	if x.FrequencyType != "TIMES_PER_WEEK" || x.FrequencyConfig.Times != 3 || !x.Active || *x.PreferredTime != "18:00" || x.DurationMinutes != 30 {
+	if x.FrequencyType != "TIMES_PER_WEEK" || x.FrequencyConfig.Times != 3 || !x.Active || *x.PreferredTime != "18:00" || x.DurationMinutes != 30 || x.Icon != "dumbbell" {
 		t.Errorf("POST-Antwort = %+v", x)
 	}
 
@@ -49,13 +49,13 @@ func TestHabitsCRUD(t *testing.T) {
 	}
 
 	rec = call(h, "PATCH", "/api/habits/"+x.ID, `{"frequency_type":"SPECIFIC_WEEKDAYS",
-		"frequency_config":{"weekdays":["fr","mo"]},"preferred_time":"","duration_minutes":45,"active":false}`)
+		"frequency_config":{"weekdays":["fr","mo"]},"preferred_time":"","duration_minutes":45,"active":false,"icon":"bike"}`)
 	if rec.Code != 200 {
 		t.Fatalf("PATCH = %d %s", rec.Code, rec.Body)
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &x)
 	if x.FrequencyType != "SPECIFIC_WEEKDAYS" || len(x.FrequencyConfig.Weekdays) != 2 || x.FrequencyConfig.Weekdays[0] != "MO" ||
-		x.PreferredTime != nil || x.Active || x.Name != "Sport" || x.DurationMinutes != 45 {
+		x.PreferredTime != nil || x.Active || x.Name != "Sport" || x.DurationMinutes != 45 || x.Icon != "bike" {
 		t.Errorf("PATCH-Antwort = %+v", x)
 	}
 
@@ -138,5 +138,50 @@ func TestHabitsErrors(t *testing.T) {
 		if rec := call(h, tc.method, tc.path, tc.body); rec.Code != tc.want {
 			t.Errorf("%s: %d, erwartet %d (%s)", name, rec.Code, tc.want, rec.Body)
 		}
+	}
+}
+
+func TestHabitValueAndPauses(t *testing.T) {
+	h := newHabitsRouter(t)
+	var x habitDTO
+	_ = json.Unmarshal(call(h, "POST", "/api/habits", `{"name":"Wasser","frequency_type":"DAILY","target_value":8,"remind":true,"preferred_time":"09:00","start_date":"2026-01-01"}`).Body.Bytes(), &x)
+	if !x.Remind {
+		t.Errorf("remind = %+v", x)
+	}
+	path := "/api/habits/" + x.ID + "/completions"
+	call(h, "POST", path, `{"date":"2026-03-02","value":3}`)
+	if rec := call(h, "POST", path, `{"date":"2026-03-02","value":8}`); rec.Code != 201 {
+		t.Fatalf("Menge ändern = %d %s", rec.Code, rec.Body)
+	}
+	var list []habitCompletionDTO
+	_ = json.Unmarshal(call(h, "GET", path, "").Body.Bytes(), &list)
+	if len(list) != 1 || *list[0].Value != 8 {
+		t.Errorf("Menge = %+v", list)
+	}
+
+	rec := call(h, "POST", "/api/habits/pauses", `{"habit_id":"`+x.ID+`","start_date":"2026-03-03"}`)
+	var p habitPauseDTO
+	_ = json.Unmarshal(rec.Body.Bytes(), &p)
+	if rec.Code != 201 || p.EndDate != "2026-03-03" || *p.HabitID != x.ID {
+		t.Fatalf("Pause = %d %s", rec.Code, rec.Body)
+	}
+	var due []habitDueDTO
+	_ = json.Unmarshal(call(h, "GET", "/api/habits/due?from=2026-03-02&to=2026-03-04", "").Body.Bytes(), &due)
+	if len(due) != 2 || due[0].Date != "2026-03-02" || !due[0].Done || due[1].Date != "2026-03-04" {
+		t.Errorf("due mit Pause = %+v", due)
+	}
+	var ps []habitPauseDTO
+	_ = json.Unmarshal(call(h, "GET", "/api/habits/pauses", "").Body.Bytes(), &ps)
+	if len(ps) != 1 {
+		t.Errorf("Pausen = %+v", ps)
+	}
+	if rec := call(h, "POST", "/api/habits/pauses", `{"habit_id":"gibtsnicht","start_date":"2026-03-03"}`); rec.Code != 404 {
+		t.Errorf("Pause für unbekanntes Habit = %d", rec.Code)
+	}
+	if rec := call(h, "DELETE", "/api/habits/pauses/"+p.ID, ""); rec.Code != 204 {
+		t.Errorf("Pause löschen = %d", rec.Code)
+	}
+	if rec := call(h, "DELETE", "/api/habits/pauses/"+p.ID, ""); rec.Code != 404 {
+		t.Errorf("Pause zweimal löschen = %d", rec.Code)
 	}
 }
