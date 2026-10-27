@@ -62,6 +62,8 @@ async function addNote() {
       <span v-else class="res-t">{{ r.label || r.target }} <span class="muted">· {{ r.type }}</span></span>
       <button class="icon-btn" type="button" :aria-label="`Ressource entfernen: ${r.label || r.target}`" @click="change(() => deleteResource(r.id))"><svg class="ic"><use href="#i-trash" /></svg></button>
     </div>
+    <details class="res-more">
+      <summary>{{ $t('Ressource hinzufügen') }}</summary>
     <form class="res-note-add" @submit.prevent="addNote">
       <input v-model="note" class="input" list="res-notes" :placeholder="$t('Notiz oder PDF verknüpfen …')" :aria-label="$t('Notiz oder PDF verknüpfen …')" @focus="loadNotes" />
       <datalist id="res-notes"><option v-for="p in notes ?? []" :key="p" :value="p" /></datalist>
@@ -72,6 +74,7 @@ async function addNote() {
       <input v-model="label" class="input" :placeholder="$t('Name (optional)')" :aria-label="$t('Name')" />
       <button class="btn btn-secondary" type="submit">{{ $t('Hinzufügen') }}</button>
     </form>
+    </details>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
   </div>
 </template>
@@ -81,6 +84,11 @@ async function addNote() {
 .res-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .res-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .res-note { color: var(--tx-primary); text-decoration: underline; text-decoration-color: var(--br-default); text-underline-offset: 3px; }
+.res-more { display: grid; gap: 8px; }
+.res-more > summary { list-style: none; cursor: pointer; color: var(--tx-muted); font: 400 13px/1.2 var(--font-ui); }
+.res-more > summary::-webkit-details-marker { display: none; }
+.res-more > summary:hover { color: var(--tx-primary); }
+.res-more[open] > summary { margin-bottom: 8px; }
 .res-note-add { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .res-add { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .res-add .btn { grid-column: 1 / -1; justify-self: start; }

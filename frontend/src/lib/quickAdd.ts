@@ -93,9 +93,16 @@ function minutesOf(token: string, unit?: string): number | null {
   return hm && Number(hm[2]) < 60 ? Number(hm[1]) * 60 + Number(hm[2]) : null
 }
 
-export function parseQuickAdd(raw: string, projects: QuickProject[] = [], today = new Date().toLocaleDateString('sv')): Quick {
+export const parseQuickAdd = (raw: string, projects: QuickProject[] = [], today = new Date().toLocaleDateString('sv')): Quick => scan(raw, projects, today).q
+
+// Wörter der Eingabe mit dem, was darin erkannt wurde: '' = Titel, 'bad' = #/@/! ohne Treffer (für die Hervorhebung).
+export type TokenKind = '' | 'dur' | 'date' | 'project' | 'prio' | 'bad'
+export const quickTokens = (raw: string, projects: QuickProject[] = [], today = new Date().toLocaleDateString('sv')) => scan(raw, projects, today).tokens
+
+function scan(raw: string, projects: QuickProject[], today: string) {
   const q: Quick = { title: '', minutes: 0, date: null, time: null, project: null, priority: null, rule: null }
   const words = raw.trim().split(/\s+/).filter(Boolean)
+  const kinds: TokenKind[] = []
   const rest: string[] = []
   for (let i = 0; i < words.length; i++) {
     const w = words[i]!
@@ -104,26 +111,27 @@ export function parseQuickAdd(raw: string, projects: QuickProject[] = [], today 
       // „30 min Sport“: Zahl und Einheit als zwei Wörter
       const two = /^\d+(?:[.,]\d+)?$/.test(w) && words[i + 1] && /^(h|std|min|m)$/i.test(words[i + 1]!) ? minutesOf(w, words[i + 1]) : null
       const one = two ?? minutesOf(w)
-      if (one) { q.minutes = one; if (two) i++; continue }
+      if (one) { q.minutes = one; kinds[i] = 'dur'; if (two) kinds[++i] = 'dur'; continue }
     }
-    if (w[0] === '@' && !q.rule && Object.hasOwn(SIMPLE_RULES, body)) { q.rule = SIMPLE_RULES[body]!; continue }
+    if (w[0] === '@' && !q.rule && Object.hasOwn(SIMPLE_RULES, body)) { q.rule = SIMPLE_RULES[body]!; kinds[i] = 'date'; continue }
     const every = w[0] === '@' && !q.rule && ['jeden', 'jede', 'jedes', 'every'].includes(body) && words[i + 1] ? everyRule(words[i + 1]!.toLowerCase()) : null
-    if (every) { q.rule = every; i++; continue }
-    if (w[0] === '@' && !q.date && dayOf(body, today)) { q.date = dayOf(body, today); continue }
+    if (every) { q.rule = every; kinds[i] = 'date'; kinds[++i] = 'date'; continue }
+    if (w[0] === '@' && !q.date && dayOf(body, today)) { q.date = dayOf(body, today); kinds[i] = 'date'; continue }
     const t = w[0] === '@' && !q.time ? body.match(/^(\d{1,2}):(\d{2})$/) : null
-    if (t && Number(t[1]) < 24 && Number(t[2]) < 60) { q.time = `${pad(Number(t[1]))}:${t[2]}`; continue }
+    if (t && Number(t[1]) < 24 && Number(t[2]) < 60) { q.time = `${pad(Number(t[1]))}:${t[2]}`; kinds[i] = 'date'; continue }
     if (w[0] === '#' && !q.project && norm(body)) {
       const n = norm(body)
       q.project = projects.find((p) => norm(p.name) === n) ?? projects.find((p) => norm(p.name).startsWith(n)) ?? null
-      if (q.project) continue
+      if (q.project) { kinds[i] = 'project'; continue }
     }
-    if (w[0] === '!' && !q.priority && body in PRIO) { q.priority = PRIO[body as keyof typeof PRIO]; continue }
+    if (w[0] === '!' && !q.priority && body in PRIO) { q.priority = PRIO[body as keyof typeof PRIO]; kinds[i] = 'prio'; continue }
+    kinds[i] = /^[#@!]./.test(w) ? 'bad' : ''
     rest.push(w)
   }
   q.title = rest.join(' ')
   if (q.rule && !q.date) q.date = firstDay(q.rule, today)
   if (q.time && !q.date) q.date = today
-  return q
+  return { q, tokens: words.map((w, i) => ({ w, kind: kinds[i]! })) }
 }
 
 // Felder für createTask. Mit Tag (oder Uhrzeit) ist die Task geplant; fallbackDate gilt, wenn die Eingabe keinen Tag nennt.

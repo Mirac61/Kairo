@@ -1,6 +1,6 @@
 // Prüfung der Schnelleingabe: node test/quickAdd.test.ts (Node ≥ 22.18 führt TypeScript direkt aus)
 import assert from 'node:assert/strict'
-import { parseQuickAdd as p } from '../src/lib/quickAdd.ts'
+import { parseQuickAdd as p, quickTokens } from '../src/lib/quickAdd.ts'
 
 const projects = [{ id: 'k', name: 'Kairo' }, { id: 's', name: 'Haushalt' }, { id: 'c', name: 'code-stats.nvim' }]
 const today = '2026-10-07' // Mittwoch
@@ -49,6 +49,10 @@ assert.deepEqual([f('Miete @monatlich').title, f('Miete @monatlich').rule], ['Mi
 assert.equal(f('Steuer @jedes jahr').rule, 'FREQ=YEARLY')
 assert.equal(f('Bericht @jeden monat').rule, 'FREQ=MONTHLY')
 assert.equal(f('#Kairo').title, '') // nur Token: kein Titel, die Ansicht legt nichts an
+// Hervorhebung: jedes Wort mit seiner Art, „30 min“ und „@jeden fr“ als zwei Wörter derselben Art
+const kinds = (s: string) => quickTokens(s, projects, today).map((x) => x.kind).join(',')
+assert.equal(kinds('Sport 30 min @jeden fr #Kairo !hoch'), ',dur,dur,date,date,project,prio')
+assert.equal(kinds('x #gibtsnicht @quatsch !wow 30m 30m'), ',bad,bad,bad,dur,') // nur das erste 30m zählt
 console.log('quickAdd: ok')
 
 // Englisch

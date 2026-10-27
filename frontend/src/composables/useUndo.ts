@@ -5,7 +5,7 @@ import { t } from '@/lib/i18n'
 const TTL_MS = 8_000
 
 // Ein Toast zugleich: ein neues Angebot ersetzt das alte. Der Zustand ist modulweit, App.vue zeigt ihn.
-const pending = ref<{ text: string; revert: () => unknown } | null>(null)
+const pending = ref<{ text: string; revert: () => unknown; show?: () => unknown } | null>(null)
 let timer: ReturnType<typeof setTimeout> | undefined
 
 export function useUndo() {
@@ -14,15 +14,21 @@ export function useUndo() {
     pending.value = null
   }
   // revert macht die Aktion rückgängig und lädt die Ansicht neu (meist über deren run/guarded).
-  function offer(text: string, revert: () => unknown) {
+  // show (optional) springt zum Ergebnis, etwa zu einer neuen Aufgabe außerhalb des aktuellen Filters.
+  function offer(text: string, revert: () => unknown, show?: () => unknown) {
     clearTimeout(timer)
-    pending.value = { text, revert }
+    pending.value = { text, revert, show }
     timer = setTimeout(dismiss, TTL_MS)
   }
   function undo() {
     const p = pending.value
     dismiss()
     void p?.revert()
+  }
+  function show() {
+    const p = pending.value
+    dismiss()
+    void p?.show?.()
   }
   // Task erledigen oder abbrechen; Rückgängig setzt den vorherigen Status per PATCH.
   // Ein laufender Timer ist dann beendet, daher PAUSED statt IN_PROGRESS.
@@ -39,5 +45,5 @@ export function useUndo() {
       }))
     })
   }
-  return { pending, offer, undo, dismiss, setDone }
+  return { pending, offer, undo, show, dismiss, setDone }
 }
