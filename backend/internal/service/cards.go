@@ -21,13 +21,19 @@ type CardNotes interface {
 // CardStore speichert Lernstand, direkt angelegte Karten und Fachfarben.
 type CardStore interface {
 	States(ctx context.Context) (map[string]domain.CardState, error)
-	Save(ctx context.Context, key string, c domain.CardState) error
+	Review(ctx context.Context, key string, next domain.CardState, g domain.CardGrade, at time.Time, prev *domain.CardState) error
+	Undo(ctx context.Context) (string, error)
+	History(ctx context.Context, since time.Time) ([]domain.CardLog, error)
 	List(ctx context.Context) ([]domain.Card, error)
 	Create(ctx context.Context, c domain.Card) error
 	Update(ctx context.Context, c domain.Card) error
 	Delete(ctx context.Context, id string) error
 	DeckColors(ctx context.Context) (map[string]string, error)
 	SetDeckColor(ctx context.Context, name, color string) error
+	DeckLimits(ctx context.Context) (map[string]int, error)
+	SetDeckLimit(ctx context.Context, name string, n int) error
+	RenameDeck(ctx context.Context, from, to string) error
+	DeleteDeck(ctx context.Context, name string) error
 }
 
 // CardService: Karteikarten aus den Notizen und direkt angelegte, nach Fächern, mit Wiederholung nach SM-2.
@@ -48,12 +54,15 @@ func NewCardService(n CardNotes, store CardStore, loc *time.Location, now func()
 	return &CardService{notes: n, store: store, loc: loc, now: now}
 }
 
-// CardView ist eine Karte mit Lernstand. New: noch nie gelernt; Due: heute dran (auch neue).
+// CardView ist eine Karte mit Lernstand. New: noch nie gelernt; Learning: zuletzt „Nochmal“, noch nicht wieder gewusst;
+// Due: heute dran (auch neue). Intervals: Tage bis zur nächsten Wiederholung je Bewertung (nochmal … leicht).
 type CardView struct {
 	domain.Card
-	State domain.CardState
-	New   bool
-	Due   bool
+	State     domain.CardState
+	New       bool
+	Learning  bool
+	Due       bool
+	Intervals [4]int
 }
 
 // DueCard ist eine heute fällige Karte.
@@ -61,9 +70,10 @@ type DueCard = CardView
 
 // Deck ist ein Fach mit Farbe und Zahlen.
 type Deck struct {
-	Name               string
-	Color              string
-	Total, Due, NewDue int
+	Name                         string
+	Color                        string
+	Total, Due, NewDue, LearnDue int
+	NewPerDay                    int
 }
 
 func (s *CardService) today() time.Time {
@@ -87,7 +97,8 @@ func (s *CardService) All(ctx context.Context) ([]CardView, error) {
 	if err != nil {
 		return nil, err
 	}
-	today := s.today().Format("2006-01-02")
+	day := s.today()
+	today := day.Format("2006-01-02")
 	out, seen := []CardView{}, map[string]bool{}
 	add := func(c domain.Card) {
 		if seen[c.Key] {
@@ -95,7 +106,11 @@ func (s *CardService) All(ctx context.Context) ([]CardView, error) {
 		}
 		seen[c.Key] = true
 		st, known := states[c.Key]
-		out = append(out, CardView{Card: c, State: st, New: !known, Due: !known || st.Due <= today})
+		v := CardView{Card: c, State: st, New: !known, Learning: known && st.Reps == 0, Due: !known || st.Due <= today}
+		for g := range v.Intervals {
+			v.Intervals[g] = st.Next(domain.CardGrade(g), day).Interval
+		}
+		out = append(out, v)
 	}
 	for _, c := range own {
 		add(c)
@@ -122,7 +137,54 @@ func (s *CardService) All(ctx context.Context) ([]CardView, error) {
 		}
 		return nil
 	}
-	return out, walk(tree)
+	if err := walk(tree); err != nil {
+		return nil, err
+	}
+	return out, s.limitNew(ctx, out)
+}
+
+// NewPerDay: so viele neue Karten je Fach und Tag sind fällig, solange das Fach kein eigenes Limit hat (wie bei Anki);
+// der Rest kommt an den Folgetagen.
+const NewPerDay = 20
+
+func (s *CardService) limits(ctx context.Context) (func(deck string) int, error) {
+	m, err := s.store.DeckLimits(ctx)
+	return func(deck string) int {
+		if n, ok := m[deck]; ok {
+			return n
+		}
+		return NewPerDay
+	}, err
+}
+
+// limitNew macht neue Karten über dem Tageslimit ihres Fachs nicht fällig. Heute schon begonnene neue Karten zählen mit.
+func (s *CardService) limitNew(ctx context.Context, cards []CardView) error {
+	d := s.now().In(s.loc)
+	log, err := s.store.History(ctx, time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, s.loc))
+	if err != nil {
+		return err
+	}
+	limit, err := s.limits(ctx)
+	if err != nil {
+		return err
+	}
+	deckOf := make(map[string]string, len(cards))
+	for _, c := range cards {
+		deckOf[c.Key] = c.Deck
+	}
+	used := map[string]int{}
+	for _, l := range log {
+		if l.First {
+			used[deckOf[l.Key]]++
+		}
+	}
+	for i := range cards {
+		if c := &cards[i]; c.New && c.Due {
+			c.Due = used[c.Deck] < limit(c.Deck)
+			used[c.Deck]++
+		}
+	}
+	return nil
 }
 
 // Due liefert die heute fälligen Karten.
@@ -150,10 +212,14 @@ func (s *CardService) Decks(ctx context.Context) ([]Deck, error) {
 	if err != nil {
 		return nil, err
 	}
+	limit, err := s.limits(ctx)
+	if err != nil {
+		return nil, err
+	}
 	by := map[string]*Deck{}
 	get := func(name string) *Deck {
 		if by[name] == nil {
-			by[name] = &Deck{Name: name, Color: colors[name]}
+			by[name] = &Deck{Name: name, Color: colors[name], NewPerDay: limit(name)}
 		}
 		return by[name]
 	}
@@ -167,6 +233,9 @@ func (s *CardService) Decks(ctx context.Context) ([]Deck, error) {
 			d.Due++
 			if c.New {
 				d.NewDue++
+			}
+			if c.Learning {
+				d.LearnDue++
 			}
 		}
 	}
@@ -228,6 +297,15 @@ func (s *CardService) SetDeckColor(ctx context.Context, name, color string) erro
 	return s.store.SetDeckColor(ctx, name, color)
 }
 
+// SetDeckLimit legt fest, wie viele neue Karten das Fach pro Tag bringt (0 bis 9999).
+func (s *CardService) SetDeckLimit(ctx context.Context, name string, n int) error {
+	name = strings.TrimSpace(name)
+	if name == "" || n < 0 || n > 9999 {
+		return fmt.Errorf("%w: Name und Limit 0–9999 nötig", domain.ErrInvalid)
+	}
+	return s.store.SetDeckLimit(ctx, name, n)
+}
+
 // Review speichert eine Antwort und liefert den neuen Lernstand.
 func (s *CardService) Review(ctx context.Context, key string, g domain.CardGrade) (domain.CardState, error) {
 	if key == "" || g < domain.GradeAgain || g > domain.GradeEasy {
@@ -237,6 +315,39 @@ func (s *CardService) Review(ctx context.Context, key string, g domain.CardGrade
 	if err != nil {
 		return domain.CardState{}, err
 	}
-	next := states[key].Next(g, s.today())
-	return next, s.store.Save(ctx, key, next)
+	prev, known := states[key]
+	next := prev.Next(g, s.today())
+	var p *domain.CardState
+	if known {
+		p = &prev
+	}
+	return next, s.store.Review(ctx, key, next, g, s.now(), p)
+}
+
+// Undo nimmt die letzte Bewertung zurück und liefert den Key der Karte (domain.ErrNotFound: nichts zurückzunehmen).
+func (s *CardService) Undo(ctx context.Context) (string, error) { return s.store.Undo(ctx) }
+
+// History liefert die Bewertungen der letzten days Tage für Statistik und „oft vergessen“.
+func (s *CardService) History(ctx context.Context, days int) ([]domain.CardLog, error) {
+	return s.store.History(ctx, s.today().AddDate(0, 0, -days))
+}
+
+// RenameDeck benennt ein Fach um; gibt es das neue schon, landen die Karten dort. Karten aus Notizen bleiben im Fach ihres Ordners.
+func (s *CardService) RenameDeck(ctx context.Context, from, to string) error {
+	from, to = strings.TrimSpace(from), strings.TrimSpace(to)
+	if from == "" || to == "" {
+		return fmt.Errorf("%w: alter und neuer Name nötig", domain.ErrInvalid)
+	}
+	if from == to {
+		return nil
+	}
+	return s.store.RenameDeck(ctx, from, to)
+}
+
+// DeleteDeck löscht ein Fach mit seinen direkt angelegten Karten; Karten aus Notizen bleiben in der Notiz.
+func (s *CardService) DeleteDeck(ctx context.Context, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("%w: Name nötig", domain.ErrInvalid)
+	}
+	return s.store.DeleteDeck(ctx, name)
 }

@@ -11,12 +11,21 @@ import (
 // Card ist eine Karteikarte aus einer Notiz: eine Zeile „Frage :: Antwort“
 // (wie im Obsidian-Plugin „Spaced Repetition“).
 type Card struct {
-	Key      string // Hash der Frage
-	ID       string // nur bei Karten direkt in Kairo (ohne Notiz)
-	Deck     string // Fach: erster Ordner der Notiz oder frei gewählt
-	Question string
-	Answer   string
-	NotePath string
+	Key       string // Hash der Frage
+	ID        string // nur bei Karten direkt in Kairo (ohne Notiz)
+	Deck      string // Fach: erster Ordner der Notiz oder frei gewählt
+	Question  string
+	Answer    string
+	NotePath  string
+	CreatedAt time.Time // nur bei Karten direkt in Kairo
+}
+
+// CardLog ist eine Bewertung im Lernverlauf.
+type CardLog struct {
+	Key   string
+	Grade CardGrade
+	At    time.Time
+	First bool // erste Bewertung der Karte überhaupt (sie war neu)
 }
 
 // NoDeck ist das Fach von Karten aus Notizen ohne Ordner.
