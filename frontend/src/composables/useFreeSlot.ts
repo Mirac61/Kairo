@@ -1,38 +1,87 @@
 // Zeitvorschlag für eine Aufgabe: erster freier Platz am Zieltag, über die Daten von
 // GET /api/today?date=… gerechnet. day: Zieltag oder null, minutes: Dauer (0 = 30 Minuten),
 // nowMin: jetzt in Minuten seit Mitternacht (für „heute“), today: heutiger Tag.
+
 import { computed, ref, watch } from 'vue'
 import { getToday } from '@/api/client'
 import { blockEndMinutes, findSlot, minutesOfDay } from '@/lib/dayPlan'
 import { dayWord, hm } from '@/lib/dates'
 import { t } from '@/lib/i18n'
 
-interface Block { key: string; title: string; start: number; end: number }
+export interface FreeSlotBlock {
+  key: string
+  title: string
+  start: number
+  end: number
+}
 
-export function useFreeSlot(day: () => string | null, minutes: () => number, today: () => string, nowMin: () => number) {
-  const blocks = ref<Block[]>([])
+export interface FreeSlotHint {
+  text: string
+  time: string
+}
+
+export function useFreeSlot(
+  day: () => string | null,
+  minutes: () => number,
+  today: () => string,
+  nowMin: () => number
+) {
+  const blocks = ref<FreeSlotBlock[]>([])
   const win = ref({ start: 0, end: 24 * 60 })
   let seq = 0
 
-  watch(day, async (d) => {
-    if (!d) {
-      blocks.value = []
-      return
-    }
-    const n = ++seq
-    const t = await getToday(d).catch(() => null)
-    if (n !== seq || !t) {
-      blocks.value = []
-      return
-    }
-    const mins = (ms: number) => minutesOfDay(ms, t.timezone === 'Local' ? undefined : t.timezone)
-    const at = (iso: string) => mins(Date.parse(iso))
-    blocks.value = [
-      ...t.events.map((e) => ({ key: `e${e.id}${e.occurrence_start}`, title: e.title, start: at(e.occurrence_start), end: blockEndMinutes(at(e.occurrence_start), at(e.occurrence_end)) })),
-      ...t.tasks.filter((x) => x.planned_start_at).map((x) => ({ key: `t${x.id}`, title: x.title, start: at(x.planned_start_at!), end: at(x.planned_start_at!) + (x.estimated_minutes || 30) })),
-    ].sort((a, b) => a.start - b.start)
-    win.value = t.work_end > t.work_start ? { start: t.work_start, end: t.work_end } : { start: 0, end: 24 * 60 }
-  }, { immediate: true })
+  watch(
+    day,
+    async (targetDay) => {
+      if (!targetDay) {
+        blocks.value = []
+        return
+      }
+
+      const requestSeq = ++seq
+      const todayData = await getToday(targetDay).catch(() => null)
+
+      if (requestSeq !== seq || !todayData) {
+        blocks.value = []
+        return
+      }
+
+      const tz = todayData.timezone === 'Local' ? undefined : todayData.timezone
+      const toMinutes = (iso: string) => minutesOfDay(Date.parse(iso), tz)
+
+      const eventBlocks: FreeSlotBlock[] = todayData.events.map((e) => {
+        const start = toMinutes(e.occurrence_start)
+        const end = toMinutes(e.occurrence_end)
+        return {
+          key: `e${e.id}${e.occurrence_start}`,
+          title: e.title,
+          start,
+          end: blockEndMinutes(start, end),
+        }
+      })
+
+      const taskBlocks: FreeSlotBlock[] = todayData.tasks
+        .filter((x) => x.planned_start_at)
+        .map((x) => {
+          const start = toMinutes(x.planned_start_at!)
+          const duration = x.estimated_minutes || 30
+          return {
+            key: `t${x.id}`,
+            title: x.title,
+            start,
+            end: start + duration,
+          }
+        })
+
+      blocks.value = [...eventBlocks, ...taskBlocks].sort((a, b) => a.start - b.start)
+
+      win.value =
+        todayData.work_end > todayData.work_start
+          ? { start: todayData.work_start, end: todayData.work_end }
+          : { start: 0, end: 24 * 60 }
+    },
+    { immediate: true }
+  )
 
   const slot = computed(() => {
     const d = day()
@@ -42,19 +91,44 @@ export function useFreeSlot(day: () => string | null, minutes: () => number, tod
   })
 
   // Lesbarer Hinweis (oder „kein freier Slot“); time ist leer, wenn es keinen Platz gibt.
-  const hint = computed(() => {
+  const hint = computed<FreeSlotHint | null>(() => {
     const d = day()
     if (!d) return null
+
     const s = slot.value
-    if (!s) return { text: t('Kein freier Slot an diesem Tag'), time: '' }
+    if (!s) {
+      return { text: t('Kein freier Slot an diesem Tag'), time: '' }
+    }
+
     const time = hm(s.start)
-    const a = s.prev?.title ?? ''
-    const b = s.next?.title ?? ''
-    const w = dayWord(d, today())
-    const text = a && b ? t('Passt {day} um {time} zwischen {a} und {b}', { day: w, time, a, b })
-      : a ? t('Passt {day} um {time} nach {a}', { day: w, time, a })
-      : b ? t('Passt {day} um {time} vor {b}', { day: w, time, b })
-      : t('Passt {day} um {time}', { day: w, time })
+    const prevTitle = s.prev?.title ?? ''
+    const nextTitle = s.next?.title ?? ''
+    const dayName = dayWord(d, today())
+
+    let text: string
+    if (prevTitle && nextTitle) {
+      text = t('Passt {day} um {time} zwischen {a} und {b}', {
+        day: dayName,
+        time,
+        a: prevTitle,
+        b: nextTitle,
+      })
+    } else if (prevTitle) {
+      text = t('Passt {day} um {time} nach {a}', {
+        day: dayName,
+        time,
+        a: prevTitle,
+      })
+    } else if (nextTitle) {
+      text = t('Passt {day} um {time} vor {b}', {
+        day: dayName,
+        time,
+        b: nextTitle,
+      })
+    } else {
+      text = t('Passt {day} um {time}', { day: dayName, time })
+    }
+
     return { text, time }
   })
 
