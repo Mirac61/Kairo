@@ -124,7 +124,7 @@ onMounted(() => {
               </div>
               <div class="st-row">
                 <div class="st-text"><label class="st-t" for="s-name">{{ $t('Name') }}</label><div class="st-h">{{ $t('Für die Begrüßung auf der Startseite.') }}</div></div>
-                <input id="s-name" v-model.trim="prefs.name" class="input st-ctl" type="text" autocomplete="given-name" />
+                <input id="s-name" v-model.trim="prefs.name" class="input st-ctl" type="text" autocomplete="given-name" :placeholder="$t('z. B. Alex')" />
               </div>
             </div>
           </template>

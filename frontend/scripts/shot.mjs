@@ -85,10 +85,10 @@ const times = [ // der letzte Eintrag läuft seit 23 Minuten
 const iso = (d, hm = '12:00') => at(d, hm)
 const habits = [['h1', 'lernen', 'DAILY', {}], ['h2', 'Lesen · 20 min', 'DAILY', {}], ['h3', 'sport', 'SPECIFIC_WEEKDAYS', { weekdays: ['MO', 'TH'] }], ['h4', 'Wochenrückblick', 'WEEKLY', { weekday: 'SU' }], ['h5', 'Meditieren', 'DAILY', {}], ['h6', 'Wasser trinken', 'DAILY', {}], ['h7', 'Vokabeln', 'DAILY', {}], ['h8', 'Vitamine', 'DAILY', {}],
   ['h9', 'Spanisch', 'TIMES_PER_WEEK', { times: 3 }], ['h10', 'Gitarre', 'DAILY', {}], ['h11', 'Kein Handy nach 22 Uhr', 'DAILY', {}], ['h12', 'Aufräumen', 'DAILY', {}]]
-  .map(([id, name, frequency_type, frequency_config]) => ({ id, name, description: '', frequency_type, frequency_config, active: true, start_date: day(-40), end_date: null, target_value: null, unit: '', icon: '', duration_minutes: 30, preferred_time: null }))
-Object.assign(habits[0], { preferred_time: '19:00', duration_minutes: 60, start_date: day(-400) })
+  .map(([id, name, frequency_type, frequency_config]) => ({ id, name, description: '', frequency_type, frequency_config, active: true, start_date: day(-40), end_date: null, target_value: null, unit: '', icon: '', duration_minutes: 30, preferred_time: null, project_id: null }))
+Object.assign(habits[0], { preferred_time: '19:00', duration_minutes: 60, start_date: day(-400), project_id: 'p1' })
 Object.assign(habits[1], { start_date: day(-200) })
-Object.assign(habits[2], { preferred_time: '17:00', duration_minutes: 45, target_value: 5, unit: 'km' })
+Object.assign(habits[2], { preferred_time: '17:00', duration_minutes: 45, target_value: 5, unit: 'km', project_id: 'p4' })
 Object.assign(habits[4], { preferred_time: '07:00', duration_minutes: 10, start_date: day(-90) })
 Object.assign(habits[5], { target_value: 8, unit: 'Gläser', start_date: day(-60) })
 Object.assign(habits[7], { preferred_time: '08:00' })
@@ -174,16 +174,20 @@ const decks = ['Computerarchitektur', 'Japanisch', 'Mathe 2'].map((name, i) => {
 // Lernverlauf: 26 Wochen mit Lücken, „Zweierkomplement“ oft vergessen.
 const cardLog = Array.from({ length: 180 }, (_, i) => i).filter((i) => (i * 7) % 5 !== 0).flatMap((i) =>
   Array.from({ length: (i * 13) % 17 }, (_, j) => ({ key: cards[j % cards.length].key, grade: (i + j) % 6 === 0 ? 0 : 2, at: iso(todayIdx - i) }))).reverse() // wie die API: älteste zuerst
-const goal = (id, title, why, extra = {}) => ({ id, title, why, image_path: null, kind: 'NONE', project_id: null, habit_id: null, target: 0, start_date: day(0), due_date: null, archived: false, parent_id: null, progress: null, ...extra })
+const goal = (id, title, why, extra = {}) => ({ id, title, why, image_path: null, kind: 'NONE', project_id: null, habit_id: null, target: 0, start_date: day(0), due_date: null, archived: false, parent_id: null, progress: null, history: [], ...extra })
+// Verlauf wie die API: gleichmäßige Punkte von start bis heute, hier aus Stufen in Prozent.
+const hist = (start, steps) => steps.map((percent, i) => ({ date: day(start + Math.round((-start * i) / (steps.length - 1))), percent }))
 const goals = [
-  goal('g1', 'Ein Werkstudentenplatz bekommen', 'Ich will selber Geld verdienen und Arbeitserfahrung sammeln.', { image_path: 'Ziele/g1.svg', due_date: day(90), progress: { current: 1, target: 3, percent: 55 } }),
+  goal('g1', 'Ein Werkstudentenplatz bekommen', 'Ich will selber Geld verdienen und Arbeitserfahrung sammeln.', { image_path: 'Ziele/g1.svg', start_date: day(-60), due_date: day(90), progress: { current: 1, target: 4, percent: 35 }, history: hist(-60, [0, 0, 5, 10, 18, 25, 25, 30, 35]) }),
   goal('g1a', 'Lebenslauf fertig', '', { parent_id: 'g1', archived: true }),
   goal('g1b', '20 Bewerbungen schicken', 'Jede Absage ist eine Übung.', { parent_id: 'g1', kind: 'PROJECT_TASKS', project_id: 'p3', progress: { current: 7, target: 20, percent: 35 } }),
   goal('g1c', 'Portfolio mit Kairo', '', { parent_id: 'g1', image_path: 'Ziele/g1c.svg', kind: 'PROJECT_HOURS', project_id: 'p3', target: 40, progress: { current: 22, target: 40, percent: 55 } }),
   goal('g1d', 'Interview üben', 'Ruhig bleiben, Beispiele parat haben.', { parent_id: 'g1', due_date: day(30) }),
-  goal('g2', 'Japanisch auf N4', 'Einmal in Tokio ohne Übersetzer durch den Tag.', { progress: { current: 0, target: 2, percent: 20 } }),
+  goal('g2', 'Japanisch auf N4', 'Einmal in Tokio ohne Übersetzer durch den Tag.', { start_date: day(-120), due_date: day(60), progress: { current: 0, target: 2, percent: 20 }, history: hist(-120, [0, 4, 8, 10, 12, 14, 15, 18, 20]) }),
   goal('g2a', '300 Kanji', '', { parent_id: 'g2', kind: 'HABIT_COUNT', habit_id: 'h1', target: 300, progress: { current: 120, target: 300, percent: 40 } }),
   goal('g2b', 'Probeprüfung bestehen', '', { parent_id: 'g2' }),
+  goal('g4', 'Bachelor abschließen', 'Damit ich danach frei wählen kann.', { kind: 'PROJECT_TASKS', project_id: 'p1', start_date: day(-200), due_date: day(150), progress: { current: 31, target: 50, percent: 62 }, history: hist(-200, [0, 8, 15, 22, 30, 38, 46, 55, 62]) }),
+  goal('g5', 'Jeden Tag lesen', '', { kind: 'HABIT_COUNT', habit_id: 'h1', target: 100, start_date: day(-30), progress: { current: 24, target: 100, percent: 24 }, history: hist(-30, [0, 5, 9, 14, 18, 24]) }),
   goal('g3', 'Halbmarathon', 'Geschafft.', { archived: true }),
 ]
 // Platzhalterbild für /api/files: Farbverlauf je nach Name.

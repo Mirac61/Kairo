@@ -188,6 +188,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
 .nd :deep(.md-editor .cm-editor) { font-family: var(--font-mono); font-size: 13px; }
 .nd :deep(.md-editor .cm-scroller) { padding: 0 8px; }
 .nd :deep(.md-editor .md-editor-preview) {
+  max-width: 72ch; /* lange Zeilen lesen sich schlecht, auch wenn nur die Vorschau offen ist */
   --md-theme-color: var(--tx-secondary);
   --md-theme-heading-color: var(--tx-primary);
   --md-theme-strong-color: var(--tx-primary);

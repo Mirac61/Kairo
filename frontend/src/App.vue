@@ -13,13 +13,13 @@ import { useBackendStatus } from '@/composables/useBackendStatus'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { counts, loadSidebar, pins } from '@/composables/useSidebar'
 import { hm } from '@/lib/dates'
+import { projectIconOf } from '@/lib/projectIcons'
 import { vDialog } from '@/lib/dialog'
 import { GOTO } from '@/lib/shortcuts'
 import { useShortcuts } from '@/composables/useShortcuts'
 import ShortcutHelp from '@/components/ShortcutHelp.vue'
 import { store } from '@/lib/storage'
 import { dark, prefs } from '@/lib/prefs'
-import { projectColor } from '@/lib/projectColor'
 
 const { online, version } = useBackendStatus()
 
@@ -86,7 +86,7 @@ function toggleSidebar() {
 }
 
 // Handy: sechs Tabs für den Alltag, der Rest (und Einstellungen) im „Mehr“-Blatt. Die Seitenleiste blendet design.css unter 760px aus.
-const tabPaths = ['/today', '/tasks', '/habits', '/calendar', '/notes', '/projects']
+const tabPaths = ['/today', '/calendar', '/tasks', '/habits', '/projects', '/notes']
 const tabs = tabPaths.map((p) => navItems.find((n) => n.path === p)!)
 const more = navItems.filter((n) => !tabPaths.includes(n.path))
 const moreOpen = ref(false)
@@ -102,6 +102,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="16" rx="2"/><path d="M3.5 9.5h17M8 2.5v4M16 2.5v4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
     <symbol id="i-today" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-tasks" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12.3 2.4 2.4 4.8-5.4"/></symbol>
     <symbol id="i-habits" viewBox="0 0 24 24"><path d="M21 3v5h-5M3 21v-5h5"/><path d="M4.6 9.5a8 8 0 0 1 13.4-3.3L21 8M3 16l3 1.8a8 8 0 0 0 13.4-3.3"/></symbol>
@@ -168,6 +169,16 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6.5V4.5h5v2M6.5 6.5l.8 13a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-13"/></symbol>
     <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 2.4 17.5a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17h.01"/></symbol>
     <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3.5 13.5 6 5a1.5 1.5 0 0 1 1.4-1h9.2A1.5 1.5 0 0 1 18 5l2.5 8.5V18a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18z"/><path d="M3.5 13.5H9a3 3 0 0 0 6 0h5.5"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></symbol>
+    <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></symbol>
+    <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1-.23-.27-.38-.62-.38-1 0-.83.67-1.5 1.5-1.5H16c3.31 0 6-2.69 6-6 0-5.5-4.5-10-10-10z"/></symbol>
+    <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></symbol>
+    <symbol id="i-bug" viewBox="0 0 24 24"><rect width="8" height="14" x="8" y="6" rx="4"/><path d="m19 7-3 2M5 7l3 2M19 19l-3-2M5 19l3-2M20 13h-4M4 13h4M10 4l1 2M14 4l-1 2"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
   </defs>
 </svg>
   <div class="app">
@@ -182,7 +193,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
       <div v-if="pins.length" class="pins">
         <div class="pins-head"><span>{{ $t('Aktiv') }}</span><span>{{ $t('diese Woche') }}</span></div>
         <RouterLink v-for="p in pins" :key="p.id" :to="{ path: '/projects', query: { project: p.id } }" class="nav-item pin">
-          <span class="pin-dot"><i :style="{ background: projectColor(p.id) }"></i></span><span class="nav-l">{{ p.name }}</span>
+          <svg class="ic pin-ic" aria-hidden="true"><use :href="`#${projectIconOf(p)}`" /></svg><span class="nav-l">{{ p.name }}</span>
           <span v-if="p.minutes" class="nav-n">{{ hm(p.minutes) }}</span>
         </RouterLink>
       </div>
@@ -227,8 +238,7 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
         <button type="button" class="tb-search" aria-keyshortcuts="Meta+K Control+K" @click="searchOpen = true">
           <svg class="ic"><use href="#i-search" /></svg><span>{{ $t('Suchen oder neu …') }}</span><kbd class="key" aria-hidden="true">⌘K</kbd>
         </button>
-        <button type="button" class="tb-btn" :aria-label="$t('Theme wechseln')" :data-tip="$t('Theme wechseln')" @click="toggleTheme"><svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg></button>
-        <button type="button" class="btn btn-primary tb-new" @click="newEntry"><svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neue Aufgabe') }}</button>
+        <button type="button" class="tb-btn" :aria-label="$t('Design wechseln')" :data-tip="$t('Design wechseln')" @click="toggleTheme"><svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg></button>
       </header>
       <RouterView />
     </main>
@@ -241,10 +251,10 @@ const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
           <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
         </RouterLink>
         <RouterLink to="/settings" class="nav-item"><svg class="ic"><use href="#i-gear" /></svg><span class="nav-l">{{ $t('Einstellungen') }}</span></RouterLink>
-        <button type="button" class="nav-item" @click="toggleTheme"><svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg><span class="nav-l">{{ $t('Theme wechseln') }}</span></button>
+        <button type="button" class="nav-item" @click="toggleTheme"><svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg><span class="nav-l">{{ $t('Design wechseln') }}</span></button>
         <div class="status" :class="{ off: !online }">
           <span class="status-dot" />
-          <span>{{ online ? `${$t('Verbunden')}${version ? ` (${version})` : ''}` : $t('Getrennt') }}</span>
+          <span>{{ online ? $t('Verbunden') : $t('Getrennt') }}</span>
         </div>
       </div>
       <nav class="tabbar" :aria-label="$t('Hauptnavigation')">

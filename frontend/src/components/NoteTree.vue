@@ -55,6 +55,7 @@ const indent = () => ({ paddingLeft: `${8 + props.depth * 14}px` })
 const label = (n: NoteNode) => (n.dir || fileKind(n.path) === 'code' ? n.name : n.name.replace(/\.[^.]+$/, ''))
 const ICONS = { md: '#i-md', pdf: '#i-pdf', image: '#i-image', code: '#i-code', excalidraw: '#i-draw', '': '#i-file' }
 const icon = (n: NoteNode) => (n.dir ? '#i-proj' : ICONS[fileKind(n.path)])
+const kind = (n: NoteNode) => (n.dir ? undefined : fileKind(n.path) || undefined)
 // Auf einer Datei abgelegt heißt: in ihren Ordner.
 const dirOf = (n: NoteNode) => (n.dir ? n.path : props.parent)
 
@@ -85,7 +86,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
   <ul class="nt" :role="depth ? 'group' : 'tree'" :aria-label="depth ? undefined : 'Notizen'">
     <li v-for="n in nodes" :key="n.path" role="none">
       <div v-if="ctx.renaming === n.path" class="nt-new" :style="indent()">
-        <svg class="ic nt-ic" aria-hidden="true"><use :href="icon(n)" /></svg>
+        <svg class="ic nt-ic" :data-kind="kind(n)" aria-hidden="true"><use :href="icon(n)" /></svg>
         <input
           v-model="name" v-focus class="input nt-input" :aria-label="`${n.name} umbenennen`"
           @keydown.enter.prevent="submit(ctx.submitRename, ctx.cancelRename)" @keydown.esc.prevent="ctx.cancelRename()" @blur="ctx.cancelRename()"
@@ -105,7 +106,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
           @click="n.dir ? ctx.toggle(n.path) : ctx.select(n.path)" @dblclick="startRename(n)" @keydown.f2.prevent="startRename(n)"
         >
           <svg class="ic nt-chev" :class="{ open: ctx.open.has(n.path), hidden: !n.dir }" aria-hidden="true"><use href="#i-chev" /></svg>
-          <svg class="ic nt-ic" aria-hidden="true"><use :href="icon(n)" /></svg>
+          <svg class="ic nt-ic" :data-kind="kind(n)" aria-hidden="true"><use :href="icon(n)" /></svg>
           <span class="nt-name">{{ label(n) }}</span>
         </button>
         <span class="nt-act">
@@ -149,6 +150,11 @@ function dragOver(e: DragEvent, n: NoteNode) {
 .nt-chev.open { transform: rotate(90deg); }
 .nt-chev.hidden { visibility: hidden; }
 .nt-ic { width: 15px; height: 15px; color: var(--tx-muted); }
+/* Nur was keine normale Notiz ist, bekommt eine gedämpfte Farbe; Ordner und Markdown bleiben grau. */
+.nt-ic[data-kind='pdf'] { color: color-mix(in srgb, var(--p-red) 80%, var(--tx-muted)); }
+.nt-ic[data-kind='excalidraw'] { color: color-mix(in srgb, var(--p-violet) 80%, var(--tx-muted)); }
+.nt-ic[data-kind='image'] { color: color-mix(in srgb, var(--p-green) 80%, var(--tx-muted)); }
+.nt-ic[data-kind='code'] { color: color-mix(in srgb, var(--p-yellow) 80%, var(--tx-muted)); }
 .nt-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nt-act { display: none; gap: 2px; padding-right: 4px; }
 .nt-act .icon-btn { width: 24px; height: 24px; }

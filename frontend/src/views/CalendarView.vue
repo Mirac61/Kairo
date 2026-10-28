@@ -57,6 +57,7 @@ function paintDay(th: HTMLElement) {
   q('.kt-ist')!.textContent = ist ? `${t('Ist')} ${hm(ist)}` : ''
   q('.kt-bar .p')!.style.width = `${Math.min(100, p / 4.8)}%` // 8 h = volle Breite
   q('.kt-bar .t')!.style.width = `${Math.min(100, ist / 4.8)}%`
+  th.title = `${t('Plan')}: ${p ? hm(p) : t('frei')}${ist ? ` · ${t('Ist')}: ${hm(ist)}` : ''}`
 }
 
 const router = useRouter()
@@ -265,9 +266,9 @@ function remove(onlyThis: boolean) {
 // Eigene Toolbar steuert FullCalendar über die API.
 const title = ref('')
 const week = ref(0) // Kalenderwoche, nur in der Tagesansicht
-// „Woche“ zeigt 5 oder 7 Tage am Stück (timeGrid5/timeGrid7) mit heute in der Mitte, nicht Mo–So.
+// „7 Tage“ zeigt 5 oder 7 Tage am Stück (timeGrid5/timeGrid7) mit heute in der Mitte, nicht Mo–So.
 const SPAN = 'timeGridSpan' // Platzhalter in der Ansichtsauswahl, steht für timeGrid5 bzw. timeGrid7
-const views = [['dayGridMonth', t('Monat'), 'm'], [SPAN, t('Woche'), 'w'], ['timeGridDay', t('Tag'), 'd']] as const
+const views = [['dayGridMonth', t('Monat'), 'm'], [SPAN, t('7 Tage'), 'w'], ['timeGridDay', t('Tag'), 'd']] as const
 const spanView = () => `timeGrid${prefs.calDays}`
 // Erster sichtbarer Tag, damit heute in der Mitte steht (2 bzw. 3 Tage davor).
 const spanStart = () => addDays(new Date(), -Math.floor(prefs.calDays / 2))
@@ -546,7 +547,7 @@ useLiveEvents(() => {
           <button class="icon-btn" :aria-label="$t('Weiter')" :title="$t('Weiter (→)')" @click="cal?.getApi().next()"><svg class="ic"><use href="#i-right" /></svg></button>
         </div>
         <button class="btn btn-ghost" :title="$t('Heute (t)')" aria-keyshortcuts="t" @click="goToday">{{ $t('Heute') }}</button>
-        <h2 class="cal-title">{{ title }}</h2>
+        <h1 class="v-title cal-title">{{ title }}</h1>
         <span v-if="week" class="cal-kw">{{ $t('KW') }} {{ week }}</span>
         <span class="spacer" />
         <div v-if="isWeek" class="cal-legend" aria-hidden="true">
@@ -593,7 +594,7 @@ useLiveEvents(() => {
         </div>
       </section>
       <div class="up-head">
-        <h3 id="up-title"><span class="up-lbl">{{ $t('Ungeplant') }} </span><span class="up-count">{{ unplanned.length }}</span></h3>
+        <h2 id="up-title"><span class="up-lbl">{{ $t('Ungeplant') }} </span><span class="up-count">{{ unplanned.length }}</span></h2>
         <span v-if="isDay && upOpen" class="up-hint">{{ $t('in den Plan ziehen') }}</span>
         <button type="button" class="icon-btn" :aria-expanded="upOpen" :aria-label="upOpen ? 'Ungeplant einklappen' : 'Ungeplant ausklappen'" @click="toggleUp"><svg class="ic"><use :href="upOpen ? '#i-right' : '#i-left'" /></svg></button>
       </div>
@@ -626,7 +627,7 @@ useLiveEvents(() => {
 .unplanned.shut { width: 44px; padding: 12px 6px; align-items: center; }
 .unplanned.shut .up-head { flex-direction: column; }
 .unplanned.shut .up-lbl { display: none; }
-.unplanned h3 { margin: 0; font: 600 14px/1.3 var(--font-ui); color: var(--tx-primary); }
+.unplanned h2, .unplanned h3 { margin: 0; font: 600 14px/1.3 var(--font-ui); color: var(--tx-primary); }
 .up-count { margin-left: 6px; font: 400 12px/1 var(--font-mono); color: var(--tx-muted); }
 .unplanned.shut .up-count { margin-left: 0; }
 .up-list { margin-top: 10px; }

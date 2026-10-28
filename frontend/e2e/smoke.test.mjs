@@ -119,20 +119,22 @@ test('Gewohnheit: Menge zählt bis zum Ziel, Tag aussetzen', async () => {
   const h = await api('/habits', { method: 'POST', body: JSON.stringify({ name: 'Smoke-Wasser', frequency_type: 'DAILY', target_value: 2, unit: 'Gläser' }) })
   await page.goto(`${base}/habits`)
   const row = page.locator('.hd-row', { hasText: 'Smoke-Wasser' })
-  await row.getByRole('button', { name: 'Mehr' }).click()
-  await row.locator('.hd-qring', { hasText: '1' }).waitFor()
-  assert.ok(!(await row.getAttribute('class')).includes('done'), '1 von 2 ist noch offen')
-  await row.getByRole('button', { name: 'Mehr' }).click()
-  await page.waitForFunction(() => document.querySelector('.hd-row.done .hd-qring.full') !== null)
+  await row.locator('.hd-pick').click()
+  const panel = page.locator('.hab-aside')
+  await panel.getByRole('button', { name: 'Mehr' }).click()
+  await panel.locator('.hd-qring', { hasText: '1' }).waitFor()
+  await row.locator('.hw-c.today.part').waitFor() // 1 von 2: Teilring, noch offen
+  await panel.getByRole('button', { name: 'Mehr' }).click()
+  await panel.locator('.hd-qring.full').waitFor()
+  await row.locator('.hw-c.today.done').waitFor()
   const cs = await api(`/habits/${h.id}/completions`)
   assert.deepEqual(cs.map((c) => [c.date, c.value]), [[day, 2]])
 
-  // Zurück auf 0 und aussetzen: dann ist sie heute nicht mehr fällig.
-  await row.getByRole('button', { name: 'Weniger' }).click()
-  await row.getByRole('button', { name: 'Weniger' }).click()
-  await row.locator('.hd-pick').click()
-  await page.getByRole('button', { name: 'Heute aussetzen' }).click()
-  await page.locator('.hd-row', { hasText: 'Smoke-Wasser' }).waitFor({ state: 'detached' })
+  // Zurück auf 0 und aussetzen: dann ist heute im Raster ausgesetzt.
+  await panel.getByRole('button', { name: 'Weniger' }).click()
+  await panel.getByRole('button', { name: 'Weniger' }).click()
+  await panel.getByRole('button', { name: 'Heute aussetzen' }).click()
+  await row.locator('.hw-c.today.pause').waitFor()
   const ps = await api('/habits/pauses')
   assert.ok(ps.some((p) => p.habit_id === h.id && p.start_date === day && p.end_date === day))
   await api(`/habits/${h.id}`, { method: 'DELETE' })
@@ -187,7 +189,7 @@ test('Ziel mit Bild anlegen', async () => {
   await page.getByLabel('Warum?').fill('Weil es geht')
   await page.getByLabel('Bild').setInputFiles({ name: 'bild.png', mimeType: 'image/png', buffer: png })
   await page.getByRole('button', { name: 'Anlegen' }).click()
-  await page.locator('.gl-pic', { hasText: 'Smoke-Ziel' }).locator('img').waitFor()
+  await page.locator('.gl-card', { hasText: 'Smoke-Ziel' }).locator('img').waitFor()
   const [g] = (await api('/goals')).filter((x) => x.title === 'Smoke-Ziel')
   assert.equal(g.why, 'Weil es geht')
   assert.match(g.image_path, /^Ziele\/.+\.png$/)
@@ -226,25 +228,27 @@ test('Journal: Autosave beim Verlassen und beim Eintragswechsel', async () => {
   await page.waitForURL(/\/tasks$/)
   assert.match(readFileSync(join(journalDir, `${dateOf(0)}.md`), 'utf8'), /Kein Verlust beim Verlassen/)
 
-  // Öffnen: drei Zeilen stehen sofort vollständig da, nicht abgeschnitten.
+  // Aufschlagen: drei Zeilen stehen sofort vollständig da, nicht abgeschnitten.
   await page.goto(`${base}/journal`)
-  await page.locator(`.jr-entry[data-date="${two}"] .jr-row`).click()
+  await page.locator(`.jr-heat-cell[data-date="${two}"]`).click()
   const area = page.locator(`.jr-entry[data-date="${two}"] .je-area`).first()
   await page.waitForFunction((sel) => {
     const el = document.querySelector(sel)
     return el && el.scrollHeight <= el.clientHeight + 1
   }, `.jr-entry[data-date="${two}"] .je-area`)
 
-  // Wechsel: Erst wird der alte Eintrag geschrieben, dann der neue geöffnet.
+  // Umblättern: Erst wird die alte Seite geschrieben, dann die neue aufgeschlagen.
   await area.fill('Wechsel eins\nWechsel zwei')
   const saving = page.waitForResponse((r) => r.url().includes(`/api/notes/Journal/${two}.md`) && r.request().method() === 'PUT')
-  await page.locator(`.jr-entry[data-date="${three}"] .jr-row`).click()
+  await page.getByRole('button', { name: 'Vorherige Seite' }).click()
   await saving
-  await page.locator(`.jr-entry[data-date="${two}"] .jr-row`).click()
+  await page.locator(`.jr-entry[data-date="${three}"]`).waitFor()
+  await page.getByRole('button', { name: 'Nächste Seite' }).click()
+  await page.waitForFunction((d) => [...document.querySelectorAll('.jr-entry')].map((e) => e.dataset.date).join() === d, two)
   assert.equal(await page.locator(`.jr-entry[data-date="${two}"] .je-area`).first().inputValue(), 'Wechsel eins\nWechsel zwei')
 })
 
-// Die 12 Wochen öffnen den passenden Tag; ein Tab-Stopp, Pfeiltasten wandern durchs Raster.
+// Die Punktreihe öffnet den passenden Tag; ein Tab-Stopp, Pfeiltasten wandern tageweise.
 test('Journal: Heatmap öffnet Einträge', async () => {
   const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('sv') }
   const two = day(-2)
@@ -252,24 +256,24 @@ test('Journal: Heatmap öffnet Einträge', async () => {
   const heat = page.locator('.jr-heat')
   await heat.waitFor()
   assert.equal(await heat.getAttribute('role'), 'group')
-  assert.match(await heat.getAttribute('aria-label'), /Eintr(ag|äge) in den letzten 12 Wochen$/)
+  assert.match(await heat.getAttribute('aria-label'), /Eintr(ag|äge) in den letzten 6 Wochen$/)
   await page.getByText('Tag mit Eintrag').waitFor()
-  assert.equal(await page.locator('.jr-heat-cell').count(), 84)
+  assert.equal(await page.locator('.jr-heat-cell').count(), 42)
   assert.equal(await page.locator('.jr-heat-cell[tabindex="0"]').count(), 1)
 
-  // Ein Tag mit Eintrag klappt genau diese Zeile auf.
+  // Ein Tag mit Eintrag schlägt genau diese Seite auf.
   const cell = page.locator(`.jr-heat-cell[data-date="${two}"]`)
   assert.match(await cell.getAttribute('class'), /\bon\b/)
   await cell.click()
+  await page.waitForFunction((d) => [...document.querySelectorAll('.jr-entry')].map((e) => e.dataset.date).join() === d, two)
   await page.locator(`.jr-entry[data-date="${two}"] .je-area`).first().waitFor()
-  assert.equal(await page.locator(`.jr-entry[data-date="${two}"] .jr-row`).getAttribute('aria-expanded'), 'true')
 
-  // Pfeiltasten verschieben den Fokus: hoch = ein Tag zurück, links = eine Woche zurück.
+  // Pfeiltasten verschieben den Fokus um einen Tag.
   await cell.focus()
-  await page.keyboard.press('ArrowUp')
-  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-date')), day(-3))
   await page.keyboard.press('ArrowLeft')
-  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-date')), day(-10))
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-date')), day(-3))
+  await page.keyboard.press('ArrowRight')
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-date')), day(-2))
 
   // Ein leerer Tag öffnet den Nachtragen-Dialog mit diesem Datum.
   const empty = day(-40)
@@ -280,31 +284,46 @@ test('Journal: Heatmap öffnet Einträge', async () => {
   await dialog.getByRole('button', { name: 'Abbrechen' }).click()
 })
 
-test('Journal: Einträge durchsuchen und sortieren', async () => {
+test('Journal: blättern und durchsuchen', async () => {
   const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('sv') }
-  const two = day(-2)
+  // Nach dem Umblättern liegt genau eine Seite aufgeschlagen.
+  const shown = (d) => page.waitForFunction((d) => [...document.querySelectorAll('.jr-entry')].map((e) => e.dataset.date).join() === d, d)
   await page.goto(`${base}/journal`)
-  await page.locator('.jr-entry').first().waitFor()
-  const dates = () => page.locator('.jr-entry').evaluateAll((els) => els.map((e) => e.getAttribute('data-date')))
-  const descending = await dates()
-  assert.ok(descending.length >= 2)
-  assert.deepEqual(descending, [...descending].sort().reverse(), 'neueste zuerst')
+  await shown(day(0))
 
-  // Suche nach dem Text eines Eintrags; die Liste zeigt nur noch diesen Tag.
+  // Heute ist die letzte Seite; davor liegen die älteren Tage in Reihenfolge.
+  await page.getByRole('button', { name: 'Vorherige Seite' }).click()
+  await shown(day(-2))
+  await page.keyboard.press('ArrowLeft')
+  await shown(day(-3))
+  await page.keyboard.press('ArrowRight')
+  await shown(day(-2))
+
+  // Suche nach dem Text eines Eintrags; das Buch hat nur noch diese Seite und heute.
   await page.getByRole('button', { name: 'Einträge durchsuchen' }).click() // eingeklappt als Lupe
   const search = page.getByRole('searchbox', { name: 'Einträge durchsuchen' })
   await search.fill('Wechsel eins')
-  await page.waitForFunction(() => document.querySelectorAll('.jr-entry').length === 1)
-  assert.deepEqual(await dates(), [two])
+  await shown(day(-2))
+  assert.equal(await page.locator('.jr-nav-count').innerText(), 'Seite 1 von 2')
   await search.fill('gibt es nicht')
   await page.getByText('Keine Treffer für „gibt es nicht“.').waitFor()
+  await shown(day(0))
+})
 
-  // Sortierung umdrehen: ältester Tag oben.
-  await search.fill('')
-  await page.getByRole('button', { name: 'Älteste zuerst' }).click()
-  const ascending = await dates()
-  assert.deepEqual(ascending, [...ascending].sort(), 'älteste zuerst')
-  assert.equal(ascending[0], [...descending].sort()[0])
+test('Journal: Papier wählen bleibt erhalten', async () => {
+  await page.goto(`${base}/journal`)
+  const book = page.locator('.jr-book')
+  await book.waitFor()
+  assert.equal(await book.getAttribute('data-paper'), 'coffee')
+  await page.locator('.jr-more-btn').click()
+  await page.getByRole('button', { name: 'Schwarz', exact: true }).click()
+  assert.equal(await book.getAttribute('data-paper'), 'black')
+  await page.waitForTimeout(600) // Einstellungen gehen gebündelt an den Server
+  await page.reload()
+  await book.waitFor()
+  assert.equal(await book.getAttribute('data-paper'), 'black')
+  await page.locator('.jr-more-btn').click()
+  await page.getByRole('button', { name: 'Kaffee', exact: true }).click()
 })
 
 test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => {
@@ -382,7 +401,7 @@ test('Journal: Rückblick listet erledigte Aufgaben auf', async () => {
   await page.goto(`${base}/journal`)
   const recap = page.locator('.jr-recap')
   await recap.waitFor()
-  assert.match(await recap.innerText(), /Heute erledigt:.*Rückblick/)
+  assert.match(await recap.innerText(), /Erledigt[\s\S]*Rückblick/)
 })
 
 test('Journal: „Alle Aufgaben“ filtert nach Journal', async () => {
@@ -400,7 +419,7 @@ test('Journal: „Alle Aufgaben“ filtert nach Journal', async () => {
   await page.locator('.task-row', { hasText: 'Abgabe einreichen. Kapitel lesen' }).waitFor()
 })
 
-test('Journal am Handy: offene Aufgaben vor den Einträgen und kein Überlauf', async () => {
+test('Journal am Handy: Seite vor den offenen Aufgaben und kein Überlauf', async () => {
   await page.setViewportSize({ width: 390, height: 844 })
   try {
     await page.goto(`${base}/journal`)
@@ -408,7 +427,7 @@ test('Journal am Handy: offene Aufgaben vor den Einträgen und kein Überlauf', 
     const box = await page.evaluate(() => {
       const rect = (sel) => document.querySelector(sel)?.getBoundingClientRect()
       return {
-        tops: ['.jr-today', '.jr-side-top', '.jr-open-box', '.jr-past'].map((sel) => rect(sel)?.top ?? -1),
+        tops: ['.jr-today', '.jr-open-box'].map((sel) => rect(sel)?.top ?? -1),
         overflow: document.documentElement.scrollWidth - window.innerWidth,
       }
     })
@@ -440,19 +459,24 @@ test('Journal: verpassten Tag nachtragen', async () => {
   await entry.locator('.je-saved').waitFor()
   await saved
   assert.match(readFileSync(join(dir, `${date}.md`), 'utf8'), /Nachgetragen/)
-  // Mit Datei bleibt die Zeile beim Schließen stehen.
-  await entry.locator('.jr-row').click()
-  await page.locator(`.jr-entry[data-date="${date}"]`).waitFor()
+  // Mit Datei bleibt die Seite beim Weiterblättern im Buch.
+  await page.getByRole('button', { name: 'Nächste Seite' }).click()
+  await entry.waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Vorherige Seite' }).click()
+  await entry.waitFor()
 
-  // Leerer Entwurf: keine Datei, und beim Schließen verschwindet die Zeile wieder.
+  // Leerer Entwurf: keine Datei, und beim Weiterblättern verschwindet die Seite wieder.
   await page.getByRole('button', { name: 'Nachtragen', exact: true }).click()
   await dialog.getByLabel('Datum').fill(empty)
   await dialog.getByRole('button', { name: 'Öffnen' }).click()
   const draft = page.locator(`.jr-entry[data-date="${empty}"]`)
   await draft.locator('.je-area').first().waitFor()
   assert.ok(!existsSync(join(dir, `${empty}.md`)))
-  await draft.locator('.jr-row').click()
+  await page.getByRole('button', { name: 'Nächste Seite' }).click()
   await draft.waitFor({ state: 'detached' })
+  // Der Entwurf ist keine Seite mehr: Der nachgetragene Tag ist jetzt die erste.
+  await page.locator(`.jr-entry[data-date="${date}"]`).waitFor()
+  assert.ok(await page.getByRole('button', { name: 'Vorherige Seite' }).isDisabled())
   assert.ok(!existsSync(join(dir, `${empty}.md`)))
 })
 
@@ -461,7 +485,7 @@ test('Lernkarte bewerten', async () => {
   writeFileSync(join(env.KAIRO_NOTES_DIR, 'Karten.md'), '- Smoke-Frage :: Smoke-Antwort\n')
   await page.goto(`${base}/cards`)
   // Eine direkt angelegte Karte in neuem Fach; gelernt wird nur das Fach der Notizkarte.
-  await page.locator('.cv-tools').getByRole('button', { name: 'Hinzufügen' }).click()
+  await page.locator('.kb-head').getByRole('button', { name: 'Hinzufügen' }).click()
   const dlg = page.getByRole('dialog', { name: 'Karten hinzufügen' })
   await dlg.getByLabel('Fach', { exact: true }).fill('Smoke-Fach')
   await dlg.getByLabel('Vorderseite', { exact: true }).fill('Eigene Frage')
@@ -469,9 +493,9 @@ test('Lernkarte bewerten', async () => {
   await dlg.getByRole('button', { name: 'Hinzufügen', exact: true }).click()
   await dlg.getByText('1 Karte hinzugefügt').waitFor()
   await dlg.getByRole('button', { name: 'Fertig' }).click()
-  await page.locator('.cv-open', { hasText: 'Smoke-Fach' }).waitFor()
-  await page.locator('.cv-open', { hasText: 'Allgemein' }).click()
-  await page.getByRole('button', { name: 'Jetzt lernen' }).click()
+  await page.locator('.kb-deck', { hasText: 'Smoke-Fach' }).waitFor()
+  await page.locator('.kb-deck', { hasText: 'Allgemein' }).click()
+  await page.getByRole('button', { name: '1 lernen' }).click()
   await page.getByText('Smoke-Frage').waitFor()
   await page.keyboard.press('Space')
   await page.getByText('Smoke-Antwort').waitFor()

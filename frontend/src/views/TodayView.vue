@@ -5,6 +5,7 @@ import { provideHome } from '@/composables/useHome'
 import { useShortcuts } from '@/composables/useShortcuts'
 import { columns, findSlot, stopwatch } from '@/lib/dayPlan'
 import { dur, hm, shiftDate } from '@/lib/dates'
+import { vDialog } from '@/lib/dialog'
 import { goalProgressText } from '@/lib/goals'
 import { locale, t, tn } from '@/lib/i18n'
 import { journalPath, parseEntry } from '@/lib/journal'
@@ -15,21 +16,24 @@ import { store } from '@/lib/storage'
 // Startseite: oben eine Karte mit dem, was jetzt dran ist, darunter Gewohnheiten, Lernkarte und Ziel,
 // dann die Aufgaben nach Überfällig/Heute/Demnächst; rechts der Zeitplan mit freien Lücken zum Einplanen.
 const home = provideHome()
-const { today, tasks, tasksById, projectNames, now, nowMin, error, blocks, allDay, freeGaps, runEntry, runningTaskId, pausedTask, runSecs, run, offer, setDone, scheduleAt } = home
+const { today, tasks, tasksById, projectNames, nowMin, error, blocks, allDay, freeGaps, runEntry, runningTaskId, pausedTask, runSecs, run, offer, setDone, scheduleAt } = home
 
-const dateLabel = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(now.value)))
 const events = computed(() => blocks.value.filter((b) => b.kind === 'event'))
-const sub = computed(() => {
+const upcomingEvent = computed(() => {
   const cur = events.value.find((b) => b.start <= nowMin.value && nowMin.value < b.end)
   const next = events.value.find((b) => b.start >= nowMin.value)
-  const line = cur ? t('Aktuell: {title} bis {time}', { title: cur.title, time: hm(cur.end) })
-    : next ? t('Als Nächstes im Kalender: {title} um {time}', { title: next.title, time: hm(next.start) })
-    : t('Keine weiteren Termine heute')
-  return allDay.value.length ? `${line} · ${allDay.value.map((b) => b.title).join(', ')}` : line
+  if (cur) return t('Aktuell: {title} bis {time} Uhr', { title: cur.title, time: hm(cur.end) })
+  if (next) return t('Als Nächstes im Kalender: {title} um {time} Uhr', { title: next.title, time: hm(next.start) })
+  if (allDay.value.length) return allDay.value.map((b) => b.title).join(', ')
+  return null
 })
+const shortDate = (d: string) => new Intl.DateTimeFormat(locale.value, { day: 'numeric', month: 'short' }).format(new Date(`${d}T12:00:00`))
+const todayFormatted = computed(() =>
+  new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())
+)
 const freeMin = computed(() => freeGaps.value.reduce((s, g) => s + g.end - g.start, 0))
 const est = (x: Task) => x.estimated_minutes || 30
-const estLabel = (x: Task) => (x.estimated_minutes ? dur(x.estimated_minutes) : '–')
+const estLabel = (x: Task) => (x.estimated_minutes ? dur(x.estimated_minutes) : '')
 const startOf = (x: Task) => blocks.value.find((b) => b.task?.id === x.id)?.start
 
 // Aufgaben: Überfälliges, heute Offenes, Demnächst (nach Datum). Erledigtes von heute klappt unten auf.
@@ -166,6 +170,27 @@ watch(() => today.value?.date, (day) => {
 }, { immediate: true })
 const goalSegs = computed(() => Math.round((goal.value?.progress?.percent ?? 0) / 12.5))
 
+const openStrip = ref<'habits' | 'cards' | 'goal' | null>(null)
+
+const habitSummary = computed(() => {
+  const openCount = habits.value.filter((h) => !h.done).length
+  if (openCount > 0) return tn(openCount, '{n} Gewohnheit offen', '{n} Gewohnheiten offen')
+  if (habits.value.length) return t('Alle Gewohnheiten erledigt')
+  return t('Keine Gewohnheiten')
+})
+
+const cardSummary = computed(() => {
+  const count = cards.value?.length ?? 0
+  if (count > 0) return tn(count, '{n} Karte wartet', '{n} Karten warten')
+  return t('Keine Karten fällig')
+})
+
+const goalSummary = computed(() => {
+  if (!goal.value) return t('Kein Ziel')
+  if (goal.value.progress) return t('Ziel {p}%', { p: goal.value.progress.percent })
+  return goal.value.title
+})
+
 // Liste mit Tastatur: J/K bewegen, X abhaken, S starten, P einplanen, Leertaste dreht die Lernkarte.
 const heroId = computed(() => (kind.value === 'task' ? heroTask.value?.id : kind.value === 'run' ? current.value?.id : undefined))
 const groups = computed(() => [
@@ -225,6 +250,22 @@ const gapSugs = computed(() => {
     return s
   })
 })
+const selectedTask = computed(() => (sel.value ? tasksById.value.get(sel.value) : undefined))
+const gapToFill = ref<{ start: number; end: number } | null>(null)
+const tasksForGap = (g: { start: number; end: number }) =>
+  openToday.value.concat(upcoming.value).filter((x) => !x.planned_start_at && est(x) <= g.end - g.start)
+
+function onGapClick(g: { start: number; end: number }) {
+  if (selectedTask.value) {
+    if (est(selectedTask.value) <= g.end - g.start) {
+      scheduleAt(selectedTask.value, g.start)
+      sel.value = null
+    }
+    return
+  }
+  gapToFill.value = g
+}
+
 const drag = ref<Task | null>(null)
 const dropAt = ref<number | null>(null)
 const fits = (g: { start: number; end: number }) => !!drag.value && est(drag.value) <= g.end - g.start
@@ -240,8 +281,13 @@ function drop(g: { start: number; end: number }) {
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
     <div class="st-grid">
       <div class="st-main">
-        <h1 class="v-title">{{ dateLabel }}</h1>
-        <p class="v-sub">{{ sub }}</p>
+        <div class="v-head">
+          <h1 class="v-title">{{ todayFormatted }}</h1>
+        </div>
+        <div v-if="upcomingEvent" class="st-event-alert">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-cal" /></svg>
+          <span>{{ upcomingEvent }}</span>
+        </div>
         <RouterLink v-if="yesterday" class="st-journal" :to="{ name: 'journal', query: { date: yesterday.date } }">
           <span>{{ $t('Gestern hast du dir vorgenommen:') }}</span><b>{{ yesterday.intention }}</b>
         </RouterLink>
@@ -250,7 +296,7 @@ function drop(g: { start: number; end: number }) {
           <template v-if="kind === 'run'">
             <div class="st-eyebrow">
               <span class="st-dot" :class="{ off: !runEntry }"></span><b>{{ runEntry ? $t('Läuft') : $t('Pausiert') }}</b>
-              <template v-if="current?.project_id"><span>·</span><span :style="{ color: projectColor(current.project_id) }">{{ projectNames.get(current.project_id) }}</span></template>
+              <template v-if="current?.project_id"><span>·</span><span class="chip" :style="{ '--chip-c': projectColor(current.project_id) }"><span class="cdot"></span>{{ projectNames.get(current.project_id) }}</span></template>
               <span v-if="current" class="st-pill">{{ $t('Schätzung {time}', { time: estLabel(current) }) }}</span>
             </div>
             <div class="st-title">{{ runTitle }}</div>
@@ -273,7 +319,7 @@ function drop(g: { start: number; end: number }) {
               <button v-for="x in candidates" :key="x.id" type="button" class="st-pick" role="checkbox" :aria-checked="picks.has(x.id)" @click="togglePick(x.id)">
                 <span class="cb" :aria-checked="picks.has(x.id)"></span>
                 <span class="st-pick-t">{{ x.title }}</span>
-                <span v-if="x.project_id" class="st-pill" :style="{ color: projectColor(x.project_id) }">{{ projectNames.get(x.project_id) }}</span>
+                <span v-if="x.project_id" class="chip" :style="{ '--chip-c': projectColor(x.project_id) }"><span class="cdot"></span>{{ projectNames.get(x.project_id) }}</span>
                 <span class="st-est">{{ estLabel(x) }}</span>
               </button>
             </div>
@@ -296,9 +342,9 @@ function drop(g: { start: number; end: number }) {
           <template v-else-if="kind === 'task' && heroTask">
             <div class="st-eyebrow">
               <b>{{ $t('Als Nächstes') }}</b>
-              <template v-if="heroTask.project_id"><span>·</span><span :style="{ color: projectColor(heroTask.project_id) }">{{ projectNames.get(heroTask.project_id) }}</span></template>
+              <template v-if="heroTask.project_id"><span>·</span><span class="chip" :style="{ '--chip-c': projectColor(heroTask.project_id) }"><span class="cdot"></span>{{ projectNames.get(heroTask.project_id) }}</span></template>
               <span>·</span><span>{{ estLabel(heroTask) }}</span>
-              <span class="st-pill" :class="{ red: overdue.includes(heroTask) }">{{ overdue.includes(heroTask) ? $t('Überfällig') : $t('Heute fällig') }}</span>
+              <span class="st-pill">{{ overdue.includes(heroTask) ? $t('Überfällig') : $t('Heute fällig') }}</span>
             </div>
             <div class="st-title">{{ heroTask.title }}</div>
             <p class="st-text">{{ heroFit }}</p>
@@ -316,83 +362,159 @@ function drop(g: { start: number; end: number }) {
           </template>
         </section>
 
-        <div class="st-cards">
-          <section class="st-card" :aria-label="$t('Gewohnheiten')">
-            <div class="st-card-h"><RouterLink to="/habits">{{ $t('Gewohnheiten') }}</RouterLink><span class="st-pill">{{ habits.filter((h) => h.done).length }} / {{ habits.length }}</span></div>
-            <button v-for="h in habitsShown" :key="h.id" type="button" class="st-habit" :aria-pressed="h.done" @click="toggleHabit(h.id, h.done)">
-              <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
-                <circle cx="15" cy="15" r="12" class="st-ring-bg" />
-                <circle cx="15" cy="15" r="12" class="st-ring" :stroke-dasharray="RING" :stroke-dashoffset="h.done ? 0 : RING" transform="rotate(-90 15 15)" />
-                <path d="M10.5 15.3l3 3 6-6.4" class="st-ring-chk" :style="{ opacity: h.done ? 1 : 0 }" />
-              </svg>
-              <span class="st-habit-n">{{ h.name }}</span>
-              <span class="st-habit-m">{{ h.week_progress ? $t('{n} von {m} erledigt', { n: h.week_progress.done, m: h.week_progress.target }) : h.preferred_time ?? '' }}</span>
-            </button>
-            <RouterLink v-if="habits.length > 4" to="/habits" class="st-more">{{ $t('{n} weitere', { n: habits.length - 4 }) }}</RouterLink>
-            <span v-if="!habits.length" class="st-empty">{{ $t('Heute keine Gewohnheiten.') }}</span>
-          </section>
-
-          <section class="st-card" :aria-label="$t('Lernkarte')">
-            <div class="st-card-h"><RouterLink to="/cards">{{ $t('Lernkarte') }}</RouterLink><span class="st-pill">{{ cards?.length ? $t('{n} fällig', { n: cards.length }) : $t('erledigt') }}</span></div>
-            <div v-if="card" class="st-flip" :class="{ on: flip }" @click="flip = !flip">
-              <div class="st-face st-front" :aria-hidden="flip">
-                <span class="st-deck">{{ card.deck || $t('Ohne Stapel') }}</span>
-                <span class="st-q">{{ card.question }}</span>
-                <span class="st-hint">{{ $t('Klicken oder') }} <kbd>{{ $t('Leertaste') }}</kbd> {{ $t('zum Umdrehen') }}</span>
-              </div>
-              <div class="st-face st-back" :aria-hidden="!flip">
-                <span class="st-a">{{ card.answer }}</span>
-                <div class="st-grade">
-                  <button type="button" class="btn btn-secondary" @click.stop="grade(0)">{{ $t('Nochmal') }}</button>
-                  <button type="button" class="btn btn-primary" @click.stop="grade(2)">{{ $t('Gewusst') }}</button>
+        <!-- Aufgaben direkt unter dem Timer bzw. unter dem Block „Vorgenommen“ -->
+        <div class="st-groups">
+          <div v-for="g in groups" :key="g.key" class="tgroup">
+            <div class="lbl">
+              <span>{{ g.label }}</span>
+              <span class="count">{{ g.rows.length }}</span>
+            </div>
+            <div class="tasklist">
+              <div
+                v-for="x in g.rows" :key="x.id" class="st-row" :class="{ sel: sel === x.id, dragging: drag?.id === x.id }" draggable="true"
+                @click="sel = x.id" @dragstart="(e) => { drag = x; e.dataTransfer?.setData('text/plain', x.id) }" @dragend="drag = null; dropAt = null"
+              >
+                <button type="button" class="cb ring" role="checkbox" aria-checked="false" :aria-label="$t('{title} erledigt', { title: x.title })" @click.stop="setDone(x, 'COMPLETED', run)"></button>
+                <div class="st-row-t">
+                  <span class="t">{{ x.title }}</span>
+                  <span v-if="startOf(x) !== undefined" class="st-planned mono">{{ hm(startOf(x)!) }}</span>
+                </div>
+                <span class="pcol">
+                  <span v-if="x.project_id" class="chip" :style="{ '--chip-c': projectColor(x.project_id) }">
+                    <span class="cdot"></span>{{ projectNames.get(x.project_id) }}
+                  </span>
+                </span>
+                <span class="dur">{{ x.estimated_minutes ? dur(x.estimated_minutes) : '' }}</span>
+                <span class="due">{{ dueLabel(g.key, x) }}</span>
+                <div class="st-row-acts">
+                  <button type="button" class="btn btn-secondary" @click.stop="toggleTimer(x)"><kbd aria-hidden="true">S</kbd>{{ $t('Starten') }}</button>
+                  <button type="button" class="btn btn-secondary" @click.stop="togglePlan(x)"><kbd aria-hidden="true">P</kbd>{{ x.planned_start_at ? $t('Aus dem Plan') : $t('Einplanen') }}</button>
                 </div>
               </div>
             </div>
-            <div v-else-if="cards" class="st-empty"><b>{{ $t('Für heute gelernt.') }}</b>{{ $t('Die nächste Karte kommt, wenn sie fällig ist.') }}</div>
-          </section>
+          </div>
 
-          <section class="st-card" :aria-label="$t('Ziel')">
-            <div class="st-card-h"><RouterLink to="/goals">{{ $t('Ziel') }}</RouterLink><span v-if="goal?.progress" class="st-pill">{{ goal.progress.percent }} %</span></div>
-            <template v-if="goal">
-              <span class="st-goal-t">{{ goal.title }}</span>
-              <div v-if="goal.progress" class="st-segs" aria-hidden="true"><i v-for="n in 8" :key="n" :class="{ on: n <= goalSegs }"></i></div>
-              <div v-if="goal.progress" class="st-goal-f"><span>{{ $t('Fortschritt') }}</span><b>{{ goalProgressText(goal) }}</b></div>
-            </template>
-            <span v-else class="st-empty">{{ $t('Noch kein Ziel.') }} <RouterLink to="/goals">{{ $t('Ziel anlegen ›') }}</RouterLink></span>
-          </section>
-        </div>
-
-        <div class="st-groups">
-          <section v-for="g in groups" :key="g.key" class="st-group" :aria-label="g.label">
-            <div class="st-group-h"><span>{{ g.label }}</span><span class="st-count">{{ g.rows.length }}</span><span class="st-sum">{{ dur(g.rows.reduce((s, x) => s + (x.estimated_minutes || 0), 0)) }}</span></div>
-            <div
-              v-for="x in g.rows" :key="x.id" class="st-row" :class="{ sel: sel === x.id, dragging: drag?.id === x.id }" draggable="true"
-              @click="sel = x.id" @dragstart="(e) => { drag = x; e.dataTransfer?.setData('text/plain', x.id) }" @dragend="drag = null; dropAt = null"
-            >
-              <button type="button" class="cb" role="checkbox" aria-checked="false" :aria-label="$t('{title} erledigt', { title: x.title })" @click.stop="setDone(x, 'COMPLETED', run)"></button>
-              <span class="st-row-t"><span>{{ x.title }}</span><span v-if="startOf(x) !== undefined" class="st-planned mono">{{ hm(startOf(x)!) }}</span></span>
-              <span class="st-proj"><span v-if="x.project_id" class="st-pill" :style="{ color: projectColor(x.project_id) }">{{ projectNames.get(x.project_id) }}</span></span>
-              <span class="st-est">{{ estLabel(x) }}</span>
-              <span class="st-due" :class="{ red: g.key === 'over' }">{{ dueLabel(g.key, x) }}</span>
-              <div class="st-row-acts">
-                <button type="button" class="btn btn-secondary" @click.stop="toggleTimer(x)"><kbd aria-hidden="true">S</kbd>{{ $t('Starten') }}</button>
-                <button type="button" class="btn btn-secondary" @click.stop="togglePlan(x)"><kbd aria-hidden="true">P</kbd>{{ x.planned_start_at ? $t('Aus dem Plan') : $t('Einplanen') }}</button>
+          <div v-if="doneToday.length" class="tgroup">
+            <button type="button" class="lbl st-done-btn" :aria-expanded="showDone" @click="showDone = !showDone">
+              <svg class="ic" :class="{ open: showDone }" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
+              <span>{{ $t('Erledigt') }}</span>
+              <span class="count">{{ doneToday.length }}</span>
+            </button>
+            <div v-if="showDone" class="tasklist">
+              <div v-for="x in doneToday" :key="x.id" class="st-row done">
+                <button type="button" class="cb ring" role="checkbox" aria-checked="true" :aria-label="$t('Wieder öffnen')" :title="$t('Wieder öffnen')" @click="run(() => updateTask(x.id, { status: 'PLANNED' }))"></button>
+                <div class="st-row-t"><span class="t">{{ x.title }}</span></div>
+                <span class="pcol">
+                  <span v-if="x.project_id" class="chip" :style="{ '--chip-c': projectColor(x.project_id) }">
+                    <span class="cdot"></span>{{ projectNames.get(x.project_id) }}
+                  </span>
+                </span>
+                <span class="dur"></span>
+                <span class="due"></span>
               </div>
             </div>
-          </section>
-          <section v-if="doneToday.length" class="st-group">
-            <button type="button" class="st-done-h" :aria-expanded="showDone" @click="showDone = !showDone">
-              <svg class="ic" :class="{ open: showDone }" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>{{ $t('Erledigt') }}<span class="st-count">{{ doneToday.length }}</span>
-            </button>
-            <template v-if="showDone">
-              <div v-for="x in doneToday" :key="x.id" class="st-row done">
-                <button type="button" class="cb" role="checkbox" aria-checked="true" :aria-label="$t('Wieder öffnen')" :title="$t('Wieder öffnen')" @click="run(() => updateTask(x.id, { status: 'PLANNED' }))"></button>
-                <span class="st-row-t"><span>{{ x.title }}</span></span>
-                <span class="st-proj"><span v-if="x.project_id" class="st-pill">{{ projectNames.get(x.project_id) }}</span></span>
-              </div>
-            </template>
-          </section>
+          </div>
           <div v-if="!groups.length && !doneToday.length" class="st-empty">{{ $t('Nichts für heute geplant.') }}</div>
+        </div>
+
+        <!-- Kompakte Zeile: Gewohnheiten, Lernkarte, Fokus-Ziel -->
+        <div class="st-strip" role="region" :aria-label="$t('Tagesübersicht')">
+          <button type="button" class="st-strip-btn" :class="{ open: openStrip === 'habits' }" :aria-expanded="openStrip === 'habits'" @click="openStrip = openStrip === 'habits' ? null : 'habits'">
+            <svg class="ic" aria-hidden="true"><use href="#i-habits" /></svg>
+            <span>{{ habitSummary }}</span>
+          </button>
+          <span class="st-strip-sep" aria-hidden="true">·</span>
+          <button type="button" class="st-strip-btn" :class="{ open: openStrip === 'cards' }" :aria-expanded="openStrip === 'cards'" @click="openStrip = openStrip === 'cards' ? null : 'cards'">
+            <svg class="ic" aria-hidden="true"><use href="#i-cards" /></svg>
+            <span>{{ cardSummary }}</span>
+          </button>
+          <span class="st-strip-sep" aria-hidden="true">·</span>
+          <button type="button" class="st-strip-btn" :class="{ open: openStrip === 'goal' }" :aria-expanded="openStrip === 'goal'" @click="openStrip = openStrip === 'goal' ? null : 'goal'">
+            <svg class="ic" aria-hidden="true"><use href="#i-goal" /></svg>
+            <span>{{ goalSummary }}</span>
+          </button>
+        </div>
+
+        <div v-if="openStrip" class="st-strip-detail">
+          <!-- 1. Gewohnheiten -->
+          <section v-if="openStrip === 'habits'" class="st-card" :aria-label="$t('Gewohnheiten')">
+            <div class="st-card-h">
+              <RouterLink to="/habits">{{ $t('Gewohnheiten') }}</RouterLink>
+              <span class="st-pill">{{ habits.filter((h) => h.done).length }}/{{ habits.length }} {{ $t('heute') }}</span>
+            </div>
+            <div class="st-card-b">
+              <button v-for="h in habitsShown" :key="h.id" type="button" class="st-habit" :aria-pressed="h.done" @click="toggleHabit(h.id, h.done)">
+                <svg width="24" height="24" viewBox="0 0 30 30" aria-hidden="true">
+                  <circle cx="15" cy="15" r="12" class="st-ring-bg" />
+                  <circle cx="15" cy="15" r="12" class="st-ring" :stroke-dasharray="RING" :stroke-dashoffset="h.done ? 0 : RING" transform="rotate(-90 15 15)" />
+                  <path d="M10.5 15.3l3 3 6-6.4" class="st-ring-chk" :style="{ opacity: h.done ? 1 : 0 }" />
+                </svg>
+                <span class="st-habit-n">{{ h.name }}</span>
+                <span class="st-habit-m">{{ h.week_progress ? $t('{n} von {m}', { n: h.week_progress.done, m: h.week_progress.target }) : h.preferred_time ?? '' }}</span>
+              </button>
+              <RouterLink v-if="habits.length > 3" to="/habits" class="st-more">{{ $t('{n} weitere', { n: habits.length - 3 }) }}</RouterLink>
+              <span v-if="!habits.length" class="st-empty">{{ $t('Heute keine Gewohnheiten.') }}</span>
+            </div>
+            <div class="st-card-f">
+              <span v-if="habits.length && habits.every((h) => h.done)" class="st-all-done">✓ {{ $t('Alles für heute erledigt') }}</span>
+              <span v-else-if="habits.length === 1 && habits[0]?.preferred_time" class="st-meta-note">{{ $t('Geplant um {time} Uhr', { time: habits[0].preferred_time }) }}</span>
+              <span v-else-if="habits.length" class="st-meta-note">{{ $tn(habits.filter((h) => !h.done).length, '{n} noch offen', '{n} noch offen') }}</span>
+            </div>
+          </section>
+
+          <!-- 2. Lernkarte -->
+          <section v-else-if="openStrip === 'cards'" class="st-card" :aria-label="$t('Lernkarte')">
+            <div class="st-card-h">
+              <RouterLink to="/cards">{{ $t('Lernkarte') }}</RouterLink>
+              <span v-if="card?.deck" class="st-pill">{{ card.deck }}</span>
+              <span v-else-if="cards?.length" class="st-pill">{{ $t('{n} fällig', { n: cards.length }) }}</span>
+            </div>
+            <div v-if="card" class="st-card-b">
+              <div class="st-flip" :class="{ on: flip }" @click="flip = !flip">
+                <div class="st-face st-front" :aria-hidden="flip">
+                  <span class="st-q">{{ card.question }}</span>
+                </div>
+                <div class="st-face st-back" :aria-hidden="!flip">
+                  <span class="st-a">{{ card.answer }}</span>
+                  <div class="st-grade">
+                    <button type="button" class="btn btn-secondary" @click.stop="grade(0)">{{ $t('Nochmal') }}</button>
+                    <button type="button" class="btn btn-primary" @click.stop="grade(2)">{{ $t('Gewusst') }}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="cards" class="st-card-b">
+              <div class="st-empty"><b>{{ $t('Für heute gelernt.') }}</b>{{ $t('Die nächste Karte kommt, wenn sie fällig ist.') }}</div>
+            </div>
+            <div v-if="card" class="st-card-f">
+              <span class="st-meta-note">{{ $tn(cards?.length ?? 0, '{n} Karte wartet', '{n} Karten warten') }}</span>
+              <span class="st-hint"><kbd>{{ $t('Leertaste') }}</kbd> {{ $t('Umdrehen') }}</span>
+            </div>
+          </section>
+
+          <!-- 3. Ziel -->
+          <section v-else-if="openStrip === 'goal'" class="st-card" :aria-label="$t('Ziel')">
+            <div class="st-card-h">
+              <RouterLink to="/goals">{{ $t('Fokus-Ziel') }}</RouterLink>
+              <span v-if="goal?.due_date" class="st-pill">{{ shortDate(goal.due_date) }}</span>
+              <span v-else-if="goal?.progress" class="st-pill">{{ goal.progress.percent }}%</span>
+              <span v-else class="st-pill">{{ $t('Langzeitziel') }}</span>
+            </div>
+            <div v-if="goal" class="st-card-b">
+              <span class="st-goal-t">{{ goal.title }}</span>
+              <p v-if="goal.why" class="st-goal-why">„{{ goal.why }}“</p>
+              <div v-if="goal.progress" class="st-segs" aria-hidden="true"><i v-for="n in 8" :key="n" :class="{ on: n <= goalSegs }"></i></div>
+            </div>
+            <div v-else class="st-card-b">
+              <span class="st-empty">{{ $t('Noch kein Ziel.') }} <RouterLink to="/goals">{{ $t('Ziel anlegen ›') }}</RouterLink></span>
+            </div>
+            <div class="st-card-f">
+              <template v-if="goal">
+                <div v-if="goal.progress" class="st-goal-f-line"><span>{{ $t('Fortschritt') }}</span><b>{{ goalProgressText(goal) }}</b></div>
+                <RouterLink v-else to="/goals" class="st-goal-link">{{ $t('Teilziele anlegen ›') }}</RouterLink>
+              </template>
+            </div>
+          </section>
         </div>
 
         <div class="st-keys" aria-hidden="true">
@@ -409,13 +531,14 @@ function drop(g: { start: number; end: number }) {
         <div ref="rail" class="st-rail" :style="{ '--mins': r1 - r0 }">
           <div v-for="h in hours" :key="h" class="st-hour" :style="{ top: ry(h * 60) + '%' }"><span class="mono">{{ String(h).padStart(2, '0') }}:00</span><i></i></div>
           <div
-            v-for="(g, i) in freeGaps" :key="g.start" class="st-gap" :class="{ can: fits(g), on: dropAt === g.start && fits(g) }"
+            v-for="(g, i) in freeGaps" :key="g.start" class="st-gap" :class="{ can: fits(g) || (selectedTask && est(selectedTask) <= g.end - g.start), on: dropAt === g.start && fits(g) }"
             :style="{ top: ry(g.start) + '%', height: ry(g.end) - ry(g.start) + '%' }"
             @dragover="(e) => { if (fits(g)) { e.preventDefault(); dropAt = g.start } }" @dragleave="dropAt = null" @drop.prevent="drop(g)"
+            @click="onGapClick(g)"
           >
             <div>
-              <span>{{ drag ? (fits(g) ? $t('Hier ablegen') : $t('Zu kurz')) : $t('{time} frei', { time: dur(g.end - g.start) }) }}</span>
-              <button v-if="gapSugs[i] && !drag" type="button" class="st-gap-add" :title="$t('{title} um {time} einplanen', { title: gapSugs[i]!.title, time: hm(g.start) })" @click="scheduleAt(gapSugs[i]!, g.start)">+ {{ $t('Einplanen') }}</button>
+              <span>{{ drag ? (fits(g) ? $t('Hier ablegen') : $t('Zu kurz')) : selectedTask ? (est(selectedTask) <= g.end - g.start ? $t('Hier einplanen') : $t('Zu kurz')) : $t('{time} frei', { time: dur(g.end - g.start) }) }}</span>
+              <button v-if="!drag && !selectedTask" type="button" class="st-gap-add" :title="gapSugs[i] ? $t('{title} um {time} einplanen', { title: gapSugs[i]!.title, time: hm(g.start) }) : $t('Aufgabe einplanen')" @click.stop="gapToFill = g">+ {{ $t('Einplanen') }}</button>
             </div>
           </div>
           <div
@@ -432,6 +555,41 @@ function drop(g: { start: number; end: number }) {
         </div>
       </aside>
     </div>
+
+    <!-- Dialog zur Lückenauswahl (Mobil & Touch) -->
+    <div v-if="gapToFill" v-dialog="() => gapToFill = null" class="overlay open" @click.self="gapToFill = null">
+      <div class="dialog st-gap-dialog">
+        <div class="dlg-head">
+          <h3>{{ $t('Aufgabe einplanen') }}</h3>
+          <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="gapToFill = null"><svg class="ic"><use href="#i-x" /></svg></button>
+        </div>
+        <div class="dlg-body">
+          <div class="st-gap-dialog-info">
+            <span class="mono">{{ hm(gapToFill.start) }} – {{ hm(gapToFill.end) }}</span>
+            <span>· {{ $t('{time} frei', { time: dur(gapToFill.end - gapToFill.start) }) }}</span>
+          </div>
+          <div v-if="tasksForGap(gapToFill).length" class="st-gap-tasks">
+            <button
+              v-for="x in tasksForGap(gapToFill)" :key="x.id"
+              type="button" class="st-gap-task-item"
+              @click="scheduleAt(x, gapToFill.start); gapToFill = null"
+            >
+              <span class="t">{{ x.title }}</span>
+              <span v-if="x.project_id" class="chip" :style="{ '--chip-c': projectColor(x.project_id) }">
+                <span class="cdot"></span>{{ projectNames.get(x.project_id) }}
+              </span>
+              <span class="dur mono">{{ estLabel(x) }}</span>
+            </button>
+          </div>
+          <div v-else class="st-empty">
+            {{ $t('Keine passende offene Aufgabe für diese Lücke.') }}
+          </div>
+        </div>
+        <div class="dlg-foot">
+          <button class="btn btn-ghost" type="button" @click="gapToFill = null">{{ $t('Abbrechen') }}</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -442,101 +600,119 @@ function drop(g: { start: number; end: number }) {
 .st .v-sub { margin-top: 8px; font-variant-numeric: tabular-nums; }
 kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 5px; background: color-mix(in oklab, currentColor 12%, transparent); font: 500 11px/1 var(--font-mono); }
 .st .btn kbd { margin-left: 4px; opacity: .8; }
-.st-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 6px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--br-subtle); font: 500 11.5px/1 var(--font-ui); color: var(--tx-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.st-pill { display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px; border-radius: 6px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--br-subtle); font: 500 11.5px/1 var(--font-ui); color: var(--tx-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-journal { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); text-decoration: none; }
 .st-journal b { min-width: 0; font-weight: 500; color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-journal:hover b { text-decoration: underline; }
-.st-pill.red { color: var(--a-red); }
 
 /* Karte oben */
-.st-hero { margin-top: 24px; padding: 26px 28px 24px; border-radius: 16px; background: linear-gradient(180deg, var(--bg-3), var(--bg-2) 60%); box-shadow: inset 0 0 0 1px var(--br-subtle); }
+.st-event-alert { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 7px 12px; border-radius: var(--r-s); background: color-mix(in srgb, var(--a-blue) 12%, transparent); border: 1px solid color-mix(in srgb, var(--a-blue) 25%, transparent); font: 500 12.5px/1.3 var(--font-ui); color: var(--tx-primary); }
+.st-event-alert .ic { width: 14px; height: 14px; color: var(--a-blue); flex: none; }
+.st-hero { margin-top: 8px; padding: 20px 24px 18px; border-radius: 14px; background: linear-gradient(180deg, var(--bg-3), var(--bg-2) 60%); box-shadow: inset 0 0 0 1px var(--br-subtle); }
 .st-eyebrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font: 400 12.5px/1.3 var(--font-ui); color: var(--tx-muted); }
 .st-eyebrow b { font-weight: 500; color: var(--tx-secondary); }
 .st-eyebrow .st-pill { margin-left: auto; }
+.st-eyebrow-proj { display: inline-flex; align-items: center; gap: 5px; color: var(--tx-secondary); }
 .st-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-run); }
 .st-dot.off { background: var(--br-strong); }
-.st-title { margin-top: 10px; font: 600 24px/1.25 var(--font-ui); letter-spacing: -0.022em; color: var(--tx-primary); text-wrap: pretty; }
-.st-text { margin-top: 8px; font: 400 14px/1.5 var(--font-ui); color: var(--tx-secondary); text-wrap: pretty; }
-.st-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
-.st-acts .btn { height: 38px; padding: 0 14px; gap: 8px; text-decoration: none; }
+.st-title { margin-top: 8px; font: 600 22px/1.25 var(--font-ui); letter-spacing: -0.022em; color: var(--tx-primary); text-wrap: pretty; }
+.st-text { margin-top: 6px; font: 400 13.5px/1.45 var(--font-ui); color: var(--tx-secondary); text-wrap: pretty; }
+.st-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.st-acts .btn { height: 34px; padding: 0 13px; gap: 8px; text-decoration: none; font-size: 13px; }
 .st-acts .ic { width: 12px; height: 12px; }
-.st-clock { margin-top: 10px; font-size: 40px; font-weight: 500; letter-spacing: -0.02em; color: var(--tx-primary); }
-.st-prog { height: 4px; margin-top: 14px; border-radius: 2px; background: var(--br-subtle); }
+.st-clock { margin-top: 8px; font-size: 36px; font-weight: 500; letter-spacing: -0.02em; color: var(--tx-primary); }
+.st-prog { height: 4px; margin-top: 12px; border-radius: 2px; background: var(--br-subtle); }
 .st-prog i { display: block; height: 4px; border-radius: 2px; background: var(--a-blue-hi); transition: width 1s linear; }
-.st-progt { display: flex; justify-content: space-between; margin-top: 8px; font: 400 12.5px/1 var(--font-ui); color: var(--tx-muted); font-variant-numeric: tabular-nums; }
-.st-picks { display: grid; margin-top: 16px; }
-.st-pick { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto 56px; align-items: center; gap: 12px; height: 40px; padding: 0 10px; margin: 0 -10px; border: 0; border-radius: 8px; background: none; color: var(--tx-primary); font: 400 14px/1.3 var(--font-ui); text-align: left; cursor: pointer; }
+.st-progt { display: flex; justify-content: space-between; margin-top: 6px; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); font-variant-numeric: tabular-nums; }
+.st-picks { display: grid; margin-top: 14px; }
+.st-pick { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto 56px; align-items: center; gap: 12px; height: 38px; padding: 0 10px; margin: 0 -10px; border: 0; border-radius: 8px; background: none; color: var(--tx-primary); font: 400 13.5px/1.3 var(--font-ui); text-align: left; cursor: pointer; }
 .st-pick:hover { background: var(--bg-hover); }
 .st-pick .cb { pointer-events: none; }
 .st-pick-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Kompakte Zeile für Gewohnheiten, Lernkarte, Fokus-Ziel */
+.st-strip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 24px 0 12px; padding: 6px 14px; border-radius: var(--r-s); background: var(--bg-1); border: 1px solid var(--br-subtle); font: 400 13px/1.3 var(--font-ui); color: var(--tx-secondary); }
+.st-strip-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 0; border-radius: 6px; background: none; font: 400 13px/1.2 var(--font-ui); color: var(--tx-secondary); cursor: pointer; transition: background var(--dur) ease-out, color var(--dur) ease-out; }
+.st-strip-btn:hover, .st-strip-btn.open { background: var(--bg-2); color: var(--tx-primary); }
+.st-strip-btn .ic { width: 14px; height: 14px; color: var(--tx-muted); }
+.st-strip-btn.open .ic { color: var(--a-blue-hi); }
+.st-strip-sep { color: var(--tx-muted); user-select: none; }
+.st-strip-detail { margin: 8px 0 20px; max-width: 440px; }
+
 /* Drei Karten */
-.st-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
-.st-more { margin-top: auto; font: 400 12.5px/1.3 var(--font-ui); color: var(--tx-muted); text-decoration: none; }
+.st-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.st-more { margin-top: auto; font: 400 12px/1.3 var(--font-ui); color: var(--tx-muted); text-decoration: none; }
 .st-more:hover { color: var(--tx-primary); }
-.st-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 15px 16px 14px; border-radius: 14px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--br-subtle); }
-.st-card-h { display: flex; align-items: center; justify-content: space-between; height: 20px; font: 500 12.5px/1 var(--font-ui); }
-.st-card-h a { color: var(--tx-muted); text-decoration: none; }
+.st-card { display: flex; flex-direction: column; justify-content: space-between; gap: 8px; min-width: 0; min-height: 140px; padding: 14px 16px; border-radius: var(--r-m); background: var(--bg-1); border: 1px solid var(--br-default); transition: border-color var(--dur) ease-out; }
+.st-card:hover { border-color: var(--br-strong); }
+.st-card-h { display: flex; align-items: center; justify-content: space-between; height: 20px; font: 600 12px/1 var(--font-ui); }
+.st-card-h a { color: var(--tx-secondary); text-decoration: none; }
 .st-card-h a:hover { color: var(--tx-primary); }
-.st-empty { display: grid; gap: 4px; font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
-.st-empty b { font-weight: 500; color: var(--tx-primary); font-size: 14px; }
+.st-card-b { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; justify-content: center; }
+.st-card-f { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 18px; margin-top: auto; padding-top: 6px; font: 400 11.5px/1.2 var(--font-ui); color: var(--tx-muted); }
+.st-meta-note { color: var(--tx-muted); font-size: 11.5px; }
+.st-all-done { color: var(--a-green); font-weight: 500; font-size: 11.5px; }
+.st-goal-link { color: var(--tx-secondary); text-decoration: none; font-size: 11.5px; }
+.st-goal-link:hover { color: var(--tx-primary); text-decoration: underline; }
+.st-goal-why { margin: 0; font: italic 400 12.5px/1.35 var(--font-serif); color: var(--tx-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.st-goal-f-line { display: flex; align-items: center; justify-content: space-between; width: 100%; font-size: 11.5px; }
+.st-goal-f-line b { font-weight: 500; color: var(--tx-primary); }
+.st-empty { display: grid; gap: 4px; font: 400 12.5px/1.4 var(--font-ui); color: var(--tx-muted); }
+.st-empty b { font-weight: 500; color: var(--tx-primary); font-size: 13.5px; }
 .st-empty a { color: var(--a-blue-tx); }
-.st-habit { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px 0 4px; margin: 0 -8px 0 -4px; border: 0; border-radius: 10px; background: none; color: var(--tx-secondary); cursor: pointer; text-align: left; }
+.st-habit { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 6px 0 2px; margin: 0 -6px 0 -2px; border: 0; border-radius: 8px; background: none; color: var(--tx-secondary); cursor: pointer; text-align: left; }
 .st-habit:hover { background: var(--bg-hover); }
-.st-habit svg { flex: none; }
+.st-habit svg { flex: none; width: 22px; height: 22px; }
 .st-ring-bg { fill: none; stroke: var(--br-default); stroke-width: 2.4; }
 .st-ring { fill: none; stroke: var(--a-blue-hi); stroke-width: 2.4; stroke-linecap: round; transition: stroke-dashoffset 520ms cubic-bezier(.3, .7, .2, 1); }
 .st-ring-chk { fill: none; stroke: var(--a-blue-hi); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: opacity 200ms; }
 .st-habit[aria-pressed="true"] .st-habit-n { color: var(--tx-primary); }
-.st-habit-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 14px/1.3 var(--font-ui); }
-.st-habit-m { margin-left: auto; font: 400 12.5px/1 var(--font-ui); color: var(--tx-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.st-flip { position: relative; flex: 1; min-height: 108px; perspective: 900px; cursor: pointer; }
-.st-face { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 4px; backface-visibility: hidden; transition: transform 520ms cubic-bezier(.3, .7, .2, 1); }
+.st-habit-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 13.5px/1.3 var(--font-ui); }
+.st-habit-m { margin-left: auto; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.st-flip { position: relative; flex: 1; min-height: 64px; perspective: 900px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; }
+.st-face { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; backface-visibility: hidden; transition: transform 520ms cubic-bezier(.3, .7, .2, 1); }
 .st-back { transform: rotateY(180deg); justify-content: space-between; }
 .st-flip.on .st-front { transform: rotateY(-180deg); }
 .st-flip.on .st-back { transform: none; }
-.st-deck { font: 400 12.5px/1.3 var(--font-ui); color: var(--tx-muted); }
-.st-q, .st-a { font: 500 15px/1.35 var(--font-ui); color: var(--tx-primary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.st-a { font-size: 14px; font-weight: 400; }
-.st-hint { margin-top: auto; display: flex; align-items: center; gap: 5px; font: 400 11.5px/1 var(--font-ui); color: var(--tx-disabled); }
-.st-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.st-grade .btn { height: 30px; font-size: 13px; }
+.st-deck { font: 400 12px/1.3 var(--font-ui); color: var(--tx-muted); }
+.st-q, .st-a { font: 500 14px/1.35 var(--font-ui); color: var(--tx-primary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.st-a { font-size: 13.5px; font-weight: 400; }
+.st-hint { display: inline-flex; align-items: center; gap: 5px; font: 400 11px/1 var(--font-ui); color: var(--tx-muted); }
+.st-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.st-grade .btn { height: 28px; font-size: 12px; }
 .st-goal-t { font: 500 14px/1.35 var(--font-ui); color: var(--tx-primary); }
-.st-segs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.st-segs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin-top: 4px; }
 .st-segs i { height: 4px; border-radius: 2px; background: var(--br-default); transition: background 300ms; }
 .st-segs i.on { background: var(--tx-secondary); }
-.st-goal-f { display: grid; gap: 3px; padding-top: 10px; margin-top: auto; border-top: 1px solid var(--br-subtle); }
-.st-goal-f span { font: 500 11.5px/1.2 var(--font-ui); color: var(--tx-muted); }
-.st-goal-f b { font: 500 13.5px/1.35 var(--font-ui); color: var(--tx-primary); }
 
-/* Aufgaben */
-.st-groups { display: flex; flex-direction: column; gap: 30px; margin-top: 40px; }
-.st-group { display: flex; flex-direction: column; }
-.st-group-h, .st-done-h { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; margin-bottom: 4px; border-bottom: 1px solid var(--br-subtle); font: 600 15px/1.2 var(--font-ui); color: var(--tx-primary); }
-.st-count { min-width: 20px; padding: 1px 7px; border-radius: 10px; background: var(--bg-2); text-align: center; font: 500 12px/1.4 var(--font-ui); color: var(--tx-secondary); font-variant-numeric: tabular-nums; }
-.st-sum { margin-left: auto; font: 400 12.5px/1 var(--font-ui); color: var(--tx-muted); font-variant-numeric: tabular-nums; }
-.st-done-h { border: 0; border-bottom: 1px solid var(--br-subtle); background: none; cursor: pointer; text-align: left; font-size: 13.5px; font-weight: 500; color: var(--tx-secondary); }
-.st-done-h .ic { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform 160ms; }
-.st-done-h .ic.open { transform: rotate(90deg); }
-.st-row { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr) 120px 64px 72px; align-items: center; column-gap: 14px; height: 44px; padding: 0 12px; margin: 0 -12px; border-radius: 8px; cursor: grab; }
-.st-row:hover { background: var(--bg-hover); }
-.st-row.sel { background: var(--bg-selected); }
-.st-row.sel::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 2px; border-radius: 2px; background: var(--a-blue-hi); }
+/* Aufgaben-Liste (minimalistisch wie Aufgaben-Ansicht) */
+.st-groups { margin-top: 24px; }
+.tgroup { display: flex; flex-direction: column; }
+.tgroup > .lbl { display: flex; align-items: center; gap: 8px; height: 28px; margin-bottom: 4px; padding: 0 4px; font: 600 14.5px/1.3 var(--font-ui); letter-spacing: -0.01em; color: var(--tx-primary); }
+.tgroup > .lbl .count { font: 400 13px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-muted); }
+.st-done-btn { border: 0; background: none; cursor: pointer; text-align: left; }
+.st-done-btn .ic { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; color: var(--tx-muted); transition: transform 160ms; }
+.st-done-btn .ic.open { transform: rotate(90deg); }
+.tasklist { display: flex; flex-direction: column; }
+.st-row { position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 64px 84px; align-items: center; column-gap: 14px; min-height: 42px; padding: 6px 12px; margin: 0 -12px; border-radius: var(--r-s); cursor: grab; transition: background 120ms; border: 0; }
+.st-row:hover { background: color-mix(in oklab, var(--tx-primary) 4%, transparent); }
+.st-row.sel { background: var(--bg-2); }
+.st-row.sel::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2.5px; border-radius: 0 2px 2px 0; background: var(--tx-primary); }
 .st-row.dragging { opacity: .45; }
-.st-row .cb { width: 16px; height: 16px; }
-.st-row-t { display: flex; align-items: center; gap: 10px; min-width: 0; font: 400 14px/1.3 var(--font-ui); color: var(--tx-primary); }
-.st-row-t > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st-row.done .st-row-t { color: var(--tx-muted); text-decoration: line-through; }
-.st-planned { flex: none; font-size: 11.5px; color: var(--tx-muted); }
-.st-proj { display: flex; justify-content: flex-end; min-width: 0; }
-.st-proj .st-pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.st-est, .st-due { font: 400 12.5px/1 var(--font-ui); color: var(--tx-muted); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.st-due.red { color: var(--a-red); }
-.st-row-acts { position: absolute; right: 8px; top: 9px; bottom: 9px; display: flex; align-items: center; gap: 6px; padding-left: 28px; background: linear-gradient(90deg, transparent, var(--bg-1) 18px); opacity: 0; pointer-events: none; transition: opacity 120ms; }
+.st-row .cb { width: 18px; height: 18px; flex: none; border-radius: 50%; }
+.st-row-t { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.st-row .t { font: 500 14px/1.35 var(--font-ui); color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-row.done .t { color: var(--tx-muted); text-decoration: line-through; }
+.st-planned { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: 4px; background: var(--bg-2); font-size: 11px; color: var(--tx-muted); flex: none; }
+.pcol { display: flex; justify-content: flex-end; min-width: 0; }
+.chip { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 7px; font-size: 12px; font-weight: 500; background: color-mix(in srgb, var(--chip-c) 15%, transparent); color: color-mix(in srgb, var(--chip-c) 80%, var(--tx-primary)); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.chip .cdot { display: none; }
+.dur, .due { font: 400 12.5px/1 var(--font-ui); color: var(--tx-secondary); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-row-acts { position: absolute; right: 6px; top: 5px; bottom: 5px; display: flex; align-items: center; gap: 6px; padding-left: 28px; background: linear-gradient(90deg, transparent, var(--bg-0) 18px); opacity: 0; pointer-events: none; transition: opacity 120ms; }
 .st-row:hover .st-row-acts, .st-row.sel .st-row-acts, .st-row:focus-within .st-row-acts { opacity: 1; pointer-events: auto; }
-.st-row-acts .btn { height: 26px; padding: 0 9px 0 4px; gap: 6px; font-size: 12.5px; }
+.st-row-acts .btn { height: 26px; padding: 0 9px 0 6px; gap: 6px; font-size: 12px; }
 .st-row-acts kbd { margin: 0 !important; }
-.st-keys { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 28px; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
+.st-keys { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 24px; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
 .st-keys span { display: flex; align-items: center; gap: 5px; }
 
 /* Zeitplan */
@@ -548,13 +724,20 @@ kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; 
 .st-hour span { width: 40px; font-size: 12px; color: var(--tx-muted); }
 .st-hour i { flex: 1; height: 1px; background: var(--br-subtle); }
 .st-gap, .st-block { position: absolute; left: 52px; right: 0; padding: 2px 0; box-sizing: border-box; }
-.st-gap > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; height: 100%; box-sizing: border-box; padding: 5px 5px 0 11px; border: 1px dashed transparent; border-left: 1.5px dashed var(--br-default); border-radius: 4px 8px 8px 4px; font: 400 12px/1 var(--font-ui); color: var(--tx-disabled); transition: background 160ms, border-color 160ms; }
+.st-gap > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; height: 100%; box-sizing: border-box; padding: 5px 5px 0 11px; border: 1px dashed transparent; border-left: 1.5px dashed var(--br-default); border-radius: 4px 8px 8px 4px; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); transition: background 160ms, border-color 160ms; }
 .st-gap > div > span { padding-top: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-gap:hover > div { border-color: var(--br-default); background: color-mix(in oklab, var(--tx-primary) 2.5%, transparent); color: var(--tx-muted); }
 .st-gap.can > div { border-color: var(--br-strong); color: var(--tx-muted); }
 .st-gap.on > div { border-color: var(--a-blue-hi); background: color-mix(in oklab, var(--a-blue-hi) 14%, transparent); color: var(--a-blue-tx); }
+.st-gap { cursor: pointer; }
 .st-gap-add { flex: none; height: 22px; padding: 0 9px; border: 0; border-radius: 11px; background: color-mix(in oklab, var(--a-blue) 84%, #000); color: #fff; font: 600 11.5px/1 var(--font-ui); cursor: pointer; white-space: nowrap; opacity: 0; transform: translateY(2px); transition: opacity 120ms, transform 120ms; }
 .st-gap:hover .st-gap-add, .st-gap-add:focus-visible { opacity: 1; transform: none; }
+.st-gap-dialog { width: 420px; }
+.st-gap-dialog-info { display: flex; align-items: center; gap: 8px; font: 500 13px/1.2 var(--font-ui); color: var(--tx-secondary); margin-bottom: 6px; }
+.st-gap-tasks { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
+.st-gap-task-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-s); border: 1px solid var(--br-subtle); background: var(--bg-2); color: var(--tx-primary); text-align: left; cursor: pointer; font: 500 13px/1.3 var(--font-ui); transition: background 120ms; }
+.st-gap-task-item:hover { background: var(--bg-hover); border-color: var(--br-default); }
+.st-gap-task-item .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-block > div { position: relative; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px; padding: 6px 10px; overflow: hidden; border-left: 3px solid var(--c); border-radius: 4px 8px 8px 4px; background: color-mix(in oklab, var(--c) 7%, var(--bg-2)); }
 .st-block.cur > div { background: color-mix(in oklab, var(--c) 11%, var(--bg-2)); }
 .st-block.past { opacity: .45; }
@@ -580,6 +763,7 @@ kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; 
   .st-grid { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .st-side { position: static; height: auto; }
   .st-rail { flex: none; height: calc(var(--mins) * 1.35px); }
+  .st-gap-add { opacity: 1; transform: none; }
 }
 @media (max-width: 640px) {
   .st { padding-top: 20px; }

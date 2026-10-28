@@ -4,7 +4,7 @@ import { addDays, entryMinutes, weekStart, ymd } from '@/lib/dates'
 
 // Zähler und Projekte der Sidebar. Ein gemeinsamer Zustand; App.vue lädt ihn bei jedem Live-Ereignis neu.
 export const counts = ref({ tasks: 0, habits: '', projects: 0, trash: 0 })
-export const pins = ref<{ id: string; name: string; color: string; minutes: number }[]>([])
+export const pins = ref<{ id: string; name: string; color: string; icon?: string; minutes: number }[]>([])
 
 const PINS = 4
 
@@ -26,7 +26,7 @@ export async function loadSidebar() {
       trash: trash.tasks.length + trash.events.length + trash.habits.length,
     }
     pins.value = active
-      .map((p) => ({ id: p.id, name: p.name, color: p.color, minutes: week.get(p.id) ?? 0 }))
+      .map((p) => ({ id: p.id, name: p.name, color: p.color, icon: p.icon, minutes: week.get(p.id) ?? 0 }))
       .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name, 'de'))
       .slice(0, PINS)
   } catch {

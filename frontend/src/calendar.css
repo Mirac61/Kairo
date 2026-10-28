@@ -38,6 +38,14 @@
 .fc .fc-col-header-cell .fc-scrollgrid-sync-inner { container-type: inline-size; }
 .fc .kt-wd-s { display: none; }
 @container (max-width: 125px) { .fc .kt-wd-l { display: none; } .fc .kt-wd-s { display: inline; } }
+@container (max-width: 110px) {
+  .fc .kt-row { font-size: 10px; gap: 3px; }
+  .fc .kt-ist { display: none; }
+}
+@container (max-width: 85px) {
+  .fc .kt-row { display: none; }
+  .fc .kt-bar { display: none; }
+}
 .fc .kt-dh.today b { background: var(--a-now); color: var(--bg-0); }
 .fc .kt-row { flex: 1 0 100%; display: flex; justify-content: space-between; gap: 6px; white-space: nowrap; min-height: 11px; font: 400 11px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-muted); }
 .fc .kt-ist { color: var(--tx-primary); }
@@ -46,8 +54,10 @@
 .fc .kt-bar .p { background: var(--br-strong); }
 .fc .kt-bar .t { background: var(--tx-primary); }
 
-/* Jetzt-Linie mit Uhrzeit im Achsen-Chip */
-.fc .fc-timegrid-now-indicator-line { border-width: 2px 0 0; }
+/* Jetzt-Linie mit Uhrzeit im Achsen-Chip; Linie liegt hinter Event-Text bzw. ist dezent transparent, damit sie nicht wie Durchstreichen wirkt */
+.fc .fc-timegrid-now-indicator-line { border-width: 2px 0 0; opacity: 0.65; z-index: 2; pointer-events: none; }
+.fc .fc-timegrid-event { z-index: 4; }
+.fc .fc-timegrid-event .fc-event-main { position: relative; z-index: 5; }
 .fc .fc-timegrid-now-indicator-line::before {
   content: ''; position: absolute; left: -4px; top: -4.5px; width: 7px; height: 7px; border-radius: 50%; background: var(--a-now);
 }
@@ -84,6 +94,10 @@
 @container (max-width: 110px) {
   .kt-in { padding: 4px 5px; }
   .kt-dot, .kt-ring, .kt-meta, .kt-end { display: none; }
+  .kt-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: 1; }
+}
+@container (max-width: 80px) {
+  .fc .fc-timegrid-event-short .kt-head { display: none; }
 }
 .fc .kt-in { display: flex; flex-direction: column; gap: 2px; min-width: 0; height: 100%; box-sizing: border-box; padding: 5px 8px; overflow: hidden; }
 .fc .kt-head { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
@@ -91,14 +105,14 @@
 .fc .kt-ring { flex: none; width: 10px; height: 10px; margin-top: 3px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--acc); }
 .fc .kt-done .kt-ring { background: var(--acc); }
 .fc .kt-habit .kt-ring { border-radius: 3px; } /* Gewohnheit = Quadrat wie in der Gewohnheiten-Liste */
-.fc .kt-title { min-width: 0; font: 500 12.5px/1.3 var(--font-ui); color: var(--tx-primary); overflow: hidden; overflow-wrap: break-word; hyphens: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.fc .kt-title { min-width: 0; font: 500 12.5px/1.3 var(--font-ui); color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; word-break: normal; overflow-wrap: normal; hyphens: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .fc .kt-time { flex: none; font: 400 11.5px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-secondary); white-space: nowrap; }
 .fc .kt-meta { font: 400 11.5px/1.3 var(--font-ui); color: var(--tx-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Kurze Einträge (30 min): einzeilig, Titel und Zeit nebeneinander */
 .fc .fc-timegrid-event-short .kt-in { flex-direction: row; align-items: center; gap: 6px; padding: 0 8px; }
 .fc .fc-timegrid-event-short .kt-head { align-items: center; }
 .fc .fc-timegrid-event-short .kt-dot, .fc .fc-timegrid-event-short .kt-ring { margin-top: 0; }
-.fc .fc-timegrid-event-short .kt-title { -webkit-line-clamp: 1; }
+.fc .fc-timegrid-event-short .kt-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: 1; }
 .fc .fc-timegrid-event-short .kt-meta, .fc .fc-timegrid-event-short .kt-end { display: none; }
 
 /* Ganztag-Streifen in der Woche: eine Zeile je Eintrag */
@@ -106,7 +120,7 @@
 .fc .fc-timegrid .fc-daygrid-event .kt-in { flex-direction: row; align-items: center; padding: 0 8px; }
 .fc .fc-timegrid .fc-daygrid-event .kt-head { align-items: center; }
 .fc .fc-timegrid .fc-daygrid-event .kt-dot, .fc .fc-timegrid .fc-daygrid-event .kt-ring { margin-top: 0; }
-.fc .fc-timegrid .fc-daygrid-event .kt-title { -webkit-line-clamp: 1; }
+.fc .fc-timegrid .fc-daygrid-event .kt-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: 1; }
 .fc .fc-timegrid .fc-daygrid-event .kt-meta { display: none; }
 /* Tag (Runde 2, 2a): links Plan, rechts eine Spalte „Erfasst“ (150 px) mit Karten je Zeiteintrag */
 .fc .fc-timeGridDay-view .fc-day-today, .fc .fc-timeGridDay-view .fc-day-today.fc-col-header-cell { background: transparent; }

@@ -1,6 +1,6 @@
 import { computed, reactive, ref, watch, watchEffect } from 'vue'
-import { lang } from './i18n'
-import { store } from './storage'
+import { lang } from './i18n.ts'
+import { store } from './storage.ts'
 
 // Einstellungen der Oberfläche (dazu die Sprache). Sie stehen nicht in config.json, sondern unter /api/prefs,
 // damit Handy und Rechner gleich eingestellt sind; localStorage ist der Cache für den ersten Paint.
@@ -20,12 +20,16 @@ const THEME_COLORS: Record<Palette, { dark: string; light: string }> = {
 // Akzentfarben als Farbton für --a-hue; Rot und Grün fehlen, weil sie „überfällig“ und „läuft“ bedeuten.
 export const ACCENTS = { blue: 255, violet: 300, aqua: 200, pink: 350, orange: 60 } as const
 export type Accent = keyof typeof ACCENTS
+// Papier im Journal, unabhängig vom App-Theme.
+export const PAPERS = ['coffee', 'white', 'black'] as const
+export type Paper = (typeof PAPERS)[number]
+const paperOf = (v: unknown): Paper => (PAPERS.includes(v as Paper) ? (v as Paper) : 'coffee')
 
 const KEYS = {
   theme: 'kairo-theme', palette: 'kairo-palette', accent: 'kairo-accent', motion: 'kairo-motion', start: 'kairo-start',
   weekStart: 'kairo-week-start', dayStart: 'kairo-day-start', dayEnd: 'kairo-day-end', calDays: 'kairo-cal-days',
-  calHabits: 'kairo-cal-habits', goalFocus: 'kairo-goal-focus', goalDays: 'kairo-goal-days',
-  name: 'kairo-name', homeDesktop: 'kairo-home-desktop', homeMobile: 'kairo-home-mobile', homeNote: 'kairo-home-note',
+  calHabits: 'kairo-cal-habits',
+  name: 'kairo-name', journalPaper: 'kairo-journal-paper', homeDesktop: 'kairo-home-desktop', homeMobile: 'kairo-home-mobile', homeNote: 'kairo-home-note',
 } as const
 
 const hour = (key: string, def: number) => {
@@ -46,19 +50,20 @@ export const prefs = reactive({
   calDays: (store.get(KEYS.calDays) ?? (store.get('kairo-cal-weekend') === '1' ? '7' : '5')) === '7' ? 7 : 5,
   // Gewohnheiten auch in der Wochenansicht (in der Tagesansicht immer); sonst füllen sie den Ganztags-Streifen.
   calHabits: store.get(KEYS.calHabits) === '1',
-  // Ziele-Board: Fokus der Woche und Tage, an denen etwas für die Ziele passiert ist (YYYY-MM-DD, durch Leerzeichen getrennt).
-  goalFocus: store.get(KEYS.goalFocus) ?? '',
-  goalDays: store.get(KEYS.goalDays) ?? '',
   name: store.get(KEYS.name) ?? '', // für die Begrüßung auf der Startseite
   // Widget-Raster der Startseite je Gerät als JSON [{id, size}] (lib/homeLayout.ts); leer = Standard.
   homeDesktop: store.get(KEYS.homeDesktop) ?? '',
   homeMobile: store.get(KEYS.homeMobile) ?? '',
   homeNote: store.get(KEYS.homeNote) ?? '', // Pfad der angepinnten Notiz
+  journalPaper: paperOf(store.get(KEYS.journalPaper)),
 })
 if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
 
-const systemLight = ref(matchMedia('(prefers-color-scheme: light)').matches)
-matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => (systemLight.value = e.matches))
+const hasMatchMedia = typeof matchMedia === 'function'
+const systemLight = ref(hasMatchMedia ? matchMedia('(prefers-color-scheme: light)').matches : false)
+if (hasMatchMedia) {
+  matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => (systemLight.value = e.matches))
+}
 export const dark = computed(() => (prefs.theme === 'system' ? !systemLight.value : prefs.theme === 'dark'))
 
 // Vor dem Mounten aufrufen, damit nichts aufblitzt. Danach folgen <html> und localStorage jeder Änderung.
@@ -93,6 +98,7 @@ export async function pullPrefs() {
   const p = prefs as Record<string, unknown>
   for (const k of Object.keys(prefs)) if (typeof data[k] === typeof p[k]) p[k] = data[k]
   prefs.palette = paletteOf(prefs.palette) // alte oder fremde Werte fallen auf Graphit zurück
+  prefs.journalPaper = paperOf(prefs.journalPaper)
   if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
   if (data.lang === 'de' || data.lang === 'en') {
     lang.value = data.lang

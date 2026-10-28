@@ -473,12 +473,12 @@ onBeforeUnmount(() => {
       <div class="nt-head">
         <span class="lbl">{{ $t('Notizen') }}</span>
         <span class="nt-head-act">
-          <button type="button" class="icon-btn" :aria-label="$t('Neue Notiz')" :data-tip="$t('Neue Notiz')" @click="ctx.startAdd('', false)"><svg class="ic"><use href="#i-plus" /></svg></button>
-          <button type="button" class="icon-btn" :aria-label="$t('Neue Zeichnung')" :data-tip="$t('Neue Zeichnung')" @click="ctx.startAdd('', false, true)"><svg class="ic"><use href="#i-draw" /></svg></button>
-          <button type="button" class="icon-btn" :aria-label="$t('Neuer Ordner')" :data-tip="$t('Neuer Ordner')" @click="ctx.startAdd('', true)"><svg class="ic"><use href="#i-proj" /></svg></button>
-          <button type="button" class="icon-btn" :aria-label="$t('Datei hinzufügen')" :data-tip="$t('PDF, Bild oder Notiz hinzufügen')" @click="filePick?.click()"><svg class="ic"><use href="#i-upload" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Neue Notiz')" :title="$t('Neue Notiz')" :data-tip="$t('Neue Notiz')" @click="ctx.startAdd('', false)"><svg class="ic"><use href="#i-plus" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Neue Zeichnung')" :title="$t('Neue Zeichnung')" :data-tip="$t('Neue Zeichnung')" @click="ctx.startAdd('', false, true)"><svg class="ic"><use href="#i-draw" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Neuer Ordner')" :title="$t('Neuer Ordner')" :data-tip="$t('Neuer Ordner')" @click="ctx.startAdd('', true)"><svg class="ic"><use href="#i-proj" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Datei hinzufügen')" :title="$t('PDF, Bild oder Notiz hinzufügen')" :data-tip="$t('PDF, Bild oder Notiz hinzufügen')" @click="filePick?.click()"><svg class="ic"><use href="#i-upload" /></svg></button>
           <input ref="filePick" type="file" multiple hidden @change="pick" />
-          <button type="button" class="icon-btn" :aria-label="$t('Ordner hinzufügen')" :data-tip="$t('Ordner mit Notizen, PDFs und Bildern hinzufügen')" @click="dirPick?.click()"><svg class="ic"><use href="#i-folder-up" /></svg></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Ordner hinzufügen')" :title="$t('Ordner mit Notizen, PDFs und Bildern hinzufügen')" :data-tip="$t('Ordner mit Notizen, PDFs und Bildern hinzufügen')" @click="dirPick?.click()"><svg class="ic"><use href="#i-folder-up" /></svg></button>
           <input ref="dirPick" type="file" webkitdirectory hidden @change="pick" />
         </span>
       </div>
@@ -509,7 +509,8 @@ onBeforeUnmount(() => {
             </template>
             <span v-else class="last">{{ pn === 'doc' ? $t('Keine Datei geöffnet') : $t('Keine Notiz geöffnet') }}</span>
           </div>
-          <span v-if="isDirty(pn)" class="ed-dirty" role="status"><i></i>{{ $t('Ungespeichert') }}</span>
+          <span v-if="isDirty(pn)" class="save-status dirty" role="status"><i></i>{{ $t('Ungespeicherte Änderungen') }}</span>
+          <span v-else-if="paths[pn] && !saving" class="save-status saved" role="status"><svg class="ic" aria-hidden="true"><use href="#i-check" /></svg>{{ $t('Gespeichert') }}</span>
           <button v-if="canSave(pn)" type="button" class="btn btn-secondary ed-save" :disabled="!isDirty(pn) || saving" aria-keyshortcuts="Meta+S Control+S" @click="save(false, pn)">
             {{ $t('Speichern') }}<kbd class="key" aria-hidden="true">⌘S</kbd>
           </button>
