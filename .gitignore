@@ -43,7 +43,10 @@ KRITIK.md
 TODO.md
 AGENT_TASKS.md
 OFFEN.md
-.claude/worktrees/
+.claude/
+.impeccable/
+frontend/.impeccable/
+PRODUCT.md
 IDEEN.md
 STARTSEITE.md
 UI_HANDOFF.md
