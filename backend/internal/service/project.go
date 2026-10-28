@@ -46,6 +46,7 @@ type CreateProjectInput struct {
 	GitHubRepo  *string
 	Status      domain.ProjectStatus
 	Color       string
+	Icon        string
 }
 
 // UpdateProjectInput ändert nur die gesetzten (non-nil) Felder.
@@ -57,6 +58,7 @@ type UpdateProjectInput struct {
 	GitHubRepo  *string
 	Status      *domain.ProjectStatus
 	Color       *string
+	Icon        *string
 }
 
 func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (domain.Project, error) {
@@ -72,6 +74,7 @@ func (s *ProjectService) Create(ctx context.Context, in CreateProjectInput) (dom
 		GitHubRepo:  trimOrNil(in.GitHubRepo),
 		Status:      in.Status,
 		Color:       in.Color,
+		Icon:        strings.TrimSpace(in.Icon),
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -137,6 +140,9 @@ func (s *ProjectService) Update(ctx context.Context, id string, in UpdateProject
 	}
 	if in.Color != nil {
 		p.Color = *in.Color
+	}
+	if in.Icon != nil {
+		p.Icon = strings.TrimSpace(*in.Icon)
 	}
 	if err := validateProject(p); err != nil {
 		return domain.Project{}, err

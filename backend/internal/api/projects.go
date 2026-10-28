@@ -26,6 +26,7 @@ type projectDTO struct {
 	GitHubRepo  *string `json:"github_repo"`
 	Status      string  `json:"status"`
 	Color       string  `json:"color"`
+	Icon        string  `json:"icon"`
 	CreatedAt   string  `json:"created_at"`
 	UpdatedAt   string  `json:"updated_at"`
 }
@@ -39,6 +40,7 @@ func toProjectDTO(p domain.Project) projectDTO {
 		GitHubRepo:  p.GitHubRepo,
 		Status:      string(p.Status),
 		Color:       p.Color,
+		Icon:        p.Icon,
 		CreatedAt:   p.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:   p.UpdatedAt.UTC().Format(time.RFC3339),
 	}
@@ -71,6 +73,7 @@ func (h projectHandlers) create(w http.ResponseWriter, r *http.Request) {
 		GitHubRepo  *string `json:"github_repo"`
 		Status      string  `json:"status"`
 		Color       string  `json:"color"`
+		Icon        string  `json:"icon"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
@@ -82,6 +85,7 @@ func (h projectHandlers) create(w http.ResponseWriter, r *http.Request) {
 		GitHubRepo:  in.GitHubRepo,
 		Status:      domain.ProjectStatus(in.Status),
 		Color:       in.Color,
+		Icon:        in.Icon,
 	})
 	if err != nil {
 		writeError(w, err)
@@ -109,11 +113,12 @@ func (h projectHandlers) update(w http.ResponseWriter, r *http.Request) {
 		GitHubRepo  *string `json:"github_repo"`
 		Status      *string `json:"status"`
 		Color       *string `json:"color"`
+		Icon        *string `json:"icon"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
 	}
-	upd := service.UpdateProjectInput{Name: in.Name, Description: in.Description, LocalPath: in.LocalPath, GitHubRepo: in.GitHubRepo, Color: in.Color}
+	upd := service.UpdateProjectInput{Name: in.Name, Description: in.Description, LocalPath: in.LocalPath, GitHubRepo: in.GitHubRepo, Color: in.Color, Icon: in.Icon}
 	if in.Status != nil {
 		s := domain.ProjectStatus(*in.Status)
 		upd.Status = &s

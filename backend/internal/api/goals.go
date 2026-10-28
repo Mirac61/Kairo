@@ -24,6 +24,11 @@ type goalProgressDTO struct {
 	Percent int `json:"percent"`
 }
 
+type goalPointDTO struct {
+	Date    string `json:"date"`
+	Percent int    `json:"percent"`
+}
+
 type goalDTO struct {
 	ID        string           `json:"id"`
 	Title     string           `json:"title"`
@@ -39,6 +44,7 @@ type goalDTO struct {
 	ParentID  *string          `json:"parent_id"`
 	CreatedAt string           `json:"created_at"`
 	Progress  *goalProgressDTO `json:"progress"`
+	History   []goalPointDTO   `json:"history"`
 }
 
 func toGoalDTO(v service.GoalView) goalDTO {
@@ -50,6 +56,10 @@ func toGoalDTO(v service.GoalView) goalDTO {
 	if v.Progress != nil {
 		p := goalProgressDTO(*v.Progress)
 		out.Progress = &p
+	}
+	out.History = make([]goalPointDTO, len(v.History))
+	for i, h := range v.History {
+		out.History[i] = goalPointDTO(h)
 	}
 	return out
 }

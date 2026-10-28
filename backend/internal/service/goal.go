@@ -53,10 +53,27 @@ type GoalProgress struct {
 }
 
 // GoalView ist ein Ziel mit Fortschritt (nil bei GoalNone oder gelöschtem Projekt/Gewohnheit).
+// History ist der Fortschritt von StartDate bis heute, gleichmäßig verteilt; nil ohne Fortschritt.
 type GoalView struct {
 	domain.Goal
 	Progress *GoalProgress
+	History  []GoalPoint
 }
+
+// GoalPoint ist ein Punkt im Verlauf: so viel Prozent waren am Ende von Date erreicht.
+type GoalPoint struct {
+	Date    string
+	Percent int
+}
+
+// goalEvent: n Einheiten Fortschritt zum Zeitpunkt at (eine Aufgabe, Minuten, eine Completion, ein Teilziel).
+type goalEvent struct {
+	at time.Time
+	n  int
+}
+
+// historyPoints: so viele Stützstellen hat ein Verlauf höchstens.
+const historyPoints = 24
 
 // CreateGoalInput: StartDate ist standardmäßig heute.
 type CreateGoalInput struct {
@@ -147,8 +164,13 @@ func (s *GoalService) Update(ctx context.Context, id string, in UpdateGoalInput)
 	if in.DueDate != nil {
 		g.DueDate = trimOrNil(in.DueDate)
 	}
-	if in.Archived != nil {
+	if in.Archived != nil && *in.Archived != g.Archived {
 		g.Archived = *in.Archived
+		g.ArchivedAt = nil
+		if g.Archived {
+			now := s.now()
+			g.ArchivedAt = &now
+		}
 	}
 	if in.ParentID != nil {
 		g.ParentID = trimOrNil(in.ParentID)
@@ -205,12 +227,26 @@ func (s *GoalService) List(ctx context.Context) ([]GoalView, error) {
 		}
 		if n > 0 {
 			done := 0
+			// Erreichte zählen ab ihrem Datum voll, Teilfortschritt offener erst heute: ihr Verlauf liegt nicht vor.
+			var evs []goalEvent
 			for _, c := range out {
-				if c.ParentID != nil && *c.ParentID == out[i].ID && (c.Archived || c.Progress != nil && c.Progress.Percent >= 100) {
+				if c.ParentID == nil || *c.ParentID != out[i].ID {
+					continue
+				}
+				if c.Archived || c.Progress != nil && c.Progress.Percent >= 100 {
 					done++
+				}
+				switch {
+				case c.Archived && c.ArchivedAt != nil:
+					evs = append(evs, goalEvent{*c.ArchivedAt, 100})
+				case c.Archived:
+					evs = append(evs, goalEvent{time.Time{}, 100})
+				case c.Progress != nil:
+					evs = append(evs, goalEvent{s.now(), c.Progress.Percent})
 				}
 			}
 			out[i].Progress = &GoalProgress{Current: done, Target: n, Percent: sum / n}
+			out[i].History = s.history(out[i].StartDate, evs, n*100)
 		}
 	}
 	return out, nil
@@ -284,7 +320,10 @@ func (s *GoalService) Today(ctx context.Context) (*GoalView, error) {
 
 func (s *GoalService) view(ctx context.Context, g domain.Goal) (GoalView, error) {
 	v := GoalView{Goal: g}
-	var cur, target int
+	var (
+		cur, target int
+		evs         []goalEvent
+	)
 	switch {
 	case g.Kind == domain.GoalProjectTasks && g.ProjectID != nil:
 		ts, err := s.tasks.List(ctx, domain.TaskFilter{ProjectID: *g.ProjectID})
@@ -298,6 +337,11 @@ func (s *GoalService) view(ctx context.Context, g domain.Goal) (GoalView, error)
 			target++
 			if t.Status == domain.TaskCompleted {
 				cur++
+				if t.CompletedAt != nil {
+					evs = append(evs, goalEvent{*t.CompletedAt, 1})
+				} else {
+					evs = append(evs, goalEvent{time.Time{}, 1})
+				}
 			}
 		}
 	case g.Kind == domain.GoalProjectHours && g.ProjectID != nil:
@@ -314,7 +358,9 @@ func (s *GoalService) view(ctx context.Context, g domain.Goal) (GoalView, error)
 				finish = *e.EndedAt
 			}
 			if finish.After(e.StartedAt) {
-				cur += int(finish.Sub(e.StartedAt) / time.Minute)
+				m := int(finish.Sub(e.StartedAt) / time.Minute)
+				cur += m
+				evs = append(evs, goalEvent{e.StartedAt, m})
 			}
 		}
 		// In Minuten rechnen, damit Percent nicht auf ganze Stunden springt.
@@ -325,6 +371,10 @@ func (s *GoalService) view(ctx context.Context, g domain.Goal) (GoalView, error)
 			return v, err
 		}
 		cur, target = len(cs), g.Target
+		for _, c := range cs {
+			d, _ := time.ParseInLocation("2006-01-02", c.Date, s.loc)
+			evs = append(evs, goalEvent{d, 1})
+		}
 	default:
 		return v, nil
 	}
@@ -336,7 +386,32 @@ func (s *GoalService) view(ctx context.Context, g domain.Goal) (GoalView, error)
 		p.Current, p.Target = cur/60, g.Target
 	}
 	v.Progress = p
+	v.History = s.history(g.StartDate, evs, target)
 	return v, nil
+}
+
+// history tastet den Fortschritt von start (YYYY-MM-DD) bis jetzt an höchstens historyPoints Stellen ab.
+// Events vor start zählen ab dem ersten Punkt.
+func (s *GoalService) history(start string, evs []goalEvent, target int) []GoalPoint {
+	from, err := time.ParseInLocation("2006-01-02", start, s.loc)
+	now := s.now().In(s.loc)
+	if err != nil || target <= 0 || !now.After(from) {
+		return nil
+	}
+	span := now.Sub(from)
+	n := min(historyPoints, int(span.Hours()/24)+2)
+	out := make([]GoalPoint, n)
+	for i := range out {
+		t := from.Add(time.Duration(float64(span) * float64(i) / float64(n-1)))
+		sum := 0
+		for _, e := range evs {
+			if !e.at.After(t) {
+				sum += e.n
+			}
+		}
+		out[i] = GoalPoint{Date: t.Format("2006-01-02"), Percent: min(100, sum*100/target)}
+	}
+	return out
 }
 
 // Line ist das Ziel als eine Zeile für ntfy, z. B. „Ziel: Fit – 40 % (20 von 50-mal)“.

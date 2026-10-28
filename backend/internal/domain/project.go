@@ -41,6 +41,7 @@ type Project struct {
 	GitHubRepo  *string // „owner/name“
 	Status      ProjectStatus
 	Color       string // aus ProjectColors
+	Icon        string // Name aus dem Frontend-Icon-Satz oder leer
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

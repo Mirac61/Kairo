@@ -18,19 +18,20 @@ const (
 
 // Goal ist ein großes Ziel auf dem Motivationsboard.
 type Goal struct {
-	ID        string
-	Title     string
-	Why       string
-	ImagePath *string // Pfad im Notizordner (über /api/files)
-	Kind      GoalKind
-	ProjectID *string
-	HabitID   *string
-	Target    int
-	StartDate string // YYYY-MM-DD, ab hier zählen Stunden und Completions
-	DueDate   *string
-	Archived  bool
-	ParentID  *string // gesetzt: Teilziel eines Langzeitziels
-	CreatedAt time.Time
+	ID         string
+	Title      string
+	Why        string
+	ImagePath  *string // Pfad im Notizordner (über /api/files)
+	Kind       GoalKind
+	ProjectID  *string
+	HabitID    *string
+	Target     int
+	StartDate  string // YYYY-MM-DD, ab hier zählen Stunden und Completions
+	DueDate    *string
+	Archived   bool
+	ParentID   *string    // gesetzt: Teilziel eines Langzeitziels
+	ArchivedAt *time.Time // wann erreicht; nil bei offenen und bei vor 0027 erreichten Zielen
+	CreatedAt  time.Time
 }
 
 // Validate prüft das Ziel und entfernt Verweise, die zur Art nicht passen.

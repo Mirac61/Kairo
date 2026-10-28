@@ -90,6 +90,10 @@ func TestGoalsFlow(t *testing.T) {
 	if p := list[0].Progress; p == nil || p.Current != 2 || p.Target != 4 || p.Percent != 50 || list[0].Why != "Für mich" {
 		t.Errorf("HABIT_COUNT = %+v %+v", list[0], p)
 	}
+	// Verlauf vom 5. bis jetzt (10., mittags): Completions am 8. und 9., die vom 3. liegt vor dem Start.
+	if hs := list[0].History; len(hs) != 7 || hs[0] != (goalPointDTO{"2026-01-05", 0}) || hs[3].Percent != 0 || hs[4].Percent != 25 || hs[6] != (goalPointDTO{"2026-01-10", 50}) {
+		t.Errorf("HABIT_COUNT history = %+v", hs)
+	}
 	if p := list[1].Progress; p == nil || p.Current != 1 || p.Target != 2 || p.Percent != 50 || list[1].Target != 0 {
 		t.Errorf("PROJECT_TASKS = %+v %+v", list[1], p)
 	}
@@ -141,6 +145,9 @@ func TestGoalParents(t *testing.T) {
 	_ = json.Unmarshal(call(h, "PATCH", "/api/goals/"+long.ID, `{"why":"Geld"}`).Body.Bytes(), &g)
 	if p := g.Progress; p == nil || p.Percent != 50 || p.Current != 1 || p.Target != 2 {
 		t.Errorf("Fortschritt Langzeitziel = %+v", p)
+	}
+	if hs := g.History; len(hs) < 2 || hs[len(hs)-1].Percent != 50 {
+		t.Errorf("Verlauf Langzeitziel = %+v", hs)
 	}
 	// Löschen nimmt die Teilziele mit.
 	call(h, "DELETE", "/api/goals/"+long.ID, "")
