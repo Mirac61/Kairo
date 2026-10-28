@@ -21,7 +21,6 @@ import { dur, hm, shiftDate } from '@/lib/dates'
 import { locale, t, tn } from '@/lib/i18n'
 import { journalPath, parseEntry } from '@/lib/journal'
 import { prefs } from '@/lib/prefs'
-import { projectColor } from '@/lib/projectColor'
 import { store } from '@/lib/storage'
 import TodayDayPlanRail from './components/TodayDayPlanRail.vue'
 import TodayQuickStrip from './components/TodayQuickStrip.vue'
@@ -379,8 +378,8 @@ const allOpenAndUpcoming = computed(() => openToday.value.concat(upcoming.value)
               <b>{{ runEntry ? $t('Läuft') : $t('Pausiert') }}</b>
               <template v-if="current?.project_id">
                 <span>·</span>
-                <span class="chip" :style="{ '--chip-c': projectColor(current.project_id) }">
-                  <span class="cdot"></span>{{ projectNames.get(current.project_id) }}
+                <span class="chip">
+                  {{ projectNames.get(current.project_id) }}
                 </span>
               </template>
               <span v-if="current" class="st-pill">
@@ -434,12 +433,8 @@ const allOpenAndUpcoming = computed(() => openToday.value.concat(upcoming.value)
               >
                 <span class="cb" :aria-checked="picks.has(x.id)"></span>
                 <span class="st-pick-t">{{ x.title }}</span>
-                <span
-                  v-if="x.project_id"
-                  class="chip"
-                  :style="{ '--chip-c': projectColor(x.project_id) }"
-                >
-                  <span class="cdot"></span>{{ projectNames.get(x.project_id) }}
+                <span v-if="x.project_id" class="chip">
+                  {{ projectNames.get(x.project_id) }}
                 </span>
                 <span class="st-est">{{ estimateLabel(x) }}</span>
               </button>
@@ -490,8 +485,8 @@ const allOpenAndUpcoming = computed(() => openToday.value.concat(upcoming.value)
               <b>{{ $t('Als Nächstes') }}</b>
               <template v-if="heroTask.project_id">
                 <span>·</span>
-                <span class="chip" :style="{ '--chip-c': projectColor(heroTask.project_id) }">
-                  <span class="cdot"></span>{{ projectNames.get(heroTask.project_id) }}
+                <span class="chip">
+                  {{ projectNames.get(heroTask.project_id) }}
                 </span>
               </template>
               <span>·</span><span>{{ estimateLabel(heroTask) }}</span>
@@ -571,12 +566,8 @@ const allOpenAndUpcoming = computed(() => openToday.value.concat(upcoming.value)
                   </span>
                 </div>
                 <span class="pcol">
-                  <span
-                    v-if="x.project_id"
-                    class="chip"
-                    :style="{ '--chip-c': projectColor(x.project_id) }"
-                  >
-                    <span class="cdot"></span>{{ projectNames.get(x.project_id) }}
+                  <span v-if="x.project_id" class="chip">
+                    {{ projectNames.get(x.project_id) }}
                   </span>
                 </span>
                 <span class="dur">{{ x.estimated_minutes ? dur(x.estimated_minutes) : '' }}</span>
@@ -622,12 +613,8 @@ const allOpenAndUpcoming = computed(() => openToday.value.concat(upcoming.value)
                   <span class="t">{{ x.title }}</span>
                 </div>
                 <span class="pcol">
-                  <span
-                    v-if="x.project_id"
-                    class="chip"
-                    :style="{ '--chip-c': projectColor(x.project_id) }"
-                  >
-                    <span class="cdot"></span>{{ projectNames.get(x.project_id) }}
+                  <span v-if="x.project_id" class="chip">
+                    {{ projectNames.get(x.project_id) }}
                   </span>
                 </span>
                 <span class="dur"></span>
@@ -677,13 +664,13 @@ const allOpenAndUpcoming = computed(() => openToday.value.concat(upcoming.value)
 
 <style scoped>
 .st {
-  max-width: 1240px;
+  max-width: 1440px;
   padding-top: 36px;
 }
 .st-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 310px;
-  gap: 48px;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 40px;
   align-items: start;
 }
 .st-main {
@@ -747,7 +734,7 @@ kbd {
   gap: 8px;
   margin-top: 8px;
   padding: 8px 12px;
-  border-radius: var(--r-s);
+  border-radius: var(--r-m);
   background: var(--bg-1);
   box-shadow: 0 0 0 1px var(--br-default);
   font: 400 13px/1.4 var(--font-ui);

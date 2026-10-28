@@ -16,7 +16,6 @@ import { useUndo } from '@/composables/useUndo'
 import { blockEndMinutes, doneSeconds, gaps, minutesOfDay } from '@/lib/dayPlan'
 import { locale, t } from '@/lib/i18n'
 import { prefs } from '@/lib/prefs'
-import { projectColor } from '@/lib/projectColor'
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -182,7 +181,7 @@ function createHome() {
         running: isRunning,
         sub: '',
         task,
-        color: projectColor(task.project_id),
+        color: 'var(--a-blue)',
         start: startMin,
         end: startMin + duration,
       })

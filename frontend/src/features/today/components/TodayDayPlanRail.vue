@@ -6,7 +6,6 @@ import { columns } from '@/lib/dayPlan'
 import { dur, hm } from '@/lib/dates'
 import { vDialog } from '@/lib/dialog'
 import { prefs } from '@/lib/prefs'
-import { projectColor } from '@/lib/projectColor'
 
 const props = defineProps<{
   blocks: Block[]
@@ -304,12 +303,8 @@ function handleDrop(gap: { start: number; end: number }) {
             @click="scheduleGapTask(task)"
           >
             <span class="t">{{ task.title }}</span>
-            <span
-              v-if="task.project_id"
-              class="chip"
-              :style="{ '--chip-c': projectColor(task.project_id) }"
-            >
-              <span class="cdot"></span>{{ projectNames.get(task.project_id) }}
+            <span v-if="task.project_id" class="chip">
+              {{ projectNames.get(task.project_id) }}
             </span>
             <span class="dur mono">{{ estimateLabel(task) }}</span>
           </button>
@@ -360,7 +355,7 @@ function handleDrop(gap: { start: number; end: number }) {
   position: relative;
   height: clamp(520px, calc(100vh - 140px), 760px);
   padding: 0 0 0 52px;
-  border-radius: var(--r-m);
+  border-radius: var(--r-l);
   background: var(--bg-1);
   box-shadow: 0 0 0 1px var(--br-default);
   overflow: hidden;

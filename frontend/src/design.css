@@ -51,6 +51,7 @@
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
   --r-s: 6px;
   --r-m: 10px;
+  --r-l: 14px;
   --dur: 130ms;
   color-scheme: dark;
 }
@@ -114,6 +115,7 @@
   --shadow-pop: 0 0 0 1px #2a2c31, 0 18px 40px -12px rgba(0, 0, 0, 0.7);
   --r-s: 8px;
   --r-m: 12px;
+  --r-l: 16px;
 }
 :root[data-palette='graphit'][data-theme='light'] {
   --bg-0: #f6f6f4;
