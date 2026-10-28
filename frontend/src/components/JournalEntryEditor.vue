@@ -33,6 +33,7 @@ let mtime = props.entry?.mtime ?? ''
 
 type Status = 'idle' | 'saving' | 'saved' | 'conflict' | 'error'
 const status = ref<Status>('idle')
+const dirty = ref(false)
 const error = ref('')
 // Ein Speichervorgang läuft; weitere Änderungen währenddessen werden in der Schleife nachgeholt.
 let saving: Promise<void> | null = null
@@ -69,6 +70,7 @@ function growAll() {
 
 function onChange() {
   version++
+  dirty.value = true
   status.value = 'idle'
   error.value = ''
   if (timer) clearTimeout(timer)
@@ -144,6 +146,7 @@ async function saveOnce(): Promise<boolean> {
     nextMtime = (await saveNote(journalPath(props.date), toMarkdown(props.date, { answers, other }), nextMtime)).mtime
     mtime = nextMtime
     savedVersion = v
+    if (v === version) dirty.value = false
     // Nach dem Unmount wird noch geschrieben, aber nichts mehr angezeigt oder gemeldet.
     if (!alive) return true
     status.value = 'saved'
@@ -332,8 +335,9 @@ async function submitImport() {
           </button>
           <span v-if="importedCount" class="je-imported">✓ {{ $tn(importedCount, '{n} Aufgabe übernommen', '{n} Aufgaben übernommen') }}</span>
           <span class="je-status" aria-live="polite">
-            <span v-if="status === 'saved'" class="je-saved"><svg class="ic"><use href="#i-check" /></svg>{{ $t('Gespeichert') }}</span>
-            <span v-else-if="status === 'saving'">{{ $t('Wird gespeichert …') }}</span>
+            <span v-if="dirty" class="save-status dirty"><i></i>{{ $t('Ungespeicherte Änderungen') }}</span>
+            <span v-else-if="status === 'saving'" class="save-status">{{ $t('Wird gespeichert …') }}</span>
+            <span v-else class="save-status saved je-saved"><svg class="ic"><use href="#i-check" /></svg>{{ $t('Gespeichert') }}</span>
           </span>
         </div>
       </section>
@@ -385,7 +389,7 @@ async function submitImport() {
 }
 .je-area:focus { border-bottom-color: var(--br-default); }
 .je-area:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: var(--r-s); }
-.je-area::placeholder { color: var(--tx-disabled); opacity: 0.65; }
+.je-area::placeholder { color: var(--tx-muted); opacity: 1; }
 
 .je-points { display: grid; gap: 4px; }
 .je-point { display: flex; align-items: center; gap: 12px; }
@@ -400,7 +404,7 @@ async function submitImport() {
 }
 .je-point-input:focus { border-bottom-color: var(--br-default); }
 .je-point-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: var(--r-s); }
-.je-point-input::placeholder { color: var(--tx-disabled); opacity: 0.65; }
+.je-point-input::placeholder { color: var(--tx-muted); opacity: 1; }
 
 .je-foot { display: flex; align-items: center; gap: 16px; margin-top: 8px; }
 .je-import { height: 28px; padding: 0 10px; font-size: 13px; color: var(--tx-secondary); }

@@ -8,10 +8,9 @@ import {
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import { vDialog } from '@/lib/dialog'
-import { addDays, weekStart, ymd } from '@/lib/dates'
-import { prefs } from '@/lib/prefs'
+import { ymd } from '@/lib/dates'
 import { filesUrl } from '@/lib/noteFiles'
-import { goalProgressText } from '@/lib/goals'
+import { goalPace, goalProgressText } from '@/lib/goals'
 import { locale, t } from '@/lib/i18n'
 import DeleteButton from '@/components/DeleteButton.vue'
 
@@ -37,33 +36,33 @@ const { error, load, run } = useLoader(async () => {
 onMounted(load)
 useLiveEvents(load)
 
-// --- Board
+// --- Karten
 const today = ymd(new Date())
-const headDate = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date()))
-// ISO-Kalenderwoche
-const kw = (() => {
-  const n = new Date()
-  const d = new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()))
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7))
-  return Math.ceil(((d.getTime() - Date.UTC(d.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7)
-})()
-const daysTo = (due: string) => Math.round((new Date(due + 'T00:00').getTime() - new Date(today + 'T00:00').getTime()) / 864e5)
-const shortDate = (d: string) => new Intl.DateTimeFormat(locale.value, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(d + 'T00:00'))
+const shortDate = (d: string) => new Intl.DateTimeFormat(locale.value, { day: 'numeric', month: 'short' }).format(new Date(d + 'T00:00'))
 const nextStep = (g: Goal) => stepsOf(g.id).find((s) => !s.archived)
+const STATE = { ok: t('Im Plan'), tight: t('Knapp'), off: t('Hinterher') }
+const tab = ref<'active' | 'reached'>('active')
 
-// Drangeblieben: die Tage dieser Woche zum Abhaken, gespeichert in den Einstellungen (geräteübergreifend).
-const week = computed(() => {
-  const on = new Set(prefs.goalDays.split(' '))
-  return Array.from({ length: 7 }, (_, i) => {
-    const day = addDays(weekStart(), i)
-    const d = ymd(day)
-    return { d, label: new Intl.DateTimeFormat(locale.value, { weekday: 'short' }).format(day).slice(0, 2), on: on.has(d) }
-  })
-})
-// Ältere Wochen fallen beim Umschalten weg, damit die Einstellungen klein bleiben.
-function toggleDay(d: string) {
-  prefs.goalDays = week.value.filter((x) => x.on !== (x.d === d)).map((x) => x.d).join(' ')
+// Diagramm in 0..100 auf beiden Achsen: x von start_date bis zur Frist (ohne Frist bis heute), y in Prozent.
+const dayNo = (d: string) => Date.parse(d + 'T00:00:00Z') / 864e5
+function chart(g: Goal) {
+  const from = dayNo(g.start_date)
+  const to = dayNo(g.due_date && g.due_date > g.start_date ? g.due_date : today)
+  const x = (d: string) => (to > from ? Math.min(100, ((dayNo(d) - from) / (to - from)) * 100) : 100)
+  return { line: (g.history ?? []).map((h) => `${x(h.date).toFixed(2)},${100 - h.percent}`).join(' '), now: x(today) }
 }
+const cards = computed(() =>
+  (tab.value === 'active' ? longTerm.value : reached.value).map((g) => ({
+    g, pace: g.archived ? null : goalPace(g, today), chart: chart(g), steps: stepsOf(g.id), next: nextStep(g),
+  })))
+const counts = computed(() => {
+  const c = { ok: 0, tight: 0, off: 0 }
+  for (const g of longTerm.value) {
+    const p = goalPace(g, today)
+    if (p) c[p.state]++
+  }
+  return c
+})
 
 // Schritte direkt auf der Karte anlegen, abhaken, löschen
 const drafts = reactive<Record<string, string>>({})
@@ -159,94 +158,85 @@ const remove = () =>
 
 <template>
   <div class="view-inner gl">
-    <header class="gl-head">
-      <div class="gl-head-l">
-        <span class="gl-date">{{ headDate }} · {{ $t('KW') }} {{ kw }}</span>
-        <h1 class="gl-title">{{ $t('Wofür ich das') }} <em>{{ $t('alles') }}</em> {{ $t('mache.') }}</h1>
+    <div class="gl-head">
+      <div class="v-head">
+        <h1 class="v-title">{{ $t('Ziele') }}</h1>
+        <p v-if="counts.ok + counts.tight + counts.off" class="v-sub">
+          <span :class="{ 'gl-ok': counts.ok > 0 }">{{ $t('{n} im Plan', { n: counts.ok }) }}</span> · <span :class="{ 'gl-tight': counts.tight > 0 }">{{ $t('{n} knapp', { n: counts.tight }) }}</span> ·
+          <span :class="{ 'gl-off': counts.off > 0 }">{{ $t('{n} hinterher', { n: counts.off }) }}</span>. {{ $t('Der Strich im Balken zeigt, wo du heute stehen müsstest.') }}
+        </p>
       </div>
-      <label class="gl-focus gl-tilt">
-        <span class="gl-label">{{ $t('Fokus diese Woche') }}</span>
-        <input v-model.lazy="prefs.goalFocus" :placeholder="$t('Was zählt diese Woche?')" maxlength="200" />
-      </label>
-    </header>
+      <div class="seg" role="group" :aria-label="$t('Filter')">
+        <button type="button" :aria-pressed="tab === 'active'" @click="tab = 'active'">{{ $t('Aktiv') }} <span class="count">{{ longTerm.length }}</span></button>
+        <button type="button" :aria-pressed="tab === 'reached'" :disabled="!reached.length" @click="tab = 'reached'">{{ $t('Erreicht') }} <span class="count">{{ reached.length }}</span></button>
+      </div>
+      <button type="button" class="btn btn-primary" @click="openNew()"><svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>{{ $t('Neues Ziel') }}</button>
+    </div>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-    <p v-if="!goals.length" class="gl-empty">
-      {{ $t('Noch keine Ziele. Fang mit einem großen an: Wo willst du in ein, zwei Jahren stehen? Gib ihm ein Bild und einen Satz, warum es dir wichtig ist. Darunter legst du die Schritte an, die dich hinbringen.') }}
+    <p v-if="!goals.length" class="v-sub gl-empty">
+      {{ $t('Noch keine Ziele. Leg ein großes an, gib ihm eine Frist und verknüpfe Schritte, ein Projekt oder eine Gewohnheit. Dann zeigt Kairo, ob du im Plan bist.') }}
     </p>
 
-    <div class="gl-wall">
-      <!-- Je Langzeitziel: Bild plus Notizkarte; jede zweite Reihe eingerückt, mit Countdown links -->
-      <section v-for="(g, i) in longTerm" :key="g.id" class="gl-row" :class="i % 2 ? 'b' : 'a'">
-        <div v-if="i % 2 && g.due_date && daysTo(g.due_date) >= 0" class="gl-count gl-tilt">
-          <span class="gl-count-s">{{ $t('Noch') }}</span>
-          <b>{{ daysTo(g.due_date) }}</b>
-          <span class="gl-count-l">{{ $t('Tage bis „{title}“', { title: g.title }) }}</span>
-          <span class="gl-count-s">≈ {{ $t('{n} Wochen', { n: Math.round(daysTo(g.due_date) / 7) }) }}</span>
+    <div class="gl-grid">
+      <article v-for="{ g, pace, chart: c, steps, next } in cards" :key="g.id" class="card gl-card">
+        <header class="gl-card-h">
+          <img v-if="g.image_path" class="gl-thumb" :src="filesUrl(g.image_path)" alt="" />
+          <button type="button" class="gl-card-t" @click="openEdit(g)">{{ g.title }}</button>
+          <span v-if="pace" class="gl-state" :class="`gl-${pace.state}`"><i></i>{{ STATE[pace.state] }}</span>
+          <span v-else-if="g.archived" class="gl-state gl-ok"><i></i>{{ $t('Erreicht') }}</span>
+          <span v-else-if="!g.due_date" class="gl-state">{{ $t('Ohne Frist') }}</span>
+        </header>
+        <p v-if="g.why" class="gl-why">{{ g.why }}</p>
+
+        <template v-if="g.progress">
+          <div class="gl-num">
+            <b>{{ g.progress.percent }}%</b>
+            <span class="gl-muted">{{ goalProgressText(g) }}</span>
+            <span v-if="pace" class="gl-hint">{{ pace.hint }}</span>
+          </div>
+          <div class="gl-bar" role="progressbar" :aria-valuenow="g.progress.percent" aria-valuemin="0" aria-valuemax="100" :aria-label="$t('Fortschritt von „{title}“', { title: g.title })">
+            <i :class="pace ? `gl-${pace.state}` : ''" :style="{ width: `${g.progress.percent}%` }"></i>
+            <b v-if="pace" :style="{ left: `${pace.pace}%` }" :title="$t('Soll heute: {n} %', { n: pace.pace })"></b>
+          </div>
+          <figure v-if="g.history?.length > 1" class="gl-chart">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img"
+              :aria-label="pace ? $t('Verlauf: {p} % erreicht, Soll heute {s} %', { p: g.progress.percent, s: pace.pace }) : $t('Verlauf: {p} % erreicht', { p: g.progress.percent })">
+              <line x1="0" y1="50" x2="100" y2="50" class="grid" />
+              <line v-if="g.due_date" x1="0" y1="100" x2="100" y2="0" class="soll" />
+              <line v-if="g.due_date && c.now < 100" :x1="c.now" y1="0" :x2="c.now" y2="100" class="now" />
+              <polyline :points="c.line" class="ist" />
+            </svg>
+            <figcaption>
+              <span>{{ shortDate(g.start_date) }}</span>
+              <span v-if="g.due_date && c.now < 100" :style="{ left: `${c.now}%` }" class="gl-cap-now">{{ $t('heute') }}</span>
+              <span>{{ g.due_date ? shortDate(g.due_date) : $t('heute') }}</span>
+            </figcaption>
+          </figure>
+        </template>
+        <p v-else class="gl-muted">{{ $t('Noch kein Fortschritt. Leg Schritte an oder miss das Ziel an einem Projekt oder einer Gewohnheit.') }}</p>
+
+        <div v-if="next" class="gl-next">
+          <button type="button" class="gl-box" role="checkbox" :aria-checked="false" :aria-label="$t('„{title}“ erreicht', { title: next.title })" @click="archive(next, true)"></button>
+          <button type="button" class="gl-step-t" @click="openEdit(next)">{{ next.title }}</button>
+          <span class="gl-muted">{{ $t('Als nächstes') }}</span>
         </div>
-
-        <button type="button" class="gl-pic" :class="{ bare: !g.image_path }" :aria-label="$t('„{title}“ bearbeiten', { title: g.title })" @click="openEdit(g)">
-          <img v-if="g.image_path" :src="filesUrl(g.image_path)" alt="" />
-          <span class="gl-pic-text">
-            <span class="gl-chips">
-              <span class="gl-chip">{{ String(i + 1).padStart(2, '0') }} · {{ $t('Langzeitziel') }}</span>
-              <span v-if="g.due_date" class="gl-chip soft">{{ $t('bis {date}', { date: shortDate(g.due_date) }) }}</span>
-            </span>
-            <span class="gl-pic-title">{{ g.title }}</span>
-          </span>
-        </button>
-
-        <div class="gl-note gl-tilt">
-          <p v-if="g.why" class="gl-why">„{{ g.why }}“</p>
-          <div class="gl-prog">
-            <div class="gl-segs" aria-hidden="true">
-              <template v-if="stepsOf(g.id).length"><span v-for="st in stepsOf(g.id)" :key="st.id" :class="{ on: st.archived }"></span></template>
-              <span v-else :style="{ background: `linear-gradient(90deg, var(--gl-a) ${g.progress?.percent ?? 0}%, var(--bg-3) 0)` }"></span>
-            </div>
-            <span class="gl-muted">{{ g.progress ? `${g.progress.percent} % · ${goalProgressText(g)}` : $t('Noch keine Schritte') }}</span>
-          </div>
-          <div v-if="nextStep(g)" class="gl-next">
-            <span class="gl-label">{{ $t('Als nächstes') }}</span>
-            <b>{{ nextStep(g)!.title }}</b>
-          </div>
-          <p v-else-if="!stepsOf(g.id).length" class="gl-muted gl-hint">{{ $t('Noch kein Schritt. Was geht heute in 20 Minuten?') }}</p>
-          <ul v-if="stepsOf(g.id).length" class="gl-list">
-            <li v-for="st in stepsOf(g.id)" :key="st.id" :class="{ done: st.archived }">
+        <details v-if="steps.length" class="gl-steps">
+          <summary>{{ $t('Alle Schritte') }} <span class="count">{{ steps.filter((s) => s.archived).length }}/{{ steps.length }}</span></summary>
+          <ul class="gl-list">
+            <li v-for="st in steps" :key="st.id" :class="{ done: st.archived }">
               <button type="button" class="gl-box" role="checkbox" :aria-checked="st.archived"
                 :aria-label="st.archived ? $t('„{title}“ wieder öffnen', { title: st.title }) : $t('„{title}“ erreicht', { title: st.title })"
                 @click="archive(st, !st.archived)"><svg v-if="st.archived" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></button>
-              <button type="button" class="gl-step-t" @click="openEdit(st)">{{ st.title }}<small v-if="st.progress && !st.archived"> · {{ st.progress.percent }} %</small></button>
+              <button type="button" class="gl-step-t" @click="openEdit(st)">{{ st.title }}<small v-if="st.progress && !st.archived"> · {{ st.progress.percent }}%</small></button>
               <button type="button" class="gl-x" :aria-label="$t('„{title}“ löschen', { title: st.title })" @click="removeStep($event, st)">×</button>
             </li>
           </ul>
-          <input v-model="drafts[g.id]" class="gl-add" :placeholder="stepsOf(g.id).length ? $t('+ Schritt hinzufügen') : $t('+ Erster Schritt …')"
-            :aria-label="$t('Schritt zu „{title}“ hinzufügen', { title: g.title })" @keydown.enter.prevent="addStep(g)" />
-        </div>
-      </section>
-
-      <section class="gl-row foot">
-        <div class="gl-streak gl-tilt">
-          <div class="gl-streak-h"><b>{{ $t('Drangeblieben') }}</b><span class="gl-muted">{{ $t('{n} von 7 Tagen', { n: week.filter((d) => d.on).length }) }}</span></div>
-          <div class="gl-days">
-            <button v-for="d in week" :key="d.d" type="button" :aria-pressed="d.on" :class="{ today: d.d === today, future: d.d > today }" @click="toggleDay(d.d)">{{ d.label }}</button>
-          </div>
-          <span class="gl-muted">{{ $t('Tag antippen, wenn du was für deine Ziele getan hast.') }}</span>
-        </div>
-        <p class="gl-motto gl-tilt">{{ $t('Nicht perfekt.') }}<br /><em>{{ $t('Nur weiter.') }}</em></p>
-        <button type="button" class="gl-new gl-tilt" @click="openNew()">
-          <b>{{ $t('+ Neues Ziel') }}</b><span>{{ $t('Was kommt als Nächstes an die Wand?') }}</span>
-        </button>
-      </section>
+        </details>
+        <input v-if="!g.archived" v-model="drafts[g.id]" class="gl-add" :placeholder="steps.length ? $t('Schritt hinzufügen …') : $t('Ersten Schritt hinzufügen …')"
+          :aria-label="$t('Schritt zu „{title}“ hinzufügen', { title: g.title })" @keydown.enter.prevent="addStep(g)" />
+      </article>
     </div>
-
-    <template v-if="reached.length">
-      <h2 class="col-title gl-arch-head">{{ $t('Erreicht') }}</h2>
-      <div class="gl-arch">
-        <button v-for="g in reached" :key="g.id" type="button" class="gl-arch-chip" @click="openEdit(g)">
-          <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>{{ g.title }}
-        </button>
-      </div>
-    </template>
 
     <div v-if="dialog" v-dialog="() => (dialog = false)" class="overlay open" @mousedown.self="dialog = false">
       <form class="dialog" :aria-label="form.id ? $t('Ziel bearbeiten') : $t('Neues Ziel')" @submit.prevent="save">
@@ -317,116 +307,60 @@ const remove = () =>
 </template>
 
 <style scoped>
-.gl {
-  --serif: 'Instrument Serif', Georgia, serif;
-  --gl-a: var(--a-blue-tx); /* Akzent des Boards, folgt der Akzentfarbe aus den Einstellungen */
-  --gl-ink: #12142a; /* Text auf Akzentflächen */
-  --tilt: 1; /* Schräglage der Karten wie auf einer Pinnwand */
-  max-width: 1320px;
-}
+.gl-head { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px 16px; margin-bottom: 20px; }
+.gl-head .v-head { flex: 1 1 360px; margin: 0; }
+.gl-empty { max-width: 560px; }
 .gl-muted { font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
-.gl-label { font: 600 13px/1.2 var(--font-ui); color: var(--gl-a); }
-.gl-empty { max-width: 560px; font: italic 400 19px/1.5 var(--serif); color: var(--tx-secondary); }
-.gl-tilt { transform: rotate(calc(var(--tilt) * var(--r, 0deg))); }
+.gl-ok { --c: var(--a-run); color: var(--c); }
+.gl-tight { --c: var(--p-yellow); color: var(--c); }
+.gl-off { --c: var(--a-red); color: var(--c); }
 
-/* Kopf */
-.gl-head { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 28px 24px; align-items: end; margin-bottom: clamp(32px, 4vw, 56px); }
-.gl-head-l { grid-column: 1 / 9; display: grid; gap: 14px; min-width: 0; }
-.gl-date { font: 400 15px/1 var(--font-ui); color: var(--tx-secondary); }
-.gl-title { margin: 0; font: 400 clamp(48px, 6.4vw, 96px)/0.92 var(--serif); letter-spacing: -0.02em; color: var(--tx-primary); text-wrap: balance; }
-.gl-title em, .gl-motto em { font-style: italic; color: var(--gl-a); }
-.gl-focus { grid-column: 9 / 13; display: grid; gap: 8px; padding: 18px 20px; border-radius: 18px; border: 1px solid var(--br-default); background: var(--bg-1); --r: 1deg; }
-.gl-focus input { width: 100%; padding: 0; border: 0; outline: none; background: none; font: italic 400 26px/1.2 var(--serif); color: var(--tx-primary); }
-.gl-focus input::placeholder { color: var(--tx-muted); }
+.gl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 14px; }
+.gl-card { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 18px 20px; }
+.gl-card-h { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.gl-thumb { flex: none; width: 28px; height: 28px; border-radius: var(--r-s); object-fit: cover; }
+.gl-card-t { flex: 1; min-width: 0; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; font: 600 15px/1.3 var(--font-ui); color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-card-t:hover { text-decoration: underline; text-underline-offset: 3px; }
+.gl-state { flex: none; display: inline-flex; align-items: center; gap: 6px; font: 500 13px/1 var(--font-ui); color: var(--tx-muted); }
+.gl-state i { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--tx-muted)); }
+.gl-why { margin: -6px 0 0; font: 400 13px/1.45 var(--font-ui); color: var(--tx-secondary); }
 
-/* Wand: je Ziel eine Reihe im 12er-Raster, Notizkarte überlappt das Bild */
-.gl-wall { display: grid; gap: clamp(32px, 4vw, 56px); }
-.gl-row { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: start; }
-.gl-row > * { grid-row: 1; }
-.gl-row.a .gl-pic { grid-column: 1 / 8; height: clamp(320px, 36vw, 500px); }
-.gl-row.a .gl-note { grid-column: 8 / 13; margin: clamp(28px, 4vw, 60px) 0 0 clamp(-56px, -4vw, -20px); --r: 1deg; }
-.gl-row.b .gl-pic { grid-column: 4 / 10; height: clamp(300px, 33vw, 450px); }
-.gl-row.b .gl-note { grid-column: 9 / 13; margin: clamp(60px, 7vw, 110px) 0 0 clamp(24px, 4vw, 64px); --r: -1.2deg; }
+.gl-num { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.gl-num b { font: 600 28px/1 var(--font-ui); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: var(--tx-primary); }
+.gl-hint { margin-left: auto; font: 400 13px/1.4 var(--font-ui); color: var(--tx-secondary); }
+.gl-bar { position: relative; height: 6px; border-radius: 3px; background: var(--bg-3); }
+.gl-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--c, var(--a-blue-hi)); }
+.gl-bar b { position: absolute; top: -5px; width: 2px; height: 16px; margin-left: -1px; border-radius: 1px; background: var(--tx-primary); }
 
-.gl-pic {
-  position: relative; z-index: 1; display: block; overflow: hidden; padding: 0; border: 0; border-radius: 24px; cursor: pointer;
-  background: var(--bg-2); color: var(--tx-primary); text-align: left; font: inherit;
-}
-.gl-pic.bare { background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--gl-a) 16%, var(--bg-2)), var(--bg-1)); }
-.gl-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.gl-pic-text {
-  position: absolute; inset: auto 0 0; display: grid; gap: 10px; padding: 90px clamp(20px, 2.5vw, 32px) 26px;
-  background: linear-gradient(to top, rgba(14, 15, 20, 0.88), rgba(14, 15, 20, 0)); color: #f3f3f6;
-}
-.gl-pic.bare .gl-pic-text { background: none; color: var(--tx-primary); }
-.gl-pic-title { font: 400 clamp(34px, 4vw, 56px)/1 var(--serif); text-wrap: balance; }
-.gl-pic:hover .gl-pic-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
-.gl-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.gl-chip { padding: 5px 11px; border-radius: 999px; font: 600 13px/1.2 var(--font-ui); color: var(--gl-ink); background: var(--gl-a); }
-.gl-chip.soft { color: #f3f3f6; background: rgba(255, 255, 255, 0.14); }
+.gl-chart { margin: 0; }
+.gl-chart svg { display: block; width: 100%; height: 88px; overflow: visible; }
+.gl-chart line, .gl-chart polyline { vector-effect: non-scaling-stroke; fill: none; }
+.gl-chart .grid { stroke: var(--br-subtle); }
+.gl-chart .soll { stroke: var(--tx-disabled); stroke-width: 1.5; stroke-dasharray: 4 5; }
+.gl-chart .now { stroke: var(--br-strong); }
+.gl-chart .ist { stroke: var(--tx-primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.gl-chart figcaption { position: relative; display: flex; justify-content: space-between; margin-top: 6px; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
+.gl-cap-now { position: absolute; transform: translateX(-50%); }
 
-/* Notizkarte */
-.gl-note, .gl-streak {
-  position: relative; z-index: 2; display: grid; gap: 16px; padding: 24px; border-radius: 22px;
-  border: 1px solid var(--br-default); background: var(--bg-2); box-shadow: 0 30px 60px -24px rgba(0, 0, 0, 0.6);
-}
-.gl-why { margin: 0; font: italic 400 23px/1.25 var(--serif); color: var(--tx-primary); text-wrap: pretty; }
-.gl-prog { display: grid; gap: 8px; }
-.gl-segs { display: flex; gap: 4px; height: 6px; }
-.gl-segs span { flex: 1; border-radius: 3px; background: var(--bg-3); }
-.gl-segs span.on { background: var(--gl-a); }
-.gl-next { display: grid; gap: 3px; padding: 14px 16px; border-radius: 14px; background: color-mix(in srgb, var(--gl-a) 12%, transparent); }
-.gl-next b { font: 600 18px/1.3 var(--font-ui); color: var(--tx-primary); }
-.gl-hint { margin: 0; font-size: 15px; }
-.gl-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.gl-list li { display: flex; align-items: flex-start; gap: 12px; }
-.gl-box { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin-top: 1px; padding: 0; border-radius: 6px; border: 1.5px solid var(--gl-a); background: none; cursor: pointer; }
-.gl-box svg { width: 14px; height: 14px; fill: none; stroke: var(--gl-ink); stroke-width: 3; }
-.done .gl-box { background: var(--gl-a); }
-.gl-step-t { flex: 1; min-width: 0; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: 400 15px/1.4 var(--font-ui); color: var(--tx-primary); }
+.gl-next { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: var(--r-s); background: var(--bg-2); }
+.gl-steps summary { cursor: pointer; font: 500 13px/1.3 var(--font-ui); color: var(--tx-muted); }
+.gl-steps summary:hover { color: var(--tx-primary); }
+.gl-list { display: grid; gap: 4px; margin: 10px 0 0; padding: 0; list-style: none; }
+.gl-list li { display: flex; align-items: center; gap: 10px; min-height: 32px; }
+.gl-box { flex: none; display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border-radius: 5px; border: 1.5px solid var(--br-strong); background: none; cursor: pointer; }
+.gl-box:hover { border-color: var(--a-blue-hi); }
+.gl-box svg { width: 12px; height: 12px; fill: none; stroke: var(--bg-0); stroke-width: 3; }
+.done .gl-box { border-color: var(--a-blue-hi); background: var(--a-blue-hi); }
+.gl-step-t { flex: 1; min-width: 0; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: 400 13px/1.4 var(--font-ui); color: var(--tx-primary); }
 .gl-step-t small { color: var(--tx-muted); }
 .done .gl-step-t { color: var(--tx-muted); text-decoration: line-through; }
-.gl-x { flex: none; padding: 0 4px; border: 0; background: none; cursor: pointer; font: 400 17px/1 var(--font-ui); color: var(--tx-muted); }
-.gl-x:hover { color: var(--tx-primary); }
-.gl-add { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--br-default); background: var(--bg-1); outline: none; font: 400 15px/1.2 var(--font-ui); color: var(--tx-primary); }
-.gl-add:focus { border-color: var(--gl-a); }
+.gl-x { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-s); border: 0; background: none; cursor: pointer; font: 400 16px/1 var(--font-ui); color: var(--tx-muted); opacity: 0; transition: opacity var(--dur), color var(--dur); }
+.gl-list li:hover .gl-x, .gl-x:focus-visible { opacity: 1; }
+.gl-x:hover { color: var(--a-red); }
+.gl-add { height: 38px; padding: 0 12px; border: 0; border-radius: var(--r-s); background: var(--bg-2); outline: none; font: 400 13px/1 var(--font-ui); color: var(--tx-primary); }
+.gl-add:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
 .gl-add::placeholder { color: var(--tx-muted); }
-
-/* Countdown-Sticker */
-.gl-count {
-  grid-column: 1 / 4; margin-top: clamp(32px, 4vw, 56px); --r: -2.2deg;
-  position: relative; z-index: 2; display: grid; gap: 2px; padding: 22px 24px; border-radius: 22px;
-  color: var(--gl-ink); background: var(--gl-a); box-shadow: 0 24px 40px -20px color-mix(in srgb, var(--gl-a) 40%, transparent);
-}
-.gl-count b { font: 400 clamp(84px, 8vw, 116px)/0.85 var(--serif); font-variant-numeric: tabular-nums; }
-.gl-count-s { font: 600 14px/1.3 var(--font-ui); }
-.gl-count-l { font: 600 15px/1.3 var(--font-ui); }
-
-/* Fußreihe */
-.gl-row.foot .gl-streak { grid-column: 1 / 6; gap: 14px; padding: 20px 22px; box-shadow: none; --r: 0.8deg; }
-.gl-streak-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font: 600 16px/1.2 var(--font-ui); color: var(--tx-primary); }
-.gl-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-.gl-days button { height: 44px; padding: 0; border-radius: 12px; border: 1.5px solid var(--br-strong); background: none; cursor: pointer; font: 600 13px/1 var(--font-ui); color: var(--tx-secondary); }
-.gl-days button.future { color: var(--tx-muted); }
-.gl-days button.today { border-color: var(--tx-primary); }
-.gl-days button[aria-pressed='true'] { border-color: var(--gl-a); background: var(--gl-a); color: var(--gl-ink); }
-.gl-motto { grid-column: 6 / 10; align-self: center; margin: 0 0 0 clamp(16px, 3vw, 40px); font: 400 clamp(40px, 4.6vw, 64px)/0.98 var(--serif); color: var(--tx-primary); text-wrap: balance; --r: -1.8deg; }
-.gl-new {
-  grid-column: 10 / 13; align-self: end; display: grid; justify-items: start; gap: 4px; padding: 22px; border-radius: 22px;
-  border: 1.5px dashed var(--br-strong); background: none; cursor: pointer; text-align: left; font: 400 14px/1.4 var(--font-ui); color: var(--tx-secondary);
-  transition: border-color var(--dur), color var(--dur); --r: 1.5deg;
-}
-.gl-new b { font: 600 16px/1.3 var(--font-ui); color: var(--tx-primary); }
-.gl-new:hover { border-color: var(--gl-a); color: var(--tx-primary); }
-
-/* Erreicht */
-.gl-arch-head { margin-top: 56px; }
-.gl-arch { display: flex; flex-wrap: wrap; gap: 8px; }
-.gl-arch-chip {
-  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--br-default); background: var(--bg-1); color: var(--tx-primary); font: 500 13px/1 var(--font-ui);
-}
-.gl-arch-chip svg { width: 14px; height: 14px; fill: none; stroke: var(--gl-a); stroke-width: 2.4; }
+@media (hover: none) { .gl-x { opacity: 1; } }
 
 /* Dialog */
 .gl-preview { display: block; width: 100%; max-height: 160px; object-fit: cover; border-radius: var(--r-s); margin-bottom: 6px; }
@@ -436,15 +370,4 @@ const remove = () =>
 .dlg-row .field { flex: 1; }
 .dlg-foot .gl-spacer { flex: 1; }
 
-@media (max-width: 760px) {
-  .gl { --tilt: 0; }
-  .gl-head, .gl-row { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .gl-head-l, .gl-focus, .gl-row > *, .gl-row.a .gl-pic, .gl-row.b .gl-pic, .gl-row.a .gl-note, .gl-row.b .gl-note,
-  .gl-row.foot .gl-streak, .gl-motto, .gl-new { grid-column: 1; grid-row: auto; margin: 0; }
-  .gl-row.a .gl-pic, .gl-row.b .gl-pic { height: 300px; }
-  .gl-row.a .gl-note, .gl-row.b .gl-note { margin: -40px 12px 0; }
-  .gl-count { display: none; }
-  .gl-pic-text { padding-bottom: 56px; }
-  .gl-motto { font-size: 40px; }
-}
 </style>

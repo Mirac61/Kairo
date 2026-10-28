@@ -2,13 +2,15 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  api, createProject, deleteProject, listProjects, listResources, listTasks,
-  isOpen, updateProject, type Project, type Resource, type Task,
+  api, createProject, createTask, deleteProject, listProjects, listResources, listTasks,
+  isOpen, updateProject, updateTask, type Project, type Resource, type Task,
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
+import { useShortcuts } from '@/composables/useShortcuts'
 import { vDialog } from '@/lib/dialog'
 import { PROJECT_COLORS, projectColor } from '@/lib/projectColor'
+import { PROJECT_ICONS, PROJECT_ICON_OPTIONS, projectIconKey, projectIconOf } from '@/lib/projectIcons'
 import { locale, t } from '@/lib/i18n'
 import { daysAgo, dur, hm, ymd } from '@/lib/dates'
 import { store } from '@/lib/storage'
@@ -30,12 +32,14 @@ const resources = ref<Resource[]>([])
 const tasks = ref<Task[]>([])
 const minutes = ref<Record<string, { week: number; total: number; last: number }>>({})
 const openId = ref<string | null>(null)
+const showIconPicker = ref(false)
 const progress = ref<Record<string, Progress>>({})
 const dialog = ref(false)
-const editId = ref<string | null>(null)
-const form = ref({ name: '', description: '', local_path: '', github_repo: '', status: 'ACTIVE', color: '' }) // color '' = automatisch (neues Projekt)
+const form = ref({ name: '', description: '', local_path: '', github_repo: '', status: 'ACTIVE', color: '', icon: '' })
+const newTaskTitle = ref('')
 
-const editing = computed(() => projects.value.find((p) => p.id === editId.value))
+const open = computed(() => projects.value.find((p) => p.id === openId.value))
+watch(openId, () => { showIconPicker.value = false })
 const resOf = (id: string) => resources.value.filter((r) => r.project_id === id)
 const taskRes = (id: string) => resources.value.filter((r) => r.task_id === id)
 const openTasks = (id: string) => tasks.value.filter((t) => t.project_id === id && isOpen(t))
@@ -44,9 +48,9 @@ const openTasks = (id: string) => tasks.value.filter((t) => t.project_id === id 
 interface ProjectStat { project_id: string; week_minutes: number; total_minutes: number; last_active_at: string }
 
 const { error, load, run } = useLoader(async () => {
-  const t = ymd(new Date())
+  const today = ymd(new Date())
   const [ps, rs, rv, ts, es] = await Promise.all([
-    listProjects(), listResources(), api<{ projects: Progress[] }>(`/review?from=${t}&to=${t}`), listTasks(), api<ProjectStat[]>('/projects/stats'),
+    listProjects(), listResources(), api<{ projects: Progress[] }>(`/review?from=${today}&to=${today}`), listTasks(), api<ProjectStat[]>('/projects/stats'),
   ])
   projects.value = ps
   resources.value = rs
@@ -55,35 +59,71 @@ const { error, load, run } = useLoader(async () => {
   progress.value = Object.fromEntries(rv.projects.filter((p) => p.project_id).map((p) => [p.project_id!, p]))
 })
 
-function openDialog(p?: Project) {
-  editId.value = p?.id ?? null
-  form.value = { name: p?.name ?? '', description: p?.description ?? '', local_path: p?.local_path ?? '', github_repo: p?.github_repo ?? '', status: p?.status ?? 'ACTIVE', color: p?.color ?? '' }
+function openNewDialog() {
+  form.value = { name: '', description: '', local_path: '', github_repo: '', status: 'ACTIVE', color: '', icon: '' }
   error.value = ''
   dialog.value = true
 }
 
-async function save() {
+async function saveNew() {
   const f = form.value
   const name = f.name.trim()
   if (!name) return
-  const ok = await run(() =>
-    editId.value
-      ? updateProject(editId.value, { name, description: f.description.trim(), local_path: f.local_path.trim(), github_repo: f.github_repo.trim(), status: f.status, color: f.color })
-      : createProject({ name, description: f.description.trim(), local_path: f.local_path.trim() || null, github_repo: f.github_repo.trim() || null, color: f.color || undefined }),
-  )
-  if (ok) dialog.value = false
+  let created: Project | undefined
+  const ok = await run(async () => {
+    created = await createProject({
+      name,
+      description: f.description.trim(),
+      local_path: f.local_path.trim() || null,
+      github_repo: f.github_repo.trim() || null,
+      color: f.color || undefined,
+      icon: f.icon || undefined,
+    })
+  })
+  if (ok && created) {
+    dialog.value = false
+    await load()
+    openId.value = created.id
+  }
 }
 
-const pct = (id: string) => {
-  const p = progress.value[id]
-  return p && p.total_tasks ? Math.round((p.done_tasks / p.total_tasks) * 100) : 0
+async function setField(p: Project, patch: Partial<Project>) {
+  const updated = await run(() => updateProject(p.id, patch))
+  if (updated) {
+    Object.assign(p, updated)
+  }
 }
+
+async function toggleTask(t: Task) {
+  const next = t.status === 'COMPLETED' ? 'PLANNED' : 'COMPLETED'
+  await run(() => updateTask(t.id, { status: next }))
+  await load()
+}
+
+async function addTaskForProject(p: Project) {
+  const title = newTaskTitle.value.trim()
+  if (!title) return
+  await run(() => createTask({ title, project_id: p.id, status: 'PLANNED' }))
+  newTaskTitle.value = ''
+  await load()
+}
+
+async function deleteCurrentProject(p: Project) {
+  const ok = await run(() => deleteProject(p.id))
+  if (ok) {
+    openId.value = null
+    await load()
+  }
+}
+
+const valueOf = (e: Event) => (e.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement).value
+
 const search = ref('')
 const shown = computed(() => {
   const q = search.value.trim().toLowerCase()
   return q ? projects.value.filter((p) => `${p.name} ${p.description} ${p.local_path ?? ''}`.toLowerCase().includes(q)) : projects.value
 })
-const LAYOUT_KEY = 'kairo-projects-layout' // Kacheln oder eine Spalte merkt sich der Browser
+const LAYOUT_KEY = 'kairo-projects-layout'
 const tab = ref('ACTIVE')
 const sort = ref<'recent' | 'name'>('recent')
 const layout = ref<'grid' | 'list'>('grid')
@@ -101,14 +141,13 @@ const lastActive = (id: string) => {
   return t ? daysAgo(ymd(new Date(t)), ymd(new Date())) : ''
 }
 const frac = (id: string) => { const p = progress.value[id]; return p?.total_tasks ? `${p.done_tasks}/${p.total_tasks}` : '' }
+
 // Die Extension öffnet den Workspace des Projekts.
 const inCode = (p: Project) => { window.location.href = `vscodium://kairo-local.kairo/open?project=${p.id}` }
-// Datei und Ordner öffnet der Browser nicht; nur URLs sind echte Links.
-// Notizen öffnen in Kairo selbst (gleicher Tab), URLs in einem neuen.
+// Notizen öffnen in Kairo selbst, URLs in neuem Tab.
 const href = (r: Resource) => (r.type === 'URL' ? r.target : r.type === 'NOTE' ? `/notes?open=${encodeURIComponent(r.target)}` : undefined)
 
-// Offene GitHub-Issues je Projekt (Repo aus git remote), damit die Zahl schon auf der zugeklappten Karte steht.
-// Nur beim Öffnen der Seite: jede Abfrage ruft git und die GitHub-API auf. Ohne gh bleibt es still.
+// Offene GitHub-Issues je Projekt
 const issueCount = ref<Record<string, number>>({})
 const loadIssueCounts = () => Promise.all(projects.value.filter((p) => p.local_path).map(async (p) => {
   try {
@@ -117,7 +156,6 @@ const loadIssueCounts = () => Promise.all(projects.value.filter((p) => p.local_p
   } catch { /* kein gh oder GitHub nicht erreichbar */ }
 }))
 
-// Aus der Suche: /projects?project=ID klappt die Karte auf (auch im passenden Status-Reiter).
 function focusFromRoute() {
   const p = projects.value.find((x) => x.id === route.query.project)
   if (!p) return
@@ -129,97 +167,307 @@ function focusFromRoute() {
 watch(() => route.query.project, focusFromRoute)
 onMounted(() => void load().then(() => { focusFromRoute(); return loadIssueCounts() }))
 useLiveEvents(load)
+
+function move(d: number) {
+  const l = list.value
+  if (!l.length) return
+  const i = l.findIndex((p) => p.id === openId.value)
+  const next = l[i < 0 ? (d > 0 ? 0 : l.length - 1) : Math.min(Math.max(i + d, 0), l.length - 1)]!
+  openId.value = next.id
+  void nextTick(() => document.querySelector(`[data-project="${next.id}"]`)?.scrollIntoView({ block: 'nearest' }))
+}
+
+useShortcuts((e) => {
+  const el = e.target as HTMLElement
+  if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return
+  if (e.key === 'j') move(1)
+  else if (e.key === 'k') move(-1)
+  else if (e.key === 'Escape') openId.value = null
+})
 </script>
 
 <template>
-  <div class="view-inner">
-    <div class="v-head v-head-row">
-      <div>
-        <h1 class="v-title">{{ $t('Projekte') }}</h1>
-        <div class="v-sub">{{ $t('Fortschritt und verknüpfte Ressourcen.') }}</div>
+  <div class="view-inner" :class="{ 'proj-split': !!open }">
+    <div class="proj-left">
+      <div class="v-head v-head-row">
+        <div>
+          <h1 class="v-title">{{ $t('Projekte') }}</h1>
+          <div class="v-sub">{{ $t('Fortschritt und verknüpfte Ressourcen.') }}</div>
+        </div>
+        <button class="btn btn-primary" type="button" @click="openNewDialog()"><svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neues Projekt') }}</button>
       </div>
-      <button class="btn btn-primary" type="button" @click="openDialog()"><svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neues Projekt') }}</button>
-    </div>
-    <div v-if="error && !dialog" class="badge" role="alert">{{ error }}</div>
+      <div v-if="error && !dialog" class="badge" role="alert">{{ error }}</div>
 
-    <div class="filterbar">
-      <div class="seg" role="group" :aria-label="$t('Filter')">
-        <button v-for="t in tabs" :key="t.status" type="button" :aria-pressed="tab === t.status" :disabled="!t.n && tab !== t.status" @click="tab = t.status">{{ t.label }} <span class="count">{{ t.n }}</span></button>
+      <div class="filterbar">
+        <div class="seg" role="group" :aria-label="$t('Filter')">
+          <button v-for="t in tabs" :key="t.status" type="button" :aria-pressed="tab === t.status" :disabled="!t.n && tab !== t.status" @click="tab = t.status">{{ t.label }} <span class="count">{{ t.n }}</span></button>
+        </div>
+        <span class="spacer"></span>
+        <select v-model="sort" class="input" :aria-label="$t('Sortieren nach')">
+          <option value="recent">{{ $t('Zuletzt aktiv') }}</option>
+          <option value="name">{{ $t('Name') }}</option>
+        </select>
+        <span class="seg" role="group" :aria-label="$t('Ansicht')">
+          <button type="button" :aria-label="$t('Kacheln')" :aria-pressed="layout === 'grid'" @click="setLayout('grid')"><svg class="ic"><use href="#i-grid" /></svg></button>
+          <button type="button" :aria-label="$t('Liste')" :aria-pressed="layout === 'list'" @click="setLayout('list')"><svg class="ic"><use href="#i-list" /></svg></button>
+        </span>
+        <SearchField v-model="search" :label="$t('Projekte durchsuchen')" />
       </div>
-      <span class="spacer"></span>
-      <select v-model="sort" class="input" :aria-label="$t('Sortieren nach')">
-        <option value="recent">{{ $t('Zuletzt aktiv') }}</option>
-        <option value="name">{{ $t('Name') }}</option>
-      </select>
-      <span class="seg" role="group" :aria-label="$t('Ansicht')">
-        <button type="button" :aria-label="$t('Kacheln')" :aria-pressed="layout === 'grid'" @click="setLayout('grid')"><svg class="ic"><use href="#i-grid" /></svg></button>
-        <button type="button" :aria-label="$t('Liste')" :aria-pressed="layout === 'list'" @click="setLayout('list')"><svg class="ic"><use href="#i-list" /></svg></button>
-      </span>
-      <SearchField v-model="search" :label="$t('Projekte durchsuchen')" />
+
+      <div v-if="!projects.length" class="empty-cta"><p class="v-sub">{{ $t('Noch keine Projekte. Ein Projekt bündelt Aufgaben, Notizen und die Zeit dafür.') }}</p><button class="btn" type="button" @click="openNewDialog()">{{ $t('Erstes Projekt anlegen') }}</button></div>
+      <div v-else-if="!list.length" class="v-sub">{{ search ? $t('Keine Projekte für „{q}“ in „{tab}“.', { q: search, tab: STATUS[tab] ?? '' }) : $t('Keine Projekte in „{tab}“.', { tab: STATUS[tab] ?? '' }) }}</div>
+      <div v-else class="proj-list" :class="layout">
+        <article
+          v-for="p in list"
+          :key="p.id"
+          :data-project="p.id"
+          class="proj-card"
+          :class="{ selected: openId === p.id }"
+          :style="{ '--pc': projectColor(p.id) }"
+          tabindex="0"
+          role="button"
+          :aria-expanded="openId === p.id"
+          @click="openId = openId === p.id ? null : p.id"
+          @keydown.enter.self="openId = openId === p.id ? null : p.id"
+        >
+          <div class="proj-head">
+            <svg class="ic proj-ic" aria-hidden="true"><use :href="`#${projectIconOf(p)}`" /></svg>
+            <div class="proj-title-wrap">
+              <div class="proj-name">{{ p.name }}</div>
+              <span v-if="lastActive(p.id)" class="proj-last">{{ $t('aktiv {when}', { when: lastActive(p.id) }) }}</span>
+            </div>
+            <button
+              v-if="p.local_path"
+              class="icon-btn act-code"
+              type="button"
+              :title="$t('In VSCodium öffnen: {name}', { name: p.name })"
+              :aria-label="$t('In VSCodium öffnen: {name}', { name: p.name })"
+              @click.stop="inCode(p)"
+            >
+              <svg class="ic"><use href="#i-external" /></svg>
+            </button>
+          </div>
+
+          <div v-if="p.description" class="proj-desc">{{ p.description }}</div>
+
+          <div class="proj-foot">
+            <span v-if="frac(p.id)" class="proj-stat"><b class="mono">{{ frac(p.id) }}</b> {{ $t('erledigt') }}</span>
+            <span v-else class="proj-stat"><b class="mono">{{ openTasks(p.id).length }}</b> {{ $t('offen') }}</span>
+            <span v-if="issueCount[p.id]" class="proj-stat issues"><b class="mono">{{ issueCount[p.id] }}</b> {{ $t('GitHub-Issues') }}</span>
+            <span v-if="minutes[p.id]?.week" class="proj-stat"><b class="mono">{{ hm(minutes[p.id]!.week) }}</b> {{ $t('diese Woche') }}</span>
+          </div>
+        </article>
+      </div>
     </div>
-    <div v-if="!projects.length" class="empty-cta"><p class="v-sub">{{ $t('Noch keine Projekte. Ein Projekt bündelt Aufgaben, Notizen und die Zeit dafür.') }}</p><button class="btn" type="button" @click="openDialog()">{{ $t('Erstes Projekt anlegen') }}</button></div>
-    <div v-else-if="!list.length" class="v-sub">{{ search ? $t('Keine Projekte für „{q}“ in „{tab}“.', { q: search, tab: STATUS[tab] ?? '' }) : $t('Keine Projekte in „{tab}“.', { tab: STATUS[tab] ?? '' }) }}</div>
-    <div v-else class="proj-list" :class="layout">
-      <article v-for="p in list" :key="p.id" :data-project="p.id" class="proj-card" :class="{ open: openId === p.id }" :style="{ '--pc': projectColor(p.id) }">
-        <div class="proj-head">
-          <span class="cdot"></span>
-          <button type="button" class="proj-name proj-toggle" :aria-expanded="openId === p.id" @click="openId = openId === p.id ? null : p.id">{{ p.name }}</button>
-          <span class="proj-end">
-            <span v-if="lastActive(p.id)" class="proj-last">{{ $t('aktiv {when}', { when: lastActive(p.id) }) }}</span>
-            <button class="btn btn-ghost proj-act" type="button" @click="openDialog(p)">{{ $t('Bearbeiten') }}</button>
-          </span>
+
+    <!-- RECHTES DETAIL-PANEL -->
+    <aside v-if="open" class="project-aside" role="region" :aria-label="$t('Projekt-Details')" :style="{ '--pc': projectColor(open.id) }">
+      <div class="aside-head">
+        <div class="aside-status-wrap">
+          <select class="input status-select" :value="open.status" :aria-label="$t('Status')" @change="(e) => setField(open!, { status: valueOf(e) })">
+            <option v-for="(l, v) in STATUS" :key="v" :value="v">{{ l }}</option>
+          </select>
         </div>
-        <div class="proj-desc" :class="{ none: !p.description }">{{ p.description || $t('Keine Beschreibung') }}</div>
-        <div class="proj-meta mono">{{ p.local_path ?? '' }}</div>
-        <button v-if="issueCount[p.id] !== undefined" type="button" class="proj-issues" :aria-expanded="openId === p.id" @click="openId = openId === p.id ? null : p.id">
-          <b class="mono">{{ issueCount[p.id] }}</b> {{ $t('offene GitHub-Issues') }} <svg class="ic" aria-hidden="true"><use href="#i-chev" /></svg>
+        <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="openId = null">
+          <svg class="ic"><use href="#i-x" /></svg>
         </button>
-        <div v-if="resOf(p.id).length" class="proj-res">
-          <component :is="href(r) ? 'a' : 'span'" v-for="r in resOf(p.id)" :key="r.id" class="res" :href="href(r)" :target="r.type === 'URL' ? '_blank' : undefined" rel="noopener">
-            <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>{{ r.label || r.target }}
-          </component>
+      </div>
+
+      <div class="proj-detail-body">
+        <div class="pd-hero">
+          <button
+            type="button"
+            class="pd-icon-btn"
+            :title="$t('Symbol ändern')"
+            :aria-label="$t('Symbol ändern')"
+            @click="showIconPicker = !showIconPicker"
+          >
+            <svg class="ic" aria-hidden="true"><use :href="`#${projectIconOf(open)}`" /></svg>
+          </button>
+          <div class="pd-hero-text">
+            <input
+              class="td-title"
+              :value="open.name"
+              :placeholder="$t('Projektname')"
+              :aria-label="$t('Projektname')"
+              @change="(e) => setField(open!, { name: valueOf(e).trim() || open!.name })"
+            />
+          </div>
         </div>
-        <div class="proj-prog">
-          <div class="pbar" role="progressbar" :aria-label="`Fortschritt ${p.name}`" :aria-valuenow="pct(p.id)" aria-valuemin="0" aria-valuemax="100"><div class="pbar-fill" :style="{ width: pct(p.id) + '%' }"></div></div>
-          <span class="proj-pct" :title="`${pct(p.id)} %`">{{ frac(p.id) ? $t('{n} erledigt', { n: frac(p.id) }) : $t('keine Aufgaben') }}</span>
+
+        <!-- SYMBOL-AUSWAHL POPOVER -->
+        <div v-if="showIconPicker" class="pd-icon-popover">
+          <div class="icon-picker-head">
+            <span class="lbl">{{ $t('Symbol wählen') }}</span>
+            <button type="button" class="btn btn-ghost btn-xs" @click="setField(open!, { icon: '' }); showIconPicker = false">
+              {{ $t('Automatisch') }}
+            </button>
+          </div>
+          <div class="icon-picker-grid">
+            <button
+              v-for="[k, label] in PROJECT_ICON_OPTIONS"
+              :key="k"
+              type="button"
+              class="icon-pick-cell"
+              :class="{ active: (open.icon || projectIconKey(open)) === k }"
+              :title="label"
+              @click="setField(open!, { icon: k }); showIconPicker = false"
+            >
+              <svg class="ic"><use :href="`#${PROJECT_ICONS[k]}`" /></svg>
+            </button>
+          </div>
         </div>
-        <div class="proj-foot">
-          <span class="proj-stat"><b class="mono">{{ openTasks(p.id).length }}</b> {{ $t('offen') }}</span>
-          <span class="proj-stat"><b class="mono">{{ hm(minutes[p.id]?.week ?? 0) }}</b> {{ $t('diese Woche') }}</span>
-          <span class="spacer"></span>
-          <button v-if="p.local_path" class="btn btn-ghost act-code" type="button" :aria-label="`${$t('In VSCodium öffnen')}: ${p.name}`" @click="inCode(p)">{{ $t('VSCodium ↗') }}</button>
+
+        <textarea
+          class="td-desc"
+          rows="2"
+          :placeholder="$t('Beschreibung hinzufügen')"
+          :value="open.description"
+          @change="(e) => setField(open!, { description: valueOf(e) })"
+        ></textarea>
+
+        <button
+          v-if="open.local_path"
+          class="btn btn-secondary vsc-btn"
+          type="button"
+          @click="inCode(open)"
+        >
+          <svg class="ic"><use href="#i-external" /></svg>
+          {{ $t('In VSCodium öffnen') }}
+        </button>
+
+        <!-- EIGENSCHAFTEN -->
+        <div class="td-props">
+          <label class="td-row">
+            <span>{{ $t('Symbol') }}</span>
+            <select class="input" :value="open.icon ?? ''" @change="(e) => setField(open!, { icon: valueOf(e) })">
+              <option value="">{{ $t('Automatisch') }}</option>
+              <option v-for="[k, label] in PROJECT_ICON_OPTIONS" :key="k" :value="k">{{ label }}</option>
+            </select>
+          </label>
+          <div class="td-row color-row">
+            <span>{{ $t('Farbe') }}</span>
+            <div class="swatches" role="radiogroup" :aria-label="$t('Farbe')">
+              <label v-for="[c, label] in PROJECT_COLORS" :key="c" class="swatch" :title="$t(label)">
+                <input
+                  type="radio"
+                  name="aside-p-color"
+                  :value="c"
+                  :checked="open.color === c"
+                  :aria-label="label"
+                  @change="setField(open!, { color: c })"
+                />
+                <span :style="{ background: `var(--p-${c})` }"></span>
+              </label>
+            </div>
+          </div>
+          <label class="td-row">
+            <span>{{ $t('Ordner') }}</span>
+            <input
+              class="input mono"
+              :value="open.local_path ?? ''"
+              :placeholder="$t('Absoluter Pfad oder ~/… auf deinem Rechner (optional)')"
+              @change="(e) => setField(open!, { local_path: valueOf(e).trim() || null })"
+            />
+          </label>
+          <label class="td-row">
+            <span>{{ $t('GitHub-Repo') }}</span>
+            <input
+              class="input mono"
+              :value="open.github_repo ?? ''"
+              :placeholder="$t('owner/name, sonst aus dem Ordner (optional)')"
+              @change="(e) => setField(open!, { github_repo: valueOf(e).trim() || null })"
+            />
+          </label>
         </div>
-        <div v-if="openId === p.id" class="proj-more">
-          <div class="proj-meta">{{ $t('Erfasst: {week} diese Woche · {total} gesamt', { week: dur(minutes[p.id]?.week), total: dur(minutes[p.id]?.total) }) }}<template v-if="frac(p.id)"> · {{ $t('{n} Aufgaben erledigt', { n: frac(p.id) }) }}</template></div>
-          <span class="lbl">{{ $t('Offene Aufgaben') }}<span v-if="openTasks(p.id).length" class="count"> · {{ openTasks(p.id).length }}</span></span>
-          <div v-if="openTasks(p.id).length" class="card tasklist">
-            <div v-for="t in openTasks(p.id)" :key="t.id" class="task-row">
-              <span class="t">{{ t.title }}</span>
-              <component :is="href(r) ? 'a' : 'span'" v-for="r in taskRes(t.id)" :key="r.id" class="res" :href="href(r)" :target="r.type === 'URL' ? '_blank' : undefined" rel="noopener">
-                <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>{{ r.label || r.target }}
+
+        <!-- ZEITERFASSUNG -->
+        <div class="td-sec">
+          <div class="pd-time-meta">
+            {{ $t('Erfasst: {week} diese Woche · {total} gesamt', { week: dur(minutes[open.id]?.week), total: dur(minutes[open.id]?.total) }) }}
+            <template v-if="frac(open.id)"> · {{ $t('{n} Aufgaben erledigt', { n: frac(open.id) }) }}</template>
+          </div>
+        </div>
+
+        <!-- OFFENE AUFGABEN -->
+        <div class="td-sec sub-sec">
+          <span class="lbl">{{ $t('Offene Aufgaben') }}<template v-if="openTasks(open.id).length"> · {{ openTasks(open.id).length }}</template></span>
+          <div v-if="openTasks(open.id).length" class="task-rows">
+            <div v-for="t in openTasks(open.id)" :key="t.id" class="sub-row" :class="{ done: !isOpen(t) }">
+              <button
+                type="button"
+                class="cb"
+                role="checkbox"
+                :aria-checked="t.status === 'COMPLETED'"
+                :aria-label="$t('{title} erledigt', { title: t.title })"
+                :disabled="t.status === 'CANCELLED'"
+                @click="toggleTask(t)"
+              ></button>
+              <button type="button" class="sub-task-title" @click="router.push({ path: '/tasks', query: { task: t.id } })">
+                {{ t.title }}
+              </button>
+              <component :is="href(r) ? 'a' : 'span'" v-for="r in taskRes(t.id)" :key="r.id" class="res-mini" :href="href(r)" :target="r.type === 'URL' ? '_blank' : undefined" rel="noopener">
+                <svg class="ic"><use :href="`#${RES_ICON[r.type]}`" /></svg>
               </component>
               <TaskActions class="row-act" :task="t" :running="t.status === 'IN_PROGRESS'" :note="taskRes(t.id).find((r) => r.type === 'NOTE')?.target" @run="run" />
             </div>
           </div>
-          <div v-else class="proj-meta">{{ $t('Keine offenen Aufgaben.') }}</div>
-          <GitHubIssues v-if="p.local_path || p.github_repo" :project-id="p.id" @open="(id) => router.push({ path: '/tasks', query: { task: id } })" @changed="load" />
+          <div v-else class="pd-empty-note">{{ $t('Keine offenen Aufgaben für dieses Projekt.') }}</div>
+          <form class="addrow" @submit.prevent="addTaskForProject(open)">
+            <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
+            <input v-model="newTaskTitle" type="text" :placeholder="$t('Aufgabe für dieses Projekt hinzufügen')" :aria-label="$t('Aufgabe für dieses Projekt hinzufügen')" />
+          </form>
         </div>
-      </article>
-    </div>
 
+        <!-- GITHUB-ISSUES -->
+        <GitHubIssues
+          v-if="open.local_path || open.github_repo"
+          class="td-sec"
+          :project-id="open.id"
+          @open="(id) => router.push({ path: '/tasks', query: { task: id } })"
+          @changed="load"
+        />
+
+        <!-- RESSOURCEN -->
+        <ResourceList
+          class="td-sec"
+          :resources="resOf(open.id)"
+          :project-id="open.id"
+          @changed="load"
+        />
+
+        <!-- FOOTER / LÖSCHEN -->
+        <div class="td-foot">
+          <span></span>
+          <DeleteButton
+            :text="$t('„{name}“ löschen? Die Tasks bleiben ohne Projekt, ihre Zeiteinträge landen in „Sonstiges“.', { name: open.name })"
+            @confirm="deleteCurrentProject(open)"
+          />
+        </div>
+      </div>
+    </aside>
+
+    <!-- DIALOG FÜR NEUES PROJEKT -->
     <div v-if="dialog" v-dialog="() => (dialog = false)" class="overlay open" @mousedown.self="dialog = false">
-      <div class="dialog" :aria-label="editing ? $t('Projekt bearbeiten') : $t('Neues Projekt')">
-        <form @submit.prevent="save">
+      <div class="dialog" :aria-label="$t('Neues Projekt')">
+        <form @submit.prevent="saveNew">
           <div class="dlg-head">
-            <h3>{{ editing ? $t('Projekt bearbeiten') : $t('Neues Projekt') }}</h3>
+            <h3>{{ $t('Neues Projekt') }}</h3>
             <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="dialog = false"><svg class="ic"><use href="#i-x" /></svg></button>
           </div>
           <div class="dlg-body">
-            <div class="field"><label for="p-name">{{ $t('Name') }}</label><input id="p-name" v-model="form.name" class="input" :placeholder="$t('Projektname')" /></div>
+            <div class="field"><label for="p-name">{{ $t('Name') }}</label><input id="p-name" v-model="form.name" class="input" :placeholder="$t('Projektname')" autofocus /></div>
             <div class="field"><label for="p-desc">{{ $t('Beschreibung') }}</label><input id="p-desc" v-model="form.description" class="input" /></div>
             <div v-if="error" class="badge" role="alert">{{ error }}</div>
             <div class="field"><label for="p-path">{{ $t('Ordner') }}</label><input id="p-path" v-model="form.local_path" class="input" :placeholder="$t('Absoluter Pfad oder ~/… auf deinem Rechner (optional)')" /></div>
             <div class="field"><label for="p-repo">{{ $t('GitHub-Repo') }}</label><input id="p-repo" v-model="form.github_repo" class="input" :placeholder="$t('owner/name, sonst aus dem Ordner (optional)')" /></div>
+            <div class="field">
+              <label for="p-icon">{{ $t('Symbol') }}</label>
+              <select id="p-icon" v-model="form.icon" class="input">
+                <option value="">{{ $t('Automatisch') }}</option>
+                <option v-for="[k, label] in PROJECT_ICON_OPTIONS" :key="k" :value="k">{{ label }}</option>
+              </select>
+            </div>
             <div class="field">
               <label id="p-color-l">{{ $t('Farbe') }}</label>
               <div class="swatches" role="radiogroup" aria-labelledby="p-color-l">
@@ -228,40 +476,346 @@ useLiveEvents(load)
                 </label>
               </div>
             </div>
-            <div v-if="editing" class="field">
-              <label for="p-status">{{ $t('Status') }}</label>
-              <select id="p-status" v-model="form.status" class="input"><option v-for="(l, v) in STATUS" :key="v" :value="v">{{ l }}</option></select>
-            </div>
           </div>
           <div class="dlg-foot">
-            <DeleteButton v-if="editing" :text="$t('„{name}“ löschen? Die Tasks bleiben ohne Projekt, ihre Zeiteinträge landen in „Sonstiges“.', { name: editing.name })" @confirm="run(() => deleteProject(editing!.id)).then((ok) => ok && (dialog = false))" />
             <span class="spacer"></span>
             <button class="btn btn-ghost" type="button" @click="dialog = false">{{ $t('Abbrechen') }}</button>
-            <button class="btn btn-primary" type="submit">{{ editing ? $t('Speichern') : $t('Anlegen') }}</button>
+            <button class="btn btn-primary" type="submit">{{ $t('Anlegen') }}</button>
           </div>
         </form>
-
-        <ResourceList v-if="editing" class="dlg-body dlg-res" :resources="resOf(editing.id)" :project-id="editing.id" @changed="load" />
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.proj-issues { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; border: 0; padding: 0; background: none;
-  font: 400 12px/1.3 var(--font-ui); color: var(--tx-secondary); cursor: pointer; }
-.proj-issues b { font-weight: 600; color: var(--tx-primary); }
-.proj-issues:hover { color: var(--tx-primary); }
-.proj-issues .ic { width: 12px; height: 12px; transition: transform var(--dur) ease-out; }
-.proj-issues[aria-expanded="true"] .ic { transform: rotate(180deg); }
 .spacer { flex: 1; }
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
 .swatch { position: relative; display: inline-flex; cursor: pointer; }
 .swatch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
-.swatch span { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; box-shadow: inset 0 0 0 2px var(--bg-1); }
+.swatch span { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; box-shadow: inset 0 0 0 2px var(--bg-1); }
 .swatch input:checked + span { border-color: var(--tx-primary); }
 .swatch input:focus-visible + span { outline: 2px solid var(--tx-primary); outline-offset: 2px; }
-.dlg-res { border-top: 1px solid var(--br-subtle); }
-.proj-toggle { text-align: left; background: none; border: 0; color: inherit; cursor: pointer; }
-.proj-more { display: grid; gap: 8px; border-top: 1px solid var(--br-subtle); padding-top: 10px; }
+
+/* Kacheln (Richtung 2 & 3 Mix) */
+.proj-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; margin-top: 16px; }
+.proj-list.list { grid-template-columns: minmax(0, 1fr); }
+
+.proj-card {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+  background: var(--bg-1);
+  border: 1px solid var(--br-default);
+  border-radius: var(--r-m);
+  cursor: pointer;
+  transition: background var(--dur) ease-out, border-color var(--dur) ease-out, box-shadow var(--dur) ease-out;
+  outline: none;
+}
+.proj-card:hover {
+  background: var(--bg-hover, var(--bg-2));
+  border-color: var(--br-strong);
+}
+.proj-card.selected {
+  background: var(--bg-2);
+  border-color: var(--br-strong);
+  box-shadow: inset 0 0 0 1px var(--br-strong);
+}
+.proj-card:focus-visible {
+  box-shadow: 0 0 0 2px var(--a-focus);
+}
+
+.proj-head { display: flex; align-items: center; gap: 10px; }
+.proj-ic {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: var(--pc, var(--tx-secondary));
+}
+
+.pd-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-s);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--pc, var(--tx-primary));
+  cursor: pointer;
+  transition: background var(--dur), border-color var(--dur);
+}
+.pd-icon-btn:hover {
+  background: var(--bg-2);
+  border-color: var(--br-default);
+}
+.pd-icon-btn .ic { width: 20px; height: 20px; }
+
+.pd-icon-popover {
+  margin: 10px 0 6px;
+  padding: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--br-default);
+  border-radius: var(--r-s);
+}
+.icon-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+.icon-pick-cell {
+  display: inline-grid;
+  place-items: center;
+  height: 34px;
+  border-radius: var(--r-s);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--tx-secondary);
+  cursor: pointer;
+}
+.icon-pick-cell:hover {
+  background: var(--bg-3);
+  color: var(--tx-primary);
+}
+.icon-pick-cell.active {
+  background: var(--bg-3);
+  border-color: var(--br-strong);
+  color: var(--pc, var(--tx-primary));
+}
+.icon-pick-cell .ic { width: 17px; height: 17px; }
+
+.proj-title-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.proj-name {
+  font: 600 15px/1.3 var(--font-ui);
+  color: var(--tx-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.proj-last { font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
+
+.act-code {
+  opacity: 0;
+  transition: opacity var(--dur) ease-out;
+}
+.proj-card:hover .act-code, .proj-card:focus-within .act-code {
+  opacity: 1;
+}
+
+.proj-desc {
+  font: 400 13px/1.5 var(--font-ui);
+  color: var(--tx-secondary);
+  margin-top: 10px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.proj-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--br-subtle);
+  font: 400 12px/1 var(--font-ui);
+  color: var(--tx-muted);
+}
+.proj-stat b { font-weight: 500; color: var(--tx-primary); }
+.proj-stat.issues { color: var(--a-orange); }
+.proj-stat.issues b { color: var(--a-orange); }
+
+/* Master-Detail Split Layout */
+@media (min-width: 1001px) {
+  .view-inner.proj-split { display: grid; grid-template-columns: minmax(0, 1fr) 380px; max-width: none; padding: 0; }
+  .proj-split .proj-left { min-width: 0; padding: 32px 40px 64px 32px; }
+  .proj-split .project-aside { position: sticky; top: 56px; align-self: start; height: calc(100dvh - 56px); }
+}
+
+.project-aside {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-1);
+  border-left: 1px solid var(--br-subtle);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.project-aside::-webkit-scrollbar { display: none; }
+
+.aside-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 0 24px;
+}
+.status-select {
+  height: 26px;
+  padding: 0 10px;
+  font: 500 12px/1 var(--font-ui);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+  border: 1px solid var(--br-default);
+  cursor: pointer;
+}
+
+.proj-detail-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 12px 24px 24px;
+}
+
+.pd-hero { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.pd-hero-text { flex: 1; min-width: 0; }
+
+.td-title {
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--tx-primary);
+  font: 600 20px/1.3 var(--font-ui);
+  letter-spacing: -.015em;
+}
+.td-title:focus-visible { outline: none; box-shadow: 0 1px 0 var(--a-focus); }
+
+.td-desc {
+  width: 100%;
+  padding: 8px;
+  margin: 10px -8px 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--tx-secondary);
+  font: 400 13px/1.55 var(--font-ui);
+  resize: vertical;
+}
+.td-desc:hover, .td-desc:focus-visible { background: var(--bg-2); }
+
+.vsc-btn {
+  width: 100%;
+  margin-top: 14px;
+  gap: 8px;
+  justify-content: center;
+}
+
+.td-props { margin-top: 18px; border-top: 1px solid var(--br-subtle); }
+.td-row { display: flex; align-items: center; gap: 8px; height: 40px; border-bottom: 1px solid var(--br-subtle); font: 400 13px/1 var(--font-ui); }
+.td-row > span { flex: none; width: 100px; color: var(--tx-muted); }
+.td-row .input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  background-color: transparent;
+  color: var(--tx-primary);
+  font: 400 13px/1 var(--font-ui);
+  border-radius: 6px;
+}
+.td-row .input:hover, .td-row .input:focus-visible { background-color: var(--bg-2); }
+.td-row.color-row { height: auto; padding: 10px 0; }
+
+.td-sec { display: block; margin-top: 20px; }
+.td-sec > .lbl, .sub-sec > .lbl { display: block; margin-bottom: 8px; font: 600 11px/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--tx-muted); }
+
+.pd-time-meta { font: 400 12px/1.4 var(--font-ui); color: var(--tx-muted); }
+.pd-empty-note { font: 400 12px/1.4 var(--font-ui); color: var(--tx-muted); padding: 4px 0 8px; }
+
+/* Sub-Tasks */
+.task-rows { display: flex; flex-direction: column; gap: 2px; }
+.sub-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 6px;
+  border-radius: var(--r-s);
+  transition: background var(--dur);
+}
+.sub-row:hover { background: var(--bg-2); }
+.sub-row.done .sub-task-title { color: var(--tx-muted); text-decoration: line-through; }
+.sub-row .row-act { opacity: 0; margin-left: auto; transition: opacity var(--dur) ease-out; }
+.sub-row:hover .row-act, .sub-row:focus-within .row-act { opacity: 1; }
+.sub-row .row-act :deep(.btn) { height: 24px; padding: 0 7px; font-size: 11px; border-radius: 4px; }
+.sub-task-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--tx-primary);
+  font: 400 13px/1.4 var(--font-ui);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sub-task-title:hover { color: var(--a-blue); }
+.res-mini {
+  display: inline-flex;
+  align-items: center;
+  color: var(--tx-muted);
+  padding: 2px 4px;
+}
+.res-mini:hover { color: var(--tx-primary); }
+
+.addrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: var(--r-s);
+  color: var(--tx-muted);
+}
+.addrow:focus-within { background: var(--bg-2); color: var(--tx-primary); }
+.addrow input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--tx-primary);
+  font: 400 13px/1.4 var(--font-ui);
+  outline: none;
+}
+.addrow input::placeholder { color: var(--tx-muted); }
+
+.td-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid var(--br-subtle);
+}
+
+@media (max-width: 1000px) {
+  .project-aside {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 20;
+    max-height: 70vh;
+    border: 0;
+    border-radius: var(--r-m) var(--r-m) 0 0;
+    box-shadow: var(--shadow-pop);
+  }
+}
+@media (max-width: 760px) {
+  .project-aside {
+    bottom: calc(56px + env(safe-area-inset-bottom));
+    z-index: 55;
+    max-height: calc(100dvh - 56px - env(safe-area-inset-bottom) - 48px);
+  }
+}
 </style>

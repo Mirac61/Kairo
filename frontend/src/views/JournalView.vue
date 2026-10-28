@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { errorMessage, getJournalSummary, getToday, isOpen, listJournalTaskImports, listNotes, listTasks, readNote, type JournalTaskImport, type Task } from '@/api/client'
-import { addDays, shiftDate, weekStart, ymd } from '@/lib/dates'
+import { addDays, shiftDate, ymd } from '@/lib/dates'
 import { journalPath, parseEntry, splitPoints } from '@/lib/journal'
 import { locale, t, tn } from '@/lib/i18n'
 import { vDialog } from '@/lib/dialog'
 import { useUndo } from '@/composables/useUndo'
+import { useShortcuts } from '@/composables/useShortcuts'
+import { PAPERS, prefs } from '@/lib/prefs'
+import { easeTurn, leafFrame, type LeafRole } from '@/lib/pageTurn'
 import JournalEntryEditor, { type JournalEntryData } from '@/components/JournalEntryEditor.vue'
 import SearchField from '@/components/SearchField.vue'
 
-// Kompakte Liste der letzten Einträge; der Heute-Eintrag steht separat oben.
+// So viele Einträge liegen als Seiten im Buch; ältere stehen unter Notizen.
 const RECENT = 60
-const HEAT_WEEKS = 12
+const HEAT_DAYS = 42
+const PAPER_LABELS = { coffee: 'Kaffee', white: 'Weiß', black: 'Schwarz' } as const
 
 const route = useRoute()
 
@@ -30,65 +34,56 @@ const todayEntry = ref<JournalEntryData | null>(null)
 const taskImports = ref<Record<string, { count: number; titles: string[] }>>({})
 const allTasks = ref<DoneTask[]>([])
 const completedHabits = ref<string[]>([])
-const expandedDate = ref<string | null>(null)
-const todayEditor = ref<InstanceType<typeof JournalEntryEditor>>()
-// In der Liste steht der Ref wegen v-for als Array; es ist immer nur ein Eintrag aufgeklappt.
-const pastEditor = ref<InstanceType<typeof JournalEntryEditor>[]>()
-const todayEl = ref<HTMLElement>()
-const pastEl = ref<HTMLElement>()
+// Aufgeschlagene Seite; dir bestimmt, in welche Richtung umgeblättert wird.
+const pageDate = ref('')
+const dir = ref<'fwd' | 'back'>('fwd')
+// Der Umschlag klappt nur beim Öffnen der Ansicht auf; danach erscheinen linke Seiten ohne Verzögerung.
+const opening = ref(true)
+// Editor je Seite: Beim Umblättern sind kurz zwei montiert, gespeichert wird der der offenen Seite.
+const editors = new Map<string, InstanceType<typeof JournalEntryEditor>>()
+const setEditor = (date: string, c: unknown) => {
+  if (c) editors.set(date, c as InstanceType<typeof JournalEntryEditor>)
+  else editors.delete(date)
+}
 
 const headerDateFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }))
 const dayFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'short', day: 'numeric', month: 'short' }))
-const entryDateFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'short', day: 'numeric', month: 'long' }))
+const weekdayFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long' }))
 const monthFmt = computed(() => new Intl.DateTimeFormat(locale.value, { month: 'long', year: 'numeric' }))
 const heatLabel = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }))
 const fmt = (f: Intl.DateTimeFormat, d: string) => f.format(new Date(d + 'T00:00'))
 const relativeLabel = (d: string) => (d === todayStr.value ? t('Heute') : d === shiftDate(todayStr.value, -1) ? t('Gestern') : '')
 const label = (d: string) => relativeLabel(d) || fmt(dayFmt.value, d)
-const entryDateLabel = (d: string) => (d === shiftDate(todayStr.value, -1) ? t('Gestern, {date}', { date: fmt(entryDateFmt.value, d) }) : fmt(entryDateFmt.value, d))
 const monthLabel = (m: string) => fmt(monthFmt.value, `${m}-01`)
 
-// Suche und Reihenfolge der Liste; die Heatmap öffnet denselben Eintrag.
+// Suche: Das Buch zeigt nur noch die passenden Seiten (und heute).
 const pastSearch = ref('')
-const pastAsc = ref(false)
 const searchTerm = computed(() => pastSearch.value.trim().toLowerCase())
 const pastMatches = (r: Row) => {
   const q = searchTerm.value
   if (!q) return true
   return `${r.date} ${label(r.date)} ${r.answers.join(' ')} ${r.other}`.toLowerCase().includes(q)
 }
-const visiblePast = computed(() => {
-  const rows = pastRows.value.filter(pastMatches)
-  return pastAsc.value ? [...rows].reverse() : rows
-})
+const visiblePast = computed(() => pastRows.value.filter(pastMatches))
 
-const groups = computed(() => {
-  const out: { month: string; rows: Row[] }[] = []
-  for (const r of visiblePast.value) {
-    const month = r.date.slice(0, 7)
-    const last = out[out.length - 1]
-    if (last?.month === month) last.rows.push(r)
-    else out.push({ month, rows: [r] })
-  }
-  return out
-})
+// Seiten wie im Heft: die älteste vorn, heute ist die letzte beschriebene Seite.
+const pages = computed(() => [...visiblePast.value.map((r) => r.date).reverse(), ...(todayStr.value ? [todayStr.value] : [])])
+const pageIdx = computed(() => pages.value.indexOf(pageDate.value))
+const entryOf = (d: string) => (d === todayStr.value ? todayEntry.value : pastRows.value.find((r) => r.date === d) ?? null)
+const pageKicker = (d: string) => relativeLabel(d) || monthLabel(d.slice(0, 7))
 const shownCount = computed(() => visiblePast.value.length + (todayEntry.value ? 1 : 0))
 const hasOlder = computed(() => !searchTerm.value && total.value > shownCount.value)
 
-const completedTasks = computed(() => allTasks.value
-  .filter((t) => t.status === 'COMPLETED' && t.completed_at && ymd(new Date(t.completed_at)) === todayStr.value)
-  .sort((a, b) => (a.completed_at ?? '').localeCompare(b.completed_at ?? '')))
-
-const recapText = computed(() => {
-  const parts: string[] = []
-  if (completedTasks.value.length) {
-    parts.push(completedTasks.value.map((t) => t.title).join(', '))
-  }
-  if (completedHabits.value.length) {
-    parts.push(tn(completedHabits.value.length, '{n} Gewohnheit', '{n} Gewohnheiten'))
-  }
-  return parts.join(' · ')
-})
+// Linke Seite: was an dem Tag erledigt wurde (Gewohnheiten kennt die Ansicht nur für heute)
+// und was man sich am Vortag dafür vorgenommen hatte.
+const doneOn = (d: string) => [
+  ...allTasks.value
+    .filter((t) => t.status === 'COMPLETED' && t.completed_at && ymd(new Date(t.completed_at)) === d)
+    .sort((a, b) => (a.completed_at ?? '').localeCompare(b.completed_at ?? ''))
+    .map((t) => t.title),
+  ...(d === todayStr.value && completedHabits.value.length ? [tn(completedHabits.value.length, '{n} Gewohnheit', '{n} Gewohnheiten')] : []),
+]
+const planFor = (d: string) => splitPoints(entryOf(shiftDate(d, -1))?.answers[2] ?? '')
 
 // Aus dem Journal übernommen und noch offen
 const openJournalTasks = computed(() => allTasks.value
@@ -100,14 +95,14 @@ const heatCells = computed<HeatCell[]>(() => {
   if (!todayStr.value) return []
   const set = new Set(allDates.value)
   const today = todayStr.value
-  const start = addDays(weekStart(new Date(`${today}T00:00:00`)), -7 * (HEAT_WEEKS - 1))
-  return Array.from({ length: HEAT_WEEKS * 7 }, (_, i) => {
+  const start = addDays(new Date(`${today}T00:00:00`), -(HEAT_DAYS - 1))
+  return Array.from({ length: HEAT_DAYS }, (_, i) => {
     const d = addDays(start, i)
     const s = ymd(d)
     return { s, has: set.has(s), future: s > today, label: heatLabel.value.format(d) }
   })
 })
-// Ein Tab-Stopp fürs Raster; Pfeiltasten wandern tag- und wochenweise.
+// Ein Tab-Stopp für die Reihe; Pfeiltasten wandern tageweise.
 const heatFocus = ref('')
 const heatCount = computed(() => heatCells.value.filter((c) => c.has).length)
 
@@ -137,6 +132,8 @@ async function load() {
     // damit der Heute-Editor direkt mit seinem Eintrag montiert.
     const rows = await readEntries(dates.slice(0, RECENT))
     todayStr.value = summary.date
+    pageDate.value = summary.date
+    setTimeout(() => (opening.value = false), 1100)
     heatFocus.value = summary.date
     total.value = summary.total
     streak.value = summary.streak
@@ -149,7 +146,7 @@ async function load() {
     completedHabits.value = today.habits.filter((h) => h.done).map((h) => h.name)
 
     if (typeof route.query.date === 'string' && route.query.date !== summary.date && pastRows.value.some((r) => r.date === route.query.date)) {
-      expandedDate.value = route.query.date
+      pageDate.value = route.query.date
     }
     error.value = ''
   } catch (e) {
@@ -159,29 +156,110 @@ async function load() {
 }
 onMounted(load)
 watch(() => route.query.date, (date) => {
-  if (typeof date === 'string' && date !== todayStr.value && pastRows.value.some((r) => r.date === date)) void switchEntry(date)
+  if (typeof date === 'string' && (date === todayStr.value || pastRows.value.some((r) => r.date === date))) void go(date)
 })
-
-function toggle(date: string) {
-  void switchEntry(expandedDate.value === date ? null : date)
-}
 
 // Ohne Eingabe bleibt ein nachgetragener Tag ein leerer Entwurf; er verschwindet beim Schließen wieder.
 const isDraft = (r: Row) => !r.mtime && !r.other.trim() && r.answers.every((a) => !a.trim())
 
-// Erst den offenen Eintrag fertig speichern, dann wechseln: So ist die Zeile in pastRows aktuell,
-// bevor die Komponente unmountet.
-async function switchEntry(date: string | null) {
-  await Promise.all([todayEditor.value?.flush(), pastEditor.value?.[0]?.flush()])
-  if (date === null && expandedDate.value) {
-    const closing = expandedDate.value
-    expandedDate.value = null
-    if (pastRows.value.some((r) => r.date === closing && isDraft(r))) {
-      pastRows.value = pastRows.value.filter((r) => r.date !== closing)
-    }
+// Erst die offene Seite fertig speichern, dann umblättern: So ist die Zeile in pastRows aktuell,
+// bevor der Editor unmountet. Ein leerer Entwurf fällt beim Verlassen wieder heraus.
+async function go(date: string) {
+  const leaving = pageDate.value
+  if (date === leaving) return
+  await editors.get(leaving)?.flush()
+  dir.value = pages.value.indexOf(date) < pages.value.indexOf(leaving) ? 'back' : 'fwd'
+  turnStart = performance.now()
+  turning = true
+  setTimeout(() => {
+    turning = false
+    const step = queued
+    queued = 0
+    if (step) flip(step)
+  }, TURN_MS)
+  pageDate.value = date
+  if (pastRows.value.some((r) => r.date === leaving && isDraft(r))) {
+    pastRows.value = pastRows.value.filter((r) => r.date !== leaving)
+  }
+}
+
+function flip(step: number) {
+  if (turning) return void (queued = step) // erst fertig umblättern, dann weiter
+  const next = pages.value[pageIdx.value + step]
+  if (next) void go(next)
+}
+
+// Treffer der Suche aufschlagen: die neueste passende Seite, sonst heute.
+watch(searchTerm, (q) => {
+  const p = pages.value
+  if (!p.includes(pageDate.value) || q) void go((q && p.length > 1 ? p[p.length - 2] : p[p.length - 1]) ?? todayStr.value)
+})
+
+useShortcuts((e) => {
+  if (e.defaultPrevented) return // die Punktreihe nutzt die Pfeiltasten selbst
+  const step = e.key === 'ArrowLeft' || e.key === 'PageUp' ? -1 : e.key === 'ArrowRight' || e.key === 'PageDown' ? 1 : 0
+  if (!step) return
+  e.preventDefault()
+  flip(step)
+})
+
+// Am Handy blättert ein waagrechtes Wischen; in Textfeldern bleibt das Ziehen beim Text.
+let swipe: { x: number; y: number } | null = null
+function onSwipeStart(e: PointerEvent) {
+  swipe = e.pointerType !== 'mouse' && !(e.target as HTMLElement).closest('input, textarea, button') ? { x: e.clientX, y: e.clientY } : null
+}
+function onSwipeEnd(e: PointerEvent) {
+  if (!swipe) return
+  const dx = e.clientX - swipe.x
+  const dy = e.clientY - swipe.y
+  swipe = null
+  if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) flip(dx < 0 ? 1 : -1)
+}
+
+// ---- Umblättern: alle vier beteiligten Seiten laufen auf derselben Zeitachse (lib/pageTurn.ts) ----
+const TURN_MS = 950
+let turnStart = 0
+let turning = false
+let queued = 0 // Klick während des Umblätterns
+const reduceMotion = () => document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches
+
+function turnPage(side: 'l' | 'r', entering: boolean, el: Element, done: () => void) {
+  const page = el as HTMLElement
+  if (reduceMotion()) return done()
+  // Schmal liegen die Seiten untereinander: überblenden statt falten.
+  if (matchMedia('(max-width: 860px)').matches) {
+    page.animate(entering ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-out' }).onfinish = done
     return
   }
-  expandedDate.value = date
+  const back = dir.value === 'back'
+  const role: LeafRole = side === (back ? 'l' : 'r') ? (entering ? 'revealed' : 'cut') : entering ? 'flap' : 'covered'
+  const W = page.offsetWidth
+  const H = page.offsetHeight
+  const holder = page.parentElement as HTMLElement
+  page.classList.add('jr-turning')
+  page.style.zIndex = role === 'flap' || role === 'cut' ? '2' : '1'
+  if (role === 'flap') holder.style.zIndex = '3' // die Rückseite reicht über den Bund
+  const apply = (now: number) => {
+    const t = Math.min(1, Math.max(0, (now - turnStart) / TURN_MS))
+    const f = leafFrame(role, easeTurn(t), W, H, back)
+    if (role === 'cut' || role === 'flap') page.style.clipPath = f.clip
+    if (role === 'flap') page.style.transform = f.transform
+    page.style.setProperty('--leaf', f.shade)
+    return t
+  }
+  const frame = (now: number) => {
+    if (apply(now) < 1) return void requestAnimationFrame(frame)
+    page.classList.remove('jr-turning')
+    page.style.clipPath = page.style.transform = page.style.zIndex = holder.style.zIndex = ''
+    done()
+  }
+  apply(performance.now()) // sofort, sonst blitzt die neue Seite einen Frame lang ungeschnitten auf
+  requestAnimationFrame(frame)
+}
+
+function onSaved(date: string, entry: JournalEntryData) {
+  if (date === todayStr.value) onTodaySaved(entry)
+  else onPastSaved(date, entry)
 }
 
 function onTodaySaved(entry: JournalEntryData) {
@@ -201,19 +279,7 @@ function closeBackfill() {
   backfillOpen.value = false
 }
 
-function scrollToEl(el: HTMLElement | null | undefined, block: ScrollLogicalPosition = 'center') {
-  if (!el) return
-  const reduce = document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches
-  el.scrollIntoView({ block, behavior: reduce ? 'auto' : 'smooth' })
-}
-
-async function reveal(date: string) {
-  await switchEntry(date)
-  await nextTick()
-  scrollToEl(pastEl.value?.querySelector<HTMLElement>(`[data-date="${date}"]`))
-}
-
-// Öffnet einen Tag: vorhandene Zeile aufklappen, ältere aus dem Notizordner nachladen
+// Schlägt einen Tag auf: vorhandene Seite, ältere aus dem Notizordner nachladen
 // oder einen leeren Entwurf anlegen. Eine Datei schreibt erst der Editor beim Tippen.
 async function openDay(date: string) {
   if (!pastRows.value.some((r) => r.date === date)) {
@@ -232,7 +298,7 @@ async function openDay(date: string) {
       pastRows.value = [...pastRows.value, row].sort((a, b) => b.date.localeCompare(a.date))
     }
   }
-  await reveal(date)
+  await go(date)
 }
 
 async function startBackfill() {
@@ -256,7 +322,7 @@ function heatAria(c: HeatCell) {
 async function openHeat(c: HeatCell) {
   if (c.future) return
   if (c.s === todayStr.value) {
-    scrollToEl(todayEl.value, 'start')
+    await go(c.s)
     return
   }
   if (!c.has) {
@@ -269,8 +335,7 @@ async function openHeat(c: HeatCell) {
 }
 
 function onHeatKey(e: KeyboardEvent, c: HeatCell) {
-  // Das Raster läuft spaltenweise: eine Spalte ist eine Woche, eine Zeile ein Wochentag.
-  const step = e.key === 'ArrowLeft' ? -7 : e.key === 'ArrowRight' ? 7 : e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0
+  const step = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
   if (!step) return
   e.preventDefault()
   const cells = heatCells.value
@@ -295,10 +360,6 @@ function onPastSaved(date: string, entry: JournalEntryData) {
     allDates.value = [...allDates.value, date].sort().reverse()
     total.value++
   }
-}
-
-function onPastImported(result: JournalTaskImport) {
-  onTodayImported(result)
 }
 
 // Nach Import oder Erledigen die Aufgabenliste neu laden (und Fehler sichtbar machen).
@@ -327,27 +388,48 @@ function completeTask(task: Task) {
     }
   })
 }
+
+const menuOpen = ref(false)
 </script>
 
 <template>
-  <div class="view-inner">
+  <div class="view-inner jr-wrap">
     <div class="jr-page">
       <!-- Kopf -->
       <header class="jr-head">
-        <div class="jr-head-kicker">
-          <span class="jr-kicker-badge">{{ $t('Heute') }}</span>
-          <span class="jr-kicker-sep">·</span>
-          <span class="jr-kicker-count">{{ $tn(total, '{n} Eintrag', '{n} Einträge') }}</span>
+        <div class="jr-head-row">
+          <div>
+            <div class="jr-head-kicker">{{ $tn(total, '{n} Eintrag', '{n} Einträge') }}</div>
+            <h1 class="jr-title">{{ $t('Journal') }}</h1>
+          </div>
+          <div class="menu-wrap" @keydown.esc="menuOpen = false">
+            <button
+              type="button" class="icon-btn jr-more-btn" :aria-label="$t('Weitere Optionen')"
+              :aria-expanded="menuOpen" @click="menuOpen = !menuOpen"
+            ><svg class="ic"><use href="#i-more" /></svg></button>
+            <template v-if="menuOpen">
+              <div class="menu-scrim" @click="menuOpen = false"></div>
+              <div class="menu jr-paper-menu" role="menu">
+                <span class="menu-l">{{ $t('Papier') }}</span>
+                <div class="jr-papers" role="group" :aria-label="$t('Papier')">
+                  <button
+                    v-for="p in PAPERS" :key="p" type="button" class="jr-paper-pick" :class="`is-${p}`"
+                    :aria-pressed="prefs.journalPaper === p" :aria-label="$t(PAPER_LABELS[p])" :title="$t(PAPER_LABELS[p])"
+                    @click="prefs.journalPaper = p; menuOpen = false"
+                  ></button>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
-        <h1 class="jr-title">{{ todayStr ? fmt(headerDateFmt, todayStr) : $t('Journal') }}</h1>
 
-        <!-- Streak & Heatmap -->
+        <!-- Streak & Punktreihe -->
         <div class="jr-meta">
           <span v-if="streak" class="jr-streak">{{ $tn(streak, '{n} Tag in Folge', '{n} Tage in Folge') }}</span>
-          <div class="jr-heat" role="group" :aria-label="$tn(heatCount, '{n} Eintrag in den letzten 12 Wochen', '{n} Einträge in den letzten 12 Wochen')">
+          <div class="jr-heat" role="group" :aria-label="$tn(heatCount, '{n} Eintrag in den letzten 6 Wochen', '{n} Einträge in den letzten 6 Wochen')">
             <button
               v-for="c in heatCells" :key="c.s" type="button" class="jr-heat-cell" :data-date="c.s"
-              :class="{ on: c.has, future: c.future }" :disabled="c.future" :tabindex="c.s === heatFocus ? 0 : -1"
+              :class="{ on: c.has, future: c.future, open: c.s === pageDate }" :disabled="c.future" :tabindex="c.s === heatFocus ? 0 : -1"
               :title="heatTitle(c)" :aria-label="heatAria(c)"
               @focus="heatFocus = c.s" @click="openHeat(c)" @keydown="onHeatKey($event, c)"
             ></button>
@@ -358,22 +440,58 @@ function completeTask(task: Task) {
 
       <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-      <!-- Heute -->
-      <section v-if="todayStr" ref="todayEl" class="jr-today">
-        <JournalEntryEditor
-          ref="todayEditor"
-          :date="todayStr"
-          :entry="todayEntry"
-          :imported-titles="importedTitles(todayStr)"
-          @saved="onTodaySaved"
-          @imported="onTodayImported"
-        />
+      <div class="jr-tools">
+        <button type="button" class="col-link" @click="openBackfill">{{ $t('Nachtragen') }}</button>
+        <SearchField v-if="pastRows.length" v-model="pastSearch" :label="$t('Einträge durchsuchen')" />
+      </div>
+      <p v-if="searchTerm && !visiblePast.length" class="v-sub jr-nohit">{{ $t('Keine Treffer für „{q}“.', { q: pastSearch.trim() }) }}</p>
 
-        <!-- Tagesrückblick -->
-        <div v-if="recapText" class="jr-recap">
-          <span class="jr-recap-lead">{{ $t('Heute erledigt:') }}</span> {{ recapText }}
+      <!-- Das Buch: links der Rückblick des Tages, rechts die Schreibseite -->
+      <div v-if="pageDate" class="jr-book" :data-paper="prefs.journalPaper">
+        <div class="jr-spread" :class="{ 'jr-opening': opening }" @pointerdown="onSwipeStart" @pointerup="onSwipeEnd" @pointercancel="onSwipeEnd">
+          <TransitionGroup tag="div" class="jr-side jr-side-l" :css="false" @enter="(el: Element, done: () => void) => turnPage('l', true, el, done)" @leave="(el: Element, done: () => void) => turnPage('l', false, el, done)">
+            <section v-for="d in [pageDate]" :key="d" class="jr-paper jr-left" :data-date="d">
+              <span class="jr-page-kicker">{{ pageKicker(d) }}</span>
+              <div class="jr-day">{{ Number(d.slice(8)) }}</div>
+              <div class="jr-day-sub">{{ fmt(weekdayFmt, d) }}<br>{{ monthLabel(d.slice(0, 7)) }}</div>
+              <div v-if="planFor(d).length" class="jr-left-block">
+                <h2 class="jr-left-h">{{ $t('Vorgenommen') }}</h2>
+                <ul class="jr-left-list"><li v-for="(p, i) in planFor(d)" :key="i">{{ p }}</li></ul>
+              </div>
+              <div v-if="doneOn(d).length" class="jr-left-block jr-recap">
+                <h2 class="jr-left-h">{{ $t('Erledigt') }}</h2>
+                <ul class="jr-left-list"><li v-for="(p, i) in doneOn(d)" :key="i">{{ p }}</li></ul>
+              </div>
+              <span class="jr-page-no" aria-hidden="true">{{ 2 * pages.indexOf(d) + 1 }}</span>
+            </section>
+          </TransitionGroup>
+          <TransitionGroup tag="div" class="jr-side jr-side-r" :css="false" @enter="(el: Element, done: () => void) => turnPage('r', true, el, done)" @leave="(el: Element, done: () => void) => turnPage('r', false, el, done)">
+            <article
+              v-for="d in [pageDate]" :key="d" class="jr-entry jr-paper jr-right" :class="{ 'jr-today': d === todayStr }" :data-date="d"
+              :aria-label="fmt(headerDateFmt, d)"
+            >
+              <JournalEntryEditor
+                :ref="(c) => setEditor(d, c)"
+                :date="d"
+                :entry="entryOf(d)"
+                :imported-titles="importedTitles(d)"
+                @saved="onSaved(d, $event)"
+                @imported="onTodayImported"
+              />
+              <span class="jr-page-no" aria-hidden="true">{{ 2 * pages.indexOf(d) + 2 }}</span>
+            </article>
+          </TransitionGroup>
+          <!-- Umschlag: liegt beim Öffnen der Ansicht über der rechten Seite und klappt auf -->
+          <div class="jr-cover" aria-hidden="true"><span>{{ $t('Journal') }}</span></div>
         </div>
-      </section>
+
+        <nav class="jr-nav" :aria-label="$t('Seiten')">
+          <button type="button" class="icon-btn" :disabled="pageIdx <= 0" :aria-label="$t('Vorherige Seite')" @click="flip(-1)"><svg class="ic"><use href="#i-left" /></svg></button>
+          <span class="jr-nav-count">{{ $t('Seite {n} von {m}', { n: pageIdx + 1, m: pages.length }) }}</span>
+          <button type="button" class="icon-btn" :disabled="pageIdx >= pages.length - 1" :aria-label="$t('Nächste Seite')" @click="flip(1)"><svg class="ic"><use href="#i-right" /></svg></button>
+        </nav>
+        <RouterLink v-if="hasOlder && pageIdx === 0" class="v-sub jr-more" to="/notes">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</RouterLink>
+      </div>
 
       <!-- Offene Journal-Aufgaben -->
       <section v-if="openJournalTasks.length" class="jr-open-box">
@@ -400,81 +518,6 @@ function completeTask(task: Task) {
         </RouterLink>
       </section>
 
-      <!-- Vergangene Einträge -->
-      <section ref="pastEl" class="jr-past">
-        <div class="jr-past-bar">
-          <h2 class="jr-past-heading">{{ $t('Vergangene Einträge') }}</h2>
-          <button type="button" class="col-link jr-backfill-btn" @click="openBackfill">{{ $t('Nachtragen') }}</button>
-          <div v-if="pastRows.length" class="seg jr-seg" role="group" :aria-label="$t('Sortierung')">
-            <button type="button" :aria-pressed="!pastAsc" @click="pastAsc = false">{{ $t('Neueste zuerst') }}</button>
-            <button type="button" :aria-pressed="pastAsc" @click="pastAsc = true">{{ $t('Älteste zuerst') }}</button>
-          </div>
-          <SearchField v-if="pastRows.length" v-model="pastSearch" :label="$t('Einträge durchsuchen')" />
-        </div>
-
-        <div v-if="loaded && !pastRows.length" class="jr-empty">
-          <p class="jr-empty-t">{{ $t('Drei kurze Fragen am Abend.') }}</p>
-          <p class="v-sub">{{ $t('Was lief gut, was lernst du daraus, was ist morgen wichtig. Zwei Minuten reichen.') }}</p>
-        </div>
-        <p v-else-if="pastRows.length && !visiblePast.length" class="v-sub jr-nohit">{{ $t('Keine Treffer für „{q}“.', { q: pastSearch.trim() }) }}</p>
-
-        <div v-else-if="pastRows.length" class="jr-months">
-          <section v-for="g in groups" :key="g.month" class="jr-month-group">
-            <h3 class="jr-month">{{ monthLabel(g.month) }}</h3>
-            <div class="jr-feed">
-              <article v-for="r in g.rows" :key="r.date" class="jr-entry" :data-date="r.date">
-                <header class="jr-entry-head">
-                  <button
-                    type="button"
-                    class="jr-row"
-                    :aria-expanded="expandedDate === r.date"
-                    :aria-label="expandedDate === r.date ? $t('Eintrag vom {date} schließen', { date: label(r.date) }) : $t('Eintrag vom {date} bearbeiten', { date: label(r.date) })"
-                    @click="toggle(r.date)"
-                  >
-                    <span class="jr-date">{{ entryDateLabel(r.date) }}</span>
-                    <span class="jr-edit-action">{{ expandedDate === r.date ? $t('Fertig') : $t('Bearbeiten') }}</span>
-                  </button>
-                </header>
-
-                <JournalEntryEditor
-                  v-if="expandedDate === r.date"
-                  ref="pastEditor"
-                  :key="r.date"
-                  :date="r.date"
-                  :entry="r"
-                  :imported-titles="importedTitles(r.date)"
-                  @saved="onPastSaved(r.date, $event)"
-                  @imported="onPastImported"
-                />
-
-                <div v-else class="jr-entry-body" role="button" tabindex="0" :aria-label="$t('Eintrag bearbeiten')" @click="toggle(r.date)" @keydown.enter="toggle(r.date)">
-                  <div v-if="r.answers[0]?.trim()" class="jr-feed-section">
-                    <div class="jr-feed-q">{{ $t('Was lief gut?') }}</div>
-                    <div class="jr-feed-a">{{ r.answers[0] }}</div>
-                  </div>
-                  <div v-if="r.answers[1]?.trim()" class="jr-feed-section">
-                    <div class="jr-feed-q">{{ $t('Was lerne ich daraus?') }}</div>
-                    <div class="jr-feed-a">{{ r.answers[1] }}</div>
-                  </div>
-                  <div v-if="r.answers[2]?.trim()" class="jr-feed-section">
-                    <div class="jr-feed-q">{{ $t('Was ist morgen wichtig?') }}</div>
-                    <ul v-if="splitPoints(r.answers[2]).length" class="jr-feed-points">
-                      <li v-for="(p, i) in splitPoints(r.answers[2])" :key="i">{{ p }}</li>
-                    </ul>
-                    <div v-else class="jr-feed-a">{{ r.answers[2] }}</div>
-                  </div>
-                  <div v-if="r.other?.trim()" class="jr-feed-section">
-                    <div class="jr-feed-other">{{ r.other }}</div>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </section>
-        </div>
-
-        <RouterLink v-if="hasOlder" class="v-sub jr-more" to="/notes">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</RouterLink>
-      </section>
-
       <!-- Nachtragen-Dialog -->
       <div v-if="backfillOpen" v-dialog="closeBackfill" class="overlay open" @mousedown.self="closeBackfill">
         <form class="dialog jr-backfill" :aria-label="$t('Eintrag nachtragen')" @submit.prevent="startBackfill">
@@ -496,25 +539,29 @@ function completeTask(task: Task) {
 </template>
 
 <style scoped>
+.jr-wrap {
+  padding-top: 18px;
+  padding-bottom: 28px;
+}
 .jr-page {
-  max-width: 640px;
+  max-width: 1080px;
   margin: 0 auto;
   width: 100%;
 }
 
 /* Kopf */
 .jr-head {
-  margin-bottom: 32px;
+  margin-bottom: 16px;
+}
+.jr-head-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
 }
 .jr-head-kicker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font: 500 13px/1 var(--font-ui);
   color: var(--tx-muted);
-}
-.jr-kicker-sep {
-  opacity: 0.5;
 }
 .jr-title {
   margin: 6px 0 0;
@@ -523,35 +570,53 @@ function completeTask(task: Task) {
   letter-spacing: -0.01em;
 }
 
-/* Streak / Heatmap */
+/* Papierwahl: drei Farbfelder */
+.jr-papers {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+.jr-paper-pick {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--br-default);
+  cursor: pointer;
+  transition: transform var(--dur) ease-out, box-shadow var(--dur) ease-out;
+}
+.jr-paper-pick.is-coffee { background: #efe3c8; }
+.jr-paper-pick.is-white { background: #fbfaf7; }
+.jr-paper-pick.is-black { background: #1b1a18; }
+.jr-paper-pick:hover { transform: scale(1.08); }
+.jr-paper-pick[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--tx-secondary); }
+.jr-paper-pick:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+
+/* Streak / Punktreihe */
 .jr-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 .jr-streak {
   font: 400 13px/1.4 var(--font-ui);
   color: var(--tx-secondary);
 }
 .jr-heat {
-  display: grid;
-  grid-template-rows: repeat(7, 5px);
-  grid-template-columns: repeat(12, 5px);
-  grid-auto-flow: column;
-  gap: 3px;
-  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 .jr-heat-cell {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--br-default);
-  opacity: 0.35;
+  background: var(--tx-muted);
+  opacity: 0.3;
   cursor: pointer;
   position: relative;
   transition: opacity var(--dur) ease-out, transform var(--dur) ease-out;
@@ -564,6 +629,11 @@ function completeTask(task: Task) {
 .jr-heat-cell.on {
   background: var(--p-orange);
   opacity: 0.9;
+}
+.jr-heat-cell.open {
+  outline: 1px solid var(--tx-secondary);
+  outline-offset: 2px;
+  opacity: 1;
 }
 .jr-heat-cell.future {
   background: var(--br-subtle);
@@ -592,20 +662,308 @@ function completeTask(task: Task) {
   border: 0;
 }
 
-/* Heute */
-.jr-today {
-  margin-bottom: 48px;
+.jr-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  margin-bottom: 12px;
+}
+button.col-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: 400 13px/1 var(--font-ui);
+  color: var(--tx-muted);
+  transition: color var(--dur) ease-out;
+}
+button.col-link:hover {
+  color: var(--tx-secondary);
+}
+.jr-tools :deep(input[type="search"]) {
+  max-width: 200px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 999px;
+}
+.jr-nohit {
+  margin: 0 0 12px;
 }
 
-/* Tagesrückblick */
-.jr-recap {
-  margin-top: 24px;
-  font: 400 14px/1.6 var(--font-ui);
-  color: var(--tx-muted);
+/* Das Buch. Papier ist unabhängig vom App-Theme, wie ein echtes Heft. */
+.jr-book {
+  --paper: #efe3c8;
+  --paper-2: #e2d1ad;
+  --ink: #3a2a1b;
+  --ink-2: #6a5440;
+  --ink-3: #73634e;
+  --rule: rgb(58 42 27 / 0.16);
+  --dot: #b0602a;
+  --cover: #6b4529;
+  --cover-ink: #e9d3a8;
+  --half: 400ms; /* eine Hälfte des Umblätterns: bis die Seite senkrecht steht */
+  margin-bottom: 14px;
 }
-.jr-recap-lead {
-  color: var(--tx-secondary);
-  font-weight: 500;
+.jr-book[data-paper='white'] {
+  --paper: #fbfaf7;
+  --paper-2: #ebe8e1;
+  --ink: #1d1c1a;
+  --ink-2: #55524c;
+  --ink-3: #75726c;
+  --rule: rgb(29 28 26 / 0.12);
+  --dot: #d0702e;
+  --cover: #34404d;
+  --cover-ink: #dfe4ea;
+}
+.jr-book[data-paper='black'] {
+  --paper: #1d1c1a;
+  --paper-2: #121110;
+  --ink: #ece4d4;
+  --ink-2: #b4ab9b;
+  --ink-3: #8c8478;
+  --rule: rgb(236 228 212 / 0.14);
+  --dot: #e08a4a;
+  --cover: #0b0b0a;
+  --cover-ink: #b9a77f;
+}
+
+/* Der Einband schaut als schmaler, sauberer Rand um die Doppelseite. */
+.jr-spread {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 8px 10px;
+  animation: jr-shift 980ms cubic-bezier(0.5, 0, 0.2, 1) both;
+}
+/* Einbanddeckel hinter den Seiten mit dezentem, edlem Schatten */
+.jr-spread::before,
+.jr-spread::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background: var(--cover);
+  box-shadow: 0 24px 48px -12px rgb(0 0 0 / 0.6), inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+.jr-spread::before {
+  left: 0;
+  border-radius: 7px 0 0 7px;
+  animation: jr-board 980ms both;
+}
+.jr-spread::after {
+  right: 0;
+  border-radius: 0 7px 7px 0;
+}
+@keyframes jr-board {
+  0%, 62% { opacity: 0; }
+  62.01%, 100% { opacity: 1; }
+}
+
+/* Beide Seiten eines Blatts liegen beim Umblättern in derselben Zelle übereinander. */
+.jr-side {
+  position: relative;
+  z-index: 1;
+  display: grid;
+}
+.jr-side-l { grid-area: 1 / 1; }
+.jr-side-r { grid-area: 1 / 2; }
+
+.jr-paper {
+  grid-area: 1 / 1;
+  position: relative;
+  min-height: clamp(520px, calc(100dvh - 320px), 760px);
+  padding: 38px 42px 46px;
+  background: radial-gradient(ellipse 130% 95% at 50% 40%, var(--paper) 60%, var(--paper-2) 135%);
+}
+/* Bund in der Mitte mit sanftem Papierschatten, Buchblock mit dezentem Schnitt */
+.jr-left {
+  border-radius: 4px 0 0 4px;
+  box-shadow:
+    inset -20px 0 26px -12px rgb(0 0 0 / 0.22),
+    -1px 1px 0 var(--paper-2),
+    -2px 2px 0 var(--paper),
+    -3px 3px 0 var(--paper-2),
+    -4px 4px 0 var(--paper),
+    -5px 5px 0 var(--paper-2),
+    -8px 12px 20px -4px rgb(0 0 0 / 0.38);
+}
+.jr-right {
+  border-radius: 0 4px 4px 0;
+  box-shadow:
+    inset 20px 0 26px -12px rgb(0 0 0 / 0.22),
+    1px 1px 0 var(--paper-2),
+    2px 2px 0 var(--paper),
+    3px 3px 0 var(--paper-2),
+    4px 4px 0 var(--paper),
+    5px 5px 0 var(--paper-2),
+    8px 12px 20px -4px rgb(0 0 0 / 0.38);
+}
+/* Der Editor schreibt mit Tinte: seine Farb-Tokens zeigen auf das Papier (der Import-Dialog bleibt unberührt). */
+.jr-paper :deep(.je-form) {
+  --tx-primary: var(--ink);
+  --tx-secondary: var(--ink-2);
+  --tx-muted: var(--ink-3);
+  --tx-disabled: var(--ink-3);
+  --br-default: var(--rule);
+  --br-subtle: var(--rule);
+  --ring: var(--ink-2);
+  --p-orange: var(--dot);
+}
+.jr-paper :deep(.je-label) {
+  font: 400 25px/1.2 var(--font-serif);
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.jr-paper :deep(.je-q) {
+  gap: 4px;
+}
+.jr-paper :deep(.je-form) {
+  gap: clamp(26px, 3.8vh, 38px);
+}
+.jr-paper :deep(.je-area) {
+  min-height: 52px;
+}
+.jr-paper :deep(.je-area),
+.jr-paper :deep(.je-point-input) {
+  color: var(--ink-2);
+}
+.jr-paper :deep(.je-import:hover) {
+  background: var(--rule);
+}
+.jr-page-kicker {
+  font: italic 400 16px/1 var(--font-serif);
+  color: var(--ink-3);
+}
+.jr-day {
+  margin-top: 6px;
+  font: 400 88px/0.9 var(--font-serif);
+  color: var(--ink);
+  font-variant-numeric: lining-nums;
+}
+.jr-day-sub {
+  margin-top: 6px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--rule);
+  font: italic 400 22px/1.25 var(--font-serif);
+  color: var(--ink-2);
+}
+.jr-left-block {
+  margin-top: 24px;
+}
+.jr-left-h {
+  margin: 0 0 8px;
+  font: 400 23px/1.2 var(--font-serif);
+  color: var(--ink);
+}
+.jr-left-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.jr-left-list li {
+  position: relative;
+  padding-left: 16px;
+  font: 400 15px/1.6 var(--font-ui);
+  color: var(--ink-2);
+}
+.jr-left-list li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.7em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dot);
+  opacity: 0.75;
+}
+.jr-page-no {
+  position: absolute;
+  bottom: 20px;
+  font: italic 400 14px/1 var(--font-serif);
+  color: var(--ink-3);
+}
+.jr-left .jr-page-no { left: 28px; }
+.jr-right .jr-page-no { right: 28px; }
+
+/* Umschlag: klappt beim Öffnen am Bund nach links auf */
+.jr-cover {
+  grid-area: 1 / 2;
+  z-index: 5;
+  margin: -8px -10px -8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 7px 7px 0;
+  background: linear-gradient(90deg, rgb(0 0 0 / 0.28), transparent 7%), var(--cover);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
+  animation: jr-cover 980ms cubic-bezier(0.5, 0, 0.2, 1) both;
+}
+.jr-cover span {
+  font: italic 400 44px/1 var(--font-serif);
+  color: var(--cover-ink);
+  letter-spacing: 0.02em;
+}
+@keyframes jr-cover {
+  0%, 25% { opacity: 1; transform: perspective(2400px) rotateY(0deg); }
+  62% { opacity: 1; transform: perspective(2400px) rotateY(-90deg); filter: brightness(0.6); }
+  62.01%, 100% { opacity: 0; transform: perspective(2400px) rotateY(-90deg); }
+}
+/* Geschlossen liegt das Buch mittig; beim Aufklappen rückt es nach links. */
+@keyframes jr-shift {
+  0%, 25% { transform: translateX(-25%); }
+  100% { transform: none; }
+}
+.jr-opening .jr-left {
+  animation: jr-appear 160ms 600ms ease-out both;
+}
+@keyframes jr-appear {
+  from { opacity: 0; }
+}
+
+/* Umblättern: Clip, Lage und Schattierung jeder Seite setzt turnPage() pro Frame (lib/pageTurn.ts). */
+.jr-paper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+.jr-turning {
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+.jr-turning::after {
+  opacity: 1;
+  background: var(--leaf);
+}
+
+.jr-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.jr-more-btn { width: 32px; height: 32px; }
+.jr-paper-menu { padding: 8px 10px; min-width: 140px; }
+.jr-paper-menu .menu-l { display: block; padding: 2px 4px 6px; font: 600 11px/1 var(--font-ui); color: var(--tx-muted); text-transform: uppercase; letter-spacing: .06em; }
+.jr-nav-count {
+  min-width: 96px;
+  text-align: center;
+  font: 400 13px/1 var(--font-ui);
+  color: var(--tx-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Offene Aufgaben */
@@ -678,189 +1036,10 @@ function completeTask(task: Task) {
   height: 12px;
 }
 
-/* Vergangene Einträge */
-.jr-past {
-  margin-top: 16px;
-}
-.jr-past-bar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--br-subtle);
-  margin-bottom: 24px;
-}
-.jr-past-bar :deep(.search-btn),
-.jr-past-bar :deep(input[type="search"]) {
-  margin-left: auto;
-}
-.jr-past-heading {
-  margin: 0;
-  font: 400 18px/1.2 var(--font-serif);
-  color: var(--tx-secondary);
-}
-button.col-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  font: 400 13px/1 var(--font-ui);
-  color: var(--tx-muted);
-  transition: color var(--dur) ease-out;
-}
-button.col-link:hover {
-  color: var(--tx-primary);
-  text-decoration: underline;
-}
-.jr-seg button {
-  font-size: 12px;
-  padding: 4px 10px;
-}
-.jr-past-bar :deep(input[type="search"]) {
-  max-width: 200px;
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-  border-radius: 999px;
-}
-.jr-empty {
-  display: grid;
-  justify-items: start;
-  gap: 8px;
-  padding: 32px 0;
-}
-.jr-empty p {
-  margin: 0;
-}
-.jr-empty-t {
-  font: 400 20px/1.3 var(--font-serif);
-  color: var(--tx-primary);
-}
-.jr-nohit {
-  margin: 16px 0;
-}
-
-.jr-months {
-  display: grid;
-  gap: 40px;
-}
-.jr-month-group {
-  display: grid;
-  gap: 16px;
-}
-.jr-month {
-  margin: 0;
-  font: italic 400 15px/1 var(--font-serif);
-  color: var(--tx-muted);
-}
-.jr-feed {
-  display: grid;
-  gap: 28px;
-}
-.jr-entry {
-  padding-bottom: 24px;
-  border-bottom: 1px solid color-mix(in srgb, var(--br-subtle) 70%, transparent);
-}
-.jr-entry:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-.jr-entry-head {
-  display: flex;
-  align-items: baseline;
-}
-.jr-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-}
-.jr-date {
-  font: 400 20px/1.3 var(--font-serif);
-  color: var(--tx-primary);
-  letter-spacing: -0.01em;
-}
-.jr-edit-action {
-  font: 400 12px/1 var(--font-ui);
-  color: var(--tx-muted);
-  opacity: 0;
-  transition: opacity var(--dur) ease-out, color var(--dur) ease-out;
-}
-.jr-entry:hover .jr-edit-action,
-.jr-row:focus-visible .jr-edit-action,
-.jr-entry:focus-within .jr-edit-action {
-  opacity: 1;
-}
-.jr-row:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 4px;
-  border-radius: var(--r-s);
-}
-
-.jr-entry-body {
-  margin-top: 14px;
-  display: grid;
-  gap: 14px;
-  cursor: pointer;
-}
-.jr-entry-body:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 4px;
-  border-radius: var(--r-s);
-}
-.jr-feed-section {
-  display: grid;
-  gap: 4px;
-}
-.jr-feed-q {
-  font: italic 400 13px/1.3 var(--font-serif);
-  color: var(--tx-muted);
-}
-.jr-feed-a {
-  font: 400 15px/1.65 var(--font-ui);
-  color: var(--tx-primary);
-  white-space: pre-wrap;
-}
-.jr-feed-points {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 4px;
-}
-.jr-feed-points li {
-  position: relative;
-  padding-left: 14px;
-  font: 400 15px/1.65 var(--font-ui);
-  color: var(--tx-primary);
-}
-.jr-feed-points li::before {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 0.65em;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--p-orange);
-  opacity: 0.8;
-}
-.jr-feed-other {
-  font: 400 14px/1.6 var(--font-ui);
-  color: var(--tx-secondary);
-  white-space: pre-wrap;
-}
-
 .jr-more {
-  display: inline-block;
-  margin-top: 24px;
+  display: block;
+  margin-top: 12px;
+  text-align: center;
   text-decoration: none;
 }
 .jr-more:hover {
@@ -873,22 +1052,64 @@ button.col-link:hover {
   max-width: calc(100vw - 32px);
 }
 
+@media (max-width: 860px) {
+  /* Schmal liegen die Seiten untereinander; statt zu drehen blenden sie über. */
+  .jr-spread {
+    grid-template-columns: 1fr;
+    padding: 6px;
+    animation: none;
+  }
+  .jr-cover,
+  .jr-ribbon,
+  .jr-spread::before {
+    display: none;
+  }
+  .jr-spread::after {
+    width: 100%;
+    border-radius: 8px;
+  }
+  .jr-side-r {
+    grid-area: 2 / 1;
+  }
+  .jr-paper {
+    min-height: 0;
+  }
+  .jr-left {
+    padding: 24px 22px;
+    border-radius: 4px 4px 0 0;
+    box-shadow: inset 0 -20px 24px -22px rgb(0 0 0 / 0.3);
+  }
+  .jr-right {
+    padding: 28px 22px 44px;
+    border-radius: 0 0 4px 4px;
+    box-shadow: inset 0 20px 24px -22px rgb(0 0 0 / 0.3);
+  }
+  .jr-left .jr-page-no,
+  .jr-paper::after {
+    display: none;
+  }
+  .jr-day {
+    font-size: 64px;
+  }
+  .jr-day-sub {
+    font-size: 18px;
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+  .jr-opening .jr-left {
+    animation: none;
+  }
+}
 @media (max-width: 640px) {
   .jr-title {
-    font-size: 28px;
+    font-size: 30px;
   }
   .jr-meta {
     gap: 12px;
   }
-  .jr-past-bar {
-    gap: 8px;
-  }
-  .jr-past-tools {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .jr-seg {
-    transform: none;
+  /* Schmal passen nur vier Wochen in eine Zeile. */
+  .jr-heat-cell:nth-child(-n + 14) {
+    display: none;
   }
 }
 </style>

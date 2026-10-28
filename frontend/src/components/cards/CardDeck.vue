@@ -121,7 +121,7 @@ useShortcuts((e) => {
     </header>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-    <section class="card dk-hero" :aria-label="$t('Heute')">
+    <section class="card dk-hero" :style="{ '--dc': colorOf(deck.name) }" :aria-label="$t('Heute')">
       <div class="dk-name">
         <form v-if="renaming" class="dk-rename" @submit.prevent="rename">
           <input ref="nameEl" v-model="newName" class="input" :aria-label="$t('Name des Fachs')" @blur="rename" @keydown.esc.stop="renaming = false" />
@@ -206,19 +206,24 @@ kbd { margin-left: 8px; font: 500 10.5px/1 var(--font-mono); padding: 2px 5px; b
 .dk-sw button { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: var(--sc); cursor: pointer; }
 .dk-sw button[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--bg-1), 0 0 0 3.5px var(--sc); }
 
-.dk-hero { display: flex; align-items: center; gap: 8px; padding: 22px 24px; }
+.dk-hero {
+  display: flex; align-items: center; gap: 12px; padding: 22px 26px;
+  border-radius: 16px; border: 1px solid var(--br-default);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dc) 8%, var(--bg-1)), var(--bg-1) 50%);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25), 0 0 0 1px color-mix(in srgb, var(--dc) 15%, transparent);
+}
 .dk-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .dk-title { display: flex; align-items: center; gap: 12px; margin: 0; font: 500 28px/1.2 var(--font-ui); letter-spacing: -0.02em; }
 .dk-title i { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .dk-title button { min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; cursor: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dk-rename .input { max-width: 420px; font-size: 22px; height: 44px; }
-.dk-sub { padding-left: 22px; font: 400 13.5px/1.4 var(--font-ui); color: var(--tx-muted); }
-.dk-big { display: flex; flex-direction: column; gap: 2px; padding: 0 22px; }
+.dk-sub { padding-left: 22px; font: 400 13px/1.4 var(--font-ui); color: var(--tx-muted); }
+.dk-big { display: flex; flex-direction: column; gap: 3px; padding: 0 24px; }
 .dk-big + .dk-big { border-left: 1px solid var(--br-subtle); }
-.dk-big b { font-size: 36px; font-weight: 500; line-height: 1.1; }
-.dk-big span { font-size: 12.5px; color: var(--tx-muted); }
-.dk-go { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-left: 14px; }
-.dk-learn { height: 48px; padding: 0 26px; font-size: 15px; }
+.dk-big b { font-size: 34px; font-weight: 500; line-height: 1.1; }
+.dk-big span { font: 500 11.5px/1 var(--font-ui); text-transform: uppercase; letter-spacing: 0.05em; color: var(--tx-muted); }
+.dk-go { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-left: 16px; }
+.dk-learn { height: 46px; padding: 0 24px; font-size: 14.5px; border-radius: var(--r-m); }
 .dk-practice { padding: 0; border: 0; background: none; font-size: 12.5px; cursor: pointer; }
 .dk-practice:disabled { opacity: 0.4; cursor: default; }
 .c-new { color: var(--a-blue-tx); }
