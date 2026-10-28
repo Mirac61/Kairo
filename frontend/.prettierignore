@@ -1,0 +1,5 @@
+dist
+node_modules
+.shots
+coverage
+pnpm-lock.yaml

@@ -12,10 +12,18 @@ test('leer oder kaputt → Standard des Geräts', () => {
 
 test('Unbekanntes, falsche Größen und Doppeltes fallen weg', () => {
   const json = JSON.stringify([
-    { id: 'now', size: 'M' }, { id: 'now', size: 'M' }, { id: 'inbox', size: 'S' }, { id: 'cards', size: 'L' },
-    { id: 'toString', size: 'S' }, null, { id: 'agenda', size: 'L' },
+    { id: 'now', size: 'M' },
+    { id: 'now', size: 'M' },
+    { id: 'inbox', size: 'S' },
+    { id: 'cards', size: 'L' },
+    { id: 'toString', size: 'S' },
+    null,
+    { id: 'agenda', size: 'L' },
   ])
-  assert.deepEqual(parseLayout(json, 'desktop'), [{ id: 'now', size: 'M' }, { id: 'agenda', size: 'L' }])
+  assert.deepEqual(parseLayout(json, 'desktop'), [
+    { id: 'now', size: 'M' },
+    { id: 'agenda', size: 'L' },
+  ])
 })
 
 test('Standard nicht verändern', () => {

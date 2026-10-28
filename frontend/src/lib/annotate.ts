@@ -14,15 +14,7 @@ export interface Box {
   h: number
 }
 
-export type Tool =
-  | 'select'
-  | 'pen'
-  | 'marker'
-  | 'line'
-  | 'arrow'
-  | 'rect'
-  | 'ellipse'
-  | 'text'
+export type Tool = 'select' | 'pen' | 'marker' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text'
 
 export type Size = 's' | 'm' | 'l'
 
@@ -67,11 +59,7 @@ const WIDTHS: Record<Size, number> = { s: 1.5, m: 3, l: 6 }
 const MARKERS: Record<Size, number> = { s: 8, m: 14, l: 24 }
 const FONTS: Record<Size, number> = { s: 12, m: 18, l: 28 }
 
-export function sizeFor(
-  kind: Shape['kind'],
-  size: Size,
-  page: { w: number; h: number },
-): number {
+export function sizeFor(kind: Shape['kind'], size: Size, page: { w: number; h: number }): number {
   const scale = unit(page)
   if (kind === 'text') {
     return scale * FONTS[size]
@@ -124,20 +112,14 @@ export function arrowHead(stroke: { a: Pt; b: Pt; width: number }): [Pt, Pt] {
 
   const computeSide = (sign: number): Pt => {
     const angle = Math.atan2(deltaY, deltaX) + Math.PI + sign * 0.5
-    return [
-      stroke.b[0] + Math.cos(angle) * headSize,
-      stroke.b[1] + Math.sin(angle) * headSize,
-    ]
+    return [stroke.b[0] + Math.cos(angle) * headSize, stroke.b[1] + Math.sin(angle) * headSize]
   }
 
   return [computeSide(1), computeSide(-1)]
 }
 
 // map: für PDF die Umrechnung in PDF-Koordinaten; affine Abbildungen erhalten Bézierkurven, also reicht es, die Punkte abzubilden.
-export function pathOf(
-  stroke: Stroke,
-  pointMapper: (p: Pt) => Pt = (p) => p,
-): string {
+export function pathOf(stroke: Stroke, pointMapper: (p: Pt) => Pt = (p) => p): string {
   const mapPt = (point: Pt) => formatPoint(pointMapper(point))
 
   switch (stroke.kind) {
@@ -190,10 +172,7 @@ export function baseline(textShape: Text, lineIndex: number): number {
   return textShape.y + textShape.size * (ASCENT + lineIndex * LINE)
 }
 
-export function bounds(
-  shape: Shape,
-  measureText: (text: string, size: number) => number,
-): Box {
+export function bounds(shape: Shape, measureText: (text: string, size: number) => number): Box {
   if (shape.kind === 'text') {
     const lines = linesOf(shape)
     const lineWidths = lines.map((line) => measureText(line, shape.size))
@@ -227,10 +206,7 @@ export function transformed<S extends Shape>(shape: S, from: Box, to: Box): S {
   const scaleX = from.w ? to.w / from.w : 1
   const scaleY = from.h ? to.h / from.h : 1
 
-  const mapPoint = ([x, y]: Pt): Pt => [
-    to.x + (x - from.x) * scaleX,
-    to.y + (y - from.y) * scaleY,
-  ]
+  const mapPoint = ([x, y]: Pt): Pt => [to.x + (x - from.x) * scaleX, to.y + (y - from.y) * scaleY]
 
   switch (shape.kind) {
     case 'text':
@@ -299,12 +275,7 @@ export function corners(box: Box): Pt[] {
 }
 
 // Ecke corner nach point ziehen, die Gegenecke bleibt fixiert; keepRatio hält das Seitenverhältnis.
-export function resizeBox(
-  box: Box,
-  cornerIndex: number,
-  targetPoint: Pt,
-  keepRatio: boolean,
-): Box {
+export function resizeBox(box: Box, cornerIndex: number, targetPoint: Pt, keepRatio: boolean): Box {
   const oppositeCorner = corners(box)[(cornerIndex + 2) % 4]!
 
   if (!keepRatio || !box.w || !box.h) {
@@ -369,10 +340,7 @@ export function rgbOf(hex: string): [number, number, number] {
 }
 
 // Zeichnet die Formen in einen Canvas (Bild speichern). Der Canvas ist schon auf Seiteneinheiten skaliert.
-export function drawOnCanvas(
-  ctx: CanvasRenderingContext2D,
-  shapes: Shape[],
-): void {
+export function drawOnCanvas(ctx: CanvasRenderingContext2D, shapes: Shape[]): void {
   for (const shape of shapes) {
     ctx.save()
     if (shape.kind === 'text') {
@@ -422,17 +390,14 @@ export async function drawOnPdf(
   const knownCharacters = new Set(font.getCharacterSet())
 
   const sanitizeText = (str: string) =>
-    [...str]
-      .map((char) => (knownCharacters.has(char.codePointAt(0)!) ? char : '?'))
-      .join('')
+    [...str].map((char) => (knownCharacters.has(char.codePointAt(0)!) ? char : '?')).join('')
 
   shapes.forEach((shapeList, pageIndex) => {
     if (!shapeList.length) return
 
     const page = doc.getPage(pageIndex)
     const inverseTransform = invert(pages[pageIndex]!.t)
-    const rotationAngle =
-      (Math.atan2(inverseTransform[1], inverseTransform[0]) * 180) / Math.PI
+    const rotationAngle = (Math.atan2(inverseTransform[1], inverseTransform[0]) * 180) / Math.PI
 
     for (const shape of shapeList) {
       const [r, g, b] = rgbOf(shape.color)
@@ -440,10 +405,7 @@ export async function drawOnPdf(
 
       if (shape.kind === 'text') {
         linesOf(shape).forEach((line, lineIndex) => {
-          const [posX, posY] = apply(inverseTransform, [
-            shape.x,
-            baseline(shape, lineIndex),
-          ])
+          const [posX, posY] = apply(inverseTransform, [shape.x, baseline(shape, lineIndex)])
           page.drawText(sanitizeText(line), {
             x: posX,
             y: posY,

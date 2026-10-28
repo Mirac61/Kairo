@@ -8,7 +8,11 @@ import { pick } from '@/lib/selection'
 // Mehrfachauswahl samt Sammelaktionen. order: Aufgaben in Anzeigereihenfolge, run/tomorrow wie in der Ansicht.
 // Shift-/⌘-/Strg-Klick wählt; im Auswahlmodus (Knopf, für Touch) genügt ein Tipp. Esc beendet beides.
 // Long-Press (Touch) schaltet in den Auswahlmodus und wählt die Zeile.
-export function useTaskSelection(order: () => Task[], run: (fn: () => Promise<unknown>) => unknown, tomorrow: () => string) {
+export function useTaskSelection(
+  order: () => Task[],
+  run: (fn: () => Promise<unknown>) => unknown,
+  tomorrow: () => string,
+) {
   const picked = ref<string[]>([])
   const mode = ref(false)
   let anchor: string | null = null
@@ -25,7 +29,13 @@ export function useTaskSelection(order: () => Task[], run: (fn: () => Promise<un
     if (!mode.value && !e.shiftKey && !e.metaKey && !e.ctrlKey) return
     e.preventDefault()
     e.stopPropagation()
-    picked.value = pick(order().map((x) => x.id), picked.value, anchor, id, e.shiftKey)
+    picked.value = pick(
+      order().map((x) => x.id),
+      picked.value,
+      anchor,
+      id,
+      e.shiftKey,
+    )
     anchor = id
   }
   // Long-Press auf Touch: Auswahlmodus einschalten und die Zeile dazunehmen (ohne Tastatur).
@@ -56,8 +66,16 @@ export function useTaskSelection(order: () => Task[], run: (fn: () => Promise<un
     const day = tomorrow()
     void run(async () => {
       await patchAll(ts, () => ({ planned_date: day, planned_start_at: '' })) // die alte Uhrzeit entfällt
-      offer(tn(ts.length, '{n} Aufgabe auf morgen verschoben', '{n} Aufgaben auf morgen verschoben'),
-        () => run(() => patchAll(ts, (x) => ({ planned_date: x.planned_date ?? '', planned_start_at: x.planned_start_at ?? '' }))))
+      offer(
+        tn(ts.length, '{n} Aufgabe auf morgen verschoben', '{n} Aufgaben auf morgen verschoben'),
+        () =>
+          run(() =>
+            patchAll(ts, (x) => ({
+              planned_date: x.planned_date ?? '',
+              planned_start_at: x.planned_start_at ?? '',
+            })),
+          ),
+      )
     })
     clear()
   }
@@ -66,7 +84,9 @@ export function useTaskSelection(order: () => Task[], run: (fn: () => Promise<un
     if (!ts.length) return
     void run(async () => {
       await patchAll(ts, () => ({ project_id: projectId }))
-      offer(tn(ts.length, '{n} Aufgabe verschoben', '{n} Aufgaben verschoben'), () => run(() => patchAll(ts, (x) => ({ project_id: x.project_id ?? '' }))))
+      offer(tn(ts.length, '{n} Aufgabe verschoben', '{n} Aufgaben verschoben'), () =>
+        run(() => patchAll(ts, (x) => ({ project_id: x.project_id ?? '' }))),
+      )
     })
     clear()
   }
@@ -77,7 +97,11 @@ export function useTaskSelection(order: () => Task[], run: (fn: () => Promise<un
     if (!ts.length) return
     void run(async () => {
       for (const x of ts) await deleteTask(x.id)
-      offer(tn(ts.length, '{n} Aufgabe gelöscht', '{n} Aufgaben gelöscht'), () => run(async () => { for (const x of ts) await restoreTask(x.id) }))
+      offer(tn(ts.length, '{n} Aufgabe gelöscht', '{n} Aufgaben gelöscht'), () =>
+        run(async () => {
+          for (const x of ts) await restoreTask(x.id)
+        }),
+      )
     })
     clear()
   }

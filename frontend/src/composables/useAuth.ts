@@ -1,4 +1,4 @@
-import { api } from '@/api/client'
+import { api, ApiError } from '@/api/client'
 import { computed, ref } from 'vue'
 
 export interface User {
@@ -32,13 +32,13 @@ export async function refreshMe() {
     user.value = me
     authEnabled.value = true
     return me
-  } catch (err: any) {
-    if (err?.status === 401) {
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 401) {
       user.value = null
       authEnabled.value = true
       return null
     }
-    if (err?.status === 404) {
+    if (err instanceof ApiError && err.status === 404) {
       user.value = null
       authEnabled.value = false
       return null
@@ -70,11 +70,14 @@ export async function logout() {
 
 export async function setupRequired() {
   try {
-    const res = await api<{ setupRequired: boolean }>('/auth/setup-required', { method: 'GET', skipUnauthorizedHandler: true })
+    const res = await api<{ setupRequired: boolean }>('/auth/setup-required', {
+      method: 'GET',
+      skipUnauthorizedHandler: true,
+    })
     return res.setupRequired
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Wenn der Server keine Auth-Routen anbietet, gibt es kein Setup.
-    if (err?.status === 404) return false
+    if (err instanceof ApiError && err.status === 404) return false
     throw err
   }
 }

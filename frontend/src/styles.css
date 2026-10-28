@@ -1,8 +1,30 @@
 /* Kleine Hilfsklassen. Tokens, Layout und Komponenten stehen in design.css. */
-h1, h2, h3 { letter-spacing: -0.02em; }
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
 
-.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.nowrap { flex-wrap: nowrap; }
-.muted { color: var(--p-text-muted-color); font-size: 13px; }
-.done { text-decoration: line-through; color: var(--p-text-muted-color); }
-.card { background: var(--p-content-background); border: 1px solid var(--p-content-border-color); border-radius: 10px; padding: 12px 16px; }
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.nowrap {
+  flex-wrap: nowrap;
+}
+.muted {
+  color: var(--p-text-muted-color);
+  font-size: 13px;
+}
+.done {
+  text-decoration: line-through;
+  color: var(--p-text-muted-color);
+}
+.card {
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 10px;
+  padding: 12px 16px;
+}

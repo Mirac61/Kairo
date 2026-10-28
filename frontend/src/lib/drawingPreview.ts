@@ -1,14 +1,19 @@
 import { fetchFile } from '@/api/client'
 
 declare global {
-  interface Window { EXCALIDRAW_ASSET_PATH?: string | string[] }
+  interface Window {
+    EXCALIDRAW_ASSET_PATH?: string | string[]
+  }
 }
 
 // Excalidraw (samt React) ist ein eigener Chunk, den erst eine Zeichnung lädt. Die Schriften liefert Kairo selbst aus
 // (vite.config.ts kopiert sie nach dist/excalidraw/), damit es offline läuft; im Dev-Server kommen sie vom CDN.
 export function loadExcalidraw() {
   window.EXCALIDRAW_ASSET_PATH = '/excalidraw/'
-  return Promise.all([import('@excalidraw/excalidraw'), import('@excalidraw/excalidraw/index.css')]).then(([m]) => m)
+  return Promise.all([
+    import('@excalidraw/excalidraw'),
+    import('@excalidraw/excalidraw/index.css'),
+  ]).then(([m]) => m)
 }
 
 // Vorschau eingebetteter Zeichnungen (![](x.excalidraw)): als SVG-Blob in einem <img>, dort führt SVG kein Skript aus.

@@ -1,0 +1,363 @@
+/* Das Buch. Papier ist unabhängig vom App-Theme, wie ein echtes Heft. */
+.jr-book {
+  --paper: #efe3c8;
+  --paper-2: #e2d1ad;
+  --ink: #3a2a1b;
+  --ink-2: #6a5440;
+  --ink-3: #73634e;
+  --rule: rgb(58 42 27 / 0.16);
+  --dot: #b0602a;
+  --cover: #6b4529;
+  --cover-ink: #e9d3a8;
+  margin-bottom: 14px;
+}
+.jr-book[data-paper='white'] {
+  --paper: #fbfaf7;
+  --paper-2: #ebe8e1;
+  --ink: #1d1c1a;
+  --ink-2: #55524c;
+  --ink-3: #75726c;
+  --rule: rgb(29 28 26 / 0.12);
+  --dot: #d0702e;
+  --cover: #34404d;
+  --cover-ink: #dfe4ea;
+}
+.jr-book[data-paper='black'] {
+  --paper: #1d1c1a;
+  --paper-2: #121110;
+  --ink: #ece4d4;
+  --ink-2: #b4ab9b;
+  --ink-3: #8c8478;
+  --rule: rgb(236 228 212 / 0.14);
+  --dot: #e08a4a;
+  --cover: #0b0b0a;
+  --cover-ink: #b9a77f;
+}
+
+/* Der Einband schaut als schmaler, sauberer Rand um die Doppelseite. */
+.jr-spread {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 8px 10px;
+  animation: jr-shift 980ms cubic-bezier(0.5, 0, 0.2, 1) both;
+}
+/* Einbanddeckel hinter den Seiten mit dezentem Schatten */
+.jr-spread::before,
+.jr-spread::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background: var(--cover);
+  box-shadow:
+    0 24px 48px -12px rgb(0 0 0 / 0.6),
+    inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+.jr-spread::before {
+  left: 0;
+  border-radius: 7px 0 0 7px;
+  animation: jr-board 980ms both;
+}
+.jr-spread::after {
+  right: 0;
+  border-radius: 0 7px 7px 0;
+}
+@keyframes jr-board {
+  0%,
+  62% {
+    opacity: 0;
+  }
+  62.01%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Beide Seiten eines Blatts liegen beim Umblättern in derselben Zelle übereinander. */
+.jr-side {
+  position: relative;
+  z-index: 1;
+  display: grid;
+}
+.jr-side-l {
+  grid-area: 1 / 1;
+}
+.jr-side-r {
+  grid-area: 1 / 2;
+}
+
+.jr-paper {
+  grid-area: 1 / 1;
+  position: relative;
+  min-height: clamp(520px, calc(100dvh - 320px), 760px);
+  padding: 38px 42px 46px;
+  background: radial-gradient(ellipse 130% 95% at 50% 40%, var(--paper) 60%, var(--paper-2) 135%);
+}
+/* Bund in der Mitte mit sanftem Papierschatten, Buchblock mit dezentem Schnitt */
+.jr-left {
+  border-radius: 4px 0 0 4px;
+  box-shadow:
+    inset -20px 0 26px -12px rgb(0 0 0 / 0.22),
+    -1px 1px 0 var(--paper-2),
+    -2px 2px 0 var(--paper),
+    -3px 3px 0 var(--paper-2),
+    -4px 4px 0 var(--paper),
+    -5px 5px 0 var(--paper-2),
+    -8px 12px 20px -4px rgb(0 0 0 / 0.38);
+}
+.jr-right {
+  border-radius: 0 4px 4px 0;
+  box-shadow:
+    inset 20px 0 26px -12px rgb(0 0 0 / 0.22),
+    1px 1px 0 var(--paper-2),
+    2px 2px 0 var(--paper),
+    3px 3px 0 var(--paper-2),
+    4px 4px 0 var(--paper),
+    5px 5px 0 var(--paper-2),
+    8px 12px 20px -4px rgb(0 0 0 / 0.38);
+}
+
+/* Der Editor schreibt mit Tinte */
+.jr-paper :deep(.je-form) {
+  --tx-primary: var(--ink);
+  --tx-secondary: var(--ink-2);
+  --tx-muted: var(--ink-3);
+  --tx-disabled: var(--ink-3);
+  --br-default: var(--rule);
+  --br-subtle: var(--rule);
+  --ring: var(--ink-2);
+  --p-orange: var(--dot);
+}
+.jr-paper :deep(.je-label) {
+  font: 400 25px/1.2 var(--font-serif);
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.jr-paper :deep(.je-q) {
+  gap: 4px;
+}
+.jr-paper :deep(.je-form) {
+  gap: clamp(26px, 3.8vh, 38px);
+}
+.jr-paper :deep(.je-area) {
+  min-height: 52px;
+}
+.jr-paper :deep(.je-area),
+.jr-paper :deep(.je-point-input) {
+  color: var(--ink-2);
+}
+.jr-paper :deep(.je-import:hover) {
+  background: var(--rule);
+}
+
+.jr-page-kicker {
+  font: italic 400 16px/1 var(--font-serif);
+  color: var(--ink-3);
+}
+.jr-day {
+  margin-top: 6px;
+  font: 400 88px/0.9 var(--font-serif);
+  color: var(--ink);
+  font-variant-numeric: lining-nums;
+}
+.jr-day-sub {
+  margin-top: 6px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--rule);
+  font: italic 400 22px/1.25 var(--font-serif);
+  color: var(--ink-2);
+}
+.jr-left-block {
+  margin-top: 24px;
+}
+.jr-left-h {
+  margin: 0 0 8px;
+  font: 400 23px/1.2 var(--font-serif);
+  color: var(--ink);
+}
+.jr-left-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.jr-left-list li {
+  position: relative;
+  padding-left: 16px;
+  font: 400 15px/1.6 var(--font-ui);
+  color: var(--ink-2);
+}
+.jr-left-list li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.7em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dot);
+  opacity: 0.75;
+}
+.jr-page-no {
+  position: absolute;
+  bottom: 20px;
+  font: italic 400 14px/1 var(--font-serif);
+  color: var(--ink-3);
+}
+.jr-left .jr-page-no {
+  left: 28px;
+}
+.jr-right .jr-page-no {
+  right: 28px;
+}
+
+/* Umschlag */
+.jr-cover {
+  grid-area: 1 / 2;
+  z-index: 5;
+  margin: -8px -10px -8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 7px 7px 0;
+  background: linear-gradient(90deg, rgb(0 0 0 / 0.28), transparent 7%), var(--cover);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
+  animation: jr-cover 980ms cubic-bezier(0.5, 0, 0.2, 1) both;
+}
+.jr-cover span {
+  font: italic 400 44px/1 var(--font-serif);
+  color: var(--cover-ink);
+  letter-spacing: 0.02em;
+}
+@keyframes jr-cover {
+  0%,
+  25% {
+    opacity: 1;
+    transform: perspective(2400px) rotateY(0deg);
+  }
+  62% {
+    opacity: 1;
+    transform: perspective(2400px) rotateY(-90deg);
+    filter: brightness(0.6);
+  }
+  62.01%,
+  100% {
+    opacity: 0;
+    transform: perspective(2400px) rotateY(-90deg);
+  }
+}
+
+@keyframes jr-shift {
+  0%,
+  25% {
+    transform: translateX(-25%);
+  }
+  100% {
+    transform: none;
+  }
+}
+.jr-opening .jr-left {
+  animation: jr-appear 160ms 600ms ease-out both;
+}
+@keyframes jr-appear {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Umblättern */
+.jr-paper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+.jr-turning {
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+.jr-turning::after {
+  opacity: 1;
+  background: var(--leaf);
+}
+
+.jr-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.jr-nav-count {
+  min-width: 96px;
+  text-align: center;
+  font: 400 13px/1 var(--font-ui);
+  color: var(--tx-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.jr-more {
+  display: block;
+  margin-top: 12px;
+  text-align: center;
+  text-decoration: none;
+}
+.jr-more:hover {
+  color: var(--tx-secondary);
+  text-decoration: underline;
+}
+
+@media (max-width: 860px) {
+  .jr-spread {
+    grid-template-columns: 1fr;
+    padding: 6px;
+    animation: none;
+  }
+  .jr-cover,
+  .jr-spread::before {
+    display: none;
+  }
+  .jr-spread::after {
+    width: 100%;
+    border-radius: 8px;
+  }
+  .jr-side-r {
+    grid-area: 2 / 1;
+  }
+  .jr-paper {
+    min-height: 0;
+  }
+  .jr-left {
+    padding: 24px 22px;
+    border-radius: 4px 4px 0 0;
+    box-shadow: inset 0 -20px 24px -22px rgb(0 0 0 / 0.3);
+  }
+  .jr-right {
+    padding: 28px 22px 44px;
+    border-radius: 0 0 4px 4px;
+    box-shadow: inset 0 20px 24px -22px rgb(0 0 0 / 0.3);
+  }
+  .jr-left .jr-page-no,
+  .jr-paper::after {
+    display: none;
+  }
+  .jr-day {
+    font-size: 64px;
+  }
+  .jr-day-sub {
+    font-size: 18px;
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+  .jr-opening .jr-left {
+    animation: none;
+  }
+}

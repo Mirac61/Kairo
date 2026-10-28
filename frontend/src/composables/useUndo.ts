@@ -32,17 +32,30 @@ export function useUndo() {
   }
   // Task erledigen oder abbrechen; Rückgängig setzt den vorherigen Status per PATCH.
   // Ein laufender Timer ist dann beendet, daher PAUSED statt IN_PROGRESS.
-  function setDone(task: Task, status: 'COMPLETED' | 'CANCELLED', run: (fn: () => Promise<unknown>) => unknown) {
+  function setDone(
+    task: Task,
+    status: 'COMPLETED' | 'CANCELLED',
+    run: (fn: () => Promise<unknown>) => unknown,
+  ) {
     const { id, title, recurrence_rule } = task
     const prev = task.status === 'IN_PROGRESS' ? 'PAUSED' : task.status
     void run(async () => {
-      const res = await (status === 'COMPLETED' ? taskAction(id, 'complete') : updateTask(id, { status }))
+      const res = await (status === 'COMPLETED'
+        ? taskAction(id, 'complete')
+        : updateTask(id, { status }))
       // Wiederkehrend: Rückgängig entfernt die neu angelegte Wiederholung und gibt der Task ihre Regel zurück.
       const next = (res as { next?: Task } | undefined)?.next
-      offer(t(status === 'COMPLETED' ? '„{title}“ erledigt' : '„{title}“ abgebrochen', { title }), () => run(async () => {
-        if (next) await deleteTask(next.id, true)
-        await updateTask(id, { status: prev, ...(next ? { recurrence_rule: recurrence_rule ?? '' } : {}) })
-      }))
+      offer(
+        t(status === 'COMPLETED' ? '„{title}“ erledigt' : '„{title}“ abgebrochen', { title }),
+        () =>
+          run(async () => {
+            if (next) await deleteTask(next.id, true)
+            await updateTask(id, {
+              status: prev,
+              ...(next ? { recurrence_rule: recurrence_rule ?? '' } : {}),
+            })
+          }),
+      )
     })
   }
   return { pending, offer, undo, show, dismiss, setDone }

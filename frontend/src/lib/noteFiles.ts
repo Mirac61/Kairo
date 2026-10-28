@@ -39,7 +39,7 @@ export function previewImages(
   html: string,
   notePath: string,
   drawing: (path: string) => string | undefined = () => undefined,
-  resolve: (name: string) => string = () => ''
+  resolve: (name: string) => string = () => '',
 ): string {
   return html.replace(/<img\b[^>]*>/g, (tag) => {
     const src = /\ssrc="([^"]*)"/.exec(tag)?.[1]
@@ -65,7 +65,7 @@ export function previewImages(
     const p = decodeURIComponent(url.slice('/api/files/'.length))
     tag = tag.replace(
       /\ssrc="[^"]*"/,
-      () => ` data-drawing="${escapeHtmlAttr(p)}" src="${drawing(p) ?? PENDING}"`
+      () => ` data-drawing="${escapeHtmlAttr(p)}" src="${drawing(p) ?? PENDING}"`,
     )
 
     // not-zoom: md-editor legt sonst seinen Bild-Zoom darüber; ein Klick öffnet die Zeichnung.
@@ -176,7 +176,7 @@ export type Embedded = { file: string } | { tex: string } | { other: string }
 
 export function parseObsidianDrawing(
   text: string,
-  decompress: (s: string) => string | null
+  decompress: (s: string) => string | null,
 ): { scene: ObsidianScene; embedded: Map<string, Embedded> } {
   const m = /```(compressed-json|json)\n([\s\S]*?)\n```/.exec(text)
   if (!m) {
@@ -206,7 +206,7 @@ export function parseObsidianDrawing(
 
     embedded.set(
       e[1]!,
-      link ? { file: link[1]!.trim() } : tex ? { tex: tex[1]!.trim() } : { other: v }
+      link ? { file: link[1]!.trim() } : tex ? { tex: tex[1]!.trim() } : { other: v },
     )
   }
 
@@ -221,7 +221,10 @@ export function fillTemplate(text: string, notePath: string, now = new Date()): 
   const pad = (n: number) => String(n).padStart(2, '0')
   const parts = notePath.split('/')
   const values: Record<string, string> = {
-    titel: parts.at(-1)!.replace(/\.md$/i, '').replace(/^\d{4}-\d{2}-\d{2}\s+(?=\S)/, ''),
+    titel: parts
+      .at(-1)!
+      .replace(/\.md$/i, '')
+      .replace(/^\d{4}-\d{2}-\d{2}\s+(?=\S)/, ''),
     ordner: parts.at(-2) ?? '',
     datum: `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`,
     wochentag: DAYS[now.getDay()]!,
@@ -321,9 +324,7 @@ export function rankCandidates(query: string, candidates: WikiCandidate[]): Wiki
     .filter((x) => x.s > 0)
     .sort(
       (a, b) =>
-        b.s - a.s ||
-        a.c.path.length - b.c.path.length ||
-        a.c.label.localeCompare(b.c.label)
+        b.s - a.s || a.c.path.length - b.c.path.length || a.c.label.localeCompare(b.c.label),
     )
     .map((x) => x.c)
 }

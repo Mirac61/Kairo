@@ -2,7 +2,12 @@
 
 // Minuten seit Mitternacht in der Zeitzone tz (undefined = Browser).
 export function minutesOfDay(ms: number, tz?: string) {
-  const p = new Intl.DateTimeFormat('de-DE', { hour: 'numeric', minute: 'numeric', hourCycle: 'h23', timeZone: tz }).formatToParts(new Date(ms))
+  const p = new Intl.DateTimeFormat('de-DE', {
+    hour: 'numeric',
+    minute: 'numeric',
+    hourCycle: 'h23',
+    timeZone: tz,
+  }).formatToParts(new Date(ms))
   const n = (t: string) => Number(p.find((x) => x.type === t)?.value ?? 0)
   return n('hour') * 60 + n('minute')
 }
@@ -15,8 +20,17 @@ export function stopwatch(secs: number) {
 }
 
 // Abgeschlossene Zeit einer Task in Sekunden.
-export const doneSeconds = (entries: { task_id?: string | null; started_at: string; ended_at?: string | null }[], id: string) =>
-  entries.reduce((s, e) => (e.task_id === id && e.ended_at ? s + (Date.parse(e.ended_at) - Date.parse(e.started_at)) / 1000 : s), 0)
+export const doneSeconds = (
+  entries: { task_id?: string | null; started_at: string; ended_at?: string | null }[],
+  id: string,
+) =>
+  entries.reduce(
+    (s, e) =>
+      e.task_id === id && e.ended_at
+        ? s + (Date.parse(e.ended_at) - Date.parse(e.started_at)) / 1000
+        : s,
+    0,
+  )
 
 // Überlappende Blöcke stehen nebeneinander: Spalte und Spaltenzahl je Block.
 // blocks sind nach Beginn sortiert; kürzere Blöcke zählen mit minLen (so hoch zeichnet sie das Raster).
@@ -42,7 +56,13 @@ export function columns(blocks: { key: string; start: number; end: number }[], m
 
 // Erster freier Platz für `minutes` ab `from` im Fenster [winStart, winEnd] (Minuten seit Mitternacht), auf 5 Minuten aufgerundet.
 // busy ist nach Beginn sortiert. prev/next sind die Blöcke direkt davor und danach; null = kein freier Platz.
-export function findSlot<T extends { start: number; end: number }>(busy: T[], from: number, winStart: number, winEnd: number, minutes: number) {
+export function findSlot<T extends { start: number; end: number }>(
+  busy: T[],
+  from: number,
+  winStart: number,
+  winEnd: number,
+  minutes: number,
+) {
   let at = Math.ceil(Math.max(from, winStart) / 5) * 5
   for (const b of busy) {
     if (b.end <= at) continue
@@ -61,7 +81,12 @@ export function blockEndMinutes(startMin: number, endMin: number) {
 }
 
 // Freie Lücken von mindestens minLen Minuten in [from, to] zwischen den Blöcken (nach Beginn sortiert).
-export function gaps(blocks: { start: number; end: number }[], from: number, to: number, minLen: number) {
+export function gaps(
+  blocks: { start: number; end: number }[],
+  from: number,
+  to: number,
+  minLen: number,
+) {
   const out: { start: number; end: number }[] = []
   let at = from
   for (const b of blocks) {

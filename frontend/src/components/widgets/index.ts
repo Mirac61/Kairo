@@ -13,6 +13,14 @@ import WeekWidget from './WeekWidget.vue'
 
 // Komponente je Widget; Titel und erlaubte Größen stehen in lib/homeLayout.ts.
 export const WIDGET_COMPONENTS: Record<WidgetId, Component> = {
-  dayplan: DayplanWidget, agenda: AgendaWidget, now: NowWidget, habits: HabitsWidget, goal: GoalWidget,
-  cards: CardsWidget, journal: JournalWidget, week: WeekWidget, note: NoteWidget, github: GithubWidget,
+  dayplan: DayplanWidget,
+  agenda: AgendaWidget,
+  now: NowWidget,
+  habits: HabitsWidget,
+  goal: GoalWidget,
+  cards: CardsWidget,
+  journal: JournalWidget,
+  week: WeekWidget,
+  note: NoteWidget,
+  github: GithubWidget,
 }

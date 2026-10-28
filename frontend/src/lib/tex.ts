@@ -9,6 +9,10 @@ import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js'
 // Eigener Chunk: nur das Umwandeln von Obsidian-Zeichnungen und Lernkarten mit $…$ laden ihn.
 const adaptor = liteAdaptor()
 RegisterHTMLHandler(adaptor)
-const doc = mathjax.document('', { InputJax: new TeX({ packages: AllPackages }), OutputJax: new SVG({ fontCache: 'none' }) })
+const doc = mathjax.document('', {
+  InputJax: new TeX({ packages: AllPackages }),
+  OutputJax: new SVG({ fontCache: 'none' }),
+})
 
-export const texToSvg = (tex: string, display = true) => adaptor.innerHTML(doc.convert(tex, { display }))
+export const texToSvg = (tex: string, display = true) =>
+  adaptor.innerHTML(doc.convert(tex, { display }))

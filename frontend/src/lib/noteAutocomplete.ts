@@ -3,7 +3,14 @@
 // ![[…]] vervollständigt Assets (Bild, PDF, Zeichnung). Ohne Treffer steht „Neue Notiz anlegen“ bereit.
 import type { Completion, CompletionResult, CompletionSource } from '@codemirror/autocomplete'
 import { t } from './i18n'
-import { assetCandidates, fold, noteCandidates, rankCandidates, resolveNote, type WikiCandidate } from './noteFiles'
+import {
+  assetCandidates,
+  fold,
+  noteCandidates,
+  rankCandidates,
+  resolveNote,
+  type WikiCandidate,
+} from './noteFiles'
 
 export interface WikiAutocomplete {
   path: string
@@ -11,7 +18,12 @@ export interface WikiAutocomplete {
   readHeadings: (notePath: string) => Promise<string[]>
 }
 
-const ICON: Record<WikiCandidate['kind'], string> = { note: '▤', image: '◧', pdf: '▣', excalidraw: '✎' }
+const ICON: Record<WikiCandidate['kind'], string> = {
+  note: '▤',
+  image: '◧',
+  pdf: '▣',
+  excalidraw: '✎',
+}
 
 const LIMIT = 20
 
@@ -47,7 +59,10 @@ export function wikiCompletionSource(opts: WikiAutocomplete): CompletionSource {
 
     if (embed) {
       // ![[Name — der Name vor einem optionalen |900 (Breite) wird vervollständigt.
-      const list = rankCandidates(inner.split('|', 1)[0]!, assetCandidates(opts.files)).slice(0, LIMIT)
+      const list = rankCandidates(inner.split('|', 1)[0]!, assetCandidates(opts.files)).slice(
+        0,
+        LIMIT,
+      )
       return { from, options: list.map(option) }
     }
 
@@ -61,8 +76,14 @@ export function wikiCompletionSource(opts: WikiAutocomplete): CompletionSource {
       const q = inner.slice(hash + 1)
       const hFrom = pos - q.length
       return headingCache(target).then((hs) => {
-        const list = rankCandidates(q, hs.map((h) => ({ label: h, path: target, detail: '', kind: 'note' }))).slice(0, LIMIT)
-        return { from: hFrom, options: list.map((c) => ({ label: c.label, type: 'heading', apply: `${c.label}]]` })) }
+        const list = rankCandidates(
+          q,
+          hs.map((h) => ({ label: h, path: target, detail: '', kind: 'note' })),
+        ).slice(0, LIMIT)
+        return {
+          from: hFrom,
+          options: list.map((c) => ({ label: c.label, type: 'heading', apply: `${c.label}]]` })),
+        }
       })
     }
 
@@ -70,7 +91,11 @@ export function wikiCompletionSource(opts: WikiAutocomplete): CompletionSource {
     const options = list.map(option)
     const name = inner.trim()
     if (name && !list.some((c) => fold(c.label) === fold(name))) {
-      options.push({ label: t('Neue Notiz „{name}“ anlegen', { name }), type: 'keyword', apply: `${name}]]` })
+      options.push({
+        label: t('Neue Notiz „{name}“ anlegen', { name }),
+        type: 'keyword',
+        apply: `${name}]]`,
+      })
     }
     return { from, options }
   }

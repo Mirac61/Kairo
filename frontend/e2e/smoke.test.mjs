@@ -34,16 +34,23 @@ async function api(path, init = {}) {
 }
 
 before(async () => {
-  server = spawn(process.env.KAIRO_BIN ?? new URL('../../backend/bin/kairo', import.meta.url).pathname, { env, stdio: 'inherit' })
+  server = spawn(
+    process.env.KAIRO_BIN ?? new URL('../../backend/bin/kairo', import.meta.url).pathname,
+    { env, stdio: 'inherit' },
+  )
   for (let i = 0; ; i++) {
     try {
       if ((await fetch(`${base}/api/health`)).ok) break
-    } catch { /* startet noch */ }
+    } catch {
+      /* startet noch */
+    }
     if (i > 50) throw new Error('Backend startet nicht')
     await new Promise((r) => setTimeout(r, 100))
   }
   browser = await chromium.launch()
-  page = await (await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' })).newPage()
+  page = await (
+    await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' })
+  ).newPage()
 })
 
 after(async () => {
@@ -65,11 +72,16 @@ test('Mehrere Zeilen einfügen legt mehrere Aufgaben an, Rückgängig löscht si
   await page.getByLabel('Neue Aufgabe hinzufügen').evaluate((el) => {
     const dt = new DataTransfer()
     dt.setData('text/plain', 'Paste-Eins 15m\nPaste-Zwei !hoch\n')
-    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+    el.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }),
+    )
   })
   await page.getByText('2 Aufgaben angelegt').waitFor()
   const made = (await api('/tasks')).filter((t) => t.title.startsWith('Paste-'))
-  assert.deepEqual(made.map((t) => [t.title, t.estimated_minutes, t.priority]).sort(), [['Paste-Eins', 15, 'MEDIUM'], ['Paste-Zwei', 0, 'HIGH']])
+  assert.deepEqual(made.map((t) => [t.title, t.estimated_minutes, t.priority]).sort(), [
+    ['Paste-Eins', 15, 'MEDIUM'],
+    ['Paste-Zwei', 0, 'HIGH'],
+  ])
   await page.locator('#toasts').getByRole('button', { name: 'Rückgängig' }).click()
   await page.locator('.task-row', { hasText: 'Paste-Eins' }).waitFor({ state: 'detached' })
   assert.equal((await api('/tasks')).filter((t) => t.title.startsWith('Paste-')).length, 0)
@@ -95,7 +107,10 @@ test('Timer starten und stoppen', async () => {
 test('Termin verschieben', async () => {
   const day = new Date().toLocaleDateString('sv')
   const at = (h) => new Date(`${day}T${h}:00`).toISOString()
-  const ev = await api('/calendar/events', { method: 'POST', body: JSON.stringify({ title: 'Smoke-Termin', start_at: at('10:00'), end_at: at('11:00') }) })
+  const ev = await api('/calendar/events', {
+    method: 'POST',
+    body: JSON.stringify({ title: 'Smoke-Termin', start_at: at('10:00'), end_at: at('11:00') }),
+  })
   await page.addInitScript(() => localStorage.setItem('kairo-cal-view', 'timeGridDay'))
   await page.goto(`${base}/calendar`)
   // Steht der WebSocket, lädt der Kalender neu und ersetzt die Termin-Elemente; erst danach ziehen.
@@ -109,14 +124,24 @@ test('Termin verschieben', async () => {
   await page.mouse.down()
   await page.mouse.move(box.x + box.width / 2, box.y + 10 + 2 * slot.height, { steps: 10 })
   await page.mouse.up()
-  await page.waitForResponse((r) => r.url().includes(`/calendar/events/${ev.id}`) && r.request().method() !== 'GET')
+  await page.waitForResponse(
+    (r) => r.url().includes(`/calendar/events/${ev.id}`) && r.request().method() !== 'GET',
+  )
   const moved = (await api(`/calendar/events/${ev.id}`)).start_at
   assert.ok(new Date(moved) > new Date(ev.start_at), `verschoben: ${ev.start_at} → ${moved}`)
 })
 
 test('Gewohnheit: Menge zählt bis zum Ziel, Tag aussetzen', async () => {
   const day = new Date().toLocaleDateString('sv')
-  const h = await api('/habits', { method: 'POST', body: JSON.stringify({ name: 'Smoke-Wasser', frequency_type: 'DAILY', target_value: 2, unit: 'Gläser' }) })
+  const h = await api('/habits', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: 'Smoke-Wasser',
+      frequency_type: 'DAILY',
+      target_value: 2,
+      unit: 'Gläser',
+    }),
+  })
   await page.goto(`${base}/habits`)
   const row = page.locator('.hd-row', { hasText: 'Smoke-Wasser' })
   await row.locator('.hd-pick').click()
@@ -128,7 +153,10 @@ test('Gewohnheit: Menge zählt bis zum Ziel, Tag aussetzen', async () => {
   await panel.locator('.hd-qring.full').waitFor()
   await row.locator('.hw-c.today.done').waitFor()
   const cs = await api(`/habits/${h.id}/completions`)
-  assert.deepEqual(cs.map((c) => [c.date, c.value]), [[day, 2]])
+  assert.deepEqual(
+    cs.map((c) => [c.date, c.value]),
+    [[day, 2]],
+  )
 
   // Zurück auf 0 und aussetzen: dann ist heute im Raster ausgesetzt.
   await panel.getByRole('button', { name: 'Weniger' }).click()
@@ -148,7 +176,8 @@ test('Gewohnheit mit Uhrzeit im Kalender abhaken', async () => {
   await page.getByLabel('Name').fill('Smoke-Gewohnheit')
   await page.getByRole('button', { name: 'Bestimmte Tage' }).click()
   // Montag ist vorausgewählt; heute dazunehmen, damit sie im Tageskalender erscheint.
-  if (idx > 0) await page.getByRole('group', { name: 'Wochentage' }).getByRole('button').nth(idx).click()
+  if (idx > 0)
+    await page.getByRole('group', { name: 'Wochentage' }).getByRole('button').nth(idx).click()
   await page.getByLabel('Uhrzeit', { exact: true }).fill('10:00')
   await page.getByRole('button', { name: 'Anlegen', exact: true }).click()
   await page.locator('.hd-row', { hasText: 'Smoke-Gewohnheit' }).waitFor()
@@ -162,7 +191,9 @@ test('Gewohnheit mit Uhrzeit im Kalender abhaken', async () => {
   const block = page.locator('.fc-event.kt-habit', { hasText: 'Smoke-Gewohnheit' })
   await block.scrollIntoViewIfNeeded()
   await block.click()
-  await page.waitForResponse((r) => r.url().includes(`/habits/${h.id}/completions`) && r.request().method() === 'POST')
+  await page.waitForResponse(
+    (r) => r.url().includes(`/habits/${h.id}/completions`) && r.request().method() === 'POST',
+  )
   const done = await api(`/habits/${h.id}/completions?from=${day}&to=${day}`)
   assert.equal(done.length, 1)
 })
@@ -176,18 +207,28 @@ test('Notiz speichern', async () => {
   await editor.click()
   await page.keyboard.type('Hallo aus dem Smoke-Test')
   await page.keyboard.press('ControlOrMeta+s')
-  await page.waitForResponse((r) => r.url().includes('/api/notes/Smoke.md') && r.request().method() === 'PUT')
-  assert.match(readFileSync(join(env.KAIRO_NOTES_DIR, 'Smoke.md'), 'utf8'), /Hallo aus dem Smoke-Test/)
+  await page.waitForResponse(
+    (r) => r.url().includes('/api/notes/Smoke.md') && r.request().method() === 'PUT',
+  )
+  assert.match(
+    readFileSync(join(env.KAIRO_NOTES_DIR, 'Smoke.md'), 'utf8'),
+    /Hallo aus dem Smoke-Test/,
+  )
 })
 
 // Ziel mit Bild anlegen: das Bild landet im Notizordner unter Ziele/, die Karte zeigt es.
 test('Ziel mit Bild anlegen', async () => {
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+  )
   await page.goto(`${base}/goals`)
   await page.getByRole('button', { name: /Neues Ziel/ }).click()
   await page.getByLabel('Ziel', { exact: true }).fill('Smoke-Ziel')
   await page.getByLabel('Warum?').fill('Weil es geht')
-  await page.getByLabel('Bild').setInputFiles({ name: 'bild.png', mimeType: 'image/png', buffer: png })
+  await page
+    .getByLabel('Bild')
+    .setInputFiles({ name: 'bild.png', mimeType: 'image/png', buffer: png })
   await page.getByRole('button', { name: 'Anlegen' }).click()
   await page.locator('.gl-card', { hasText: 'Smoke-Ziel' }).locator('img').waitFor()
   const [g] = (await api('/goals')).filter((x) => x.title === 'Smoke-Ziel')
@@ -200,33 +241,56 @@ test('Journal speichern', async () => {
   await page.goto(`${base}/journal`)
   await page.getByLabel('Was lief gut?').fill('Smoke grün')
   await page.getByLabel('Was ist morgen wichtig?').fill('Weiter so')
-  const saved = page.waitForResponse((r) => r.url().includes('/api/notes/Journal/') && r.request().method() === 'PUT')
+  const saved = page.waitForResponse(
+    (r) => r.url().includes('/api/notes/Journal/') && r.request().method() === 'PUT',
+  )
   await page.locator('.je-saved').waitFor()
   await saved
   const d = new Date()
   const file = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.md`
   const md = readFileSync(join(env.KAIRO_NOTES_DIR, 'Journal', file), 'utf8')
-  assert.match(md, /## Was lief gut\?\n\nSmoke grün\n\n## Was lerne ich daraus\?\n\n## Was ist morgen wichtig\?\n\nWeiter so\n/)
+  assert.match(
+    md,
+    /## Was lief gut\?\n\nSmoke grün\n\n## Was lerne ich daraus\?\n\n## Was ist morgen wichtig\?\n\nWeiter so\n/,
+  )
 })
 
 // Kein Textverlust: Der Wechsel schreibt den offenen Eintrag, und geöffnete Felder sind sofort aufgeklappt.
 test('Journal: Autosave beim Verlassen und beim Eintragswechsel', async () => {
   const journalDir = join(env.KAIRO_NOTES_DIR, 'Journal')
   mkdirSync(journalDir, { recursive: true })
-  const dateOf = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('sv') }
+  const dateOf = (offset) => {
+    const d = new Date()
+    d.setDate(d.getDate() + offset)
+    return d.toLocaleDateString('sv')
+  }
   const two = dateOf(-2)
   const three = dateOf(-3)
-  writeFileSync(join(journalDir, `${two}.md`), `# Journal ${two}\n\n## Was lief gut?\n\nZeile eins\nZeile zwei\nZeile drei\n`)
-  writeFileSync(join(journalDir, `${three}.md`), `# Journal ${three}\n\n## Was lief gut?\n\nAnderer Tag\n`)
+  writeFileSync(
+    join(journalDir, `${two}.md`),
+    `# Journal ${two}\n\n## Was lief gut?\n\nZeile eins\nZeile zwei\nZeile drei\n`,
+  )
+  writeFileSync(
+    join(journalDir, `${three}.md`),
+    `# Journal ${three}\n\n## Was lief gut?\n\nAnderer Tag\n`,
+  )
 
   // Verlassen: Ein Klick auf die Navigation wechselt die Ansicht ohne Neuladen der Seite.
   await page.goto(`${base}/journal`)
   await page.getByLabel('Was lief gut?').fill('Kein Verlust beim Verlassen')
-  const leaving = page.waitForResponse((r) => r.url().includes('/api/notes/Journal/') && r.request().method() === 'PUT')
-  await page.locator('.sidebar').getByRole('link', { name: /^Aufgaben/ }).click()
+  const leaving = page.waitForResponse(
+    (r) => r.url().includes('/api/notes/Journal/') && r.request().method() === 'PUT',
+  )
+  await page
+    .locator('.sidebar')
+    .getByRole('link', { name: /^Aufgaben/ })
+    .click()
   await leaving
   await page.waitForURL(/\/tasks$/)
-  assert.match(readFileSync(join(journalDir, `${dateOf(0)}.md`), 'utf8'), /Kein Verlust beim Verlassen/)
+  assert.match(
+    readFileSync(join(journalDir, `${dateOf(0)}.md`), 'utf8'),
+    /Kein Verlust beim Verlassen/,
+  )
 
   // Aufschlagen: drei Zeilen stehen sofort vollständig da, nicht abgeschnitten.
   await page.goto(`${base}/journal`)
@@ -239,18 +303,30 @@ test('Journal: Autosave beim Verlassen und beim Eintragswechsel', async () => {
 
   // Umblättern: Erst wird die alte Seite geschrieben, dann die neue aufgeschlagen.
   await area.fill('Wechsel eins\nWechsel zwei')
-  const saving = page.waitForResponse((r) => r.url().includes(`/api/notes/Journal/${two}.md`) && r.request().method() === 'PUT')
+  const saving = page.waitForResponse(
+    (r) => r.url().includes(`/api/notes/Journal/${two}.md`) && r.request().method() === 'PUT',
+  )
   await page.getByRole('button', { name: 'Vorherige Seite' }).click()
   await saving
   await page.locator(`.jr-entry[data-date="${three}"]`).waitFor()
   await page.getByRole('button', { name: 'Nächste Seite' }).click()
-  await page.waitForFunction((d) => [...document.querySelectorAll('.jr-entry')].map((e) => e.dataset.date).join() === d, two)
-  assert.equal(await page.locator(`.jr-entry[data-date="${two}"] .je-area`).first().inputValue(), 'Wechsel eins\nWechsel zwei')
+  await page.waitForFunction(
+    (d) => [...document.querySelectorAll('.jr-entry')].map((e) => e.dataset.date).join() === d,
+    two,
+  )
+  assert.equal(
+    await page.locator(`.jr-entry[data-date="${two}"] .je-area`).first().inputValue(),
+    'Wechsel eins\nWechsel zwei',
+  )
 })
 
 // Die Punktreihe öffnet den passenden Tag; ein Tab-Stopp, Pfeiltasten wandern tageweise.
 test('Journal: Heatmap öffnet Einträge', async () => {
-  const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('sv') }
+  const day = (offset) => {
+    const d = new Date()
+    d.setDate(d.getDate() + offset)
+    return d.toLocaleDateString('sv')
+  }
   const two = day(-2)
   await page.goto(`${base}/journal`)
   const heat = page.locator('.jr-heat')
@@ -265,15 +341,24 @@ test('Journal: Heatmap öffnet Einträge', async () => {
   const cell = page.locator(`.jr-heat-cell[data-date="${two}"]`)
   assert.match(await cell.getAttribute('class'), /\bon\b/)
   await cell.click()
-  await page.waitForFunction((d) => [...document.querySelectorAll('.jr-entry')].map((e) => e.dataset.date).join() === d, two)
+  await page.waitForFunction(
+    (d) => [...document.querySelectorAll('.jr-entry')].map((e) => e.dataset.date).join() === d,
+    two,
+  )
   await page.locator(`.jr-entry[data-date="${two}"] .je-area`).first().waitFor()
 
   // Pfeiltasten verschieben den Fokus um einen Tag.
   await cell.focus()
   await page.keyboard.press('ArrowLeft')
-  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-date')), day(-3))
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.getAttribute('data-date')),
+    day(-3),
+  )
   await page.keyboard.press('ArrowRight')
-  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-date')), day(-2))
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.getAttribute('data-date')),
+    day(-2),
+  )
 
   // Ein leerer Tag öffnet den Nachtragen-Dialog mit diesem Datum.
   const empty = day(-40)
@@ -285,9 +370,17 @@ test('Journal: Heatmap öffnet Einträge', async () => {
 })
 
 test('Journal: blättern und durchsuchen', async () => {
-  const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('sv') }
+  const day = (offset) => {
+    const d = new Date()
+    d.setDate(d.getDate() + offset)
+    return d.toLocaleDateString('sv')
+  }
   // Nach dem Umblättern liegt genau eine Seite aufgeschlagen.
-  const shown = (d) => page.waitForFunction((d) => [...document.querySelectorAll('.jr-entry')].map((e) => e.dataset.date).join() === d, d)
+  const shown = (d) =>
+    page.waitForFunction(
+      (d) => [...document.querySelectorAll('.jr-entry')].map((e) => e.dataset.date).join() === d,
+      d,
+    )
   await page.goto(`${base}/journal`)
   await shown(day(0))
 
@@ -333,9 +426,16 @@ test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => 
   const dir = join(env.KAIRO_NOTES_DIR, 'Journal')
   mkdirSync(dir, { recursive: true })
   await page.goto(`${base}/today`)
-  assert.equal(await page.locator('.st-journal').count(), 0, 'ohne Eintrag von gestern bleibt der Block verborgen')
+  assert.equal(
+    await page.locator('.st-journal').count(),
+    0,
+    'ohne Eintrag von gestern bleibt der Block verborgen',
+  )
 
-  writeFileSync(join(dir, `${date}.md`), `# Journal ${date}\n\n## Was ist morgen wichtig?\n\nMorgen Abgabe vorbereiten.\n`)
+  writeFileSync(
+    join(dir, `${date}.md`),
+    `# Journal ${date}\n\n## Was ist morgen wichtig?\n\nMorgen Abgabe vorbereiten.\n`,
+  )
   await page.reload()
   const reminder = page.locator('.st-journal')
   await reminder.getByText('Morgen Abgabe vorbereiten.').waitFor()
@@ -345,19 +445,21 @@ test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => 
   assert.equal(await point.inputValue(), 'Morgen Abgabe vorbereiten.')
 })
 
-
 test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
   const date = new Date().toLocaleDateString('sv')
   mkdirSync(join(env.KAIRO_NOTES_DIR, 'Journal'), { recursive: true })
-  writeFileSync(join(env.KAIRO_NOTES_DIR, 'Journal', `${date}.md`), [
-    `# Journal ${date}`,
-    '',
-    '## Was ist morgen wichtig?',
-    '',
-    'Abgabe einreichen. Kapitel lesen',
-    '- Sport machen',
-    '',
-  ].join('\n'))
+  writeFileSync(
+    join(env.KAIRO_NOTES_DIR, 'Journal', `${date}.md`),
+    [
+      `# Journal ${date}`,
+      '',
+      '## Was ist morgen wichtig?',
+      '',
+      'Abgabe einreichen. Kapitel lesen',
+      '- Sport machen',
+      '',
+    ].join('\n'),
+  )
 
   await page.goto(`${base}/journal`)
   await page.locator('.jr-today .je-point-input').first().waitFor()
@@ -365,22 +467,35 @@ test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
   const dialog = page.getByRole('dialog', { name: 'Als Aufgaben übernehmen' })
   const candidates = dialog.locator('.je-task-candidate')
   await candidates.nth(1).locator('input[type="text"]').fill('Kapitel 7 lesen')
-  const created = page.waitForResponse((response) => response.url().endsWith(`/api/journal/${date}/tasks`) && response.request().method() === 'POST')
+  const created = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/journal/${date}/tasks`) &&
+      response.request().method() === 'POST',
+  )
   await dialog.getByRole('button', { name: 'Aufgaben anlegen' }).click()
   const response = await created
   assert.equal(response.status(), 201, await response.text())
 
   await page.getByText('2 Aufgaben übernommen').waitFor()
   const imported = (await api('/tasks')).filter((task) => task.source_journal_date === date)
-  assert.deepEqual(imported.map((task) => task.title).sort(), ['Abgabe einreichen. Kapitel lesen', 'Kapitel 7 lesen'])
+  assert.deepEqual(imported.map((task) => task.title).sort(), [
+    'Abgabe einreichen. Kapitel lesen',
+    'Kapitel 7 lesen',
+  ])
   const expectedDue = new Date(`${date}T12:00:00`)
   expectedDue.setDate(expectedDue.getDate() + 1)
   for (const task of imported) {
-    assert.equal(new Date(task.due_at).toLocaleDateString('sv'), expectedDue.toLocaleDateString('sv'))
+    assert.equal(
+      new Date(task.due_at).toLocaleDateString('sv'),
+      expectedDue.toLocaleDateString('sv'),
+    )
   }
 
   // Dedup: ein bereits importierter Titel wird nicht doppelt angelegt.
-  const retry = await api(`/journal/${date}/tasks`, { method: 'POST', body: JSON.stringify({ titles: ['Abgabe einreichen. Kapitel lesen'] }) })
+  const retry = await api(`/journal/${date}/tasks`, {
+    method: 'POST',
+    body: JSON.stringify({ titles: ['Abgabe einreichen. Kapitel lesen'] }),
+  })
   assert.equal(retry.task_count, 2)
   assert.equal((await api('/tasks')).filter((task) => task.source_journal_date === date).length, 2)
 
@@ -389,14 +504,23 @@ test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
   await sideTask.waitFor()
   await sideTask.getByRole('checkbox').click()
   await sideTask.waitFor({ state: 'detached' })
-  assert.equal((await api('/tasks')).find((task) => task.title === 'Kapitel 7 lesen').status, 'COMPLETED')
+  assert.equal(
+    (await api('/tasks')).find((task) => task.title === 'Kapitel 7 lesen').status,
+    'COMPLETED',
+  )
 })
 
 test('Journal: Rückblick listet erledigte Aufgaben auf', async () => {
   const today = new Date().toLocaleDateString('sv')
   for (let i = 1; i <= 8; i++) {
-    const task = await api('/tasks', { method: 'POST', body: JSON.stringify({ title: `Rückblick ${i}`, planned_date: today }) })
-    await api(`/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'COMPLETED' }) })
+    const task = await api('/tasks', {
+      method: 'POST',
+      body: JSON.stringify({ title: `Rückblick ${i}`, planned_date: today }),
+    })
+    await api(`/tasks/${task.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'COMPLETED' }),
+    })
   }
   await page.goto(`${base}/journal`)
   const recap = page.locator('.jr-recap')
@@ -407,7 +531,9 @@ test('Journal: Rückblick listet erledigte Aufgaben auf', async () => {
 test('Journal: „Alle Aufgaben“ filtert nach Journal', async () => {
   await page.goto(`${base}/journal`)
   const open = await api('/tasks')
-  const expected = open.filter((task) => task.source_journal_date && !['COMPLETED', 'CANCELLED'].includes(task.status))
+  const expected = open.filter(
+    (task) => task.source_journal_date && !['COMPLETED', 'CANCELLED'].includes(task.status),
+  )
   assert.ok(expected.length, 'mindestens eine offene Journal-Aufgabe')
   await page.locator('.jr-open-all').click()
   await page.waitForURL(/\/tasks\?filter=journal$/)
@@ -431,7 +557,10 @@ test('Journal am Handy: Seite vor den offenen Aufgaben und kein Überlauf', asyn
         overflow: document.documentElement.scrollWidth - window.innerWidth,
       }
     })
-    assert.ok(box.tops.every((top, i) => i === 0 || top > box.tops[i - 1]), `Reihenfolge: ${box.tops}`)
+    assert.ok(
+      box.tops.every((top, i) => i === 0 || top > box.tops[i - 1]),
+      `Reihenfolge: ${box.tops}`,
+    )
     assert.ok(box.overflow <= 1, `kein Überlauf: ${box.overflow}px`)
   } finally {
     await page.setViewportSize({ width: 1400, height: 900 })
@@ -440,7 +569,11 @@ test('Journal am Handy: Seite vor den offenen Aufgaben und kein Überlauf', asyn
 
 test('Journal: verpassten Tag nachtragen', async () => {
   const dir = join(env.KAIRO_NOTES_DIR, 'Journal')
-  const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('sv') }
+  const day = (offset) => {
+    const d = new Date()
+    d.setDate(d.getDate() + offset)
+    return d.toLocaleDateString('sv')
+  }
   const date = day(-4)
   const empty = day(-5)
   assert.ok(!existsSync(join(dir, `${date}.md`)))
@@ -454,7 +587,9 @@ test('Journal: verpassten Tag nachtragen', async () => {
   const entry = page.locator(`.jr-entry[data-date="${date}"]`)
   const area = entry.locator('.je-area').first()
   await area.waitFor()
-  const saved = page.waitForResponse((r) => r.url().includes(`/api/notes/Journal/${date}.md`) && r.request().method() === 'PUT')
+  const saved = page.waitForResponse(
+    (r) => r.url().includes(`/api/notes/Journal/${date}.md`) && r.request().method() === 'PUT',
+  )
   await area.fill('Nachgetragen')
   await entry.locator('.je-saved').waitFor()
   await saved
@@ -499,7 +634,9 @@ test('Lernkarte bewerten', async () => {
   await page.getByText('Smoke-Frage').waitFor()
   await page.keyboard.press('Space')
   await page.getByText('Smoke-Antwort').waitFor()
-  const reviewed = page.waitForResponse((r) => r.url().includes('/review') && r.request().method() === 'POST')
+  const reviewed = page.waitForResponse(
+    (r) => r.url().includes('/review') && r.request().method() === 'POST',
+  )
   await page.keyboard.press('3')
   await reviewed
   await page.getByText('Runde geschafft').waitFor()
@@ -512,7 +649,10 @@ test('Lernkarte bewerten', async () => {
   await page.keyboard.press('3')
   await page.getByText('Runde geschafft').waitFor()
   const due = await api('/cards/due')
-  assert.deepEqual(due.map((c) => [c.deck, c.question]), [['Smoke-Fach', 'Eigene Frage']])
+  assert.deepEqual(
+    due.map((c) => [c.deck, c.question]),
+    [['Smoke-Fach', 'Eigene Frage']],
+  )
 })
 
 // Rechteck auf PDF und Bild zeichnen und speichern; die Datei auf der Platte muss sich ändern.
@@ -539,7 +679,9 @@ test('PDF und Bild bezeichnen', async () => {
     await page.mouse.move(box.x + 140, box.y + 120, { steps: 5 })
     await page.mouse.up()
     await page.keyboard.press('ControlOrMeta+s')
-    await page.waitForResponse((r) => r.url().includes(`/api/files/${name}`) && r.request().method() === 'PUT')
+    await page.waitForResponse(
+      (r) => r.url().includes(`/api/files/${name}`) && r.request().method() === 'PUT',
+    )
     assert.notDeepEqual(readFileSync(join(env.KAIRO_NOTES_DIR, name)), before, name)
   }
 })
@@ -556,7 +698,10 @@ test('Ordner hinzufügen', async () => {
   await page.goto(`${base}/notes`)
   await page.locator('input[webkitdirectory]').setInputFiles(src)
   await page.getByRole('treeitem', { name: 'Tief', exact: true }).waitFor()
-  assert.equal(readFileSync(join(env.KAIRO_NOTES_DIR, 'Mappe', 'Unter', 'Tief.md'), 'utf8'), '# Tief')
+  assert.equal(
+    readFileSync(join(env.KAIRO_NOTES_DIR, 'Mappe', 'Unter', 'Tief.md'), 'utf8'),
+    '# Tief',
+  )
   assert.equal(readFileSync(join(env.KAIRO_NOTES_DIR, 'Mappe', 'Liste.md'), 'utf8'), '# Liste')
   assert.ok(!existsSync(join(env.KAIRO_NOTES_DIR, 'Mappe', 'Text.txt')))
   await page.getByRole('treeitem', { name: 'Makefile.Others', exact: true }).click()
@@ -578,8 +723,13 @@ test('Zeichnung', async () => {
   await page.mouse.down()
   await page.mouse.move(box.x + box.width / 2 + 160, box.y + box.height / 2 + 100, { steps: 5 })
   await page.mouse.up()
-  await page.waitForResponse((r) => r.url().includes('/api/files/Skizze.excalidraw') && r.request().method() === 'PUT')
-  assert.match(readFileSync(join(env.KAIRO_NOTES_DIR, 'Skizze.excalidraw'), 'utf8'), /"type": "rectangle"/)
+  await page.waitForResponse(
+    (r) => r.url().includes('/api/files/Skizze.excalidraw') && r.request().method() === 'PUT',
+  )
+  assert.match(
+    readFileSync(join(env.KAIRO_NOTES_DIR, 'Skizze.excalidraw'), 'utf8'),
+    /"type": "rectangle"/,
+  )
 
   writeFileSync(join(env.KAIRO_NOTES_DIR, 'Mit Zeichnung.md'), '# Plan\n\n![](Skizze.excalidraw)\n')
   await page.goto(`${base}/notes`)
@@ -588,7 +738,11 @@ test('Zeichnung', async () => {
   await img.click()
   await page.locator('.ed-doc .dw canvas.interactive').waitFor()
   await page.locator('.ed-note .md-editor-preview').waitFor() // geteilt: rechts bleibt die Notiz sichtbar
-  assert.equal(await page.locator('.medium-zoom-overlay').count(), 0, 'kein Bild-Zoom über der Zeichnung')
+  assert.equal(
+    await page.locator('.medium-zoom-overlay').count(),
+    0,
+    'kein Bild-Zoom über der Zeichnung',
+  )
 })
 
 test('Sprache umschalten', async () => {
@@ -615,15 +769,28 @@ test('Einstellungen auf allen Geräten', async () => {
   await page.getByRole('button', { name: 'Darstellung' }).click()
   await page.getByRole('radio', { name: /Hell/ }).click()
   await page.getByRole('radio', { name: 'Carbonfox' }).click()
-  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light' && document.documentElement.dataset.palette === 'carbonfox')
+  await page.waitForFunction(
+    () =>
+      document.documentElement.dataset.theme === 'light' &&
+      document.documentElement.dataset.palette === 'carbonfox',
+  )
   await waitPrefs({ theme: 'light', palette: 'carbonfox' })
-  const themeColors = () => page.locator('meta[name="theme-color"]').evaluateAll((els) => els.map((e) => e.getAttribute('content')))
+  const themeColors = () =>
+    page
+      .locator('meta[name="theme-color"]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('content')))
   assert.deepEqual(await themeColors(), ['#f4f4f4', '#f4f4f4']) // Statusleiste folgt der Farbstimmung
   const other = await browser.newContext({ locale: 'de-DE' })
   try {
     const p2 = await other.newPage()
     await p2.goto(`${base}/today`)
-    await p2.waitForFunction(() => document.documentElement.dataset.theme === 'light' && document.documentElement.dataset.palette === 'carbonfox', null, { timeout: 5000 })
+    await p2.waitForFunction(
+      () =>
+        document.documentElement.dataset.theme === 'light' &&
+        document.documentElement.dataset.palette === 'carbonfox',
+      null,
+      { timeout: 5000 },
+    )
   } finally {
     await other.close()
   }
@@ -636,8 +803,16 @@ test('Einstellungen auf allen Geräten', async () => {
 // Handy (390×844): Tab-Leiste und „Neu“-Knopf liegen fest über dem Inhalt und dürfen nichts verdecken.
 test('Handy: Fälligkeit sichtbar, Aufgabendetails über der Tab-Leiste', async () => {
   const due = new Date(Date.now() + 2 * 86400e3)
-  await api('/tasks', { method: 'POST', body: JSON.stringify({ title: 'Handy-Aufgabe', due_at: due.toISOString() }) })
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'de-DE' })
+  await api('/tasks', {
+    method: 'POST',
+    body: JSON.stringify({ title: 'Handy-Aufgabe', due_at: due.toISOString() }),
+  })
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    locale: 'de-DE',
+  })
   const m = await ctx.newPage()
   try {
     await m.goto(`${base}/tasks`)
@@ -649,7 +824,10 @@ test('Handy: Fälligkeit sichtbar, Aufgabendetails über der Tab-Leiste', async 
     await del.scrollIntoViewIfNeeded()
     const box = await del.boundingBox()
     const tabTop = (await m.locator('.tabbar').boundingBox()).y
-    assert.ok(box.y + box.height <= tabTop, `Löschen endet bei ${box.y + box.height}, Tab-Leiste beginnt bei ${tabTop}`)
+    assert.ok(
+      box.y + box.height <= tabTop,
+      `Löschen endet bei ${box.y + box.height}, Tab-Leiste beginnt bei ${tabTop}`,
+    )
     // Kein anderes Element (z. B. der „Neu“-Knopf) liegt über dem Knopf.
     const onTop = await del.evaluate((el) => {
       const r = el.getBoundingClientRect()

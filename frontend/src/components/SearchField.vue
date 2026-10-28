@@ -21,7 +21,14 @@ async function hide() {
 
 // „/“ springt ins Suchfeld. Nicht beim Tippen, nicht in Dialogen.
 function onKey(e: KeyboardEvent) {
-  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea, select, [contenteditable], .overlay')) return
+  if (
+    e.key !== '/' ||
+    e.ctrlKey ||
+    e.metaKey ||
+    e.altKey ||
+    (e.target as HTMLElement).closest('input, textarea, select, [contenteditable], .overlay')
+  )
+    return
   e.preventDefault()
   void show()
 }
@@ -30,13 +37,30 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <button v-if="!open && !model" ref="btn" type="button" class="icon-btn search-btn" :aria-label="label" :title="$t('Suchen (/)')" aria-keyshortcuts="/" @click="show">
+  <button
+    v-if="!open && !model"
+    ref="btn"
+    type="button"
+    class="icon-btn search-btn"
+    :aria-label="label"
+    :title="$t('Suchen (/)')"
+    aria-keyshortcuts="/"
+    @click="show"
+  >
     <svg class="ic"><use href="#i-search" /></svg>
   </button>
   <!-- Esc leert die Suche, ein zweites Esc klappt sie wieder ein. -->
   <input
     v-else
-    ref="el" v-model="model" type="search" class="input" :placeholder="$t('Suchen …')" :title="$t('Suchen (/)')" :aria-label="label" aria-keyshortcuts="/"
-    @blur="open = false" @keydown.esc="model ? (model = '') : hide()"
+    ref="el"
+    v-model="model"
+    type="search"
+    class="input"
+    :placeholder="$t('Suchen …')"
+    :title="$t('Suchen (/)')"
+    :aria-label="label"
+    aria-keyshortcuts="/"
+    @blur="open = false"
+    @keydown.esc="model ? (model = '') : hide()"
   />
 </template>

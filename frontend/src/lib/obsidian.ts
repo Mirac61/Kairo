@@ -1,5 +1,5 @@
 import { decompressFromBase64 } from 'lz-string'
-import { ApiError, deleteNote,errorMessage, fetchFile, readNote, uploadFile } from '@/api/client'
+import { ApiError, deleteNote, errorMessage, fetchFile, readNote, uploadFile } from '@/api/client'
 import { t } from '@/lib/i18n'
 import { fileKind, isObsidianDrawing, parseObsidianDrawing, resolveLink } from '@/lib/noteFiles'
 
@@ -23,7 +23,9 @@ export async function convertObsidianDrawings(files: string[]) {
       done.push(p)
     } catch (e) {
       // Fehler aus dem Browser (Formel, Bild) nicht als „Backend nicht erreichbar“ verschleiern
-      skipped.push(`${p}: ${e instanceof ApiError || !(e instanceof Error) ? errorMessage(e) : e.message}`)
+      skipped.push(
+        `${p}: ${e instanceof ApiError || !(e instanceof Error) ? errorMessage(e) : e.message}`,
+      )
     }
   }
   return { done, skipped }
@@ -32,15 +34,21 @@ export async function convertObsidianDrawings(files: string[]) {
 async function convert(p: string, files: string[]) {
   const dest = p.slice(0, -'.md'.length)
   if (files.includes(dest)) throw new Error(t('„{name}“ existiert schon.', { name: dest }))
-  const { scene, embedded } = parseObsidianDrawing((await readNote(p)).content, decompressFromBase64)
+  const { scene, embedded } = parseObsidianDrawing(
+    (await readNote(p)).content,
+    decompressFromBase64,
+  )
   const out: Record<string, unknown> = (scene.files ??= {})
-  const images = new Map(scene.elements.filter((e) => e.type === 'image' && e.fileId).map((e) => [e.fileId!, e]))
+  const images = new Map(
+    scene.elements.filter((e) => e.type === 'image' && e.fileId).map((e) => [e.fileId!, e]),
+  )
   for (const [id, v] of embedded) {
     if (out[id]) continue
     let url: string
     if ('file' in v) {
       const f = resolveLink(v.file, p.slice(0, Math.max(0, p.lastIndexOf('/'))), files)
-      if (fileKind(f) !== 'image') throw new Error(t('Eingebettete Datei „{name}“ fehlt.', { name: v.file }))
+      if (fileKind(f) !== 'image')
+        throw new Error(t('Eingebettete Datei „{name}“ fehlt.', { name: v.file }))
       url = await dataUrl((await fetchFile(f)).blob)
     } else if ('tex' in v) {
       const { texToSvg } = await import('@/lib/tex')
@@ -48,7 +56,9 @@ async function convert(p: string, files: string[]) {
       const el = images.get(id)
       if (el) el.customData = { ...el.customData, latex: v.tex }
     } else {
-      throw new Error(t('Eingebettetes Objekt „{name}“ ist weder Bild noch Formel.', { name: v.other }))
+      throw new Error(
+        t('Eingebettetes Objekt „{name}“ ist weder Bild noch Formel.', { name: v.other }),
+      )
     }
     out[id] = { id, mimeType: url.slice(5, url.indexOf(';')), dataURL: url, created: Date.now() }
   }

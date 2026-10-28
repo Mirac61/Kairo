@@ -45,7 +45,7 @@ link:
 # Alles, was auch die CI prüft.
 check:
 	cd backend && test -z "$$(gofmt -l .)" && go vet ./... && go test ./...
-	cd frontend && pnpm type-check && pnpm test
+	cd frontend && pnpm type-check && pnpm lint && pnpm test
 	cd extension && pnpm compile && pnpm test
 
 # Smoke-Tests im Browser; das Backend läuft dabei mit Temp-Daten auf Port 8813.

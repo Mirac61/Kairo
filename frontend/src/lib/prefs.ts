@@ -8,7 +8,8 @@ export type Theme = 'dark' | 'light' | 'system'
 // Farbstimmung; Graphit, Schiefer und Neutral nehmen die Akzentwahl, Carbonfox und Dragon bringen eigene Farben mit.
 export const PALETTES = ['graphit', 'slate2', 'neutral', 'carbonfox', 'dragon'] as const
 export type Palette = (typeof PALETTES)[number]
-const paletteOf = (v: string | null): Palette => (PALETTES.includes(v as Palette) ? (v as Palette) : 'graphit')
+const paletteOf = (v: string | null): Palette =>
+  PALETTES.includes(v as Palette) ? (v as Palette) : 'graphit'
 // Statusleiste der installierten App; die Meta-Tags in index.html sind nur der erste Paint.
 const THEME_COLORS: Record<Palette, { dark: string; light: string }> = {
   graphit: { dark: '#141517', light: '#f6f6f4' },
@@ -26,10 +27,21 @@ export type Paper = (typeof PAPERS)[number]
 const paperOf = (v: unknown): Paper => (PAPERS.includes(v as Paper) ? (v as Paper) : 'coffee')
 
 const KEYS = {
-  theme: 'kairo-theme', palette: 'kairo-palette', accent: 'kairo-accent', motion: 'kairo-motion', start: 'kairo-start',
-  weekStart: 'kairo-week-start', dayStart: 'kairo-day-start', dayEnd: 'kairo-day-end', calDays: 'kairo-cal-days',
+  theme: 'kairo-theme',
+  palette: 'kairo-palette',
+  accent: 'kairo-accent',
+  motion: 'kairo-motion',
+  start: 'kairo-start',
+  weekStart: 'kairo-week-start',
+  dayStart: 'kairo-day-start',
+  dayEnd: 'kairo-day-end',
+  calDays: 'kairo-cal-days',
   calHabits: 'kairo-cal-habits',
-  name: 'kairo-name', journalPaper: 'kairo-journal-paper', homeDesktop: 'kairo-home-desktop', homeMobile: 'kairo-home-mobile', homeNote: 'kairo-home-note',
+  name: 'kairo-name',
+  journalPaper: 'kairo-journal-paper',
+  homeDesktop: 'kairo-home-desktop',
+  homeMobile: 'kairo-home-mobile',
+  homeNote: 'kairo-home-note',
 } as const
 
 const hour = (key: string, def: number) => {
@@ -47,7 +59,10 @@ export const prefs = reactive({
   dayStart: hour(KEYS.dayStart, 7), // sichtbarer Tagesbereich in Kalender und Tagesplan
   dayEnd: hour(KEYS.dayEnd, 22),
   // Tage der Wochenansicht, heute in der Mitte. Früher ein Schalter „Wochenende“ (kairo-cal-weekend).
-  calDays: (store.get(KEYS.calDays) ?? (store.get('kairo-cal-weekend') === '1' ? '7' : '5')) === '7' ? 7 : 5,
+  calDays:
+    (store.get(KEYS.calDays) ?? (store.get('kairo-cal-weekend') === '1' ? '7' : '5')) === '7'
+      ? 7
+      : 5,
   // Gewohnheiten auch in der Wochenansicht (in der Tagesansicht immer); sonst füllen sie den Ganztags-Streifen.
   calHabits: store.get(KEYS.calHabits) === '1',
   name: store.get(KEYS.name) ?? '', // für die Begrüßung auf der Startseite
@@ -62,9 +77,14 @@ if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 
 const hasMatchMedia = typeof matchMedia === 'function'
 const systemLight = ref(hasMatchMedia ? matchMedia('(prefers-color-scheme: light)').matches : false)
 if (hasMatchMedia) {
-  matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => (systemLight.value = e.matches))
+  matchMedia('(prefers-color-scheme: light)').addEventListener(
+    'change',
+    (e) => (systemLight.value = e.matches),
+  )
 }
-export const dark = computed(() => (prefs.theme === 'system' ? !systemLight.value : prefs.theme === 'dark'))
+export const dark = computed(() =>
+  prefs.theme === 'system' ? !systemLight.value : prefs.theme === 'dark',
+)
 
 // Vor dem Mounten aufrufen, damit nichts aufblitzt. Danach folgen <html> und localStorage jeder Änderung.
 export function applyPrefs() {
@@ -76,7 +96,9 @@ export function applyPrefs() {
     root.dataset.motion = prefs.motion ? 'reduce' : ''
     root.style.setProperty('--a-hue', String(ACCENTS[prefs.accent] ?? ACCENTS.blue))
     const color = THEME_COLORS[palette][dark.value ? 'dark' : 'light']
-    document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => { m.content = color })
+    document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => {
+      m.content = color
+    })
   })
   watch(prefs, () => {
     for (const [k, key] of Object.entries(KEYS)) {
@@ -111,7 +133,11 @@ export async function pullPrefs() {
 async function pushPrefs() {
   const snap = snapshot()
   if (synced === null || snap === synced) return
-  const res = await fetch('/api/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: snap }).catch(() => null)
+  const res = await fetch('/api/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: snap,
+  }).catch(() => null)
   if (res?.ok) synced = snap
 }
 
@@ -121,7 +147,9 @@ export function syncPrefs() {
     clearTimeout(timer)
     timer = setTimeout(() => void pushPrefs(), 400)
   })
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void pullPrefs() })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void pullPrefs()
+  })
   void pullPrefs()
 }
 

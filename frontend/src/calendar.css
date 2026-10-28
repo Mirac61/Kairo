@@ -10,65 +10,216 @@
   font: 400 13px/1.3 var(--font-ui);
   color: var(--tx-primary);
 }
-.fc a { color: inherit; text-decoration: none; }
+.fc a {
+  color: inherit;
+  text-decoration: none;
+}
 
 /* Akzent des Kalenders ist --a-now (wie im Tagesplan): Jetzt-Linie und der heutige Tag. Rot heißt nur „überfällig“. */
 /* Raster: ruhig, nur feine Stundenlinien; heute als leichte Fläche, Wochenende dunkler */
-.fc .fc-scrollgrid, .fc .fc-scrollgrid-section > td, .fc .fc-scrollgrid-section > th { border-color: var(--br-subtle); }
-.fc .fc-scrollgrid { border-width: 0; }
-.fc .fc-timegrid-col, .fc .fc-timegrid-axis, .fc .fc-col-header-cell, .fc .fc-timegrid-body td { border-left-width: 0; border-right-width: 0; }
-.fc .fc-scrollgrid-section-header > th { border-top: 0; border-bottom: 1px solid var(--br-default); background: var(--bg-0); }
-.fc .fc-timegrid-slot { height: 28px; border-color: color-mix(in srgb, var(--br-subtle) 70%, transparent); }
-.fc .fc-timegrid-slot-minor { border-top-style: none; }
-.fc .fc-timegrid-slot-label { vertical-align: top; border-color: transparent; }
-.fc .fc-timegrid-slot-label-cushion, .fc .fc-timegrid-axis-cushion {
-  font: 400 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--tx-muted);
+.fc .fc-scrollgrid,
+.fc .fc-scrollgrid-section > td,
+.fc .fc-scrollgrid-section > th {
+  border-color: var(--br-subtle);
 }
-.fc .fc-timegrid-slot-label-cushion { display: block; margin-top: -5px; padding-right: 10px; }
-.fc .fc-timegrid-slots tr:first-child .fc-timegrid-slot-label-cushion { margin-top: 0; } /* sonst oben abgeschnitten */
-.fc .fc-timegrid .fc-daygrid-day { border-left-width: 0; border-right-width: 0; }
-.fc .fc-day-sat, .fc .fc-day-sun { background: color-mix(in srgb, var(--bg-1) 55%, var(--bg-0)); }
-.fc .fc-timegrid .fc-day-today, .fc .fc-timegrid .fc-day-today.fc-col-header-cell { background: color-mix(in srgb, var(--tx-primary) 4%, transparent); }
+.fc .fc-scrollgrid {
+  border-width: 0;
+}
+.fc .fc-timegrid-col,
+.fc .fc-timegrid-axis,
+.fc .fc-col-header-cell,
+.fc .fc-timegrid-body td {
+  border-left-width: 0;
+  border-right-width: 0;
+}
+.fc .fc-scrollgrid-section-header > th {
+  border-top: 0;
+  border-bottom: 1px solid var(--br-default);
+  background: var(--bg-0);
+}
+.fc .fc-timegrid-slot {
+  height: 28px;
+  border-color: color-mix(in srgb, var(--br-subtle) 70%, transparent);
+}
+.fc .fc-timegrid-slot-minor {
+  border-top-style: none;
+}
+.fc .fc-timegrid-slot-label {
+  vertical-align: top;
+  border-color: transparent;
+}
+.fc .fc-timegrid-slot-label-cushion,
+.fc .fc-timegrid-axis-cushion {
+  font: 400 11px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--tx-muted);
+}
+.fc .fc-timegrid-slot-label-cushion {
+  display: block;
+  margin-top: -5px;
+  padding-right: 10px;
+}
+.fc .fc-timegrid-slots tr:first-child .fc-timegrid-slot-label-cushion {
+  margin-top: 0;
+} /* sonst oben abgeschnitten */
+.fc .fc-timegrid .fc-daygrid-day {
+  border-left-width: 0;
+  border-right-width: 0;
+}
+.fc .fc-day-sat,
+.fc .fc-day-sun {
+  background: color-mix(in srgb, var(--bg-1) 55%, var(--bg-0));
+}
+.fc .fc-timegrid .fc-day-today,
+.fc .fc-timegrid .fc-day-today.fc-col-header-cell {
+  background: color-mix(in srgb, var(--tx-primary) 4%, transparent);
+}
 
 /* Tageskopf: Wochentag und Zahl, darunter geplant vs. erfasst (Plan/Ist) mit schmalem Balken */
-.fc .fc-timegrid .fc-col-header-cell-cushion { display: block; padding: 8px 10px 12px; text-align: left; }
-.fc .kt-dh { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-.fc .kt-dh small { font: 400 13px/1 var(--font-ui); color: var(--tx-secondary); text-transform: capitalize; }
-.fc .kt-dh b { display: grid; place-items: center; min-width: 26px; height: 26px; border-radius: 13px; font: 600 14px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-primary); }
-.fc .fc-col-header-cell .fc-scrollgrid-sync-inner { container-type: inline-size; }
-.fc .kt-wd-s { display: none; }
-@container (max-width: 125px) { .fc .kt-wd-l { display: none; } .fc .kt-wd-s { display: inline; } }
+.fc .fc-timegrid .fc-col-header-cell-cushion {
+  display: block;
+  padding: 8px 10px 12px;
+  text-align: left;
+}
+.fc .kt-dh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+.fc .kt-dh small {
+  font: 400 13px/1 var(--font-ui);
+  color: var(--tx-secondary);
+  text-transform: capitalize;
+}
+.fc .kt-dh b {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  font: 600 14px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--tx-primary);
+}
+.fc .fc-col-header-cell .fc-scrollgrid-sync-inner {
+  container-type: inline-size;
+}
+.fc .kt-wd-s {
+  display: none;
+}
+@container (max-width: 125px) {
+  .fc .kt-wd-l {
+    display: none;
+  }
+  .fc .kt-wd-s {
+    display: inline;
+  }
+}
 @container (max-width: 110px) {
-  .fc .kt-row { font-size: 10px; gap: 3px; }
-  .fc .kt-ist { display: none; }
+  .fc .kt-row {
+    font-size: 10px;
+    gap: 3px;
+  }
+  .fc .kt-ist {
+    display: none;
+  }
 }
 @container (max-width: 85px) {
-  .fc .kt-row { display: none; }
-  .fc .kt-bar { display: none; }
+  .fc .kt-row {
+    display: none;
+  }
+  .fc .kt-bar {
+    display: none;
+  }
 }
-.fc .kt-dh.today b { background: var(--a-now); color: var(--bg-0); }
-.fc .kt-row { flex: 1 0 100%; display: flex; justify-content: space-between; gap: 6px; white-space: nowrap; min-height: 11px; font: 400 11px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-muted); }
-.fc .kt-ist { color: var(--tx-primary); }
-.fc .kt-bar { flex: 1 0 100%; position: relative; height: 3px; border-radius: 2px; overflow: hidden; background: var(--bg-2); }
-.fc .kt-bar i { position: absolute; inset: 0 auto 0 0; width: 0; }
-.fc .kt-bar .p { background: var(--br-strong); }
-.fc .kt-bar .t { background: var(--tx-primary); }
+.fc .kt-dh.today b {
+  background: var(--a-now);
+  color: var(--bg-0);
+}
+.fc .kt-row {
+  flex: 1 0 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  white-space: nowrap;
+  min-height: 11px;
+  font: 400 11px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--tx-muted);
+}
+.fc .kt-ist {
+  color: var(--tx-primary);
+}
+.fc .kt-bar {
+  flex: 1 0 100%;
+  position: relative;
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--bg-2);
+}
+.fc .kt-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+}
+.fc .kt-bar .p {
+  background: var(--br-strong);
+}
+.fc .kt-bar .t {
+  background: var(--tx-primary);
+}
 
 /* Jetzt-Linie mit Uhrzeit im Achsen-Chip; Linie liegt hinter Event-Text bzw. ist dezent transparent, damit sie nicht wie Durchstreichen wirkt */
-.fc .fc-timegrid-now-indicator-line { border-width: 2px 0 0; opacity: 0.65; z-index: 2; pointer-events: none; }
-.fc .fc-timegrid-event { z-index: 4; }
-.fc .fc-timegrid-event .fc-event-main { position: relative; z-index: 5; }
+.fc .fc-timegrid-now-indicator-line {
+  border-width: 2px 0 0;
+  opacity: 0.65;
+  z-index: 2;
+  pointer-events: none;
+}
+.fc .fc-timegrid-event {
+  z-index: 4;
+}
+.fc .fc-timegrid-event .fc-event-main {
+  position: relative;
+  z-index: 5;
+}
 .fc .fc-timegrid-now-indicator-line::before {
-  content: ''; position: absolute; left: -4px; top: -4.5px; width: 7px; height: 7px; border-radius: 50%; background: var(--a-now);
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -4.5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--a-now);
 }
 .fc .fc-timegrid-now-indicator-arrow {
-  border: 0; margin-top: -8px; right: 4px; left: auto; padding: 2px 5px; border-radius: 4px;
-  background: var(--a-now); color: var(--bg-0); font: 600 11px/1.2 var(--font-mono); font-variant-numeric: tabular-nums;
+  border: 0;
+  margin-top: -8px;
+  right: 4px;
+  left: auto;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--a-now);
+  color: var(--bg-0);
+  font: 600 11px/1.2 var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Erfasste Zeit: schmale Spur links im Tag in der Projektfarbe */
-.fc .fc-bg-event.kt-track { left: 0; right: auto; width: 3px; border-radius: 2px; background: var(--acc, var(--p-neutral)); opacity: .9; }
-.fc .fc-timegrid-col-events { margin: 0 2px 0 5px; }
+.fc .fc-bg-event.kt-track {
+  left: 0;
+  right: auto;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--acc, var(--p-neutral));
+  opacity: 0.9;
+}
+.fc .fc-timegrid-col-events {
+  margin: 0 2px 0 5px;
+}
 
 /* Einträge: neutrale Karte, Farbe nur als Punkt (Termin) bzw. Ring (Aufgabe) in der Projektfarbe (--acc, setzt CalendarView).
    Termin = graue Fläche, Aufgabe = gestrichelter Umriss, läuft = Bernstein-Rahmen, erledigt = durchgestrichen. */
@@ -77,121 +228,443 @@
   border: 1px solid transparent;
   border-radius: 7px;
   background: var(--bg-2);
-  cursor: pointer; padding: 0;
+  cursor: pointer;
+  padding: 0;
   transition: background var(--dur) ease-out;
 }
-.fc .fc-event:hover { background: var(--bg-3); }
-.fc .fc-event.kt-task { border: 1px dashed var(--br-strong); background: transparent; }
-.fc .fc-event.kt-task:hover { background: var(--bg-hover); }
-.fc .fc-event.kt-running { box-shadow: inset 0 0 0 1.5px var(--a-run); }
-.fc .fc-event.kt-over .kt-title { color: var(--a-red); }
-.fc .fc-event.kt-done .kt-title { text-decoration: line-through; color: var(--tx-muted); }
-.fc .fc-event-selected, .fc .fc-event:focus-visible { outline: 1px solid var(--a-focus); outline-offset: 1px; }
-.fc .fc-highlight { background: var(--bg-selected); }
+.fc .fc-event:hover {
+  background: var(--bg-3);
+}
+.fc .fc-event.kt-task {
+  border: 1px dashed var(--br-strong);
+  background: transparent;
+}
+.fc .fc-event.kt-task:hover {
+  background: var(--bg-hover);
+}
+.fc .fc-event.kt-running {
+  box-shadow: inset 0 0 0 1.5px var(--a-run);
+}
+.fc .fc-event.kt-over .kt-title {
+  color: var(--a-red);
+}
+.fc .fc-event.kt-done .kt-title {
+  text-decoration: line-through;
+  color: var(--tx-muted);
+}
+.fc .fc-event-selected,
+.fc .fc-event:focus-visible {
+  outline: 1px solid var(--a-focus);
+  outline-offset: 1px;
+}
+.fc .fc-highlight {
+  background: var(--bg-selected);
+}
 
-.fc .fc-event-main { padding: 0; container-type: inline-size; }
+.fc .fc-event-main {
+  padding: 0;
+  container-type: inline-size;
+}
 /* Schmale Spalten (Einträge nebeneinander): nur Titel, ohne Punkt, Projekt und Endzeit */
 @container (max-width: 110px) {
-  .kt-in { padding: 4px 5px; }
-  .kt-dot, .kt-ring, .kt-meta, .kt-end { display: none; }
-  .kt-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: 1; }
+  .kt-in {
+    padding: 4px 5px;
+  }
+  .kt-dot,
+  .kt-ring,
+  .kt-meta,
+  .kt-end {
+    display: none;
+  }
+  .kt-title {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: 1;
+  }
 }
 @container (max-width: 80px) {
-  .fc .fc-timegrid-event-short .kt-head { display: none; }
+  .fc .fc-timegrid-event-short .kt-head {
+    display: none;
+  }
 }
-.fc .kt-in { display: flex; flex-direction: column; gap: 2px; min-width: 0; height: 100%; box-sizing: border-box; padding: 5px 8px; overflow: hidden; }
-.fc .kt-head { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
-.fc .kt-dot { flex: none; width: 6px; height: 6px; margin-top: 5px; border-radius: 50%; background: var(--acc); }
-.fc .kt-ring { flex: none; width: 10px; height: 10px; margin-top: 3px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--acc); }
-.fc .kt-done .kt-ring { background: var(--acc); }
-.fc .kt-habit .kt-ring { border-radius: 3px; } /* Gewohnheit = Quadrat wie in der Gewohnheiten-Liste */
-.fc .kt-title { min-width: 0; font: 500 12.5px/1.3 var(--font-ui); color: var(--tx-primary); overflow: hidden; text-overflow: ellipsis; word-break: normal; overflow-wrap: normal; hyphens: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.fc .kt-time { flex: none; font: 400 11.5px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-secondary); white-space: nowrap; }
-.fc .kt-meta { font: 400 11.5px/1.3 var(--font-ui); color: var(--tx-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc .kt-in {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  overflow: hidden;
+}
+.fc .kt-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+.fc .kt-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--acc);
+}
+.fc .kt-ring {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 3px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--acc);
+}
+.fc .kt-done .kt-ring {
+  background: var(--acc);
+}
+.fc .kt-habit .kt-ring {
+  border-radius: 3px;
+} /* Gewohnheit = Quadrat wie in der Gewohnheiten-Liste */
+.fc .kt-title {
+  min-width: 0;
+  font: 500 12.5px/1.3 var(--font-ui);
+  color: var(--tx-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.fc .kt-time {
+  flex: none;
+  font: 400 11.5px/1.3 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--tx-secondary);
+  white-space: nowrap;
+}
+.fc .kt-meta {
+  font: 400 11.5px/1.3 var(--font-ui);
+  color: var(--tx-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* Kurze Einträge (30 min): einzeilig, Titel und Zeit nebeneinander */
-.fc .fc-timegrid-event-short .kt-in { flex-direction: row; align-items: center; gap: 6px; padding: 0 8px; }
-.fc .fc-timegrid-event-short .kt-head { align-items: center; }
-.fc .fc-timegrid-event-short .kt-dot, .fc .fc-timegrid-event-short .kt-ring { margin-top: 0; }
-.fc .fc-timegrid-event-short .kt-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: 1; }
-.fc .fc-timegrid-event-short .kt-meta, .fc .fc-timegrid-event-short .kt-end { display: none; }
+.fc .fc-timegrid-event-short .kt-in {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+}
+.fc .fc-timegrid-event-short .kt-head {
+  align-items: center;
+}
+.fc .fc-timegrid-event-short .kt-dot,
+.fc .fc-timegrid-event-short .kt-ring {
+  margin-top: 0;
+}
+.fc .fc-timegrid-event-short .kt-title {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 1;
+}
+.fc .fc-timegrid-event-short .kt-meta,
+.fc .fc-timegrid-event-short .kt-end {
+  display: none;
+}
 
 /* Ganztag-Streifen in der Woche: eine Zeile je Eintrag */
-.fc .fc-timegrid .fc-daygrid-event { min-height: 24px; margin-bottom: 2px; }
-.fc .fc-timegrid .fc-daygrid-event .kt-in { flex-direction: row; align-items: center; padding: 0 8px; }
-.fc .fc-timegrid .fc-daygrid-event .kt-head { align-items: center; }
-.fc .fc-timegrid .fc-daygrid-event .kt-dot, .fc .fc-timegrid .fc-daygrid-event .kt-ring { margin-top: 0; }
-.fc .fc-timegrid .fc-daygrid-event .kt-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: 1; }
-.fc .fc-timegrid .fc-daygrid-event .kt-meta { display: none; }
+.fc .fc-timegrid .fc-daygrid-event {
+  min-height: 24px;
+  margin-bottom: 2px;
+}
+.fc .fc-timegrid .fc-daygrid-event .kt-in {
+  flex-direction: row;
+  align-items: center;
+  padding: 0 8px;
+}
+.fc .fc-timegrid .fc-daygrid-event .kt-head {
+  align-items: center;
+}
+.fc .fc-timegrid .fc-daygrid-event .kt-dot,
+.fc .fc-timegrid .fc-daygrid-event .kt-ring {
+  margin-top: 0;
+}
+.fc .fc-timegrid .fc-daygrid-event .kt-title {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 1;
+}
+.fc .fc-timegrid .fc-daygrid-event .kt-meta {
+  display: none;
+}
 /* Tag (Runde 2, 2a): links Plan, rechts eine Spalte „Erfasst“ (150 px) mit Karten je Zeiteintrag */
-.fc .fc-timeGridDay-view .fc-day-today, .fc .fc-timeGridDay-view .fc-day-today.fc-col-header-cell { background: transparent; }
-.fc .fc-timeGridDay-view .fc-timegrid-slot { height: 34px; }
-.fc .fc-timeGridDay-view .fc-col-header-cell-cushion { padding: 0; }
-.fc .kt-dayhead { display: flex; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
-.fc .kt-dayhead span { flex: 1; padding: 6px 10px 10px; }
-.fc .kt-dayhead .kt-trk-h { flex: none; width: 150px; box-sizing: border-box; border-left: 1px solid var(--br-subtle); }
-.fc .fc-timeGridDay-view .fc-timegrid-col-frame { background: linear-gradient(var(--br-subtle), var(--br-subtle)) right 150px top 0 / 1px 100% no-repeat; }
-.fc .fc-timeGridDay-view .fc-timegrid-col-events { margin: 0 156px 0 5px; }
+.fc .fc-timeGridDay-view .fc-day-today,
+.fc .fc-timeGridDay-view .fc-day-today.fc-col-header-cell {
+  background: transparent;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-slot {
+  height: 34px;
+}
+.fc .fc-timeGridDay-view .fc-col-header-cell-cushion {
+  padding: 0;
+}
+.fc .kt-dayhead {
+  display: flex;
+  font: 400 12px/1 var(--font-ui);
+  color: var(--tx-muted);
+}
+.fc .kt-dayhead span {
+  flex: 1;
+  padding: 6px 10px 10px;
+}
+.fc .kt-dayhead .kt-trk-h {
+  flex: none;
+  width: 150px;
+  box-sizing: border-box;
+  border-left: 1px solid var(--br-subtle);
+}
+.fc .fc-timeGridDay-view .fc-timegrid-col-frame {
+  background: linear-gradient(var(--br-subtle), var(--br-subtle)) right 150px top 0 / 1px 100%
+    no-repeat;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-col-events {
+  margin: 0 156px 0 5px;
+}
 .fc .fc-timeGridDay-view .fc-bg-event.kt-track {
-  left: auto; right: 6px; width: 138px; overflow: hidden; opacity: 1; border-radius: 5px;
-  background: var(--bg-1); box-shadow: inset 3px 0 0 var(--acc, var(--p-neutral));
+  left: auto;
+  right: 6px;
+  width: 138px;
+  overflow: hidden;
+  opacity: 1;
+  border-radius: 5px;
+  background: var(--bg-1);
+  box-shadow: inset 3px 0 0 var(--acc, var(--p-neutral));
 }
 /* Handy: Plan bekommt die Breite, „Erfasst“ schrumpft auf 96 px. */
 @media (max-width: 760px) {
-  .fc .kt-dayhead .kt-trk-h { width: 96px; }
-  .fc .fc-timeGridDay-view .fc-timegrid-col-frame { background-position: right 96px top 0; }
-  .fc .fc-timeGridDay-view .fc-timegrid-col-events { margin-right: 102px; }
-  .fc .fc-timeGridDay-view .fc-bg-event.kt-track { width: 84px; }
+  .fc .kt-dayhead .kt-trk-h {
+    width: 96px;
+  }
+  .fc .fc-timeGridDay-view .fc-timegrid-col-frame {
+    background-position: right 96px top 0;
+  }
+  .fc .fc-timeGridDay-view .fc-timegrid-col-events {
+    margin-right: 102px;
+  }
+  .fc .fc-timeGridDay-view .fc-bg-event.kt-track {
+    width: 84px;
+  }
 }
-.fc .kt-trk { display: flex; flex-direction: column; gap: 2px; padding: 5px 8px 5px 12px; font: 400 11.5px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-secondary); }
-.fc .kt-trk b { font: 600 12px/1.3 var(--font-ui); color: var(--tx-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc .kt-trk {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px 5px 12px;
+  font: 400 11.5px/1.3 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--tx-secondary);
+}
+.fc .kt-trk b {
+  font: 600 12px/1.3 var(--font-ui);
+  color: var(--tx-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* Karten: Titel, darunter Zeit (Projektfarbe) und Projekt · Ort; kurze Einträge einzeilig */
-.fc .fc-timeGridDay-view .kt-in { flex-direction: row; flex-wrap: wrap; align-content: flex-start; align-items: baseline; gap: 3px 10px; padding: 8px 12px; }
-.fc .fc-timeGridDay-view .kt-head { flex: 1 0 100%; align-items: center; }
-.fc .fc-timeGridDay-view .kt-title { font-size: 14px; font-weight: 600; -webkit-line-clamp: 1; }
-.fc .fc-timeGridDay-view .kt-time { font-size: 12.5px; }
-.fc .fc-timeGridDay-view .kt-meta { font-size: 12.5px; }
-.fc .fc-timeGridDay-view .kt-ring { width: 12px; height: 12px; }
-.fc .fc-timeGridDay-view .fc-timegrid-event-short .kt-in { flex-wrap: nowrap; align-items: center; gap: 12px; padding: 0 12px; }
-.fc .fc-timeGridDay-view .fc-timegrid-event-short .kt-head { flex: 0 1 auto; }
-.fc .fc-timeGridDay-view .fc-timegrid-event-short .kt-meta, .fc .fc-timeGridDay-view .fc-timegrid-event-short .kt-end { display: inline; }
-.fc .fc-timeGridDay-view .fc-daygrid-event .kt-in { gap: 8px; }
-.fc .fc-timeGridDay-view .fc-daygrid-event .kt-head { flex: 0 1 auto; }
-.fc .fc-timeGridDay-view .fc-daygrid-event .kt-meta { display: inline; }
-.fc .fc-event.kt-next { box-shadow: 0 0 0 1.5px var(--tx-secondary); }
+.fc .fc-timeGridDay-view .kt-in {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: baseline;
+  gap: 3px 10px;
+  padding: 8px 12px;
+}
+.fc .fc-timeGridDay-view .kt-head {
+  flex: 1 0 100%;
+  align-items: center;
+}
+.fc .fc-timeGridDay-view .kt-title {
+  font-size: 14px;
+  font-weight: 600;
+  -webkit-line-clamp: 1;
+}
+.fc .fc-timeGridDay-view .kt-time {
+  font-size: 12.5px;
+}
+.fc .fc-timeGridDay-view .kt-meta {
+  font-size: 12.5px;
+}
+.fc .fc-timeGridDay-view .kt-ring {
+  width: 12px;
+  height: 12px;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-event-short .kt-in {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-event-short .kt-head {
+  flex: 0 1 auto;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-event-short .kt-meta,
+.fc .fc-timeGridDay-view .fc-timegrid-event-short .kt-end {
+  display: inline;
+}
+.fc .fc-timeGridDay-view .fc-daygrid-event .kt-in {
+  gap: 8px;
+}
+.fc .fc-timeGridDay-view .fc-daygrid-event .kt-head {
+  flex: 0 1 auto;
+}
+.fc .fc-timeGridDay-view .fc-daygrid-event .kt-meta {
+  display: inline;
+}
+.fc .fc-event.kt-next {
+  box-shadow: 0 0 0 1.5px var(--tx-secondary);
+}
 
 /* Monat: Termine getönt mit Uhrzeit, Aufgaben mit Ring, Überlauf als „+ N weitere“ */
-.fc .fc-dayGridMonth-view .fc-scrollgrid-section-header > th { border-bottom: 1px solid var(--br-default); }
-.fc .fc-dayGridMonth-view .fc-col-header-cell { border-right: 0; }
-.fc .fc-dayGridMonth-view .fc-col-header-cell-cushion { display: block; padding: 0 10px 10px; text-align: left; font: 400 12.5px/1 var(--font-ui); text-transform: capitalize; color: var(--tx-secondary); }
+.fc .fc-dayGridMonth-view .fc-scrollgrid-section-header > th {
+  border-bottom: 1px solid var(--br-default);
+}
+.fc .fc-dayGridMonth-view .fc-col-header-cell {
+  border-right: 0;
+}
+.fc .fc-dayGridMonth-view .fc-col-header-cell-cushion {
+  display: block;
+  padding: 0 10px 10px;
+  text-align: left;
+  font: 400 12.5px/1 var(--font-ui);
+  text-transform: capitalize;
+  color: var(--tx-secondary);
+}
 .fc .fc-dayGridMonth-view .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion,
-.fc .fc-dayGridMonth-view .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion { color: var(--tx-muted); }
-.fc .fc-dayGridMonth-view .fc-daygrid-day { border-width: 0 0 1px 1px; border-color: var(--br-subtle); }
-.fc .fc-dayGridMonth-view .fc-daygrid-day:first-child, .fc .fc-dayGridMonth-view td[role=presentation] { border-left-width: 0; }
-.fc .fc-dayGridMonth-view .fc-day-today { background: color-mix(in srgb, var(--tx-primary) 4%, transparent); }
-.fc .fc-dayGridMonth-view .fc-daygrid-day-frame { min-height: 118px; padding: 6px 5px; box-sizing: border-box; }
-.fc .fc-daygrid-day-top { flex-direction: row; padding: 0 3px 2px; }
+.fc .fc-dayGridMonth-view .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion {
+  color: var(--tx-muted);
+}
+.fc .fc-dayGridMonth-view .fc-daygrid-day {
+  border-width: 0 0 1px 1px;
+  border-color: var(--br-subtle);
+}
+.fc .fc-dayGridMonth-view .fc-daygrid-day:first-child,
+.fc .fc-dayGridMonth-view td[role='presentation'] {
+  border-left-width: 0;
+}
+.fc .fc-dayGridMonth-view .fc-day-today {
+  background: color-mix(in srgb, var(--tx-primary) 4%, transparent);
+}
+.fc .fc-dayGridMonth-view .fc-daygrid-day-frame {
+  min-height: 118px;
+  padding: 6px 5px;
+  box-sizing: border-box;
+}
+.fc .fc-daygrid-day-top {
+  flex-direction: row;
+  padding: 0 3px 2px;
+}
 .fc .fc-daygrid-day-number {
-  display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 4px; margin-left: -4px; box-sizing: border-box; border-radius: 12px;
-  font: 600 13px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--tx-primary);
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  margin-left: -4px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  font: 600 13px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--tx-primary);
 }
-.fc .fc-day-past .fc-daygrid-day-number { color: var(--tx-muted); }
-.fc .fc-day-other .fc-daygrid-day-number { color: var(--tx-disabled); opacity: .6; }
-.fc .fc-day-today .fc-daygrid-day-number { background: var(--a-now); color: var(--bg-0); }
-.fc .fc-daygrid-event-harness { margin-top: 0; }
+.fc .fc-day-past .fc-daygrid-day-number {
+  color: var(--tx-muted);
+}
+.fc .fc-day-other .fc-daygrid-day-number {
+  color: var(--tx-disabled);
+  opacity: 0.6;
+}
+.fc .fc-day-today .fc-daygrid-day-number {
+  background: var(--a-now);
+  color: var(--bg-0);
+}
+.fc .fc-daygrid-event-harness {
+  margin-top: 0;
+}
 .fc .fc-dayGridMonth-view .fc-daygrid-event {
-  height: 21px; margin: 0 0 3px; border: 0; border-radius: 4px; box-shadow: none;
-  background: var(--bg-2); font-size: 12px;
+  height: 21px;
+  margin: 0 0 3px;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: none;
+  background: var(--bg-2);
+  font-size: 12px;
 }
-.fc .fc-dayGridMonth-view .fc-daygrid-event:hover { background: var(--bg-3); }
-.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-allday { background: var(--bg-3); }
-.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-task { border: 0; background: transparent; }
-.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-task:hover { background: var(--bg-2); }
-.fc .fc-dayGridMonth-view .kt-in { flex-direction: row; align-items: center; gap: 6px; padding: 0 6px; }
-.fc .fc-dayGridMonth-view .kt-ring { width: 9px; height: 9px; margin-top: 0; border-color: var(--acc); }
-.fc .fc-dayGridMonth-view .kt-time { color: var(--tx-muted); }
-.fc .fc-dayGridMonth-view .kt-title { display: block; -webkit-line-clamp: unset; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; color: var(--tx-primary); }
-.fc .fc-dayGridMonth-view .kt-task .kt-title { color: var(--tx-secondary); }
-.fc .fc-more-link { margin: 0; padding: 1px 6px; font: 400 11.5px/1.3 var(--font-ui); color: var(--tx-muted); }
-.fc .fc-more-link:hover { color: var(--tx-primary); }
-.fc .fc-popover { background: var(--bg-1); border: 1px solid var(--br-default); border-radius: var(--r-m); box-shadow: var(--shadow-pop); }
-.fc .fc-popover-header { background: var(--bg-2); }
+.fc .fc-dayGridMonth-view .fc-daygrid-event:hover {
+  background: var(--bg-3);
+}
+.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-allday {
+  background: var(--bg-3);
+}
+.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-task {
+  border: 0;
+  background: transparent;
+}
+.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-task:hover {
+  background: var(--bg-2);
+}
+.fc .fc-dayGridMonth-view .kt-in {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+}
+.fc .fc-dayGridMonth-view .kt-ring {
+  width: 9px;
+  height: 9px;
+  margin-top: 0;
+  border-color: var(--acc);
+}
+.fc .fc-dayGridMonth-view .kt-time {
+  color: var(--tx-muted);
+}
+.fc .fc-dayGridMonth-view .kt-title {
+  display: block;
+  -webkit-line-clamp: unset;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--tx-primary);
+}
+.fc .fc-dayGridMonth-view .kt-task .kt-title {
+  color: var(--tx-secondary);
+}
+.fc .fc-more-link {
+  margin: 0;
+  padding: 1px 6px;
+  font: 400 11.5px/1.3 var(--font-ui);
+  color: var(--tx-muted);
+}
+.fc .fc-more-link:hover {
+  color: var(--tx-primary);
+}
+.fc .fc-popover {
+  background: var(--bg-1);
+  border: 1px solid var(--br-default);
+  border-radius: var(--r-m);
+  box-shadow: var(--shadow-pop);
+}
+.fc .fc-popover-header {
+  background: var(--bg-2);
+}

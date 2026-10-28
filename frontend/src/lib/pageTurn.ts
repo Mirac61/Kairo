@@ -23,10 +23,17 @@ export const easeTurn = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 
 type M = [number, number, number, number, number, number]
 
 const r = (n: number) => Math.round(n * 100) / 100
-const poly = (pts: [number, number][]) => `polygon(${pts.map(([x, y]) => `${r(x)}px ${r(y)}px`).join(', ')})`
+const poly = (pts: [number, number][]) =>
+  `polygon(${pts.map(([x, y]) => `${r(x)}px ${r(y)}px`).join(', ')})`
 const deg = (rad: number) => r((rad * 180) / Math.PI)
 
-export function leafFrame(role: LeafRole, p: number, W: number, H: number, mirror = false): LeafFrame {
+export function leafFrame(
+  role: LeafRole,
+  p: number,
+  W: number,
+  H: number,
+  mirror = false,
+): LeafFrame {
   const s = Math.sin(Math.PI * p) // Stärke von Schatten und Neigung, 0 an beiden Enden
   const c = W * (1 - p) // Falz in Höhe der Mitte, Abstand vom Bund
   const a = TILT * s
@@ -38,19 +45,34 @@ export function leafFrame(role: LeafRole, p: number, W: number, H: number, mirro
   // Länge der Verlaufslinie eines um a geneigten Verlaufs; Stopps werden in px entlang dieser Linie gemessen.
   const L = W * Math.cos(a) + H * Math.abs(Math.sin(a))
 
-  let pts: [number, number][] = [[0, 0], [W, 0], [W, H], [0, H]]
+  let pts: [number, number][] = [
+    [0, 0],
+    [W, 0],
+    [W, H],
+    [0, H],
+  ]
   let m: M = [1, 0, 0, 1, 0, 0]
-  let angle = 90
-  let stops = 'transparent 0'
+  let angle: number
+  let stops: string
 
   if (role === 'cut') {
-    pts = [[0, 0], [xt, 0], [xb, H], [0, H]]
+    pts = [
+      [0, 0],
+      [xt, 0],
+      [xb, H],
+      [0, H],
+    ]
     angle = 90 + deg(a)
     const f = L / 2 + (c - W / 2) * Math.cos(a)
     stops = `transparent ${r(f - 90)}px, rgb(0 0 0 / ${r(0.16 * s)}) ${r(f)}px`
   } else if (role === 'flap') {
     // Spiegelung am Falz nach der Spiegelung am Bund ergibt eine Drehung um 2a plus Verschiebung.
-    pts = [[0, 0], [W - xt, 0], [W - xb, H], [0, H]]
+    pts = [
+      [0, 0],
+      [W - xt, 0],
+      [W - xb, H],
+      [0, H],
+    ]
     const bx = c + cos2 * c + sin2 * (H / 2)
     const by = H / 2 + sin2 * c - cos2 * (H / 2)
     m = [cos2, sin2, -sin2, cos2, W - W * cos2 + bx, -W * sin2 + by]

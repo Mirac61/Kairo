@@ -19,12 +19,25 @@ export const WIDGETS = {
 } as const satisfies Record<string, { title: string; sizes: readonly Size[]; to: string }>
 
 export type WidgetId = keyof typeof WIDGETS
-export interface Slot { id: WidgetId; size: Size }
+export interface Slot {
+  id: WidgetId
+  size: Size
+}
 
 export const DEFAULTS: Record<Device, Slot[]> = {
   // Nur was heute eine Entscheidung auslöst; Ziel, Journal, Woche, Notiz und GitHub kommen über „Anpassen“ dazu.
-  desktop: [{ id: 'dayplan', size: 'L' }, { id: 'now', size: 'M' }, { id: 'habits', size: 'S' }, { id: 'cards', size: 'S' }],
-  mobile: [{ id: 'now', size: 'M' }, { id: 'agenda', size: 'L' }, { id: 'habits', size: 'S' }, { id: 'cards', size: 'S' }],
+  desktop: [
+    { id: 'dayplan', size: 'L' },
+    { id: 'now', size: 'M' },
+    { id: 'habits', size: 'S' },
+    { id: 'cards', size: 'S' },
+  ],
+  mobile: [
+    { id: 'now', size: 'M' },
+    { id: 'agenda', size: 'L' },
+    { id: 'habits', size: 'S' },
+    { id: 'cards', size: 'S' },
+  ],
 }
 
 export const sizesOf = (id: WidgetId): readonly Size[] => WIDGETS[id].sizes
@@ -43,7 +56,8 @@ export function parseLayout(json: string, device: Device): Slot[] {
   const out: Slot[] = []
   for (const s of raw as Partial<Slot>[]) {
     const id = s?.id
-    if (!id || !Object.hasOwn(WIDGETS, id) || seen.has(id) || !sizesOf(id).includes(s.size as Size)) continue
+    if (!id || !Object.hasOwn(WIDGETS, id) || seen.has(id) || !sizesOf(id).includes(s.size as Size))
+      continue
     seen.add(id)
     out.push({ id, size: s.size as Size })
   }

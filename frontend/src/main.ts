@@ -20,16 +20,22 @@ import { applyPrefs, prefsPulled, pullPrefs, syncPrefs } from './lib/prefs'
 applyPrefs()
 
 // Sprache: gespeicherte Wahl, sonst die des Browsers.
-lang.value = (store.get('kairo-lang') as Lang | null) ?? (navigator.language.startsWith('de') ? 'de' : 'en')
+lang.value =
+  (store.get('kairo-lang') as Lang | null) ?? (navigator.language.startsWith('de') ? 'de' : 'en')
 
 syncPrefs()
-router.afterEach(() => { if (!prefsPulled()) void pullPrefs() })
+router.afterEach(() => {
+  if (!prefsPulled()) void pullPrefs()
+})
 
 const app = createApp(App)
 app.config.globalProperties.$t = t
 app.config.globalProperties.$tn = tn
 app
   .use(router)
-  .use(PrimeVue, { theme: { preset, options: { darkModeSelector: '[data-theme="dark"]' } }, locale: de.de })
+  .use(PrimeVue, {
+    theme: { preset, options: { darkModeSelector: '[data-theme="dark"]' } },
+    locale: de.de,
+  })
   .use(ConfirmationService)
   .mount('#app')

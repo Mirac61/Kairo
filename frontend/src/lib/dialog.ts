@@ -1,11 +1,16 @@
 import type { Directive } from 'vue'
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 // Für das .overlay eines Dialogs: <div v-if="offen" v-dialog="schließen" class="overlay open">.
 // Setzt role="dialog" und aria-modal, holt den Fokus hinein (erstes [autofocus], sonst erstes Eingabefeld),
 // hält Tab im Dialog, schließt mit Esc und gibt den Fokus beim Schließen an den Auslöser zurück.
-interface State { opener: Element | null; close: () => void; onKey: (e: KeyboardEvent) => void }
+interface State {
+  opener: Element | null
+  close: () => void
+  onKey: (e: KeyboardEvent) => void
+}
 const states = new WeakMap<HTMLElement, State>()
 
 export const vDialog: Directive<HTMLElement, () => void> = {
@@ -13,7 +18,8 @@ export const vDialog: Directive<HTMLElement, () => void> = {
     const dlg = el.querySelector<HTMLElement>('.dialog') ?? el
     dlg.setAttribute('role', 'dialog')
     dlg.setAttribute('aria-modal', 'true')
-    const items = () => [...dlg.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((x) => x.offsetParent !== null)
+    const items = () =>
+      [...dlg.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((x) => x.offsetParent !== null)
     const onKey = (e: KeyboardEvent) => {
       const active = document.activeElement
       if (e.key === 'Escape') return states.get(el)?.close()
@@ -32,7 +38,11 @@ export const vDialog: Directive<HTMLElement, () => void> = {
     states.set(el, { opener: document.activeElement, close: value, onKey })
     // Auf document, damit Esc und Tab auch gelten, wenn ein Klick den Fokus auf <body> gelegt hat.
     document.addEventListener('keydown', onKey)
-    ;(dlg.querySelector<HTMLElement>('[autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled])') ?? items()[0])?.focus()
+    ;(
+      dlg.querySelector<HTMLElement>(
+        '[autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+      ) ?? items()[0]
+    )?.focus()
   },
   updated(el, { value }) {
     const s = states.get(el)

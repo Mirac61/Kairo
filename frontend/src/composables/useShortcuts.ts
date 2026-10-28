@@ -4,7 +4,13 @@ import { onBeforeUnmount, onMounted } from 'vue'
 // capture: vor den Ansichten drankommen (die globalen Kürzel in App.vue stoppen dann das Ereignis).
 export function useShortcuts(handler: (e: KeyboardEvent) => void, capture = false) {
   const onKey = (e: KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea, select, [contenteditable], .overlay')) return
+    if (
+      e.ctrlKey ||
+      e.metaKey ||
+      e.altKey ||
+      (e.target as HTMLElement).closest('input, textarea, select, [contenteditable], .overlay')
+    )
+      return
     handler(e)
   }
   onMounted(() => window.addEventListener('keydown', onKey, capture))

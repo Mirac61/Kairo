@@ -13,10 +13,7 @@ export interface TaskGroup {
   minutes: number
 }
 
-export function useTaskFilter(
-  tasks: Ref<Task[]>,
-  projects: Ref<Project[]>,
-) {
+export function useTaskFilter(tasks: Ref<Task[]>, projects: Ref<Project[]>) {
   const filter = ref('alle')
   const projectId = ref('alle')
   const search = ref('')
@@ -131,12 +128,7 @@ export function useTaskFilter(
 
       case 'woche': {
         const inNext7Days = ymd(addDays(new Date(), 7))
-        return (
-          isOpen(task) &&
-          taskDay !== null &&
-          taskDay > today &&
-          taskDay <= inNext7Days
-        )
+        return isOpen(task) && taskDay !== null && taskDay > today && taskDay <= inNext7Days
       }
 
       case 'spaeter': {
@@ -151,10 +143,7 @@ export function useTaskFilter(
         return isOpen(task) && taskDay !== null && taskDay < today
 
       case 'prio':
-        return (
-          isOpen(task) &&
-          (task.priority === 'HIGH' || task.priority === 'URGENT')
-        )
+        return isOpen(task) && (task.priority === 'HIGH' || task.priority === 'URGENT')
 
       case 'journal':
         return isOpen(task) && Boolean(task.source_journal_date)
@@ -177,15 +166,11 @@ export function useTaskFilter(
   })
 
   const tabs = computed(() => {
-    return FILTERS.filter(
-      (f) => SHOWN_DEFAULT_TABS.includes(f.id) || f.id === filter.value,
-    )
+    return FILTERS.filter((f) => SHOWN_DEFAULT_TABS.includes(f.id) || f.id === filter.value)
   })
 
   const extra = computed(() => {
-    return FILTERS.filter(
-      (f) => !SHOWN_DEFAULT_TABS.includes(f.id) && f.id !== filter.value,
-    )
+    return FILTERS.filter((f) => !SHOWN_DEFAULT_TABS.includes(f.id) && f.id !== filter.value)
   })
 
   function onTabKey(e: KeyboardEvent) {

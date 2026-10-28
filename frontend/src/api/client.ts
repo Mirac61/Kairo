@@ -269,7 +269,9 @@ export function listHabits(): Promise<Habit[]> {
 
 // Fällige Habits je Tag, from/to inklusive, höchstens 42 Tage.
 export function habitsDue(from: string, to: string): Promise<HabitDue[]> {
-  return api<HabitDue[]>(`/habits/due?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+  return api<HabitDue[]>(
+    `/habits/due?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  )
 }
 
 export function createHabit(body: Partial<Habit>): Promise<Habit> {
@@ -707,10 +709,7 @@ export function listJournalTaskImports(): Promise<JournalTaskImport[]> {
   return api<JournalTaskImport[]>('/journal/task-imports')
 }
 
-export function importJournalTasks(
-  date: string,
-  titles: string[],
-): Promise<JournalTaskImport> {
+export function importJournalTasks(date: string, titles: string[]): Promise<JournalTaskImport> {
   return api<JournalTaskImport>(`/journal/${encodeURIComponent(date)}/tasks`, {
     method: 'POST',
     body: JSON.stringify({ titles }),
@@ -776,10 +775,7 @@ export function listBacklinks(path: string): Promise<Backlink[]> {
   return api<Backlink[]>(`/notes/backlinks?path=${encodeURIComponent(path)}`)
 }
 
-export function createNote(
-  path: string,
-  dir = false,
-): Promise<{ path: string; mtime?: string }> {
+export function createNote(path: string, dir = false): Promise<{ path: string; mtime?: string }> {
   return api<{ path: string; mtime?: string }>(notePath(path), {
     method: 'POST',
     body: JSON.stringify({ dir }),

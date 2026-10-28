@@ -5,8 +5,16 @@ import { dur, entryMinutes, shiftDate, weekStart, ymd } from '../src/lib/dates.t
 import { editForm, isAllDay, newForm, requestOf, ruleOf } from '../src/lib/eventForm.ts'
 
 const ev = (over: object) => ({
-  id: 'e1', title: 'Vorlesung', location: 'H 1.02', occurrence_start: '', occurrence_end: '', project_id: null,
-  start_at: new Date(2026, 9, 7, 10, 0).toISOString(), end_at: new Date(2026, 9, 7, 11, 30).toISOString(), recurrence_rule: null, ...over,
+  id: 'e1',
+  title: 'Vorlesung',
+  location: 'H 1.02',
+  occurrence_start: '',
+  occurrence_end: '',
+  project_id: null,
+  start_at: new Date(2026, 9, 7, 10, 0).toISOString(),
+  end_at: new Date(2026, 9, 7, 11, 30).toISOString(),
+  recurrence_rule: null,
+  ...over,
 })
 
 test('Serienregel: Dialog -> RRULE -> Dialog', () => {
@@ -16,7 +24,10 @@ test('Serienregel: Dialog -> RRULE -> Dialog', () => {
   const rule = ruleOf(f)
   assert.equal(rule, 'FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20261231')
   const back = editForm(ev({ recurrence_rule: rule }), '2026-10-07')
-  assert.deepEqual([back.repeat, back.days, back.until, back.day, back.customRule], [true, ['MO', 'WE'], '2026-12-31', '2026-10-07', null])
+  assert.deepEqual(
+    [back.repeat, back.days, back.until, back.day, back.customRule],
+    [true, ['MO', 'WE'], '2026-12-31', '2026-10-07', null],
+  )
 })
 
 test('Monatlich und jährlich: Dialog -> RRULE -> Dialog', () => {
@@ -24,7 +35,10 @@ test('Monatlich und jährlich: Dialog -> RRULE -> Dialog', () => {
   Object.assign(f, { repeat: true, freq: 'MONTHLY', until: '2027-06-30' })
   assert.equal(ruleOf(f), 'FREQ=MONTHLY;UNTIL=20270630')
   const back = editForm(ev({ recurrence_rule: 'FREQ=YEARLY' }), '2026-10-07')
-  assert.deepEqual([back.repeat, back.freq, back.until, back.customRule], [true, 'YEARLY', '', null])
+  assert.deepEqual(
+    [back.repeat, back.freq, back.until, back.customRule],
+    [true, 'YEARLY', '', null],
+  )
   assert.equal(ruleOf(back), 'FREQ=YEARLY')
 })
 
@@ -44,7 +58,10 @@ test('Ganztägig: Mitternacht bis Mitternacht, Ende einschließlich', () => {
   assert.equal(isAllDay(s, e), true)
   assert.equal(isAllDay(new Date(2026, 9, 7, 10), new Date(2026, 9, 7, 11)), false)
   const f = editForm(ev({ start_at: s.toISOString(), end_at: e.toISOString() }), '')
-  assert.deepEqual([f.allDay, f.date, f.endDate, f.keepTimes], [true, '2026-10-07', '2026-10-09', false])
+  assert.deepEqual(
+    [f.allDay, f.date, f.endDate, f.keepTimes],
+    [true, '2026-10-07', '2026-10-09', false],
+  )
 })
 
 test('Mehrtägiger Termin mit Uhrzeit behält seine Zeiten', () => {
@@ -59,18 +76,37 @@ test('Datumshelfer', () => {
   assert.equal(shiftDate('2026-03-29', -1), '2026-03-28') // DST-Wechsel bleibt ein lokaler Kalendertag
   assert.equal(dur(45), '45 Min')
   assert.equal(dur(90), '1 Std 30 Min')
-  assert.equal(entryMinutes({ started_at: '2026-10-07T10:00:00Z', ended_at: '2026-10-07T11:15:30Z' }), 75)
-  assert.equal(entryMinutes({ started_at: '2026-10-07T10:00:00Z', ended_at: null }, Date.parse('2026-10-07T10:20:00Z')), 20)
+  assert.equal(
+    entryMinutes({ started_at: '2026-10-07T10:00:00Z', ended_at: '2026-10-07T11:15:30Z' }),
+    75,
+  )
+  assert.equal(
+    entryMinutes(
+      { started_at: '2026-10-07T10:00:00Z', ended_at: null },
+      Date.parse('2026-10-07T10:20:00Z'),
+    ),
+    20,
+  )
 })
 
 test('Speichern: Task, neuer Termin, Serie bearbeiten', () => {
   const f = newForm(new Date(2026, 9, 7, 10, 0), new Date(2026, 9, 7, 11, 30), false)
-  assert.deepEqual(requestOf({ ...f, kind: 'task' }, 'Lernen'), { task: {
-    title: 'Lernen', planned_date: '2026-10-07', planned_start_at: new Date(2026, 9, 7, 10, 0).toISOString(), project_id: undefined, estimated_minutes: 90,
-  } })
+  assert.deepEqual(requestOf({ ...f, kind: 'task' }, 'Lernen'), {
+    task: {
+      title: 'Lernen',
+      planned_date: '2026-10-07',
+      planned_start_at: new Date(2026, 9, 7, 10, 0).toISOString(),
+      project_id: undefined,
+      estimated_minutes: 90,
+    },
+  })
   // Neuer Termin ohne Wiederholung schickt keine Regel, beim Bearbeiten entfernt '' sie.
   const neu = requestOf(f, 'Termin')
-  assert.ok('event' in neu && !('recurrence_rule' in neu.event) && neu.event.end_at === new Date(2026, 9, 7, 11, 30).toISOString())
+  assert.ok(
+    'event' in neu &&
+      !('recurrence_rule' in neu.event) &&
+      neu.event.end_at === new Date(2026, 9, 7, 11, 30).toISOString(),
+  )
   const edit = requestOf({ ...f, id: 'e1' }, 'Termin')
   assert.ok('event' in edit && edit.event.recurrence_rule === '')
   // Eigene Regel und mehrtägige Zeiten bleiben, wie sie sind.

@@ -17,7 +17,8 @@ export function parseCardList(text: string) {
     const s = line.trim()
     if (!s) continue
     const [q, a] = s.includes(' :: ') ? s.split(/ :: (.*)/s) : s.split(/\t(.*)/s)
-    if (q?.trim() && a?.trim()) cards.push({ question: q.trim().replace(/^[-*+]\s+/, ''), answer: a.trim() })
+    if (q?.trim() && a?.trim())
+      cards.push({ question: q.trim().replace(/^[-*+]\s+/, ''), answer: a.trim() })
     else skipped++
   }
   return { cards, skipped }

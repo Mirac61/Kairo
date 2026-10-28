@@ -111,9 +111,7 @@ function parseDayWord(word: string, today: string): string | null {
 
   // Wochentag ab 2 Zeichen prüfen
   if (word.length >= 2) {
-    const weekdayIndex = WEEKDAYS.findIndex((names) =>
-      names.some((name) => name.startsWith(word)),
-    )
+    const weekdayIndex = WEEKDAYS.findIndex((names) => names.some((name) => name.startsWith(word)))
     if (weekdayIndex >= 0) {
       const todayWeekday = parseUtcDate(today).getUTCDay()
       const daysUntilNext = ((weekdayIndex - todayWeekday + 6) % 7) + 1
@@ -139,8 +137,7 @@ function parseDayWord(word: string, today: string): string | null {
 
   const parsed = parseUtcDate(candidateDate)
   const isValidDate =
-    !Number.isNaN(parsed.getTime()) &&
-    parsed.toISOString().slice(0, 10) === candidateDate
+    !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === candidateDate
 
   return isValidDate ? candidateDate : null
 }
@@ -154,9 +151,7 @@ function parseEveryRule(word: string): string | null {
   if (['jahr', 'year'].includes(word)) return 'FREQ=YEARLY'
 
   if (word.length >= 2) {
-    const weekdayIndex = WEEKDAYS.findIndex((names) =>
-      names.some((name) => name.startsWith(word)),
-    )
+    const weekdayIndex = WEEKDAYS.findIndex((names) => names.some((name) => name.startsWith(word)))
     if (weekdayIndex >= 0) {
       return `FREQ=WEEKLY;BYDAY=${RRULE_DAYS[weekdayIndex]}`
     }
@@ -243,9 +238,7 @@ function parseMinutes(token: string, explicitUnit?: string): number | null {
 
   if (unitStr && /^\d+(?:[.,]\d+)?$/.test(numStr)) {
     const numericValue = Number(numStr.replace(',', '.'))
-    const totalMinutes = Math.round(
-      /^(h|std)$/i.test(unitStr) ? numericValue * 60 : numericValue,
-    )
+    const totalMinutes = Math.round(/^(h|std)$/i.test(unitStr) ? numericValue * 60 : numericValue)
     if (totalMinutes > 0 && totalMinutes <= MAX_MINUTES) {
       return totalMinutes
     }
@@ -277,12 +270,9 @@ function scan(raw: string, projects: QuickProject[], today: string) {
     if (!result.minutes) {
       const nextWord = words[index + 1]
       const isTwoWordDuration =
-        /^\d+(?:[.,]\d+)?$/.test(word) &&
-        Boolean(nextWord && /^(h|std|min|m)$/i.test(nextWord))
+        /^\d+(?:[.,]\d+)?$/.test(word) && Boolean(nextWord && /^(h|std|min|m)$/i.test(nextWord))
 
-      const parsedMinutes = isTwoWordDuration
-        ? parseMinutes(word, nextWord)
-        : parseMinutes(word)
+      const parsedMinutes = isTwoWordDuration ? parseMinutes(word, nextWord) : parseMinutes(word)
 
       if (parsedMinutes) {
         result.minutes = parsedMinutes
@@ -414,8 +404,6 @@ export function taskBody(q: Quick, fallbackDate?: string) {
     ...(q.project ? { project_id: q.project.id } : {}),
     ...(q.rule ? { recurrence_rule: q.rule } : {}),
     ...(date ? { planned_date: date, status: 'PLANNED' as const } : {}),
-    ...(date && q.time
-      ? { planned_start_at: new Date(`${date}T${q.time}:00`).toISOString() }
-      : {}),
+    ...(date && q.time ? { planned_start_at: new Date(`${date}T${q.time}:00`).toISOString() } : {}),
   }
 }

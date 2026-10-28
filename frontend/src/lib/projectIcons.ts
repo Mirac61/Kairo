@@ -73,7 +73,9 @@ const GUESS: [RegExp, ProjectIcon][] = [
 ]
 
 export const projectIconKey = (p: { name: string; icon?: string }): ProjectIcon =>
-  p.icon && p.icon in PROJECT_ICONS ? (p.icon as ProjectIcon) : GUESS.find(([re]) => re.test(p.name))?.[1] ?? 'folder'
+  p.icon && p.icon in PROJECT_ICONS
+    ? (p.icon as ProjectIcon)
+    : (GUESS.find(([re]) => re.test(p.name))?.[1] ?? 'folder')
 
 export const projectIconOf = (p: { name: string; icon?: string }): string =>
   PROJECT_ICONS[projectIconKey(p)]

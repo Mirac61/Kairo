@@ -13,13 +13,24 @@ const pickProject = (e: Event) => {
 <template>
   <div class="selbar" role="toolbar" :aria-label="$t('Auswahl')">
     <span class="selbar-n">{{ $t('{n} gewählt', { n: count }) }}</span>
-    <button type="button" class="btn btn-secondary" :disabled="!count" @click="emit('tomorrow')">{{ $t('Auf morgen') }}</button>
+    <button type="button" class="btn btn-secondary" :disabled="!count" @click="emit('tomorrow')">
+      {{ $t('Auf morgen') }}
+    </button>
     <select class="input" :disabled="!count" :aria-label="$t('Projekt…')" @change="pickProject">
       <option value="" disabled selected>{{ $t('Projekt…') }}</option>
       <option value="">{{ $t('Kein Projekt') }}</option>
       <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
     </select>
-    <button type="button" class="btn btn-secondary" :disabled="!count" @click="emit('trash')">{{ $t('Löschen') }}</button>
-    <button type="button" class="icon-btn" :aria-label="$t('Auswahl aufheben')" @click="emit('clear')"><svg class="ic"><use href="#i-x" /></svg></button>
+    <button type="button" class="btn btn-secondary" :disabled="!count" @click="emit('trash')">
+      {{ $t('Löschen') }}
+    </button>
+    <button
+      type="button"
+      class="icon-btn"
+      :aria-label="$t('Auswahl aufheben')"
+      @click="emit('clear')"
+    >
+      <svg class="ic"><use href="#i-x" /></svg>
+    </button>
   </div>
 </template>

@@ -7,14 +7,21 @@ const BUDGET = 24e6 // Summe über alle gerenderten Seiten, ca. 96 MB Bitmaps
 const MAX_DPR = 1.5 // Retina (2) kostet fast doppelt so viel Speicher bei kaum sichtbarem Unterschied
 
 async function loadPdfjs() {
-  const [pdfjs, worker] = await Promise.all([import('pdfjs-dist'), import('pdfjs-dist/build/pdf.worker.min.mjs?url')])
+  const [pdfjs, worker] = await Promise.all([
+    import('pdfjs-dist'),
+    import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+  ])
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default
   return pdfjs
 }
 
 // PDF-Seiten rendern: nur sichtbare (±½ Bildschirm), scharf für Zoom × Pixeldichte, innerhalb eines Pixelbudgets.
 // Die Seiten im scroller tragen die Klasse .fe-page und data-i; ihre Canvas meldet setCanvas(i).
-export function usePdfRender(zoom: Ref<number>, pages: Ref<Page[]>, scroller: Ref<HTMLElement | undefined>) {
+export function usePdfRender(
+  zoom: Ref<number>,
+  pages: Ref<Page[]>,
+  scroller: Ref<HTMLElement | undefined>,
+) {
   let pdf: PDFDocumentProxy | null = null
   let pdfPages: PDFPageProxy[] = []
   const canvases: (HTMLCanvasElement | null)[] = []
@@ -30,7 +37,9 @@ export function usePdfRender(zoom: Ref<number>, pages: Ref<Page[]>, scroller: Re
     // ponytail: ohne cMaps, Standardschriften und WASM-Decoder von pdf.js (seltene CJK-/JPEG-2000-PDFs zeigen dann Lücken); bei Bedarf nach public/ kopieren.
     const pdfjs = await loadPdfjs()
     const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise
-    const list = await Promise.all(Array.from({ length: doc.numPages }, (_, i) => doc.getPage(i + 1)))
+    const list = await Promise.all(
+      Array.from({ length: doc.numPages }, (_, i) => doc.getPage(i + 1)),
+    )
     for (const i of tasks.keys()) cancel(i)
     void pdf?.loadingTask.destroy()
     ;[pdf, pdfPages] = [doc, list]
@@ -44,17 +53,20 @@ export function usePdfRender(zoom: Ref<number>, pages: Ref<Page[]>, scroller: Re
   function observe() {
     observer?.disconnect()
     if (!pdf || !scroller.value) return
-    observer = new IntersectionObserver((entries) => {
-      for (const en of entries) {
-        const i = Number((en.target as HTMLElement).dataset.i)
-        if (en.isIntersecting) visible.add(i)
-        else {
-          visible.delete(i)
-          free(i)
+    observer = new IntersectionObserver(
+      (entries) => {
+        for (const en of entries) {
+          const i = Number((en.target as HTMLElement).dataset.i)
+          if (en.isIntersecting) visible.add(i)
+          else {
+            visible.delete(i)
+            free(i)
+          }
         }
-      }
-      scheduleRender(0)
-    }, { root: scroller.value, rootMargin: '50% 0px' })
+        scheduleRender(0)
+      },
+      { root: scroller.value, rootMargin: '50% 0px' },
+    )
     scroller.value.querySelectorAll('.fe-page').forEach((el) => observer!.observe(el))
   }
 
@@ -67,8 +79,16 @@ export function usePdfRender(zoom: Ref<number>, pages: Ref<Page[]>, scroller: Re
     const [page, canvas, pg] = [pdfPages[i], canvases[i], pages.value[i]]
     if (!page || !canvas || !pg) return
     // Budget gleichmäßig auf alle Seiten im Puffer verteilen, damit starker Zoom nicht über 1 GB geht.
-    const area = [...visible].reduce((a, j) => a + (pages.value[j] ? pages.value[j].w * pages.value[j].h : 0), 0) || pg.w * pg.h
-    const scale = Math.min(zoom.value * Math.min(window.devicePixelRatio, MAX_DPR), Math.sqrt(MAX_PIXELS / (pg.w * pg.h)), Math.sqrt(BUDGET / area))
+    const area =
+      [...visible].reduce(
+        (a, j) => a + (pages.value[j] ? pages.value[j].w * pages.value[j].h : 0),
+        0,
+      ) || pg.w * pg.h
+    const scale = Math.min(
+      zoom.value * Math.min(window.devicePixelRatio, MAX_DPR),
+      Math.sqrt(MAX_PIXELS / (pg.w * pg.h)),
+      Math.sqrt(BUDGET / area),
+    )
     if (Math.abs((rendered.get(i) ?? 0) - scale) < 1e-3) return
     cancel(i)
     // Erst offscreen rendern, dann umkopieren: beim Zoomen bleibt das alte Bild stehen, statt weiß zu blitzen.

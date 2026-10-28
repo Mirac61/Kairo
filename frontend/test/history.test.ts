@@ -3,7 +3,10 @@ import assert from 'node:assert/strict'
 import { useHistory } from '../src/composables/useHistory.ts'
 
 let state = [1]
-const h = useHistory(() => state, (v) => (state = v))
+const h = useHistory(
+  () => state,
+  (v) => (state = v),
+)
 h.reset()
 assert.equal(h.changed.value, false)
 

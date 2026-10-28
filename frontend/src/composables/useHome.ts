@@ -1,12 +1,4 @@
-import {
-  computed,
-  inject,
-  onMounted,
-  onUnmounted,
-  provide,
-  ref,
-  type InjectionKey,
-} from 'vue'
+import { computed, inject, onMounted, onUnmounted, provide, ref, type InjectionKey } from 'vue'
 import {
   getToday,
   isOpen,
@@ -231,7 +223,7 @@ function createHome() {
     const dayBase = Date.parse(`${today.value!.date}T00:00:00Z`)
     const roughTimestamp = dayBase + targetMinute * 60_000
     const zoneOffset =
-      (((getMinutesOfDay(roughTimestamp) - targetMinute + 720) % 1440) + 1440) % 1440 - 720
+      ((((getMinutesOfDay(roughTimestamp) - targetMinute + 720) % 1440) + 1440) % 1440) - 720
 
     return new Date(roughTimestamp - zoneOffset * 60_000)
   }

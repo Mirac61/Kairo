@@ -23,5 +23,7 @@ function ask(e: Event) {
 </script>
 
 <template>
-  <button type="button" class="btn" :class="ghost ? 'btn-ghost' : 'btn-danger'" @click="ask">{{ label ?? $t('Löschen') }}</button>
+  <button type="button" class="btn" :class="ghost ? 'btn-ghost' : 'btn-danger'" @click="ask">
+    {{ label ?? $t('Löschen') }}
+  </button>
 </template>

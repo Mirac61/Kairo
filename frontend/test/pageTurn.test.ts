@@ -7,7 +7,10 @@ const H = 600
 
 test('Umblättern: Anfang und Ende liegen flach', () => {
   // Am Anfang ist die alte Seite ganz da und die Rückseite noch nicht zu sehen.
-  assert.equal(leafFrame('cut', 0, W, H).clip, 'polygon(0px 0px, 500px 0px, 500px 600px, 0px 600px)')
+  assert.equal(
+    leafFrame('cut', 0, W, H).clip,
+    'polygon(0px 0px, 500px 0px, 500px 600px, 0px 600px)',
+  )
   assert.equal(leafFrame('flap', 0, W, H).clip, 'polygon(0px 0px, 0px 0px, 0px 600px, 0px 600px)')
   // Am Ende liegt die neue Seite genau an ihrem Platz, die alte ist bis auf den Bund verschwunden.
   const end = leafFrame('flap', 1, W, H)
@@ -35,7 +38,11 @@ test('Umblättern: die Rückseite liegt am Falz an', () => {
 test('Umblättern: zurück ist gespiegelt', () => {
   const fwd = leafFrame('cut', 0.3, W, H)
   const back = leafFrame('cut', 0.3, W, H, true)
-  const xs = (clip: string) => [...clip.matchAll(/([\d.-]+)px ([\d.-]+)px/g)].map((m) => Number(m[1]))
-  assert.deepEqual(xs(back.clip), xs(fwd.clip).map((x) => Math.round((W - x) * 100) / 100))
+  const xs = (clip: string) =>
+    [...clip.matchAll(/([\d.-]+)px ([\d.-]+)px/g)].map((m) => Number(m[1]))
+  assert.deepEqual(
+    xs(back.clip),
+    xs(fwd.clip).map((x) => Math.round((W - x) * 100) / 100),
+  )
   assert.equal(leafFrame('flap', 1, W, H, true).transform, 'matrix(1, 0, 0, 1, 0, 0)')
 })

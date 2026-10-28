@@ -24,7 +24,7 @@ export function useFreeSlot(
   day: () => string | null,
   minutes: () => number,
   today: () => string,
-  nowMin: () => number
+  nowMin: () => number,
 ) {
   const blocks = ref<FreeSlotBlock[]>([])
   const win = ref({ start: 0, end: 24 * 60 })
@@ -80,7 +80,7 @@ export function useFreeSlot(
           ? { start: todayData.work_start, end: todayData.work_end }
           : { start: 0, end: 24 * 60 }
     },
-    { immediate: true }
+    { immediate: true },
   )
 
   const slot = computed(() => {

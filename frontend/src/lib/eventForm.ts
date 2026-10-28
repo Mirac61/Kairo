@@ -3,7 +3,15 @@ import { addDays, hhmm, ymd } from './dates.ts'
 
 // Wiederholung: wöchentlich an Wochentagen, monatlich am Tag des Starts oder jährlich, optional mit Enddatum
 // (RRULE-Teilmenge des Backends).
-export const WEEKDAYS = [['MO', 'Mo'], ['TU', 'Di'], ['WE', 'Mi'], ['TH', 'Do'], ['FR', 'Fr'], ['SA', 'Sa'], ['SU', 'So']] as const
+export const WEEKDAYS = [
+  ['MO', 'Mo'],
+  ['TU', 'Di'],
+  ['WE', 'Mi'],
+  ['TH', 'Do'],
+  ['FR', 'Fr'],
+  ['SA', 'Sa'],
+  ['SU', 'So'],
+] as const
 const CODE_OF_DAY = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] // Index = Date.getDay()
 const WEEKLY_RULE = /^FREQ=WEEKLY;BYDAY=([A-Z,]+)(?:;UNTIL=(\d{4})(\d{2})(\d{2}))?$/
 const MONTH_YEAR_RULE = /^FREQ=(MONTHLY|YEARLY)(?:;UNTIL=(\d{4})(\d{2})(\d{2}))?$/
@@ -11,7 +19,8 @@ export type Freq = 'WEEKLY' | 'MONTHLY' | 'YEARLY'
 
 // Ganztägig = von Mitternacht bis Mitternacht (ab 23 h wegen der Zeitumstellung); das Backend kennt kein eigenes Flag.
 const atMidnight = (d: Date) => d.getHours() === 0 && d.getMinutes() === 0
-export const isAllDay = (start: Date, end: Date) => atMidnight(start) && atMidnight(end) && end.getTime() - start.getTime() >= 23 * 3_600_000
+export const isAllDay = (start: Date, end: Date) =>
+  atMidnight(start) && atMidnight(end) && end.getTime() - start.getTime() >= 23 * 3_600_000
 
 // Letzter Tag eines Zeitraums mit exklusivem Ende.
 const lastDay = (end: Date) => ymd(addDays(end, -1))
@@ -40,10 +49,24 @@ export interface Form {
 
 export function newForm(start: Date, end: Date, allDay: boolean): Form {
   return {
-    id: null, kind: 'event', title: '', location: '', date: ymd(start),
-    from: allDay ? '09:00' : hhmm(start), to: allDay ? '10:00' : hhmm(end), allDay,
-    endDate: allDay ? lastDay(end) : ymd(start), keepTimes: false, projectId: '',
-    repeat: false, freq: 'WEEKLY', days: [CODE_OF_DAY[start.getDay()]!], until: '', customRule: null, day: '', ask: false,
+    id: null,
+    kind: 'event',
+    title: '',
+    location: '',
+    date: ymd(start),
+    from: allDay ? '09:00' : hhmm(start),
+    to: allDay ? '10:00' : hhmm(end),
+    allDay,
+    endDate: allDay ? lastDay(end) : ymd(start),
+    keepTimes: false,
+    projectId: '',
+    repeat: false,
+    freq: 'WEEKLY',
+    days: [CODE_OF_DAY[start.getDay()]!],
+    until: '',
+    customRule: null,
+    day: '',
+    ask: false,
   }
 }
 
@@ -51,14 +74,29 @@ export function editForm(ev: CalendarEvent, day: string): Form {
   const [start, end] = [new Date(ev.start_at), new Date(ev.end_at)]
   const allDay = isAllDay(start, end)
   const f: Form = {
-    ...newForm(start, end, allDay), id: ev.id, title: ev.title, location: ev.location,
-    keepTimes: !allDay && ymd(end) !== ymd(start), projectId: ev.project_id ?? '', day: ev.recurrence_rule ? day : '',
+    ...newForm(start, end, allDay),
+    id: ev.id,
+    title: ev.title,
+    location: ev.location,
+    keepTimes: !allDay && ymd(end) !== ymd(start),
+    projectId: ev.project_id ?? '',
+    day: ev.recurrence_rule ? day : '',
   }
   const rule = ev.recurrence_rule
   const m = rule?.match(WEEKLY_RULE)
   const my = rule?.match(MONTH_YEAR_RULE)
-  if (m) Object.assign(f, { repeat: true, days: m[1]!.split(','), until: m[2] ? `${m[2]}-${m[3]}-${m[4]}` : '' })
-  else if (my) Object.assign(f, { repeat: true, freq: my[1], until: my[2] ? `${my[2]}-${my[3]}-${my[4]}` : '' })
+  if (m)
+    Object.assign(f, {
+      repeat: true,
+      days: m[1]!.split(','),
+      until: m[2] ? `${m[2]}-${m[3]}-${m[4]}` : '',
+    })
+  else if (my)
+    Object.assign(f, {
+      repeat: true,
+      freq: my[1],
+      until: my[2] ? `${my[2]}-${my[3]}-${my[4]}` : '',
+    })
   else if (rule) f.customRule = rule
   return f
 }
@@ -76,18 +114,25 @@ export function ruleOf(f: Form): string {
 // Eine eigene Regel (customRule) bleibt unangetastet; beim Bearbeiten entfernt '' die Wiederholung.
 export function requestOf(f: Form, title: string): { task: Partial<Task> } | { event: EventBody } {
   const start = new Date(`${f.date}T${f.allDay ? '00:00' : f.from}`)
-  const end = f.allDay ? addDays(new Date(`${f.endDate || f.date}T00:00`), 1) : new Date(`${f.date}T${f.to}`)
+  const end = f.allDay
+    ? addDays(new Date(`${f.endDate || f.date}T00:00`), 1)
+    : new Date(`${f.date}T${f.to}`)
   if (f.kind === 'task') {
-    return { task: {
-      title,
-      planned_date: f.date,
-      planned_start_at: f.allDay ? null : start.toISOString(),
-      project_id: f.projectId || undefined,
-      estimated_minutes: f.allDay ? 0 : Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000)),
-    } }
+    return {
+      task: {
+        title,
+        planned_date: f.date,
+        planned_start_at: f.allDay ? null : start.toISOString(),
+        project_id: f.projectId || undefined,
+        estimated_minutes: f.allDay
+          ? 0
+          : Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000)),
+      },
+    }
   }
   const event: EventBody = { title, location: f.location, project_id: f.projectId }
-  if (!f.keepTimes) Object.assign(event, { start_at: start.toISOString(), end_at: end.toISOString() })
+  if (!f.keepTimes)
+    Object.assign(event, { start_at: start.toISOString(), end_at: end.toISOString() })
   if (f.customRule === null) {
     const rule = ruleOf(f)
     if (f.id || rule) event.recurrence_rule = rule

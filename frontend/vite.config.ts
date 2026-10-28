@@ -42,13 +42,21 @@ function restoreGitkeep(): Plugin {
 // Liberation fehlt auch: Excalidraw braucht sie nur beim Export auf dem Server.
 // Die Lizenzhinweise (THIRD_PARTY_NOTICES.md) kommen als /licenses.txt mit, die Einstellungen verlinken sie.
 function excalidrawFonts(): Plugin {
-  const src = fileURLToPath(new URL('./node_modules/@excalidraw/excalidraw/dist/prod/fonts', import.meta.url))
+  const src = fileURLToPath(
+    new URL('./node_modules/@excalidraw/excalidraw/dist/prod/fonts', import.meta.url),
+  )
   return {
     name: 'kairo-excalidraw-fonts',
     apply: 'build',
     closeBundle() {
-      cpSync(src, `${outDir}/excalidraw/fonts`, { recursive: true, filter: (f) => !/Xiaolai|Liberation/.test(f) })
-      cpSync(fileURLToPath(new URL('../THIRD_PARTY_NOTICES.md', import.meta.url)), `${outDir}/licenses.txt`)
+      cpSync(src, `${outDir}/excalidraw/fonts`, {
+        recursive: true,
+        filter: (f) => !/Xiaolai|Liberation/.test(f),
+      })
+      cpSync(
+        fileURLToPath(new URL('../THIRD_PARTY_NOTICES.md', import.meta.url)),
+        `${outDir}/licenses.txt`,
+      )
     },
   }
 }

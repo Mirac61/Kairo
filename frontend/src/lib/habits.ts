@@ -56,7 +56,7 @@ export function buildHabitCell(
   doneSet: Set<string> | undefined,
   pauses: HabitPause[],
   todayStr: string,
-  dayLabelFmt: Intl.DateTimeFormat
+  dayLabelFmt: Intl.DateTimeFormat,
 ): HabitCell {
   const s = ymd(date)
   const isDone = !!doneSet?.has(s)
@@ -92,7 +92,7 @@ export function buildHabitCell(
 export function formatHabitRhythm(habit: Habit, wdLabel: Record<string, string>): string {
   const c = habit.frequency_config
   if (habit.frequency_type === 'WEEKLY') {
-    return c.weekday ? wdLabel[c.weekday] ?? t('Wöchentlich') : t('Wöchentlich')
+    return c.weekday ? (wdLabel[c.weekday] ?? t('Wöchentlich')) : t('Wöchentlich')
   }
   if (habit.frequency_type === 'SPECIFIC_WEEKDAYS') {
     return (c.weekdays ?? []).map((d) => wdLabel[d] ?? d).join(', ')
@@ -127,11 +127,11 @@ export function computeHabit30DayRate(
   habit: Habit,
   doneSet: Set<string> | undefined,
   pauses: HabitPause[],
-  todayStr: string = ymd(new Date())
+  todayStr: string = ymd(new Date()),
 ): number | null {
   const todayDate = new Date(`${todayStr}T12:00:00`)
   const days = Array.from({ length: 30 }, (_, i) => addDays(todayDate, -i)).filter(
-    (d) => ymd(d) >= habit.start_date && !isHabitPausedOn(pauses, habit.id, ymd(d))
+    (d) => ymd(d) >= habit.start_date && !isHabitPausedOn(pauses, habit.id, ymd(d)),
   )
   if (!days.length) return null
 
@@ -148,7 +148,7 @@ export function computeWeekProgress(
   habit: Habit,
   doneSet: Set<string> | undefined,
   pauses: HabitPause[],
-  weekDays: Date[]
+  weekDays: Date[],
 ): { done: number; target: number } {
   const done = weekDays.filter((d) => doneSet?.has(ymd(d))).length
   if (habit.frequency_type === 'TIMES_PER_WEEK') {
@@ -180,12 +180,10 @@ export function computeLongestStreak(cells: HabitCell[], currentStreak: number):
   return Math.max(best, currentStreak)
 }
 
-export function computeWeekdayRates(
-  cells: HabitCell[]
-): { w: Weekday; pct: number | null }[] {
+export function computeWeekdayRates(cells: HabitCell[]): { w: Weekday; pct: number | null }[] {
   return WEEKDAYS.map((w, i) => {
     const weekdayCells = cells.filter(
-      (c, j) => j % 7 === i && (c.state === 'done' || (c.state === 'open' && !c.today))
+      (c, j) => j % 7 === i && (c.state === 'done' || (c.state === 'open' && !c.today)),
     )
     if (!weekdayCells.length) return { w, pct: null }
     const doneCount = weekdayCells.filter((c) => c.isDone).length
