@@ -370,29 +370,40 @@ async function submitImport() {
 </template>
 
 <style scoped>
-.je-form { display: grid; }
-.je-q { display: grid; gap: 6px; padding: 18px 0; border-top: 1px solid var(--br-subtle); }
-.je-q:first-child { border-top: 0; padding-top: 4px; }
-.je-label { font: 500 11px/1.3 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tx-muted); }
-.je-area {
-  width: 100%; min-height: 40px; padding: 2px 0; border: 0; outline: none; resize: none; overflow: hidden;
-  background: none; color: var(--tx-primary); font: 400 15px/1.6 var(--font-ui);
+.je-form { display: grid; gap: 24px; }
+.je-q { display: grid; gap: 8px; padding: 0; border-top: 0; }
+.je-label {
+  font: italic 400 20px/1.3 var(--font-serif);
+  color: var(--tx-secondary);
+  letter-spacing: normal;
+  text-transform: none;
 }
-.je-area::placeholder { color: var(--tx-muted); }
+.je-area {
+  width: 100%; min-height: 40px; padding: 4px 0 6px; border: 0; border-bottom: 1px solid transparent;
+  outline: none; resize: none; overflow: hidden; background: none; color: var(--tx-primary);
+  font: 400 16px/1.7 var(--font-ui); transition: border-color var(--dur) ease-out;
+}
+.je-area:focus { border-bottom-color: var(--br-default); }
+.je-area:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: var(--r-s); }
+.je-area::placeholder { color: var(--tx-disabled); opacity: 0.65; }
 
-.je-points { display: grid; gap: 2px; }
-.je-point { display: flex; align-items: flex-start; gap: 10px; }
+.je-points { display: grid; gap: 4px; }
+.je-point { display: flex; align-items: center; gap: 12px; }
 .je-bullet {
-  flex: none; width: 6px; height: 6px; margin-top: 10px; border-radius: 50%;
-  background: var(--a-blue-hi);
+  flex: none; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--p-orange); opacity: 0.75;
 }
 .je-point-input {
-  flex: 1; min-width: 0; height: 26px; padding: 0; border: 0; outline: none; background: none;
-  color: var(--tx-primary); font: 400 15px/1.6 var(--font-ui);
+  flex: 1; min-width: 0; height: auto; padding: 4px 0 6px; border: 0; border-bottom: 1px solid transparent;
+  outline: none; background: none; color: var(--tx-primary); font: 400 16px/1.7 var(--font-ui);
+  transition: border-color var(--dur) ease-out;
 }
-.je-point-input::placeholder { color: var(--tx-muted); }
-.je-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
-.je-import { height: 28px; padding: 0 10px; font-size: 13px; }
+.je-point-input:focus { border-bottom-color: var(--br-default); }
+.je-point-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: var(--r-s); }
+.je-point-input::placeholder { color: var(--tx-disabled); opacity: 0.65; }
+
+.je-foot { display: flex; align-items: center; gap: 16px; margin-top: 8px; }
+.je-import { height: 28px; padding: 0 10px; font-size: 13px; color: var(--tx-secondary); }
 .je-import .ic { width: 14px; height: 14px; }
 .je-imported { font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
 .je-status { margin-left: auto; font: 400 12px/1 var(--font-ui); color: var(--tx-muted); }
@@ -401,7 +412,7 @@ async function submitImport() {
 
 .je-conflict {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--br-default); border-radius: var(--r-m);
+  margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--br-default); border-radius: var(--r-m);
   background: var(--bg-1);
 }
 .je-conflict div { display: grid; gap: 2px; }

@@ -373,19 +373,16 @@ test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
   assert.equal((await api('/tasks')).find((task) => task.title === 'Kapitel 7 lesen').status, 'COMPLETED')
 })
 
-test('Journal: Rückblick bleibt bei vielen Einträgen bündig', async () => {
+test('Journal: Rückblick listet erledigte Aufgaben auf', async () => {
   const today = new Date().toLocaleDateString('sv')
   for (let i = 1; i <= 8; i++) {
     const task = await api('/tasks', { method: 'POST', body: JSON.stringify({ title: `Rückblick ${i}`, planned_date: today }) })
     await api(`/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'COMPLETED' }) })
   }
   await page.goto(`${base}/journal`)
-  await page.waitForFunction(() => {
-    const recap = document.querySelector('.jr-recap-box')
-    const today = document.querySelector('.jr-today')
-    return recap && today && Math.abs(recap.getBoundingClientRect().bottom - today.getBoundingClientRect().bottom) <= 1
-  })
-  assert.ok(await page.locator('.jr-recap-body').evaluate((el) => el.scrollHeight > el.clientHeight), 'Rückblick scrollt innen')
+  const recap = page.locator('.jr-recap')
+  await recap.waitFor()
+  assert.match(await recap.innerText(), /Heute erledigt:.*Rückblick/)
 })
 
 test('Journal: „Alle Aufgaben“ filtert nach Journal', async () => {
@@ -403,7 +400,7 @@ test('Journal: „Alle Aufgaben“ filtert nach Journal', async () => {
   await page.locator('.task-row', { hasText: 'Abgabe einreichen. Kapitel lesen' }).waitFor()
 })
 
-test('Journal am Handy: Rückblick und offene Aufgaben vor den Einträgen', async () => {
+test('Journal am Handy: offene Aufgaben vor den Einträgen und kein Überlauf', async () => {
   await page.setViewportSize({ width: 390, height: 844 })
   try {
     await page.goto(`${base}/journal`)
