@@ -2,6 +2,10 @@ import { setProjectColors } from '@/lib/projectColor'
 import { t } from '@/lib/i18n'
 import { handleUnauthorized } from '@/composables/useAuth'
 
+// ============================================================================
+// Core HTTP Client & Error Handling
+// ============================================================================
+
 export class ApiError extends Error {
   readonly status: number
   readonly body: unknown
@@ -23,7 +27,13 @@ export async function api<T>(path: string, init?: ApiOptions): Promise<T> {
   if (init?.body !== undefined && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  const res = await fetch(`/api${path}`, { ...init, headers, credentials: 'include' })
+
+  const res = await fetch(`/api${path}`, {
+    ...init,
+    headers,
+    credentials: 'include',
+  })
+
   const text = await res.text()
   let body: unknown = undefined
   if (text) {
@@ -33,21 +43,39 @@ export async function api<T>(path: string, init?: ApiOptions): Promise<T> {
       body = text
     }
   }
+
   if (!res.ok) {
     if (res.status === 401 && !init?.skipUnauthorizedHandler) {
       handleUnauthorized()
     }
     throw new ApiError(res.status, res.statusText, body)
   }
+
   return body as T
 }
+
+// Fehlertext aus {"error": "..."} des Backends, sonst Standardtext.
+export function errorMessage(err: unknown): string {
+  const body = err instanceof ApiError ? (err.body as { error?: string } | undefined) : undefined
+  return body?.error ?? t('Backend nicht erreichbar.')
+}
+
+// ============================================================================
+// System & Health
+// ============================================================================
 
 export interface Health {
   status: string
   version: string
 }
 
-export const getHealth = () => api<Health>('/health')
+export function getHealth(): Promise<Health> {
+  return api<Health>('/health')
+}
+
+// ============================================================================
+// Tasks
+// ============================================================================
 
 export interface Task {
   id: string
@@ -66,89 +94,62 @@ export interface Task {
 }
 
 // Offen = weder erledigt noch abgebrochen.
-export const isOpen = (t: Pick<Task, 'status'>) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
-
-export interface TodayEvent {
-  id: string
-  title: string
-  location: string
-  occurrence_start: string
-  occurrence_end: string
+export function isOpen(task: Pick<Task, 'status'>): boolean {
+  return task.status !== 'COMPLETED' && task.status !== 'CANCELLED'
 }
 
-export interface TodayHabit {
-  id: string
-  name: string
-  unit: string
-  target_value: number | null
-  preferred_time: string | null
-  done: boolean
-  week_progress: { done: number; target: number } | null
+export function listTasks(query = ''): Promise<Task[]> {
+  return api<Task[]>(`/tasks${query}`)
 }
 
-export interface TimeEntry {
-  id: string
-  task_id: string | null
-  project_id: string | null
-  started_at: string
-  ended_at: string | null
+export function createTask(body: Partial<Task>): Promise<Task> {
+  return api<Task>('/tasks', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
-export interface Today {
-  date: string
-  timezone: string
-  events: TodayEvent[]
-  tasks: Task[]
-  overdue: Task[]
-  active_tasks: Task[]
-  habits: TodayHabit[]
-  running_time_entry: TimeEntry | null
-  planned_minutes: number
-  calendar_minutes: number
-  tracked_minutes: number
-  work_minutes: number
-  work_start: number // Arbeitsfenster in Minuten seit Mitternacht, 0/0 ohne Fenster
-  work_end: number
-  free_minutes: number
-  overplanned_minutes: number
-  unestimated_tasks: number
+// Beim Ändern entfernt "" einen optionalen Wert (due_at, planned_date, …); null lässt ihn unverändert.
+export function updateTask(id: string, body: Record<string, unknown>): Promise<Task> {
+  return api<Task>(`/tasks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
 }
 
-export const getToday = (date?: string) => api<Today>(`/today${date ? `?date=${date}` : ''}`)
-
-export const taskAction = (id: string, action: 'start' | 'pause' | 'complete') =>
-  api<unknown>(`/tasks/${id}/${action}`, { method: 'POST' })
-
-// Zeiteinträge mit Start im Fenster [from, to).
-export const listTimeEntries = (from: Date, to: Date) =>
-  api<TimeEntry[]>(`/time-entries?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`)
-
-export const createTimeEntry = (body: { task_id: string; started_at: string; ended_at: string }) =>
-  api<TimeEntry>('/time-entries', { method: 'POST', body: JSON.stringify(body) })
-
-export const updateTimeEntry = (id: string, body: { started_at?: string; ended_at?: string }) =>
-  api<TimeEntry>(`/time-entries/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
-
-export const deleteTimeEntry = (id: string) => api<void>(`/time-entries/${id}`, { method: 'DELETE' })
-
-// value setzt bei Mengen-Habits die Menge des Tages (ein zweiter Aufruf überschreibt sie); ohne value gilt der Tag als erledigt.
-export const completeHabit = (id: string, date: string, value?: number) =>
-  api<unknown>(`/habits/${id}/completions`, { method: 'POST', body: JSON.stringify({ date, value }) })
-
-// Pausen: an diesen Tagen ist nichts fällig, Serien brechen nicht. habit_id null = alle Gewohnheiten (Urlaub).
-export interface HabitPause {
-  id: string
-  habit_id: string | null
-  start_date: string
-  end_date: string
+// DELETE legt in den Papierkorb, permanent löscht endgültig (Task mit Zeiteinträgen: 409).
+export function deleteTask(id: string, permanent = false): Promise<void> {
+  const queryParam = permanent ? '?permanent=true' : ''
+  return api<void>(`/tasks/${id}${queryParam}`, {
+    method: 'DELETE',
+  })
 }
-export const listHabitPauses = () => api<HabitPause[]>('/habits/pauses')
-export const createHabitPause = (body: { habit_id: string | null; start_date: string; end_date?: string }) =>
-  api<HabitPause>('/habits/pauses', { method: 'POST', body: JSON.stringify(body) })
-export const deleteHabitPause = (id: string) => api<void>(`/habits/pauses/${id}`, { method: 'DELETE' })
 
-export const uncompleteHabit = (id: string, date: string) =>
-  api<unknown>(`/habits/${id}/completions/${date}`, { method: 'DELETE' })
+export function restoreTask(id: string): Promise<unknown> {
+  return api<unknown>(`/tasks/${id}/restore`, {
+    method: 'POST',
+  })
+}
+
+export function taskAction(id: string, action: 'start' | 'pause' | 'complete'): Promise<unknown> {
+  return api<unknown>(`/tasks/${id}/${action}`, {
+    method: 'POST',
+  })
+}
+
+// Mehrere Aufgaben in einem Aufruf ändern (Sammelaktionen der Mehrfachauswahl).
+export function bulkUpdateTasks(
+  updates: { id: string; [k: string]: unknown }[],
+): Promise<{ updated: number }> {
+  return api<{ updated: number }>('/tasks/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ updates }),
+  })
+}
+
+// ============================================================================
+// Projects
+// ============================================================================
 
 export interface Project {
   id: string
@@ -158,53 +159,69 @@ export interface Project {
   github_repo?: string | null
   status: string
   color: string
+  icon?: string
 }
 
-export const listProjects = () => api<Project[]>('/projects').then((ps) => (setProjectColors(ps), ps))
-
-export const listTasks = (query = '') => api<Task[]>(`/tasks${query}`)
-
-export const createTask = (body: Partial<Task>) =>
-  api<Task>('/tasks', { method: 'POST', body: JSON.stringify(body) })
-
-export interface JournalSummary {
-  date: string
-  total: number
-  streak: number
+export function listProjects(): Promise<Project[]> {
+  return api<Project[]>('/projects').then((projects) => {
+    setProjectColors(projects)
+    return projects
+  })
 }
 
-export const getJournalSummary = () => api<JournalSummary>('/journal/summary')
-
-export interface JournalTaskImport {
-  journal_date: string
-  task_count: number
-  imported_at: string
-  titles: string[]
+export function createProject(body: Partial<Project>): Promise<Project> {
+  return api<Project>('/projects', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
-export const listJournalTaskImports = () => api<JournalTaskImport[]>('/journal/task-imports')
-
-export const importJournalTasks = (date: string, titles: string[]) =>
-  api<JournalTaskImport>(`/journal/${encodeURIComponent(date)}/tasks`, { method: 'POST', body: JSON.stringify({ titles }) })
-
-// DELETE legt in den Papierkorb, permanent löscht endgültig (Task mit Zeiteinträgen: 409).
-export const deleteTask = (id: string, permanent = false) =>
-  api<void>(`/tasks/${id}${permanent ? '?permanent=true' : ''}`, { method: 'DELETE' })
-export const restoreTask = (id: string) => api<unknown>(`/tasks/${id}/restore`, { method: 'POST' })
-
-// Fehlertext aus {"error": "..."} des Backends, sonst Standardtext.
-export function errorMessage(e: unknown): string {
-  const body = e instanceof ApiError ? (e.body as { error?: string } | undefined) : undefined
-  return body?.error ?? t('Backend nicht erreichbar.')
+export function updateProject(id: string, body: Partial<Project>): Promise<Project> {
+  return api<Project>(`/projects/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
 }
 
-export const createProject = (body: Partial<Project>) =>
-  api<Project>('/projects', { method: 'POST', body: JSON.stringify(body) })
+export function deleteProject(id: string): Promise<void> {
+  return api<void>(`/projects/${id}`, {
+    method: 'DELETE',
+  })
+}
 
-export const updateProject = (id: string, body: Partial<Project>) =>
-  api<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+// ============================================================================
+// Resources (Files, Notes, URLs linked to Tasks/Projects)
+// ============================================================================
 
-export const deleteProject = (id: string) => api<void>(`/projects/${id}`, { method: 'DELETE' })
+export interface Resource {
+  id: string
+  task_id: string | null
+  project_id: string | null
+  type: 'FILE' | 'FOLDER' | 'URL' | 'NOTE' // NOTE: Pfad im Notizordner
+  target: string
+  label: string
+}
+
+export function listResources(): Promise<Resource[]> {
+  return api<Resource[]>('/resources')
+}
+
+export function createResource(body: Partial<Resource>): Promise<Resource> {
+  return api<Resource>('/resources', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteResource(id: string): Promise<void> {
+  return api<void>(`/resources/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+// ============================================================================
+// Habits & Pauses
+// ============================================================================
 
 export interface FrequencyConfig {
   weekday?: string
@@ -230,8 +247,6 @@ export interface Habit {
   active: boolean
 }
 
-export const listHabits = () => api<Habit[]>('/habits')
-
 export interface HabitDue {
   habit_id: string
   name: string
@@ -241,21 +256,263 @@ export interface HabitDue {
   duration_minutes: number
 }
 
+export interface HabitPause {
+  id: string
+  habit_id: string | null
+  start_date: string
+  end_date: string
+}
+
+export function listHabits(): Promise<Habit[]> {
+  return api<Habit[]>('/habits')
+}
+
 // Fällige Habits je Tag, from/to inklusive, höchstens 42 Tage.
-export const habitsDue = (from: string, to: string) => api<HabitDue[]>(`/habits/due?from=${from}&to=${to}`)
+export function habitsDue(from: string, to: string): Promise<HabitDue[]> {
+  return api<HabitDue[]>(`/habits/due?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+}
 
-export const createHabit = (body: Partial<Habit>) =>
-  api<Habit>('/habits', { method: 'POST', body: JSON.stringify(body) })
+export function createHabit(body: Partial<Habit>): Promise<Habit> {
+  return api<Habit>('/habits', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
 
-export const updateHabit = (id: string, body: Partial<Habit>) =>
-  api<Habit>(`/habits/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+export function updateHabit(id: string, body: Partial<Habit>): Promise<Habit> {
+  return api<Habit>(`/habits/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
 
-export const deleteHabit = (id: string, permanent = false) =>
-  api<void>(`/habits/${id}${permanent ? '?permanent=true' : ''}`, { method: 'DELETE' })
-export const restoreHabit = (id: string) => api<unknown>(`/habits/${id}/restore`, { method: 'POST' })
+export function deleteHabit(id: string, permanent = false): Promise<void> {
+  const queryParam = permanent ? '?permanent=true' : ''
+  return api<void>(`/habits/${id}${queryParam}`, {
+    method: 'DELETE',
+  })
+}
 
-// Ziele fürs Motivationsboard. progress kommt vom Backend (aus Projekt, Zeiterfassung oder Gewohnheit), bei NONE null.
+export function restoreHabit(id: string): Promise<unknown> {
+  return api<unknown>(`/habits/${id}/restore`, {
+    method: 'POST',
+  })
+}
+
+// value setzt bei Mengen-Habits die Menge des Tages (ein zweiter Aufruf überschreibt sie); ohne value gilt der Tag als erledigt.
+export function completeHabit(id: string, date: string, value?: number): Promise<unknown> {
+  return api<unknown>(`/habits/${id}/completions`, {
+    method: 'POST',
+    body: JSON.stringify({ date, value }),
+  })
+}
+
+export function uncompleteHabit(id: string, date: string): Promise<unknown> {
+  return api<unknown>(`/habits/${id}/completions/${encodeURIComponent(date)}`, {
+    method: 'DELETE',
+  })
+}
+
+export function listHabitPauses(): Promise<HabitPause[]> {
+  return api<HabitPause[]>('/habits/pauses')
+}
+
+export function createHabitPause(body: {
+  habit_id: string | null
+  start_date: string
+  end_date?: string
+}): Promise<HabitPause> {
+  return api<HabitPause>('/habits/pauses', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteHabitPause(id: string): Promise<void> {
+  return api<void>(`/habits/pauses/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+// ============================================================================
+// Time Tracking & Entries
+// ============================================================================
+
+export interface TimeEntry {
+  id: string
+  task_id: string | null
+  project_id: string | null
+  started_at: string
+  ended_at: string | null
+}
+
+// Zeiteinträge mit Start im Fenster [from, to).
+export function listTimeEntries(from: Date, to: Date): Promise<TimeEntry[]> {
+  const fromIso = encodeURIComponent(from.toISOString())
+  const toIso = encodeURIComponent(to.toISOString())
+  return api<TimeEntry[]>(`/time-entries?from=${fromIso}&to=${toIso}`)
+}
+
+export function createTimeEntry(body: {
+  task_id: string
+  started_at: string
+  ended_at: string
+}): Promise<TimeEntry> {
+  return api<TimeEntry>('/time-entries', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateTimeEntry(
+  id: string,
+  body: { started_at?: string; ended_at?: string },
+): Promise<TimeEntry> {
+  return api<TimeEntry>(`/time-entries/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteTimeEntry(id: string): Promise<void> {
+  return api<void>(`/time-entries/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+// ============================================================================
+// Calendar & Events
+// ============================================================================
+
+export interface TodayEvent {
+  id: string
+  title: string
+  location: string
+  occurrence_start: string
+  occurrence_end: string
+}
+
+export interface CalendarEvent extends TodayEvent {
+  start_at: string
+  end_at: string
+  recurrence_rule: string | null
+  project_id: string | null
+}
+
+export interface EventBody {
+  title?: string
+  start_at?: string
+  end_at?: string
+  location?: string
+  recurrence_rule?: string // "" entfernt die Wiederholung
+  recurrence_exdates?: string[] // ersetzt die ganze Liste ("YYYY-MM-DD")
+  project_id?: string // "" entfernt die Verknüpfung
+}
+
+export function createEvent(body: EventBody): Promise<unknown> {
+  return api<unknown>('/calendar/events', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateEvent(id: string, body: EventBody): Promise<unknown> {
+  return api<unknown>(`/calendar/events/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteEvent(id: string, permanent = false): Promise<void> {
+  const queryParam = permanent ? '?permanent=true' : ''
+  return api<void>(`/calendar/events/${id}${queryParam}`, {
+    method: 'DELETE',
+  })
+}
+
+export function restoreEvent(id: string): Promise<unknown> {
+  return api<unknown>(`/calendar/events/${id}/restore`, {
+    method: 'POST',
+  })
+}
+
+// Konkrete Termine im Fenster [from, to), Serien aufgelöst.
+export function getOccurrences(from: Date, to: Date): Promise<CalendarEvent[]> {
+  const fromIso = encodeURIComponent(from.toISOString())
+  const toIso = encodeURIComponent(to.toISOString())
+  return api<CalendarEvent[]>(`/calendar/occurrences?from=${fromIso}&to=${toIso}`)
+}
+
+// Lässt eine Instanz der Serie aus; PATCH ersetzt die Liste, daher erst die bisherigen Ausnahmen lesen.
+// Liefert die bisherige Liste (für Rückgängig).
+export async function skipOccurrence(id: string, day: string): Promise<string[]> {
+  const eventDetails = await api<{ recurrence_exdates: string[] }>(`/calendar/events/${id}`)
+  await updateEvent(id, { recurrence_exdates: [...eventDetails.recurrence_exdates, day] })
+  return eventDetails.recurrence_exdates
+}
+
+export interface IcsImportResult {
+  created: number
+  updated: number
+  skipped: number
+  unsupported_rules: number
+  notes: string[]
+}
+
+// Schickt den rohen Text einer .ics-Datei; Termine mit bekannter UID werden aktualisiert.
+export function importIcs(text: string): Promise<IcsImportResult> {
+  return api<IcsImportResult>('/calendar/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/calendar' },
+    body: text,
+  })
+}
+
+// ============================================================================
+// Today (Dashboard Aggregate)
+// ============================================================================
+
+export interface TodayHabit {
+  id: string
+  name: string
+  unit: string
+  target_value: number | null
+  preferred_time: string | null
+  done: boolean
+  week_progress: { done: number; target: number } | null
+}
+
+export interface Today {
+  date: string
+  timezone: string
+  events: TodayEvent[]
+  tasks: Task[]
+  overdue: Task[]
+  active_tasks: Task[]
+  habits: TodayHabit[]
+  running_time_entry: TimeEntry | null
+  planned_minutes: number
+  calendar_minutes: number
+  tracked_minutes: number
+  work_minutes: number
+  work_start: number // Arbeitsfenster in Minuten seit Mitternacht, 0/0 ohne Fenster
+  work_end: number
+  free_minutes: number
+  overplanned_minutes: number
+  unestimated_tasks: number
+}
+
+export function getToday(date?: string): Promise<Today> {
+  const queryParam = date ? `?date=${encodeURIComponent(date)}` : ''
+  return api<Today>(`/today${queryParam}`)
+}
+
+// ============================================================================
+// Goals
+// ============================================================================
+
 export type GoalKind = 'NONE' | 'PROJECT_TASKS' | 'PROJECT_HOURS' | 'HABIT_COUNT'
+
 export interface Goal {
   id: string
   title: string
@@ -270,17 +527,41 @@ export interface Goal {
   archived: boolean
   parent_id: string | null // gesetzt: Teilziel eines Langzeitziels
   progress: { current: number; target: number; percent: number } | null
+  history: { date: string; percent: number }[] // Verlauf von start_date bis heute; leer ohne Fortschritt
 }
 
-export const listGoals = () => api<Goal[]>('/goals')
-export const goalToday = () => api<Goal | null>('/goals/today')
-export const createGoal = (body: Partial<Goal>) => api<Goal>('/goals', { method: 'POST', body: JSON.stringify(body) })
-export const updateGoal = (id: string, body: Partial<Goal>) =>
-  api<Goal>(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
-export const deleteGoal = (id: string) => api<void>(`/goals/${id}`, { method: 'DELETE' })
+export function listGoals(): Promise<Goal[]> {
+  return api<Goal[]>('/goals')
+}
 
-// Karteikarten: Zeilen „Frage :: Antwort“ in den Notizen (Fach = erster Ordner) oder direkt angelegt (id gesetzt).
-// Fällig nach SM-2. grade: 0 nochmal, 1 schwer, 2 gut, 3 leicht.
+export function goalToday(): Promise<Goal | null> {
+  return api<Goal | null>('/goals/today')
+}
+
+export function createGoal(body: Partial<Goal>): Promise<Goal> {
+  return api<Goal>('/goals', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateGoal(id: string, body: Partial<Goal>): Promise<Goal> {
+  return api<Goal>(`/goals/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteGoal(id: string): Promise<void> {
+  return api<void>(`/goals/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+// ============================================================================
+// Cards (Spaced Repetition / SM-2)
+// ============================================================================
+
 export interface Card {
   key: string
   id: string | null
@@ -296,8 +577,15 @@ export interface Card {
   next_intervals: [number, number, number, number] // Tage bis zur nächsten Wiederholung je Bewertung
   created_at: string | null
 }
+
 export type DueCard = Card
-export interface CardLog { key: string; grade: number; at: string }
+
+export interface CardLog {
+  key: string
+  grade: number
+  at: string
+}
+
 export interface Deck {
   name: string
   color: string // aus PROJECT_COLORS
@@ -307,125 +595,132 @@ export interface Deck {
   learn_due: number
   new_per_day: number // neue Karten pro Tag (Tageslimit)
 }
-export const listCards = () => api<Card[]>('/cards')
-export const dueCards = () => api<Card[]>('/cards/due')
-export const listDecks = () => api<Deck[]>('/cards/decks')
-export const createCard = (body: { deck: string; question: string; answer: string }) =>
-  api<Card>('/cards', { method: 'POST', body: JSON.stringify(body) })
-export const updateCard = (id: string, body: { deck: string; question: string; answer: string }) =>
-  api<Card>(`/cards/${id}`, { method: 'PUT', body: JSON.stringify(body) })
-export const deleteCard = (id: string) => api<void>(`/cards/${id}`, { method: 'DELETE' })
-export const setDeck = (name: string, body: { color?: string; new_per_day?: number }) =>
-  api<void>(`/cards/decks/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify(body) })
-export const setDeckColor = (name: string, color: string) => setDeck(name, { color })
-export const reviewCard = (key: string, grade: number) =>
-  api<{ due: string; interval_days: number }>(`/cards/${key}/review`, { method: 'POST', body: JSON.stringify({ grade }) })
-export const undoReview = () => api<{ key: string }>('/cards/undo', { method: 'POST' })
-export const cardLog = () => api<CardLog[]>('/cards/log')
-export const renameDeck = (name: string, to: string) =>
-  api<void>(`/cards/decks/${encodeURIComponent(name)}`, { method: 'PATCH', body: JSON.stringify({ name: to }) })
-export const deleteDeck = (name: string) => api<void>(`/cards/decks/${encodeURIComponent(name)}`, { method: 'DELETE' })
 
-export interface EventBody {
-  title?: string
-  start_at?: string
-  end_at?: string
-  location?: string
-  recurrence_rule?: string // "" entfernt die Wiederholung
-  recurrence_exdates?: string[] // ersetzt die ganze Liste ("YYYY-MM-DD")
-  project_id?: string // "" entfernt die Verknüpfung
+export function listCards(): Promise<Card[]> {
+  return api<Card[]>('/cards')
 }
 
-export const createEvent = (body: EventBody) =>
-  api<unknown>('/calendar/events', { method: 'POST', body: JSON.stringify(body) })
-
-export const deleteEvent = (id: string, permanent = false) =>
-  api<void>(`/calendar/events/${id}${permanent ? '?permanent=true' : ''}`, { method: 'DELETE' })
-export const restoreEvent = (id: string) => api<unknown>(`/calendar/events/${id}/restore`, { method: 'POST' })
-
-// Beim Ändern entfernt "" einen optionalen Wert (due_at, planned_date, …); null lässt ihn unverändert.
-export const updateTask = (id: string, body: Record<string, unknown>) =>
-  api<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
-
-// Mehrere Aufgaben in einem Aufruf ändern (Sammelaktionen der Mehrfachauswahl).
-export const bulkUpdateTasks = (updates: { id: string; [k: string]: unknown }[]) =>
-  api<{ updated: number }>('/tasks/bulk', { method: 'POST', body: JSON.stringify({ updates }) })
-
-export interface Resource {
-  id: string
-  task_id: string | null
-  project_id: string | null
-  type: 'FILE' | 'FOLDER' | 'URL' | 'NOTE' // NOTE: Pfad im Notizordner
-  target: string
-  label: string
+export function dueCards(): Promise<Card[]> {
+  return api<Card[]>('/cards/due')
 }
 
-export const listResources = () => api<Resource[]>('/resources')
-
-export const createResource = (body: Partial<Resource>) =>
-  api<Resource>('/resources', { method: 'POST', body: JSON.stringify(body) })
-
-export const deleteResource = (id: string) => api<void>(`/resources/${id}`, { method: 'DELETE' })
-
-export interface CalendarEvent extends TodayEvent {
-  start_at: string
-  end_at: string
-  recurrence_rule: string | null
-  project_id: string | null
+export function listDecks(): Promise<Deck[]> {
+  return api<Deck[]>('/cards/decks')
 }
 
-// Konkrete Termine im Fenster [from, to), Serien aufgelöst.
-export const getOccurrences = (from: Date, to: Date) =>
-  api<CalendarEvent[]>(`/calendar/occurrences?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`)
-
-export const updateEvent = (id: string, body: EventBody) =>
-  api<unknown>(`/calendar/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
-
-// Lässt eine Instanz der Serie aus; PATCH ersetzt die Liste, daher erst die bisherigen Ausnahmen lesen.
-// Liefert die bisherige Liste (für Rückgängig).
-export async function skipOccurrence(id: string, day: string) {
-  const e = await api<{ recurrence_exdates: string[] }>(`/calendar/events/${id}`)
-  await updateEvent(id, { recurrence_exdates: [...e.recurrence_exdates, day] })
-  return e.recurrence_exdates
+export function createCard(body: {
+  deck: string
+  question: string
+  answer: string
+}): Promise<Card> {
+  return api<Card>('/cards', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
-export interface Review {
-  from: string
-  to: string
-  timezone: string
-  tracked_minutes: number
-  completed_tasks: number
-  days: { date: string; tracked_minutes: number; calendar_minutes: number; completed_tasks: number }[]
-  projects: { project_id: string | null; name: string; tracked_minutes: number; completed_tasks: number; done_tasks: number; total_tasks: number }[]
-  habits: { habit_id: string; name: string; done: number; streak: number }[]
+export function updateCard(
+  id: string,
+  body: { deck: string; question: string; answer: string },
+): Promise<Card> {
+  return api<Card>(`/cards/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
 }
 
-// Auswertung für [from, to] ("YYYY-MM-DD", beide inklusive).
-export const getReview = (from: string, to: string) => api<Review>(`/review?from=${from}&to=${to}`)
-
-// Papierkorb: jeweils zuletzt gelöschte zuerst.
-export interface Trash {
-  tasks: (Task & { deleted_at: string })[]
-  events: { id: string; title: string; start_at: string; recurrence_rule: string | null; deleted_at: string }[]
-  habits: (Habit & { deleted_at: string })[]
+export function deleteCard(id: string): Promise<void> {
+  return api<void>(`/cards/${id}`, {
+    method: 'DELETE',
+  })
 }
 
-export const getTrash = () => api<Trash>('/trash')
-
-// ICS-Import.
-export interface IcsImportResult {
-  created: number
-  updated: number
-  skipped: number
-  unsupported_rules: number
-  notes: string[]
+export function setDeck(
+  name: string,
+  body: { color?: string; new_per_day?: number },
+): Promise<void> {
+  return api<void>(`/cards/decks/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
 }
 
-// Schickt den rohen Text einer .ics-Datei; Termine mit bekannter UID werden aktualisiert.
-export const importIcs = (text: string) =>
-  api<IcsImportResult>('/calendar/import', { method: 'POST', headers: { 'Content-Type': 'text/calendar' }, body: text })
+export function setDeckColor(name: string, color: string): Promise<void> {
+  return setDeck(name, { color })
+}
 
-// Notizen: Markdown-Dateien, PDFs und Bilder im Notizordner (Standard ~/Kairo, siehe Einstellungen). path ist relativ, mit „/“.
+export function reviewCard(
+  key: string,
+  grade: number,
+): Promise<{ due: string; interval_days: number }> {
+  return api<{ due: string; interval_days: number }>(`/cards/${key}/review`, {
+    method: 'POST',
+    body: JSON.stringify({ grade }),
+  })
+}
+
+export function undoReview(): Promise<{ key: string }> {
+  return api<{ key: string }>('/cards/undo', {
+    method: 'POST',
+  })
+}
+
+export function cardLog(): Promise<CardLog[]> {
+  return api<CardLog[]>('/cards/log')
+}
+
+export function renameDeck(name: string, to: string): Promise<void> {
+  return api<void>(`/cards/decks/${encodeURIComponent(name)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name: to }),
+  })
+}
+
+export function deleteDeck(name: string): Promise<void> {
+  return api<void>(`/cards/decks/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  })
+}
+
+// ============================================================================
+// Journal
+// ============================================================================
+
+export interface JournalSummary {
+  date: string
+  total: number
+  streak: number
+}
+
+export function getJournalSummary(): Promise<JournalSummary> {
+  return api<JournalSummary>('/journal/summary')
+}
+
+export interface JournalTaskImport {
+  journal_date: string
+  task_count: number
+  imported_at: string
+  titles: string[]
+}
+
+export function listJournalTaskImports(): Promise<JournalTaskImport[]> {
+  return api<JournalTaskImport[]>('/journal/task-imports')
+}
+
+export function importJournalTasks(
+  date: string,
+  titles: string[],
+): Promise<JournalTaskImport> {
+  return api<JournalTaskImport>(`/journal/${encodeURIComponent(date)}/tasks`, {
+    method: 'POST',
+    body: JSON.stringify({ titles }),
+  })
+}
+
+// ============================================================================
+// Notes & Raw Files
+// ============================================================================
+
 export interface NoteNode {
   name: string
   path: string
@@ -433,60 +728,168 @@ export interface NoteNode {
   children?: NoteNode[]
 }
 
-// mtime ist die Version beim Laden; das Backend lehnt Speichern mit 409 ab, wenn die Datei inzwischen anders aussieht.
 export interface Note {
   path: string
   content: string
   mtime: string
 }
 
-const notePath = (path: string) => `/notes/${path.split('/').map(encodeURIComponent).join('/')}`
-
-export const listNotes = () => api<NoteNode[]>('/notes')
-
-export const readNote = (path: string) => api<Note>(notePath(path))
-
-export const saveNote = (path: string, content: string, mtime: string, force = false) =>
-  api<{ mtime: string }>(notePath(path), { method: 'PUT', body: JSON.stringify({ content, mtime, force }) })
-
-// Notizen, die per [[…]] auf path verweisen (snippet: die Zeile mit dem Verweis).
 export interface Backlink {
   path: string
   title: string
   snippet: string
 }
 
-export const listBacklinks = (path: string) => api<Backlink[]>(`/notes/backlinks?path=${encodeURIComponent(path)}`)
-
-export const createNote = (path: string, dir = false) =>
-  api<{ path: string; mtime?: string }>(notePath(path), { method: 'POST', body: JSON.stringify({ dir }) })
-
-// Umbenennen oder Verschieben; 409, wenn das Ziel schon existiert.
-export const moveNote = (path: string, to: string) =>
-  api<{ path: string }>(notePath(path), { method: 'PATCH', body: JSON.stringify({ to }) })
-
-// Löschen verschiebt nach .trash/ im Notizordner (dort von Hand wiederherstellbar).
-export const deleteNote = (path: string) => api<{ trash: string }>(notePath(path), { method: 'DELETE' })
-
-// PDFs und Bilder (Rohbytes). Ausgeliefert werden sie unter filesUrl (lib/noteFiles).
-const filePath = (path: string) => `/files/${path.split('/').map(encodeURIComponent).join('/')}`
-
-// Legt eine Datei an; 409, wenn der Name schon existiert.
-export const uploadFile = (path: string, file: Blob) =>
-  api<{ path: string }>(filePath(path), { method: 'POST', headers: { 'Content-Type': file.type }, body: file })
-
-// Lädt eine Datei samt Version (mtime) zum Bearbeiten.
-export async function fetchFile(path: string) {
-  const res = await fetch(`/api${filePath(path)}`)
-  if (!res.ok) throw new ApiError(res.status, res.statusText, await res.json().catch(() => undefined))
-  return { blob: await res.blob(), mtime: res.headers.get('X-Kairo-Mtime') ?? '' }
+function encodePathParts(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/')
 }
 
-// Speichert eine bearbeitete Datei; 409, wenn sie sich seit dem Laden geändert hat (außer force). Die alte Fassung landet in .trash.
-export const replaceFile = (path: string, file: Blob, mtime: string, force = false) =>
-  api<{ mtime: string }>(`${filePath(path)}?mtime=${encodeURIComponent(mtime)}${force ? '&force=1' : ''}`, {
-    method: 'PUT', headers: { 'Content-Type': file.type }, body: file,
+function notePath(path: string): string {
+  return `/notes/${encodePathParts(path)}`
+}
+
+function filePath(path: string): string {
+  return `/files/${encodePathParts(path)}`
+}
+
+export function listNotes(): Promise<NoteNode[]> {
+  return api<NoteNode[]>('/notes')
+}
+
+export function readNote(path: string): Promise<Note> {
+  return api<Note>(notePath(path))
+}
+
+export function saveNote(
+  path: string,
+  content: string,
+  mtime: string,
+  force = false,
+): Promise<{ mtime: string }> {
+  return api<{ mtime: string }>(notePath(path), {
+    method: 'PUT',
+    body: JSON.stringify({ content, mtime, force }),
   })
+}
+
+export function listBacklinks(path: string): Promise<Backlink[]> {
+  return api<Backlink[]>(`/notes/backlinks?path=${encodeURIComponent(path)}`)
+}
+
+export function createNote(
+  path: string,
+  dir = false,
+): Promise<{ path: string; mtime?: string }> {
+  return api<{ path: string; mtime?: string }>(notePath(path), {
+    method: 'POST',
+    body: JSON.stringify({ dir }),
+  })
+}
+
+export function moveNote(path: string, to: string): Promise<{ path: string }> {
+  return api<{ path: string }>(notePath(path), {
+    method: 'PATCH',
+    body: JSON.stringify({ to }),
+  })
+}
+
+export function deleteNote(path: string): Promise<{ trash: string }> {
+  return api<{ trash: string }>(notePath(path), {
+    method: 'DELETE',
+  })
+}
+
+export function uploadFile(path: string, file: Blob): Promise<{ path: string }> {
+  return api<{ path: string }>(filePath(path), {
+    method: 'POST',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  })
+}
+
+export async function fetchFile(path: string): Promise<{ blob: Blob; mtime: string }> {
+  const res = await fetch(`/api${filePath(path)}`)
+  if (!res.ok) {
+    const errorBody = await res.json().catch(() => undefined)
+    throw new ApiError(res.status, res.statusText, errorBody)
+  }
+  return {
+    blob: await res.blob(),
+    mtime: res.headers.get('X-Kairo-Mtime') ?? '',
+  }
+}
+
+export function replaceFile(
+  path: string,
+  file: Blob,
+  mtime: string,
+  force = false,
+): Promise<{ mtime: string }> {
+  const forceParam = force ? '&force=1' : ''
+  const url = `${filePath(path)}?mtime=${encodeURIComponent(mtime)}${forceParam}`
+  return api<{ mtime: string }>(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  })
+}
+
+// ============================================================================
+// Review & Trash
+// ============================================================================
+
+export interface Review {
+  from: string
+  to: string
+  timezone: string
+  tracked_minutes: number
+  completed_tasks: number
+  days: {
+    date: string
+    tracked_minutes: number
+    calendar_minutes: number
+    completed_tasks: number
+  }[]
+  projects: {
+    project_id: string | null
+    name: string
+    tracked_minutes: number
+    completed_tasks: number
+    done_tasks: number
+    total_tasks: number
+  }[]
+  habits: {
+    habit_id: string
+    name: string
+    done: number
+    streak: number
+  }[]
+}
+
+// Auswertung für [from, to] ("YYYY-MM-DD", beide inklusive).
+export function getReview(from: string, to: string): Promise<Review> {
+  return api<Review>(`/review?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+}
+
+export interface Trash {
+  tasks: (Task & { deleted_at: string })[]
+  events: {
+    id: string
+    title: string
+    start_at: string
+    recurrence_rule: string | null
+    deleted_at: string
+  }[]
+  habits: (Habit & { deleted_at: string })[]
+}
+
+export function getTrash(): Promise<Trash> {
+  return api<Trash>('/trash')
+}
+
+// ============================================================================
+// Settings
+// ============================================================================
 
 export interface SettingsFile {
   notes_dir?: string
@@ -498,15 +901,24 @@ export interface SettingsFile {
 
 export interface Settings {
   settings: SettingsFile
-  // Feld → Umgebungsvariable, die es festlegt; diese Felder sind in der WebUI gesperrt.
   env: Partial<Record<keyof SettingsFile, string>>
   path: string
   restart_needed: boolean
 }
 
-export const getSettings = () => api<Settings>('/settings')
+export function getSettings(): Promise<Settings> {
+  return api<Settings>('/settings')
+}
 
-export const saveSettings = (body: SettingsFile) =>
-  api<Settings>('/settings', { method: 'PUT', body: JSON.stringify(body) })
+export function saveSettings(body: SettingsFile): Promise<Settings> {
+  return api<Settings>('/settings', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
 
-export const restartBackend = () => api<void>('/restart', { method: 'POST' })
+export function restartBackend(): Promise<void> {
+  return api<void>('/restart', {
+    method: 'POST',
+  })
+}
