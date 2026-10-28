@@ -1,286 +1,449 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { errorMessage, getJournalSummary, getToday, isOpen, listJournalTaskImports, listNotes, listTasks, readNote, type JournalTaskImport, type Task } from '@/api/client'
-import { addDays, shiftDate, ymd } from '@/lib/dates'
+import { useRoute, RouterLink } from 'vue-router'
+import {
+  errorMessage,
+  getJournalSummary,
+  getToday,
+  isOpen,
+  listJournalTaskImports,
+  listNotes,
+  listTasks,
+  readNote,
+  type JournalTaskImport,
+  type Task,
+} from '@/api/client'
+import { shiftDate, ymd } from '@/lib/dates'
 import { journalPath, parseEntry, splitPoints } from '@/lib/journal'
 import { locale, t, tn } from '@/lib/i18n'
-import { vDialog } from '@/lib/dialog'
 import { useUndo } from '@/composables/useUndo'
 import { useShortcuts } from '@/composables/useShortcuts'
 import { PAPERS, prefs } from '@/lib/prefs'
 import { easeTurn, leafFrame, type LeafRole } from '@/lib/pageTurn'
 import JournalEntryEditor, { type JournalEntryData } from '@/components/JournalEntryEditor.vue'
+import JournalHeatmap from '@/components/JournalHeatmap.vue'
+import JournalOpenTasks from '@/components/JournalOpenTasks.vue'
+import JournalBackfillDialog from '@/components/JournalBackfillDialog.vue'
 import SearchField from '@/components/SearchField.vue'
 
 // So viele Einträge liegen als Seiten im Buch; ältere stehen unter Notizen.
-const RECENT = 60
-const HEAT_DAYS = 42
-const PAPER_LABELS = { coffee: 'Kaffee', white: 'Weiß', black: 'Schwarz' } as const
+const RECENT_ENTRIES_COUNT = 60
+const TURN_ANIMATION_MS = 950
+
+const PAPER_LABELS: Record<'coffee' | 'white' | 'black', string> = {
+  coffee: t('Kaffee'),
+  white: t('Weiß'),
+  black: t('Schwarz'),
+}
 
 const route = useRoute()
 
-interface Row { date: string; answers: string[]; other: string; mtime: string }
+interface JournalRow {
+  date: string
+  answers: string[]
+  other: string
+  mtime: string
+}
+
 type DoneTask = Task & { completed_at: string | null }
 
 const todayStr = ref('')
-const total = ref(0)
-const streak = ref(0)
-const loaded = ref(false)
-const error = ref('')
+const totalEntriesCount = ref(0)
+const currentStreak = ref(0)
+const isLoaded = ref(false)
+const errorMessageText = ref('')
 const allDates = ref<string[]>([])
-const pastRows = ref<Row[]>([])
+const pastRows = ref<JournalRow[]>([])
 const todayEntry = ref<JournalEntryData | null>(null)
 const taskImports = ref<Record<string, { count: number; titles: string[] }>>({})
 const allTasks = ref<DoneTask[]>([])
 const completedHabits = ref<string[]>([])
+
 // Aufgeschlagene Seite; dir bestimmt, in welche Richtung umgeblättert wird.
 const pageDate = ref('')
-const dir = ref<'fwd' | 'back'>('fwd')
+const flipDirection = ref<'fwd' | 'back'>('fwd')
+
 // Der Umschlag klappt nur beim Öffnen der Ansicht auf; danach erscheinen linke Seiten ohne Verzögerung.
-const opening = ref(true)
+const isCoverOpening = ref(true)
+
 // Editor je Seite: Beim Umblättern sind kurz zwei montiert, gespeichert wird der der offenen Seite.
-const editors = new Map<string, InstanceType<typeof JournalEntryEditor>>()
-const setEditor = (date: string, c: unknown) => {
-  if (c) editors.set(date, c as InstanceType<typeof JournalEntryEditor>)
-  else editors.delete(date)
+const editorInstances = new Map<string, InstanceType<typeof JournalEntryEditor>>()
+function setEditorInstance(date: string, instance: unknown) {
+  if (instance) {
+    editorInstances.set(date, instance as InstanceType<typeof JournalEntryEditor>)
+  } else {
+    editorInstances.delete(date)
+  }
 }
 
-const headerDateFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }))
-const dayFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'short', day: 'numeric', month: 'short' }))
-const weekdayFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long' }))
-const monthFmt = computed(() => new Intl.DateTimeFormat(locale.value, { month: 'long', year: 'numeric' }))
-const heatLabel = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }))
-const fmt = (f: Intl.DateTimeFormat, d: string) => f.format(new Date(d + 'T00:00'))
-const relativeLabel = (d: string) => (d === todayStr.value ? t('Heute') : d === shiftDate(todayStr.value, -1) ? t('Gestern') : '')
-const label = (d: string) => relativeLabel(d) || fmt(dayFmt.value, d)
-const monthLabel = (m: string) => fmt(monthFmt.value, `${m}-01`)
+// Datumsformate
+const headerDateFmt = computed(
+  () =>
+    new Intl.DateTimeFormat(locale.value, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    })
+)
+const dayFmt = computed(
+  () =>
+    new Intl.DateTimeFormat(locale.value, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    })
+)
+const weekdayFmt = computed(
+  () => new Intl.DateTimeFormat(locale.value, { weekday: 'long' })
+)
+const monthFmt = computed(
+  () => new Intl.DateTimeFormat(locale.value, { month: 'long', year: 'numeric' })
+)
 
-// Suche: Das Buch zeigt nur noch die passenden Seiten (und heute).
+function formatWith(formatter: Intl.DateTimeFormat, dateStr: string): string {
+  return formatter.format(new Date(`${dateStr}T00:00`))
+}
+
+function getRelativeDateLabel(dateStr: string): string {
+  if (dateStr === todayStr.value) return t('Heute')
+  if (dateStr === shiftDate(todayStr.value, -1)) return t('Gestern')
+  return ''
+}
+
+function getDayLabel(dateStr: string): string {
+  return getRelativeDateLabel(dateStr) || formatWith(dayFmt.value, dateStr)
+}
+
+function getMonthLabel(yearMonthStr: string): string {
+  return formatWith(monthFmt.value, `${yearMonthStr}-01`)
+}
+
+// Suche
 const pastSearch = ref('')
-const searchTerm = computed(() => pastSearch.value.trim().toLowerCase())
-const pastMatches = (r: Row) => {
-  const q = searchTerm.value
-  if (!q) return true
-  return `${r.date} ${label(r.date)} ${r.answers.join(' ')} ${r.other}`.toLowerCase().includes(q)
+const normalizedSearchTerm = computed(() => pastSearch.value.trim().toLowerCase())
+
+function matchesSearch(row: JournalRow): boolean {
+  const query = normalizedSearchTerm.value
+  if (!query) return true
+  const haystack = `${row.date} ${getDayLabel(row.date)} ${row.answers.join(' ')} ${row.other}`.toLowerCase()
+  return haystack.includes(query)
 }
-const visiblePast = computed(() => pastRows.value.filter(pastMatches))
+
+const visiblePastRows = computed(() => pastRows.value.filter(matchesSearch))
 
 // Seiten wie im Heft: die älteste vorn, heute ist die letzte beschriebene Seite.
-const pages = computed(() => [...visiblePast.value.map((r) => r.date).reverse(), ...(todayStr.value ? [todayStr.value] : [])])
-const pageIdx = computed(() => pages.value.indexOf(pageDate.value))
-const entryOf = (d: string) => (d === todayStr.value ? todayEntry.value : pastRows.value.find((r) => r.date === d) ?? null)
-const pageKicker = (d: string) => relativeLabel(d) || monthLabel(d.slice(0, 7))
-const shownCount = computed(() => visiblePast.value.length + (todayEntry.value ? 1 : 0))
-const hasOlder = computed(() => !searchTerm.value && total.value > shownCount.value)
+const pages = computed(() => [
+  ...visiblePastRows.value.map((r) => r.date).reverse(),
+  ...(todayStr.value ? [todayStr.value] : []),
+])
 
-// Linke Seite: was an dem Tag erledigt wurde (Gewohnheiten kennt die Ansicht nur für heute)
-// und was man sich am Vortag dafür vorgenommen hatte.
-const doneOn = (d: string) => [
-  ...allTasks.value
-    .filter((t) => t.status === 'COMPLETED' && t.completed_at && ymd(new Date(t.completed_at)) === d)
-    .sort((a, b) => (a.completed_at ?? '').localeCompare(b.completed_at ?? ''))
-    .map((t) => t.title),
-  ...(d === todayStr.value && completedHabits.value.length ? [tn(completedHabits.value.length, '{n} Gewohnheit', '{n} Gewohnheiten')] : []),
-]
-const planFor = (d: string) => splitPoints(entryOf(shiftDate(d, -1))?.answers[2] ?? '')
+const currentPageIndex = computed(() => pages.value.indexOf(pageDate.value))
 
-// Aus dem Journal übernommen und noch offen
-const openJournalTasks = computed(() => allTasks.value
-  .filter((t) => t.source_journal_date && isOpen(t))
-  .sort((a, b) => (a.due_at ?? '').localeCompare(b.due_at ?? '')))
-
-interface HeatCell { s: string; has: boolean; future: boolean; label: string }
-const heatCells = computed<HeatCell[]>(() => {
-  if (!todayStr.value) return []
-  const set = new Set(allDates.value)
-  const today = todayStr.value
-  const start = addDays(new Date(`${today}T00:00:00`), -(HEAT_DAYS - 1))
-  return Array.from({ length: HEAT_DAYS }, (_, i) => {
-    const d = addDays(start, i)
-    const s = ymd(d)
-    return { s, has: set.has(s), future: s > today, label: heatLabel.value.format(d) }
-  })
-})
-// Ein Tab-Stopp für die Reihe; Pfeiltasten wandern tageweise.
-const heatFocus = ref('')
-const heatCount = computed(() => heatCells.value.filter((c) => c.has).length)
-
-const importedTitles = (date: string) => taskImports.value[date]?.titles ?? []
-
-async function readEntries(dates: string[]): Promise<Row[]> {
-  return Promise.all(dates.map(async (date) => {
-    const n = await readNote(journalPath(date))
-    const e = parseEntry(n.content)
-    return { date, answers: e.answers, other: e.other, mtime: n.mtime }
-  }))
+function getEntryForDate(d: string): JournalRow | JournalEntryData | null {
+  if (d === todayStr.value) return todayEntry.value
+  return pastRows.value.find((r) => r.date === d) ?? null
 }
 
-async function load() {
+function getPageKicker(dateStr: string): string {
+  return getRelativeDateLabel(dateStr) || getMonthLabel(dateStr.slice(0, 7))
+}
+
+const shownEntriesCount = computed(
+  () => visiblePastRows.value.length + (todayEntry.value ? 1 : 0)
+)
+const hasOlderEntries = computed(
+  () => !normalizedSearchTerm.value && totalEntriesCount.value > shownEntriesCount.value
+)
+
+// Linke Seite: erledigte Aufgaben und Gewohnheiten, plus Vorhaben vom Vortag
+function getDoneItemsOn(dateStr: string): string[] {
+  const tasksCompleted = allTasks.value
+    .filter(
+      (t) =>
+        t.status === 'COMPLETED' &&
+        t.completed_at &&
+        ymd(new Date(t.completed_at)) === dateStr
+    )
+    .sort((a, b) => (a.completed_at ?? '').localeCompare(b.completed_at ?? ''))
+    .map((t) => t.title)
+
+  const habitsCompleted =
+    dateStr === todayStr.value && completedHabits.value.length
+      ? [tn(completedHabits.value.length, '{n} Gewohnheit', '{n} Gewohnheiten')]
+      : []
+
+  return [...tasksCompleted, ...habitsCompleted]
+}
+
+function getPlanForDate(dateStr: string): string[] {
+  const yesterdayStr = shiftDate(dateStr, -1)
+  const yesterdayEntry = getEntryForDate(yesterdayStr)
+  return splitPoints(yesterdayEntry?.answers[2] ?? '')
+}
+
+// Aus dem Journal übernommen und noch offen
+const openJournalTasks = computed(() =>
+  allTasks.value
+    .filter((t) => t.source_journal_date && isOpen(t))
+    .sort((a, b) => (a.due_at ?? '').localeCompare(b.due_at ?? ''))
+)
+
+function getImportedTitles(dateStr: string): string[] {
+  return taskImports.value[dateStr]?.titles ?? []
+}
+
+async function readEntries(dates: string[]): Promise<JournalRow[]> {
+  return Promise.all(
+    dates.map(async (date) => {
+      const note = await readNote(journalPath(date))
+      const entry = parseEntry(note.content)
+      return {
+        date,
+        answers: entry.answers,
+        other: entry.other,
+        mtime: note.mtime,
+      }
+    })
+  )
+}
+
+async function loadData() {
   try {
-    const [notes, imports, summary, today, tasks] = await Promise.all([
-      listNotes(), listJournalTaskImports(), getJournalSummary(), getToday(), listTasks(),
+    const [notes, imports, summary, todayData, tasks] = await Promise.all([
+      listNotes(),
+      listJournalTaskImports(),
+      getJournalSummary(),
+      getToday(),
+      listTasks(),
     ])
-    const dir = notes.find((n) => n.dir && n.path === 'Journal')
-    const dates = (dir?.children ?? [])
+
+    const journalDir = notes.find((n) => n.dir && n.path === 'Journal')
+    const dates = (journalDir?.children ?? [])
       .map((n) => /^(\d{4}-\d{2}-\d{2})\.md$/.exec(n.name)?.[1])
       .filter((d): d is string => !!d)
       .sort()
       .reverse()
 
-    // Erst die Einträge lesen, dann alle reaktiven Werte synchron setzen,
-    // damit der Heute-Editor direkt mit seinem Eintrag montiert.
-    const rows = await readEntries(dates.slice(0, RECENT))
+    const rows = await readEntries(dates.slice(0, RECENT_ENTRIES_COUNT))
     todayStr.value = summary.date
     pageDate.value = summary.date
-    setTimeout(() => (opening.value = false), 1100)
-    heatFocus.value = summary.date
-    total.value = summary.total
-    streak.value = summary.streak
+    setTimeout(() => {
+      isCoverOpening.value = false
+    }, 1100)
+
+    totalEntriesCount.value = summary.total
+    currentStreak.value = summary.streak
     allDates.value = dates
-    taskImports.value = Object.fromEntries(imports.map((i) => [i.journal_date, { count: i.task_count, titles: i.titles }]))
+    taskImports.value = Object.fromEntries(
+      imports.map((i) => [i.journal_date, { count: i.task_count, titles: i.titles }])
+    )
     todayEntry.value = rows.find((r) => r.date === summary.date) ?? null
     pastRows.value = rows.filter((r) => r.date !== summary.date)
 
     allTasks.value = tasks as DoneTask[]
-    completedHabits.value = today.habits.filter((h) => h.done).map((h) => h.name)
+    completedHabits.value = todayData.habits.filter((h) => h.done).map((h) => h.name)
 
-    if (typeof route.query.date === 'string' && route.query.date !== summary.date && pastRows.value.some((r) => r.date === route.query.date)) {
-      pageDate.value = route.query.date
+    const routeDate = route.query.date
+    if (
+      typeof routeDate === 'string' &&
+      routeDate !== summary.date &&
+      pastRows.value.some((r) => r.date === routeDate)
+    ) {
+      pageDate.value = routeDate
     }
-    error.value = ''
+
+    errorMessageText.value = ''
   } catch (e) {
-    error.value = errorMessage(e)
+    errorMessageText.value = errorMessage(e)
   }
-  loaded.value = true
+  isLoaded.value = true
 }
-onMounted(load)
-watch(() => route.query.date, (date) => {
-  if (typeof date === 'string' && (date === todayStr.value || pastRows.value.some((r) => r.date === date))) void go(date)
-})
 
-// Ohne Eingabe bleibt ein nachgetragener Tag ein leerer Entwurf; er verschwindet beim Schließen wieder.
-const isDraft = (r: Row) => !r.mtime && !r.other.trim() && r.answers.every((a) => !a.trim())
+onMounted(loadData)
 
-// Erst die offene Seite fertig speichern, dann umblättern: So ist die Zeile in pastRows aktuell,
-// bevor der Editor unmountet. Ein leerer Entwurf fällt beim Verlassen wieder heraus.
-async function go(date: string) {
-  const leaving = pageDate.value
-  if (date === leaving) return
-  await editors.get(leaving)?.flush()
-  dir.value = pages.value.indexOf(date) < pages.value.indexOf(leaving) ? 'back' : 'fwd'
-  turnStart = performance.now()
-  turning = true
+watch(
+  () => route.query.date,
+  (newDate) => {
+    if (
+      typeof newDate === 'string' &&
+      (newDate === todayStr.value || pastRows.value.some((r) => r.date === newDate))
+    ) {
+      void goToDate(newDate)
+    }
+  }
+)
+
+function isDraftRow(row: JournalRow): boolean {
+  return !row.mtime && !row.other.trim() && row.answers.every((a) => !a.trim())
+}
+
+let turnStartTime = 0
+let isTurningPage = false
+let queuedPageStep = 0
+
+async function goToDate(targetDate: string) {
+  const leavingDate = pageDate.value
+  if (targetDate === leavingDate) return
+
+  await editorInstances.get(leavingDate)?.flush()
+
+  flipDirection.value =
+    pages.value.indexOf(targetDate) < pages.value.indexOf(leavingDate) ? 'back' : 'fwd'
+  turnStartTime = performance.now()
+  isTurningPage = true
+
   setTimeout(() => {
-    turning = false
-    const step = queued
-    queued = 0
-    if (step) flip(step)
-  }, TURN_MS)
-  pageDate.value = date
-  if (pastRows.value.some((r) => r.date === leaving && isDraft(r))) {
-    pastRows.value = pastRows.value.filter((r) => r.date !== leaving)
+    isTurningPage = false
+    const step = queuedPageStep
+    queuedPageStep = 0
+    if (step) flipPage(step)
+  }, TURN_ANIMATION_MS)
+
+  pageDate.value = targetDate
+
+  if (pastRows.value.some((r) => r.date === leavingDate && isDraftRow(r))) {
+    pastRows.value = pastRows.value.filter((r) => r.date !== leavingDate)
   }
 }
 
-function flip(step: number) {
-  if (turning) return void (queued = step) // erst fertig umblättern, dann weiter
-  const next = pages.value[pageIdx.value + step]
-  if (next) void go(next)
+function flipPage(step: number) {
+  if (isTurningPage) {
+    queuedPageStep = step
+    return
+  }
+  const nextDate = pages.value[currentPageIndex.value + step]
+  if (nextDate) void goToDate(nextDate)
 }
 
-// Treffer der Suche aufschlagen: die neueste passende Seite, sonst heute.
-watch(searchTerm, (q) => {
-  const p = pages.value
-  if (!p.includes(pageDate.value) || q) void go((q && p.length > 1 ? p[p.length - 2] : p[p.length - 1]) ?? todayStr.value)
+// Treffer der Suche aufschlagen
+watch(normalizedSearchTerm, (query) => {
+  const currentPages = pages.value
+  if (!currentPages.includes(pageDate.value) || query) {
+    const target =
+      (query && currentPages.length > 1
+        ? currentPages[currentPages.length - 2]
+        : currentPages[currentPages.length - 1]) ?? todayStr.value
+    void goToDate(target)
+  }
 })
 
 useShortcuts((e) => {
-  if (e.defaultPrevented) return // die Punktreihe nutzt die Pfeiltasten selbst
-  const step = e.key === 'ArrowLeft' || e.key === 'PageUp' ? -1 : e.key === 'ArrowRight' || e.key === 'PageDown' ? 1 : 0
+  if (e.defaultPrevented) return
+  const step =
+    e.key === 'ArrowLeft' || e.key === 'PageUp'
+      ? -1
+      : e.key === 'ArrowRight' || e.key === 'PageDown'
+        ? 1
+        : 0
   if (!step) return
   e.preventDefault()
-  flip(step)
+  flipPage(step)
 })
 
-// Am Handy blättert ein waagrechtes Wischen; in Textfeldern bleibt das Ziehen beim Text.
-let swipe: { x: number; y: number } | null = null
+let touchSwipe: { x: number; y: number } | null = null
 function onSwipeStart(e: PointerEvent) {
-  swipe = e.pointerType !== 'mouse' && !(e.target as HTMLElement).closest('input, textarea, button') ? { x: e.clientX, y: e.clientY } : null
-}
-function onSwipeEnd(e: PointerEvent) {
-  if (!swipe) return
-  const dx = e.clientX - swipe.x
-  const dy = e.clientY - swipe.y
-  swipe = null
-  if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) flip(dx < 0 ? 1 : -1)
+  touchSwipe =
+    e.pointerType !== 'mouse' &&
+    !(e.target as HTMLElement).closest('input, textarea, button')
+      ? { x: e.clientX, y: e.clientY }
+      : null
 }
 
-// ---- Umblättern: alle vier beteiligten Seiten laufen auf derselben Zeitachse (lib/pageTurn.ts) ----
-const TURN_MS = 950
-let turnStart = 0
-let turning = false
-let queued = 0 // Klick während des Umblätterns
-const reduceMotion = () => document.documentElement.dataset.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches
+function onSwipeEnd(e: PointerEvent) {
+  if (!touchSwipe) return
+  const dx = e.clientX - touchSwipe.x
+  const dy = e.clientY - touchSwipe.y
+  touchSwipe = null
+
+  if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) {
+    flipPage(dx < 0 ? 1 : -1)
+  }
+}
+
+function isReducedMotion(): boolean {
+  return (
+    document.documentElement.dataset.motion === 'reduce' ||
+    matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+}
 
 function turnPage(side: 'l' | 'r', entering: boolean, el: Element, done: () => void) {
   const page = el as HTMLElement
-  if (reduceMotion()) return done()
-  // Schmal liegen die Seiten untereinander: überblenden statt falten.
+  if (isReducedMotion()) return done()
+
   if (matchMedia('(max-width: 860px)').matches) {
-    page.animate(entering ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-out' }).onfinish = done
+    page.animate(
+      entering ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0 }],
+      { duration: 220, easing: 'ease-out' }
+    ).onfinish = done
     return
   }
-  const back = dir.value === 'back'
-  const role: LeafRole = side === (back ? 'l' : 'r') ? (entering ? 'revealed' : 'cut') : entering ? 'flap' : 'covered'
-  const W = page.offsetWidth
-  const H = page.offsetHeight
+
+  const isBack = flipDirection.value === 'back'
+  const role: LeafRole =
+    side === (isBack ? 'l' : 'r')
+      ? entering
+        ? 'revealed'
+        : 'cut'
+      : entering
+        ? 'flap'
+        : 'covered'
+
+  const width = page.offsetWidth
+  const height = page.offsetHeight
   const holder = page.parentElement as HTMLElement
+
   page.classList.add('jr-turning')
   page.style.zIndex = role === 'flap' || role === 'cut' ? '2' : '1'
-  if (role === 'flap') holder.style.zIndex = '3' // die Rückseite reicht über den Bund
-  const apply = (now: number) => {
-    const t = Math.min(1, Math.max(0, (now - turnStart) / TURN_MS))
-    const f = leafFrame(role, easeTurn(t), W, H, back)
-    if (role === 'cut' || role === 'flap') page.style.clipPath = f.clip
-    if (role === 'flap') page.style.transform = f.transform
-    page.style.setProperty('--leaf', f.shade)
+  if (role === 'flap') holder.style.zIndex = '3'
+
+  const applyFrame = (now: number) => {
+    const t = Math.min(1, Math.max(0, (now - turnStartTime) / TURN_ANIMATION_MS))
+    const frame = leafFrame(role, easeTurn(t), width, height, isBack)
+    if (role === 'cut' || role === 'flap') page.style.clipPath = frame.clip
+    if (role === 'flap') page.style.transform = frame.transform
+    page.style.setProperty('--leaf', frame.shade)
     return t
   }
-  const frame = (now: number) => {
-    if (apply(now) < 1) return void requestAnimationFrame(frame)
+
+  const renderFrame = (now: number) => {
+    if (applyFrame(now) < 1) {
+      requestAnimationFrame(renderFrame)
+      return
+    }
     page.classList.remove('jr-turning')
     page.style.clipPath = page.style.transform = page.style.zIndex = holder.style.zIndex = ''
     done()
   }
-  apply(performance.now()) // sofort, sonst blitzt die neue Seite einen Frame lang ungeschnitten auf
-  requestAnimationFrame(frame)
+
+  applyFrame(performance.now())
+  requestAnimationFrame(renderFrame)
 }
 
-function onSaved(date: string, entry: JournalEntryData) {
-  if (date === todayStr.value) onTodaySaved(entry)
-  else onPastSaved(date, entry)
+function onEntrySaved(date: string, entry: JournalEntryData) {
+  if (date === todayStr.value) {
+    todayEntry.value = entry
+    if (!allDates.value.includes(todayStr.value)) {
+      allDates.value = [...allDates.value, todayStr.value].sort().reverse()
+    }
+  } else {
+    pastRows.value = pastRows.value.map((r) => (r.date === date ? { ...r, ...entry } : r))
+    if (!allDates.value.includes(date)) {
+      allDates.value = [...allDates.value, date].sort().reverse()
+      totalEntriesCount.value++
+    }
+  }
 }
 
-function onTodaySaved(entry: JournalEntryData) {
-  todayEntry.value = entry
-  if (!allDates.value.includes(todayStr.value)) allDates.value = [...allDates.value, todayStr.value].sort().reverse()
-}
-
-// ---- Verpasste Tage nachtragen ----
-const backfillOpen = ref(false)
+// Nachtragen
+const isBackfillOpen = ref(false)
 const backfillDate = ref('')
 
-function openBackfill() {
-  backfillDate.value = shiftDate(todayStr.value, -1)
-  backfillOpen.value = true
-}
-function closeBackfill() {
-  backfillOpen.value = false
+function openBackfillModal(defaultDate?: string) {
+  backfillDate.value = defaultDate || shiftDate(todayStr.value, -1)
+  isBackfillOpen.value = true
 }
 
-// Schlägt einen Tag auf: vorhandene Seite, ältere aus dem Notizordner nachladen
-// oder einen leeren Entwurf anlegen. Eine Datei schreibt erst der Editor beim Tippen.
 async function openDay(date: string) {
   if (!pastRows.value.some((r) => r.date === date)) {
     if (allDates.value.includes(date)) {
@@ -290,7 +453,7 @@ async function openDay(date: string) {
         const row = { date, answers: e.answers, other: e.other, mtime: n.mtime }
         pastRows.value = [...pastRows.value, row].sort((a, b) => b.date.localeCompare(a.date))
       } catch (e) {
-        error.value = errorMessage(e)
+        errorMessageText.value = errorMessage(e)
         return
       }
     } else {
@@ -298,98 +461,49 @@ async function openDay(date: string) {
       pastRows.value = [...pastRows.value, row].sort((a, b) => b.date.localeCompare(a.date))
     }
   }
-  await go(date)
+  await goToDate(date)
 }
 
-async function startBackfill() {
-  const date = backfillDate.value
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayStr.value) return
-  backfillOpen.value = false
+async function handleBackfillSubmit(date: string) {
+  isBackfillOpen.value = false
   await openDay(date)
 }
 
-// ---- Heatmap: Tag antippen ----
-function heatAction(c: HeatCell) {
-  return c.has ? t('Eintrag öffnen') : t('Eintrag nachtragen')
-}
-function heatTitle(c: HeatCell) {
-  return c.future ? c.label : `${c.label} · ${heatAction(c)}`
-}
-function heatAria(c: HeatCell) {
-  return c.future ? c.label : `${c.label}: ${heatAction(c)}`
-}
-
-async function openHeat(c: HeatCell) {
-  if (c.future) return
-  if (c.s === todayStr.value) {
-    await go(c.s)
-    return
+function handleTodayImported(result: JournalTaskImport) {
+  taskImports.value = {
+    ...taskImports.value,
+    [result.journal_date]: { count: result.task_count, titles: result.titles },
   }
-  if (!c.has) {
-    // Leerer Tag: erst bestätigen, dann als Entwurf öffnen.
-    backfillDate.value = c.s
-    backfillOpen.value = true
-    return
-  }
-  await openDay(c.s)
-}
-
-function onHeatKey(e: KeyboardEvent, c: HeatCell) {
-  const step = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
-  if (!step) return
-  e.preventDefault()
-  const cells = heatCells.value
-  const from = cells.findIndex((x) => x.s === c.s)
-  let max = cells.length - 1
-  while (max > 0 && cells[max]!.future) max--
-  const to = Math.min(max, Math.max(0, from + step))
-  heatFocus.value = cells[to]!.s
-  const buttons = (e.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('.jr-heat-cell')
-  buttons?.[to]?.focus()
-}
-
-function onTodayImported(result: JournalTaskImport) {
-  taskImports.value = { ...taskImports.value, [result.journal_date]: { count: result.task_count, titles: result.titles } }
   void refreshTasks()
 }
 
-function onPastSaved(date: string, entry: JournalEntryData) {
-  pastRows.value = pastRows.value.map((r) => (r.date === date ? { ...r, ...entry } : r))
-  // Ein nachgetragener Tag erscheint sofort in Zähler und Heatmap.
-  if (!allDates.value.includes(date)) {
-    allDates.value = [...allDates.value, date].sort().reverse()
-    total.value++
-  }
-}
-
-// Nach Import oder Erledigen die Aufgabenliste neu laden (und Fehler sichtbar machen).
 async function refreshTasks() {
   try {
     allTasks.value = (await listTasks()) as DoneTask[]
   } catch (e) {
-    error.value = errorMessage(e)
+    errorMessageText.value = errorMessage(e)
   }
 }
 
-// Aufgabe direkt erledigen; danach wandert sie in den Tagesrückblick.
 const { setDone } = useUndo()
-const completing = ref('')
-function completeTask(task: Task) {
-  if (completing.value) return
-  completing.value = task.id
+const completingTaskId = ref('')
+
+function handleCompleteTask(task: Task) {
+  if (completingTaskId.value) return
+  completingTaskId.value = task.id
   setDone(task, 'COMPLETED', async (fn) => {
     try {
       await fn()
       await refreshTasks()
     } catch (e) {
-      error.value = errorMessage(e)
+      errorMessageText.value = errorMessage(e)
     } finally {
-      completing.value = ''
+      completingTaskId.value = ''
     }
   })
 }
 
-const menuOpen = ref(false)
+const isPaperMenuOpen = ref(false)
 </script>
 
 <template>
@@ -399,23 +513,38 @@ const menuOpen = ref(false)
       <header class="jr-head">
         <div class="jr-head-row">
           <div>
-            <div class="jr-head-kicker">{{ $tn(total, '{n} Eintrag', '{n} Einträge') }}</div>
+            <div class="jr-head-kicker">
+              {{ $tn(totalEntriesCount, '{n} Eintrag', '{n} Einträge') }}
+            </div>
             <h1 class="jr-title">{{ $t('Journal') }}</h1>
           </div>
-          <div class="menu-wrap" @keydown.esc="menuOpen = false">
+
+          <div class="menu-wrap" @keydown.esc="isPaperMenuOpen = false">
             <button
-              type="button" class="icon-btn jr-more-btn" :aria-label="$t('Weitere Optionen')"
-              :aria-expanded="menuOpen" @click="menuOpen = !menuOpen"
-            ><svg class="ic"><use href="#i-more" /></svg></button>
-            <template v-if="menuOpen">
-              <div class="menu-scrim" @click="menuOpen = false"></div>
+              type="button"
+              class="icon-btn jr-more-btn"
+              :aria-label="$t('Weitere Optionen')"
+              :aria-expanded="isPaperMenuOpen"
+              @click="isPaperMenuOpen = !isPaperMenuOpen"
+            >
+              <svg class="ic"><use href="#i-more" /></svg>
+            </button>
+
+            <template v-if="isPaperMenuOpen">
+              <div class="menu-scrim" @click="isPaperMenuOpen = false"></div>
               <div class="menu jr-paper-menu" role="menu">
                 <span class="menu-l">{{ $t('Papier') }}</span>
                 <div class="jr-papers" role="group" :aria-label="$t('Papier')">
                   <button
-                    v-for="p in PAPERS" :key="p" type="button" class="jr-paper-pick" :class="`is-${p}`"
-                    :aria-pressed="prefs.journalPaper === p" :aria-label="$t(PAPER_LABELS[p])" :title="$t(PAPER_LABELS[p])"
-                    @click="prefs.journalPaper = p; menuOpen = false"
+                    v-for="p in PAPERS"
+                    :key="p"
+                    type="button"
+                    class="jr-paper-pick"
+                    :class="`is-${p}`"
+                    :aria-pressed="prefs.journalPaper === p"
+                    :aria-label="PAPER_LABELS[p]"
+                    :title="PAPER_LABELS[p]"
+                    @click="prefs.journalPaper = p; isPaperMenuOpen = false"
                   ></button>
                 </div>
               </div>
@@ -424,116 +553,155 @@ const menuOpen = ref(false)
         </div>
 
         <!-- Streak & Punktreihe -->
-        <div class="jr-meta">
-          <span v-if="streak" class="jr-streak">{{ $tn(streak, '{n} Tag in Folge', '{n} Tage in Folge') }}</span>
-          <div class="jr-heat" role="group" :aria-label="$tn(heatCount, '{n} Eintrag in den letzten 6 Wochen', '{n} Einträge in den letzten 6 Wochen')">
-            <button
-              v-for="c in heatCells" :key="c.s" type="button" class="jr-heat-cell" :data-date="c.s"
-              :class="{ on: c.has, future: c.future, open: c.s === pageDate }" :disabled="c.future" :tabindex="c.s === heatFocus ? 0 : -1"
-              :title="heatTitle(c)" :aria-label="heatAria(c)"
-              @focus="heatFocus = c.s" @click="openHeat(c)" @keydown="onHeatKey($event, c)"
-            ></button>
-          </div>
-          <span class="sr-only">{{ $t('Tag mit Eintrag') }}</span>
-        </div>
+        <JournalHeatmap
+          :all-dates="allDates"
+          :today-str="todayStr"
+          :active-date="pageDate"
+          :streak="currentStreak"
+          @select="openDay"
+          @backfill="openBackfillModal"
+        />
       </header>
 
-      <div v-if="error" class="badge" role="alert">{{ error }}</div>
+      <div v-if="errorMessageText" class="badge" role="alert">{{ errorMessageText }}</div>
 
       <div class="jr-tools">
-        <button type="button" class="col-link" @click="openBackfill">{{ $t('Nachtragen') }}</button>
-        <SearchField v-if="pastRows.length" v-model="pastSearch" :label="$t('Einträge durchsuchen')" />
+        <button type="button" class="col-link" @click="openBackfillModal()">
+          {{ $t('Nachtragen') }}
+        </button>
+        <SearchField
+          v-if="pastRows.length"
+          v-model="pastSearch"
+          :label="$t('Einträge durchsuchen')"
+        />
       </div>
-      <p v-if="searchTerm && !visiblePast.length" class="v-sub jr-nohit">{{ $t('Keine Treffer für „{q}“.', { q: pastSearch.trim() }) }}</p>
+
+      <p v-if="normalizedSearchTerm && !visiblePastRows.length" class="v-sub jr-nohit">
+        {{ $t('Keine Treffer für „{q}“.', { q: pastSearch.trim() }) }}
+      </p>
 
       <!-- Das Buch: links der Rückblick des Tages, rechts die Schreibseite -->
       <div v-if="pageDate" class="jr-book" :data-paper="prefs.journalPaper">
-        <div class="jr-spread" :class="{ 'jr-opening': opening }" @pointerdown="onSwipeStart" @pointerup="onSwipeEnd" @pointercancel="onSwipeEnd">
-          <TransitionGroup tag="div" class="jr-side jr-side-l" :css="false" @enter="(el: Element, done: () => void) => turnPage('l', true, el, done)" @leave="(el: Element, done: () => void) => turnPage('l', false, el, done)">
+        <div
+          class="jr-spread"
+          :class="{ 'jr-opening': isCoverOpening }"
+          @pointerdown="onSwipeStart"
+          @pointerup="onSwipeEnd"
+          @pointercancel="onSwipeEnd"
+        >
+          <TransitionGroup
+            tag="div"
+            class="jr-side jr-side-l"
+            :css="false"
+            @enter="(el: Element, done: () => void) => turnPage('l', true, el, done)"
+            @leave="(el: Element, done: () => void) => turnPage('l', false, el, done)"
+          >
             <section v-for="d in [pageDate]" :key="d" class="jr-paper jr-left" :data-date="d">
-              <span class="jr-page-kicker">{{ pageKicker(d) }}</span>
+              <span class="jr-page-kicker">{{ getPageKicker(d) }}</span>
               <div class="jr-day">{{ Number(d.slice(8)) }}</div>
-              <div class="jr-day-sub">{{ fmt(weekdayFmt, d) }}<br>{{ monthLabel(d.slice(0, 7)) }}</div>
-              <div v-if="planFor(d).length" class="jr-left-block">
+              <div class="jr-day-sub">
+                {{ formatWith(weekdayFmt, d) }}<br />{{ getMonthLabel(d.slice(0, 7)) }}
+              </div>
+
+              <div v-if="getPlanForDate(d).length" class="jr-left-block">
                 <h2 class="jr-left-h">{{ $t('Vorgenommen') }}</h2>
-                <ul class="jr-left-list"><li v-for="(p, i) in planFor(d)" :key="i">{{ p }}</li></ul>
+                <ul class="jr-left-list">
+                  <li v-for="(p, i) in getPlanForDate(d)" :key="i">{{ p }}</li>
+                </ul>
               </div>
-              <div v-if="doneOn(d).length" class="jr-left-block jr-recap">
+
+              <div v-if="getDoneItemsOn(d).length" class="jr-left-block jr-recap">
                 <h2 class="jr-left-h">{{ $t('Erledigt') }}</h2>
-                <ul class="jr-left-list"><li v-for="(p, i) in doneOn(d)" :key="i">{{ p }}</li></ul>
+                <ul class="jr-left-list">
+                  <li v-for="(p, i) in getDoneItemsOn(d)" :key="i">{{ p }}</li>
+                </ul>
               </div>
+
               <span class="jr-page-no" aria-hidden="true">{{ 2 * pages.indexOf(d) + 1 }}</span>
             </section>
           </TransitionGroup>
-          <TransitionGroup tag="div" class="jr-side jr-side-r" :css="false" @enter="(el: Element, done: () => void) => turnPage('r', true, el, done)" @leave="(el: Element, done: () => void) => turnPage('r', false, el, done)">
+
+          <TransitionGroup
+            tag="div"
+            class="jr-side jr-side-r"
+            :css="false"
+            @enter="(el: Element, done: () => void) => turnPage('r', true, el, done)"
+            @leave="(el: Element, done: () => void) => turnPage('r', false, el, done)"
+          >
             <article
-              v-for="d in [pageDate]" :key="d" class="jr-entry jr-paper jr-right" :class="{ 'jr-today': d === todayStr }" :data-date="d"
-              :aria-label="fmt(headerDateFmt, d)"
+              v-for="d in [pageDate]"
+              :key="d"
+              class="jr-entry jr-paper jr-right"
+              :class="{ 'jr-today': d === todayStr }"
+              :data-date="d"
+              :aria-label="formatWith(headerDateFmt, d)"
             >
               <JournalEntryEditor
-                :ref="(c) => setEditor(d, c)"
+                :ref="(c) => setEditorInstance(d, c)"
                 :date="d"
-                :entry="entryOf(d)"
-                :imported-titles="importedTitles(d)"
-                @saved="onSaved(d, $event)"
-                @imported="onTodayImported"
+                :entry="getEntryForDate(d)"
+                :imported-titles="getImportedTitles(d)"
+                @saved="onEntrySaved(d, $event)"
+                @imported="handleTodayImported"
               />
               <span class="jr-page-no" aria-hidden="true">{{ 2 * pages.indexOf(d) + 2 }}</span>
             </article>
           </TransitionGroup>
+
           <!-- Umschlag: liegt beim Öffnen der Ansicht über der rechten Seite und klappt auf -->
-          <div class="jr-cover" aria-hidden="true"><span>{{ $t('Journal') }}</span></div>
+          <div class="jr-cover" aria-hidden="true">
+            <span>{{ $t('Journal') }}</span>
+          </div>
         </div>
 
         <nav class="jr-nav" :aria-label="$t('Seiten')">
-          <button type="button" class="icon-btn" :disabled="pageIdx <= 0" :aria-label="$t('Vorherige Seite')" @click="flip(-1)"><svg class="ic"><use href="#i-left" /></svg></button>
-          <span class="jr-nav-count">{{ $t('Seite {n} von {m}', { n: pageIdx + 1, m: pages.length }) }}</span>
-          <button type="button" class="icon-btn" :disabled="pageIdx >= pages.length - 1" :aria-label="$t('Nächste Seite')" @click="flip(1)"><svg class="ic"><use href="#i-right" /></svg></button>
+          <button
+            type="button"
+            class="icon-btn"
+            :disabled="currentPageIndex <= 0"
+            :aria-label="$t('Vorherige Seite')"
+            @click="flipPage(-1)"
+          >
+            <svg class="ic"><use href="#i-left" /></svg>
+          </button>
+          <span class="jr-nav-count">
+            {{ $t('Seite {n} von {m}', { n: currentPageIndex + 1, m: pages.length }) }}
+          </span>
+          <button
+            type="button"
+            class="icon-btn"
+            :disabled="currentPageIndex >= pages.length - 1"
+            :aria-label="$t('Nächste Seite')"
+            @click="flipPage(1)"
+          >
+            <svg class="ic"><use href="#i-right" /></svg>
+          </button>
         </nav>
-        <RouterLink v-if="hasOlder && pageIdx === 0" class="v-sub jr-more" to="/notes">{{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}</RouterLink>
+
+        <RouterLink
+          v-if="hasOlderEntries && currentPageIndex === 0"
+          class="v-sub jr-more"
+          to="/notes"
+        >
+          {{ $t('Ältere Einträge findest du unter Notizen im Ordner Journal.') }}
+        </RouterLink>
       </div>
 
       <!-- Offene Journal-Aufgaben -->
-      <section v-if="openJournalTasks.length" class="jr-open-box">
-        <div class="jr-open-head">
-          <h3 class="jr-open-title">{{ $t('Noch offen aus dem Journal') }}</h3>
-          <RouterLink class="jr-open-all" :to="{ path: '/tasks', query: { filter: 'journal' } }">{{ $t('Alle Aufgaben') }}<svg class="ic"><use href="#i-right" /></svg></RouterLink>
-        </div>
-        <ul class="jr-open-list">
-          <li v-for="t in openJournalTasks.slice(0, 5)" :key="t.id" class="jr-open-item">
-            <button
-              type="button"
-              class="cb jr-open-cb"
-              role="checkbox"
-              :aria-checked="false"
-              :aria-label="$t('{title} erledigt', { title: t.title })"
-              :disabled="completing === t.id"
-              @click="completeTask(t)"
-            ></button>
-            <RouterLink class="jr-open-link" :to="`/tasks?task=${t.id}`">{{ t.title }}</RouterLink>
-          </li>
-        </ul>
-        <RouterLink v-if="openJournalTasks.length > 5" class="jr-open-more" :to="{ path: '/tasks', query: { filter: 'journal' } }">
-          {{ $tn(openJournalTasks.length - 5, '+{n} weitere Aufgabe', '+{n} weitere Aufgaben') }}
-        </RouterLink>
-      </section>
+      <JournalOpenTasks
+        :tasks="openJournalTasks"
+        :completing-id="completingTaskId"
+        @complete="handleCompleteTask"
+      />
 
       <!-- Nachtragen-Dialog -->
-      <div v-if="backfillOpen" v-dialog="closeBackfill" class="overlay open" @mousedown.self="closeBackfill">
-        <form class="dialog jr-backfill" :aria-label="$t('Eintrag nachtragen')" @submit.prevent="startBackfill">
-          <div class="dlg-head">
-            <h3>{{ $t('Eintrag nachtragen') }}</h3>
-            <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="closeBackfill"><svg class="ic"><use href="#i-x" /></svg></button>
-          </div>
-          <div class="dlg-body">
-            <label class="field"><span>{{ $t('Datum') }}</span><input v-model="backfillDate" class="input" type="date" :max="todayStr" required /></label>
-          </div>
-          <div class="dlg-foot">
-            <button class="btn btn-ghost" type="button" @click="closeBackfill">{{ $t('Abbrechen') }}</button>
-            <button class="btn btn-primary" type="submit">{{ $t('Öffnen') }}</button>
-          </div>
-        </form>
-      </div>
+      <JournalBackfillDialog
+        :open="isBackfillOpen"
+        :initial-date="backfillDate"
+        :max-date="todayStr"
+        @close="isBackfillOpen = false"
+        @submit="handleBackfillSubmit"
+      />
     </div>
   </div>
 </template>
@@ -583,83 +751,30 @@ const menuOpen = ref(false)
   border-radius: 50%;
   border: 1px solid var(--br-default);
   cursor: pointer;
-  transition: transform var(--dur) ease-out, box-shadow var(--dur) ease-out;
+  transition:
+    transform var(--dur) ease-out,
+    box-shadow var(--dur) ease-out;
 }
-.jr-paper-pick.is-coffee { background: #efe3c8; }
-.jr-paper-pick.is-white { background: #fbfaf7; }
-.jr-paper-pick.is-black { background: #1b1a18; }
-.jr-paper-pick:hover { transform: scale(1.08); }
-.jr-paper-pick[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--tx-secondary); }
-.jr-paper-pick:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
-
-/* Streak / Punktreihe */
-.jr-meta {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-top: 16px;
+.jr-paper-pick.is-coffee {
+  background: #efe3c8;
 }
-.jr-streak {
-  font: 400 13px/1.4 var(--font-ui);
-  color: var(--tx-secondary);
+.jr-paper-pick.is-white {
+  background: #fbfaf7;
 }
-.jr-heat {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+.jr-paper-pick.is-black {
+  background: #1b1a18;
 }
-.jr-heat-cell {
-  width: 6px;
-  height: 6px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--tx-muted);
-  opacity: 0.3;
-  cursor: pointer;
-  position: relative;
-  transition: opacity var(--dur) ease-out, transform var(--dur) ease-out;
+.jr-paper-pick:hover {
+  transform: scale(1.08);
 }
-.jr-heat-cell::before {
-  content: '';
-  position: absolute;
-  inset: -3px;
+.jr-paper-pick[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 2px var(--bg-0),
+    0 0 0 4px var(--tx-secondary);
 }
-.jr-heat-cell.on {
-  background: var(--p-orange);
-  opacity: 0.9;
-}
-.jr-heat-cell.open {
-  outline: 1px solid var(--tx-secondary);
-  outline-offset: 2px;
-  opacity: 1;
-}
-.jr-heat-cell.future {
-  background: var(--br-subtle);
-  opacity: 0.15;
-  cursor: default;
-}
-.jr-heat-cell:not(.future):hover {
-  opacity: 1;
-  transform: scale(1.3);
-}
-.jr-heat-cell:focus-visible {
-  outline: 2px solid var(--tx-secondary);
-  outline-offset: 2px;
-}
-
-/* Screenreader */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+.jr-paper-pick:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
 }
 
 .jr-tools {
@@ -682,7 +797,7 @@ button.col-link {
 button.col-link:hover {
   color: var(--tx-secondary);
 }
-.jr-tools :deep(input[type="search"]) {
+.jr-tools :deep(input[type='search']) {
   max-width: 200px;
   height: 28px;
   padding: 0 10px;
@@ -704,7 +819,6 @@ button.col-link:hover {
   --dot: #b0602a;
   --cover: #6b4529;
   --cover-ink: #e9d3a8;
-  --half: 400ms; /* eine Hälfte des Umblätterns: bis die Seite senkrecht steht */
   margin-bottom: 14px;
 }
 .jr-book[data-paper='white'] {
@@ -738,7 +852,7 @@ button.col-link:hover {
   padding: 8px 10px;
   animation: jr-shift 980ms cubic-bezier(0.5, 0, 0.2, 1) both;
 }
-/* Einbanddeckel hinter den Seiten mit dezentem, edlem Schatten */
+/* Einbanddeckel hinter den Seiten mit dezentem Schatten */
 .jr-spread::before,
 .jr-spread::after {
   content: '';
@@ -747,7 +861,9 @@ button.col-link:hover {
   bottom: 0;
   width: 50%;
   background: var(--cover);
-  box-shadow: 0 24px 48px -12px rgb(0 0 0 / 0.6), inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  box-shadow:
+    0 24px 48px -12px rgb(0 0 0 / 0.6),
+    inset 0 0 0 1px rgb(255 255 255 / 0.06);
 }
 .jr-spread::before {
   left: 0;
@@ -759,8 +875,14 @@ button.col-link:hover {
   border-radius: 0 7px 7px 0;
 }
 @keyframes jr-board {
-  0%, 62% { opacity: 0; }
-  62.01%, 100% { opacity: 1; }
+  0%,
+  62% {
+    opacity: 0;
+  }
+  62.01%,
+  100% {
+    opacity: 1;
+  }
 }
 
 /* Beide Seiten eines Blatts liegen beim Umblättern in derselben Zelle übereinander. */
@@ -769,15 +891,23 @@ button.col-link:hover {
   z-index: 1;
   display: grid;
 }
-.jr-side-l { grid-area: 1 / 1; }
-.jr-side-r { grid-area: 1 / 2; }
+.jr-side-l {
+  grid-area: 1 / 1;
+}
+.jr-side-r {
+  grid-area: 1 / 2;
+}
 
 .jr-paper {
   grid-area: 1 / 1;
   position: relative;
   min-height: clamp(520px, calc(100dvh - 320px), 760px);
   padding: 38px 42px 46px;
-  background: radial-gradient(ellipse 130% 95% at 50% 40%, var(--paper) 60%, var(--paper-2) 135%);
+  background: radial-gradient(
+    ellipse 130% 95% at 50% 40%,
+    var(--paper) 60%,
+    var(--paper-2) 135%
+  );
 }
 /* Bund in der Mitte mit sanftem Papierschatten, Buchblock mit dezentem Schnitt */
 .jr-left {
@@ -802,7 +932,8 @@ button.col-link:hover {
     5px 5px 0 var(--paper-2),
     8px 12px 20px -4px rgb(0 0 0 / 0.38);
 }
-/* Der Editor schreibt mit Tinte: seine Farb-Tokens zeigen auf das Papier (der Import-Dialog bleibt unberührt). */
+
+/* Der Editor schreibt mit Tinte */
 .jr-paper :deep(.je-form) {
   --tx-primary: var(--ink);
   --tx-secondary: var(--ink-2);
@@ -834,6 +965,7 @@ button.col-link:hover {
 .jr-paper :deep(.je-import:hover) {
   background: var(--rule);
 }
+
 .jr-page-kicker {
   font: italic 400 16px/1 var(--font-serif);
   color: var(--ink-3);
@@ -889,10 +1021,14 @@ button.col-link:hover {
   font: italic 400 14px/1 var(--font-serif);
   color: var(--ink-3);
 }
-.jr-left .jr-page-no { left: 28px; }
-.jr-right .jr-page-no { right: 28px; }
+.jr-left .jr-page-no {
+  left: 28px;
+}
+.jr-right .jr-page-no {
+  right: 28px;
+}
 
-/* Umschlag: klappt beim Öffnen am Bund nach links auf */
+/* Umschlag */
 .jr-cover {
   grid-area: 1 / 2;
   z-index: 5;
@@ -914,23 +1050,42 @@ button.col-link:hover {
   letter-spacing: 0.02em;
 }
 @keyframes jr-cover {
-  0%, 25% { opacity: 1; transform: perspective(2400px) rotateY(0deg); }
-  62% { opacity: 1; transform: perspective(2400px) rotateY(-90deg); filter: brightness(0.6); }
-  62.01%, 100% { opacity: 0; transform: perspective(2400px) rotateY(-90deg); }
+  0%,
+  25% {
+    opacity: 1;
+    transform: perspective(2400px) rotateY(0deg);
+  }
+  62% {
+    opacity: 1;
+    transform: perspective(2400px) rotateY(-90deg);
+    filter: brightness(0.6);
+  }
+  62.01%,
+  100% {
+    opacity: 0;
+    transform: perspective(2400px) rotateY(-90deg);
+  }
 }
-/* Geschlossen liegt das Buch mittig; beim Aufklappen rückt es nach links. */
+
 @keyframes jr-shift {
-  0%, 25% { transform: translateX(-25%); }
-  100% { transform: none; }
+  0%,
+  25% {
+    transform: translateX(-25%);
+  }
+  100% {
+    transform: none;
+  }
 }
 .jr-opening .jr-left {
   animation: jr-appear 160ms 600ms ease-out both;
 }
 @keyframes jr-appear {
-  from { opacity: 0; }
+  from {
+    opacity: 0;
+  }
 }
 
-/* Umblättern: Clip, Lage und Schattierung jeder Seite setzt turnPage() pro Frame (lib/pageTurn.ts). */
+/* Umblättern */
 .jr-paper::after {
   content: '';
   position: absolute;
@@ -955,85 +1110,28 @@ button.col-link:hover {
   gap: 12px;
   margin-top: 10px;
 }
-.jr-more-btn { width: 32px; height: 32px; }
-.jr-paper-menu { padding: 8px 10px; min-width: 140px; }
-.jr-paper-menu .menu-l { display: block; padding: 2px 4px 6px; font: 600 11px/1 var(--font-ui); color: var(--tx-muted); text-transform: uppercase; letter-spacing: .06em; }
+.jr-more-btn {
+  width: 32px;
+  height: 32px;
+}
+.jr-paper-menu {
+  padding: 8px 10px;
+  min-width: 140px;
+}
+.jr-paper-menu .menu-l {
+  display: block;
+  padding: 2px 4px 6px;
+  font: 600 11px/1 var(--font-ui);
+  color: var(--tx-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 .jr-nav-count {
   min-width: 96px;
   text-align: center;
   font: 400 13px/1 var(--font-ui);
   color: var(--tx-muted);
   font-variant-numeric: tabular-nums;
-}
-
-/* Offene Aufgaben */
-.jr-open-box {
-  margin-bottom: 48px;
-  padding: 16px 20px;
-  border-radius: var(--r-m);
-  background: var(--bg-1);
-  border: 1px solid var(--br-subtle);
-}
-.jr-open-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.jr-open-title {
-  margin: 0;
-  font: 500 13px/1.3 var(--font-ui);
-  color: var(--tx-secondary);
-}
-.jr-open-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-}
-.jr-open-item {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  align-items: start;
-  gap: 10px;
-}
-.jr-open-cb {
-  margin-top: 3px;
-  cursor: pointer;
-}
-.jr-open-link {
-  font: 400 14px/1.4 var(--font-ui);
-  color: var(--tx-secondary);
-  text-decoration: none;
-}
-.jr-open-link:hover {
-  color: var(--tx-primary);
-  text-decoration: underline;
-}
-.jr-open-more {
-  display: block;
-  margin-top: 10px;
-  color: var(--tx-muted);
-  font: 400 12px/1.3 var(--font-ui);
-  text-decoration: none;
-}
-.jr-open-all {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--tx-muted);
-  font: 500 12px/1 var(--font-ui);
-  text-decoration: none;
-  transition: color var(--dur) ease-out;
-}
-.jr-open-all:hover {
-  color: var(--tx-secondary);
-}
-.jr-open-all .ic {
-  width: 12px;
-  height: 12px;
 }
 
 .jr-more {
@@ -1047,20 +1145,13 @@ button.col-link:hover {
   text-decoration: underline;
 }
 
-.jr-backfill {
-  width: 320px;
-  max-width: calc(100vw - 32px);
-}
-
 @media (max-width: 860px) {
-  /* Schmal liegen die Seiten untereinander; statt zu drehen blenden sie über. */
   .jr-spread {
     grid-template-columns: 1fr;
     padding: 6px;
     animation: none;
   }
   .jr-cover,
-  .jr-ribbon,
   .jr-spread::before {
     display: none;
   }
@@ -1100,16 +1191,10 @@ button.col-link:hover {
     animation: none;
   }
 }
+
 @media (max-width: 640px) {
   .jr-title {
     font-size: 30px;
-  }
-  .jr-meta {
-    gap: 12px;
-  }
-  /* Schmal passen nur vier Wochen in eine Zeile. */
-  .jr-heat-cell:nth-child(-n + 14) {
-    display: none;
   }
 }
 </style>
