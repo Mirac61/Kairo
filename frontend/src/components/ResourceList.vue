@@ -183,13 +183,21 @@ async function addNote() {
 }
 .res-note-add {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+  min-width: 0;
+}
+.res-note-add .input {
+  min-width: 0;
 }
 .res-add {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
+  min-width: 0;
+}
+.res-add .input {
+  min-width: 0;
 }
 .res-add .btn {
   grid-column: 1 / -1;

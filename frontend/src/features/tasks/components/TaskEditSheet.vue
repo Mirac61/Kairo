@@ -429,9 +429,7 @@ function noteTarget(): string | undefined {
 .sub-sec > .lbl {
   display: block;
   margin-bottom: 8px;
-  font: 600 11px/1 var(--font-ui);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font: 500 12px/1 var(--font-ui);
   color: var(--tx-muted);
 }
 .td-desc {

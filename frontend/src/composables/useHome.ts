@@ -6,6 +6,7 @@ import {
   listTasks,
   listTimeEntries,
   updateTask,
+  type Project,
   type Task,
   type TimeEntry,
   type Today,
@@ -42,6 +43,7 @@ function createHome() {
   const entries = ref<TimeEntry[]>([])
   const tasks = ref<Task[]>([])
   const projectNames = ref(new Map<string, string>())
+  const projectsById = ref(new Map<string, Project>())
   const now = ref(Date.now())
   let intervalTimer: ReturnType<typeof setInterval> | undefined
 
@@ -60,6 +62,7 @@ function createHome() {
     entries.value = loadedEntries.reverse()
     tasks.value = loadedTasks
     projectNames.value = new Map(loadedProjects.map((proj) => [proj.id, proj.name]))
+    projectsById.value = new Map(loadedProjects.map((proj) => [proj.id, proj]))
   })
 
   useLiveEvents(load)
@@ -259,6 +262,7 @@ function createHome() {
     tasks,
     tasksById,
     projectNames,
+    projectsById,
     now,
     nowMin: nowMinutes,
     error,

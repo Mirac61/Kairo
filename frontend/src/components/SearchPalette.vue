@@ -312,9 +312,7 @@ watch(
 }
 .sp-group {
   padding: 10px 10px 4px;
-  font: 500 11px/1 var(--font-ui);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font: 500 12px/1 var(--font-ui);
   color: var(--tx-muted);
 }
 .sp-item {

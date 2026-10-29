@@ -20,7 +20,7 @@ import { useTaskFilter } from '@/composables/useTaskFilter'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { useUndo } from '@/composables/useUndo'
 import { useFreeSlot } from '@/composables/useFreeSlot'
-import { addDays, hm, ymd } from '@/lib/dates'
+import { addDays, dur, ymd } from '@/lib/dates'
 import { t } from '@/lib/i18n'
 import SelectionBar from '@/components/SelectionBar.vue'
 import TaskEditSheet from './components/TaskEditSheet.vue'
@@ -130,7 +130,7 @@ const stats = computed(() => {
   return [
     t('{n} offen', { n: openTasks.length }),
     t('{n} überfällig', { n: overdueCount }),
-    totalMinutes ? t('{time} geschätzt', { time: hm(totalMinutes) }) : '',
+    totalMinutes ? dur(totalMinutes) : '',
   ]
     .filter(Boolean)
     .join(' · ')
@@ -371,9 +371,7 @@ useLiveEvents(load)
               >
                 <span class="tgroup-title">{{ group.title }}</span>
                 <span class="count">{{ group.rows.length }}</span>
-                <span v-if="group.minutes" class="g-sum">
-                  {{ $t('{time} geschätzt', { time: hm(group.minutes) }) }}
-                </span>
+                <span v-if="group.minutes" class="g-sum">· {{ dur(group.minutes) }}</span>
               </div>
 
               <div class="tasklist">
@@ -477,25 +475,23 @@ useLiveEvents(load)
   margin-top: 16px;
 }
 
+/* Listenansicht ohne Kasten: Struktur kommt aus Kopfzeile, Gruppentiteln und feinen Trennlinien */
 .tasks-table {
-  background: var(--bg-1);
-  box-shadow: 0 0 0 1px var(--br-default);
-  border-radius: var(--r-l);
-  overflow: hidden;
+  font-variant-numeric: tabular-nums;
 }
 
 .tk-cols {
   display: flex;
   align-items: center;
-  gap: 12px;
-  height: 38px;
+  gap: 16px; /* wie .task-row, damit Kopf und Zellen fluchten */
+  height: 34px;
   padding: 0 16px;
-  background: var(--bg-2);
   border-bottom: 1px solid var(--br-default);
-  font: 600 11px/1 var(--font-ui);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font: 500 13px/1 var(--font-ui);
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--tx-muted);
+  background: none;
   user-select: none;
 }
 .tk-cols .c-t {
@@ -527,17 +523,20 @@ useLiveEvents(load)
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 34px;
+  height: 38px;
   padding: 0 16px;
-  background: color-mix(in srgb, var(--bg-2) 40%, var(--bg-1));
   border-bottom: 1px solid var(--br-subtle);
-  font: 600 11px/1 var(--font-ui);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--tx-secondary);
+  font: 600 13px/1 var(--font-ui);
+  color: var(--tx-primary);
 }
-.tgroup:not(:first-child) .tgroup-hdr {
-  border-top: 1px solid var(--br-default);
+.tasks-table .tgroup {
+  margin: 0;
+}
+.tasks-table .tgroup + .tgroup {
+  margin-top: 24px;
+}
+.tasks-table .tasklist :deep(.task-row:last-child) {
+  border-bottom: 0;
 }
 .tgroup-hdr.od .tgroup-title {
   color: var(--a-red);
@@ -546,18 +545,12 @@ useLiveEvents(load)
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--tx-primary) 8%, transparent);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--tx-muted);
 }
 .tgroup-hdr .g-sum {
-  margin-left: auto;
-  font: 400 12px/1 var(--font-mono);
+  font: 400 12px/1 var(--font-ui);
   color: var(--tx-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -617,8 +610,7 @@ useLiveEvents(load)
   color: var(--a-red);
 }
 .g-sum {
-  margin-left: auto;
-  font: 400 13px/1 var(--font-ui);
+  font: 400 12.5px/1 var(--font-ui);
   color: var(--tx-muted);
 }
 </style>

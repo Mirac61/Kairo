@@ -354,10 +354,8 @@ button.col-link:hover {
 .jr-paper-menu .menu-l {
   display: block;
   padding: 2px 4px 6px;
-  font: 600 11px/1 var(--font-ui);
+  font: 500 12px/1 var(--font-ui);
   color: var(--tx-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 @media (max-width: 640px) {
