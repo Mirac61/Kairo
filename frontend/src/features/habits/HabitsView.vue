@@ -33,21 +33,20 @@ import {
   computeWeekdayRates,
   computeWeekProgress,
   formatHabitRhythm,
-  formatPauseSpan,
   getGridStartDate,
   getUpcomingPauses,
   getWeekdayLabels,
   isHabitPlanned,
-  WEEKDAYS,
   WEEKS_IN_GRAPH,
   type HabitCell,
 } from '@/lib/habits'
 import SearchField from '@/components/SearchField.vue'
 import HabitEditDialog from './components/HabitEditDialog.vue'
 import HabitDetailAside from './components/HabitDetailAside.vue'
-import HabitYearCard from './components/HabitYearCard.vue'
-import HabitMonthCard from './components/HabitMonthCard.vue'
-import HabitWeekView from './components/HabitWeekView.vue'
+import HabitVacationDialog from './components/HabitVacationDialog.vue'
+import HabitDayView from './components/HabitDayView.vue'
+import HabitMonthView from './components/HabitMonthView.vue'
+import HabitYearView from './components/HabitYearView.vue'
 
 const wdLabels = computed(() => getWeekdayLabels(locale.value))
 
@@ -80,7 +79,6 @@ const dayLabelFmt = new Intl.DateTimeFormat(locale.value, {
   month: '2-digit',
 })
 const dateShortFmt = new Intl.DateTimeFormat(locale.value, { day: 'numeric', month: 'short' })
-const monthShortFmt = new Intl.DateTimeFormat(locale.value, { month: 'short' })
 const wdShortFmt = new Intl.DateTimeFormat(locale.value, { weekday: 'short' })
 
 const { error, load, run } = useLoader(async () => {
@@ -167,16 +165,6 @@ function graph(h: Habit): HabitCell[] {
   return Array.from({ length: WEEKS_IN_GRAPH * 7 }, (_, i) => cell(h, addDays(gridStart(), i)))
 }
 
-const months = computed(() =>
-  Array.from({ length: WEEKS_IN_GRAPH }, (_, w) => addDays(gridStart(), 7 * w))
-    .map((d, w, all) => ({
-      col: w + 1,
-      label: w === 0 || d.getMonth() !== all[w - 1]!.getMonth() ? monthShortFmt.format(d) : '',
-    }))
-    .filter((m) => m.label && m.col < WEEKS_IN_GRAPH - 1)
-    .filter((m, i, all) => !all[i + 1] || all[i + 1]!.col - m.col >= 3),
-)
-
 function toggleCell(h: Habit, c: HabitCell) {
   if (!c.can) return
   void run(() => (c.isDone ? uncompleteHabit(h.id, c.s) : completeHabit(h.id, c.s)))
@@ -195,27 +183,16 @@ function setAmount(h: Habit, c: HabitCell, v: number) {
 }
 
 // Pause Management
-const pauseFor = ref<string | null | undefined>(undefined)
+const isVacationOpen = ref(false)
 
-const pauseFrom = ref(todayStr())
-const pauseUntil = ref(ymd(addDays(new Date(), 7)))
-
-function openPause(habitId: string | null) {
-  pauseFor.value = habitId
-  pauseFrom.value = todayStr()
-  pauseUntil.value = ymd(addDays(new Date(), 7))
-}
-
-function savePause() {
-  const habit_id = pauseFor.value ?? null
-  if (pauseUntil.value < pauseFrom.value) return
+function handleSaveVacation(payload: { startDate: string; endDate: string }) {
   void run(async () => {
     await createHabitPause({
-      habit_id,
-      start_date: pauseFrom.value,
-      end_date: pauseUntil.value,
+      habit_id: null,
+      start_date: payload.startDate,
+      end_date: payload.endDate,
     })
-    pauseFor.value = undefined
+    isVacationOpen.value = false
   })
 }
 
@@ -370,34 +347,6 @@ function pick(h: Habit) {
   focusId.value = focusId.value === h.id ? null : h.id
 }
 
-// Month View
-const monthOffset = ref(0)
-const monthStart = computed(() => {
-  const n = new Date()
-  return new Date(n.getFullYear(), n.getMonth() + monthOffset.value, 1)
-})
-const monthTitle = computed(() =>
-  new Intl.DateTimeFormat(locale.value, { month: 'long', year: 'numeric' }).format(
-    monthStart.value,
-  ),
-)
-const monthDays = computed(() => {
-  const m = monthStart.value
-  return Array.from(
-    { length: new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate() },
-    (_, i) => new Date(m.getFullYear(), m.getMonth(), i + 1),
-  )
-})
-const lead = computed(() => (monthStart.value.getDay() + 6) % 7)
-
-function monthStat(h: Habit) {
-  const cs = monthDays.value.map((d) => cell(h, d))
-  return {
-    done: cs.filter((c) => c.isDone).length,
-    goal: cs.filter((c) => c.state === 'open' || c.state === 'done').length,
-  }
-}
-
 useShortcuts((e) => {
   if (isEditDialogOpen.value) return
   if (e.key === 'n') {
@@ -448,8 +397,8 @@ useLiveEvents(load)
         <button
           class="btn btn-ghost hab-vac"
           type="button"
-          :aria-expanded="pauseFor === null"
-          @click="pauseFor === null ? (pauseFor = undefined) : openPause(null)"
+          :aria-expanded="isVacationOpen"
+          @click="isVacationOpen = !isVacationOpen"
         >
           {{ $t('Urlaub') }}
         </button>
@@ -465,33 +414,15 @@ useLiveEvents(load)
         </button>
       </div>
 
-      <form v-if="pauseFor === null" class="hd-pause card" @submit.prevent="savePause">
-        <span class="hd-pause-t">{{ $t('Alle Gewohnheiten pausieren') }}</span>
-        <label
-          >{{ $t('von') }} <input v-model="pauseFrom" class="input" type="date" required
-        /></label>
-        <label
-          >{{ $t('bis') }}
-          <input v-model="pauseUntil" class="input" type="date" :min="pauseFrom" required
-        /></label>
-        <button class="btn btn-primary" type="submit">{{ $t('Pausieren') }}</button>
-        <button class="btn btn-ghost" type="button" @click="pauseFor = undefined">
-          {{ $t('Abbrechen') }}
-        </button>
-        <ul v-if="vacations.length" class="hd-chips">
-          <li v-for="p in vacations" :key="p.id">
-            {{ $t('Urlaub') }} · {{ formatPauseSpan(p, dateShortFmt) }}
-            <button
-              type="button"
-              class="icon-btn"
-              :aria-label="$t('Pause entfernen')"
-              @click="handleDeletePause(p.id)"
-            >
-              <svg class="ic"><use href="#i-x" /></svg>
-            </button>
-          </li>
-        </ul>
-      </form>
+      <HabitVacationDialog
+        :open="isVacationOpen"
+        :vacations="vacations"
+        :date-short-fmt="dateShortFmt"
+        :today-str="todayStr()"
+        @close="isVacationOpen = false"
+        @save="handleSaveVacation"
+        @delete-pause="handleDeletePause"
+      />
 
       <div v-if="!habits.length" class="empty-cta">
         <p class="v-sub">
@@ -508,37 +439,24 @@ useLiveEvents(load)
       </div>
 
       <!-- Jahresansicht (Beitragsgraph) -->
-      <div v-else-if="view === 'year'" class="hk-list">
-        <HabitYearCard
-          v-for="h in sorted"
-          :key="h.id"
-          :habit="h"
-          :months="months"
-          :streak="streaks[h.id] ?? 0"
-          :rate30="habit30DayRate(h)"
-          :year-count="yearCount(h)"
-          :is-due="Boolean(due(h))"
-          :is-done="Boolean(due(h)?.done)"
-          :cells="graph(h)"
-          :wd-labels="wdLabels"
-          @toggle-today="toggleToday"
-          @toggle-cell="toggleCell"
-          @edit="openEdit"
-          @toggle-active="(h) => run(() => updateHabit(h.id, { active: !h.active }))"
-          @trash="trash"
-        />
-
-        <div class="hab-foot">
-          <span class="hab-legend"><i class="done"></i>{{ $t('erledigt') }}</span>
-          <span class="hab-legend"><i></i>{{ $t('offen') }}</span>
-          <span class="hab-legend"><i class="off"></i>{{ $t('nicht geplant') }}</span>
-          <span class="hab-legend"><i class="pause"></i>{{ $t('ausgesetzt') }}</span>
-          <span class="hab-hint">{{ $t('Klick auf ein Feld trägt nach oder nimmt zurück') }}</span>
-        </div>
-      </div>
+      <HabitYearView
+        v-else-if="view === 'year'"
+        :habits="sorted"
+        :streaks="streaks"
+        :rate30="habit30DayRate"
+        :year-count="yearCount"
+        :due="due"
+        :graph="graph"
+        :wd-labels="wdLabels"
+        @toggle-today="toggleToday"
+        @toggle-cell="toggleCell"
+        @edit="openEdit"
+        @toggle-active="(h) => run(() => updateHabit(h.id, { active: !h.active }))"
+        @trash="trash"
+      />
 
       <!-- Wochenansicht -->
-      <HabitWeekView
+      <HabitDayView
         v-else-if="view === 'day'"
         :week-label="weekLabel"
         :this-week="thisWeek"
@@ -566,44 +484,13 @@ useLiveEvents(load)
       />
 
       <!-- Monatsansicht -->
-      <div v-else class="hm">
-        <div class="hm-nav">
-          <button
-            class="icon-btn"
-            type="button"
-            :aria-label="$t('Voriger Monat')"
-            :disabled="monthOffset <= -11"
-            @click="monthOffset--"
-          >
-            <svg class="ic"><use href="#i-left" /></svg>
-          </button>
-          <h2 class="hd-title">{{ monthTitle }}</h2>
-          <button
-            class="icon-btn"
-            type="button"
-            :aria-label="$t('Nächster Monat')"
-            :disabled="monthOffset >= 0"
-            @click="monthOffset++"
-          >
-            <svg class="ic"><use href="#i-right" /></svg>
-          </button>
-        </div>
-
-        <div class="hm-cards">
-          <HabitMonthCard
-            v-for="h in sorted"
-            :key="h.id"
-            :habit="h"
-            :stat="monthStat(h)"
-            :wd-labels="wdLabels"
-            :weekdays="WEEKDAYS"
-            :lead="lead"
-            :month-title="monthTitle"
-            :cells="monthDays.map((d) => cell(h, d))"
-            @toggle-cell="toggleCell"
-          />
-        </div>
-      </div>
+      <HabitMonthView
+        v-else
+        :habits="sorted"
+        :cell="cell"
+        :wd-labels="wdLabels"
+        @toggle-cell="toggleCell"
+      />
     </div>
 
     <!-- Detailansicht rechts in der Wochenansicht -->
@@ -647,203 +534,8 @@ useLiveEvents(load)
 </template>
 
 <style scoped>
-/* Kennzahlen */
-.hk-note {
-  font: 400 12px/1.3 var(--font-ui);
-  color: var(--tx-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Graph-Karten */
-.hk-list {
-  display: grid;
-}
-
-/* Überschrift der Monatsnavigation */
-.hd-title {
-  margin: 0 0 14px;
-  font: 600 18px/1.2 var(--font-ui);
-  letter-spacing: -0.01em;
-  color: var(--tx-primary);
-}
-
-/* Monatsansicht */
-.hm-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.hm-nav .hd-title {
-  margin: 0;
-  min-width: 170px;
-  text-align: center;
-}
-.hm-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 36px 40px;
-}
-
-.inactive {
-  opacity: 0.55;
-}
-/* Beim Überfahren ersetzen die Aktionen die Rhythmus-Zeile. */
-.hab-sub {
-  display: grid;
-  align-items: center;
-  min-height: 20px;
-}
-.hab-sub > * {
-  grid-area: 1 / 1;
-}
-.acts {
-  display: inline-flex;
-  gap: 2px;
-  margin-left: -8px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--dur) ease-out;
-}
-.acts .btn {
-  min-height: 0;
-  height: 20px;
-  padding: 0 8px;
-  font-size: 12px;
-}
-.hk-card:hover .acts,
-.hk-card:focus-within .acts,
-.acts:has([aria-expanded='true']) {
-  opacity: 1;
-  pointer-events: auto;
-}
-.hd-more {
-  width: 28px;
-  justify-content: center;
-  padding: 0 !important;
-}
-.hd-more .ic {
-  width: 16px;
-  height: 16px;
-}
-.hk-card:hover .hab-sched,
-.hk-card:focus-within .hab-sched {
-  opacity: 0;
-}
-.hab-foot {
-  border-top: 0;
-  padding-top: 4px;
-}
-
-@media (max-width: 900px) {
-  .hk-chips {
-    display: none;
-  }
-}
-
-.hd-icon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  color: color-mix(in srgb, var(--hc) 85%, var(--tx-primary));
-  border: 0;
-  background: color-mix(in srgb, var(--hc) 14%, var(--bg-2));
-}
-.hd-icon .ic,
-.hk-icon .ic {
-  width: 52%;
-  height: 52%;
-  stroke-width: 1.9;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: 6px;
-  font-size: 11.5px;
-  font-weight: 500;
-  background: color-mix(in srgb, var(--chip-c) 15%, transparent);
-  color: color-mix(in srgb, var(--chip-c) 80%, var(--tx-primary));
-  white-space: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.chip .cdot {
-  display: none;
-}
-
-.hab-foot .hab-legend i.pause {
-  border: 0;
-  background: repeating-linear-gradient(135deg, var(--tx-muted) 0 2px, transparent 2px 4px);
-}
-
-/* Pausen */
-.hd-pause {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.hd-pause label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font: 400 12.5px/1 var(--font-ui);
-  color: var(--tx-muted);
-}
-.hd-pause .input {
-  width: auto;
-  height: 30px;
-}
-.hd-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: -8px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.hd-chips li {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px 2px 10px;
-  border-radius: 99px;
-  font: 500 12px/1.6 var(--font-ui);
-  color: var(--tx-secondary);
-  background: var(--bg-2);
-}
-.hd-chips .icon-btn {
-  width: 20px;
-  height: 20px;
-}
-.hd-chips .icon-btn .ic {
-  width: 12px;
-  height: 12px;
-}
-.hd-pause.card {
-  margin: -6px 0 14px;
-  padding: 12px 14px;
-}
-.hd-pause-t {
-  font: 500 13px/1.3 var(--font-ui);
-  color: var(--tx-primary);
-  margin-right: 4px;
-}
-.hab-count {
-  margin-left: 8px;
-  font: 400 13px/1 var(--font-ui);
-  color: var(--tx-muted);
-  font-variant-numeric: tabular-nums;
-  margin-right: 4px;
+.spacer {
+  flex: 1;
 }
 
 @media (min-width: 1001px) {
