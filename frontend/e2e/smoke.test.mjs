@@ -190,10 +190,13 @@ test('Gewohnheit mit Uhrzeit im Kalender abhaken', async () => {
   await page.waitForLoadState('networkidle')
   const block = page.locator('.fc-event.kt-habit', { hasText: 'Smoke-Gewohnheit' })
   await block.scrollIntoViewIfNeeded()
-  await block.click()
-  await page.waitForResponse(
-    (r) => r.url().includes(`/habits/${h.id}/completions`) && r.request().method() === 'POST',
-  )
+  // Wartefunktion vor dem Klick registrieren, sonst kann die schnelle POST-Antwort verpasst werden.
+  await Promise.all([
+    page.waitForResponse(
+      (r) => r.url().includes(`/habits/${h.id}/completions`) && r.request().method() === 'POST',
+    ),
+    block.click(),
+  ])
   const done = await api(`/habits/${h.id}/completions?from=${day}&to=${day}`)
   assert.equal(done.length, 1)
 })
