@@ -26,8 +26,18 @@
   border-width: 0;
 }
 .fc .fc-timegrid-col,
-.fc .fc-timegrid-axis,
-.fc .fc-col-header-cell,
+.fc .fc-col-header-cell {
+  border-left-width: 0;
+  border-right: 1px solid var(--br-subtle);
+}
+.fc .fc-timegrid-col:last-child,
+.fc .fc-col-header-cell:last-child {
+  border-right-width: 0;
+}
+.fc .fc-timegrid-axis {
+  border-left-width: 0;
+  border-right: 1px solid var(--br-subtle);
+}
 .fc .fc-timegrid-body td {
   border-left-width: 0;
   border-right-width: 0;
@@ -35,14 +45,15 @@
 .fc .fc-scrollgrid-section-header > th {
   border-top: 0;
   border-bottom: 1px solid var(--br-default);
-  background: var(--bg-0);
+  background: var(--bg-1);
 }
 .fc .fc-timegrid-slot {
   height: 28px;
-  border-color: color-mix(in srgb, var(--br-subtle) 70%, transparent);
+  border-color: var(--br-subtle);
 }
 .fc .fc-timegrid-slot-minor {
-  border-top-style: none;
+  border-top-style: solid;
+  border-top-color: var(--br-subtle);
 }
 .fc .fc-timegrid-slot-label {
   vertical-align: top;
@@ -64,15 +75,18 @@
 } /* sonst oben abgeschnitten */
 .fc .fc-timegrid .fc-daygrid-day {
   border-left-width: 0;
+  border-right: 1px solid var(--br-subtle);
+}
+.fc .fc-timegrid .fc-daygrid-day:last-child {
   border-right-width: 0;
 }
 .fc .fc-day-sat,
 .fc .fc-day-sun {
-  background: color-mix(in srgb, var(--bg-1) 55%, var(--bg-0));
+  background: color-mix(in srgb, var(--bg-2) 30%, transparent);
 }
 .fc .fc-timegrid .fc-day-today,
 .fc .fc-timegrid .fc-day-today.fc-col-header-cell {
-  background: color-mix(in srgb, var(--tx-primary) 4%, transparent);
+  background: color-mix(in srgb, var(--a-blue) 4%, transparent);
 }
 
 /* Tageskopf: Wochentag und Zahl, darunter geplant vs. erfasst (Plan/Ist) mit schmalem Balken */
@@ -135,21 +149,21 @@
 }
 .fc .kt-dh.today b {
   background: var(--a-now);
-  color: var(--bg-0);
+  color: var(--tx-on-accent);
 }
 .fc .kt-row {
   flex: 1 0 100%;
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: 6px;
   white-space: nowrap;
   min-height: 11px;
   font: 400 11px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
-  color: var(--tx-muted);
+  color: var(--tx-secondary);
 }
-.fc .kt-ist {
-  color: var(--tx-primary);
+.fc .kt-cap {
+  color: var(--tx-secondary);
 }
 .fc .kt-bar {
   flex: 1 0 100%;
@@ -157,53 +171,82 @@
   height: 3px;
   border-radius: 2px;
   overflow: hidden;
-  background: var(--bg-2);
+  background: var(--br-default);
 }
 .fc .kt-bar i {
   position: absolute;
   inset: 0 auto 0 0;
   width: 0;
-}
-.fc .kt-bar .p {
-  background: var(--br-strong);
+  border-radius: 2px;
+  transition: width var(--dur) ease-out;
 }
 .fc .kt-bar .t {
-  background: var(--tx-primary);
+  background: var(--a-now);
 }
 
-/* Jetzt-Linie mit Uhrzeit im Achsen-Chip; Linie liegt hinter Event-Text bzw. ist dezent transparent, damit sie nicht wie Durchstreichen wirkt */
+/* Jetzt-Linie mit Uhrzeit im Achsen-Chip; am aktuellen Tag kräftig durchgezogen, über alle anderen Wochentage dezent gestrichelt */
+.fc .fc-timegrid-now-indicator-container {
+  overflow: visible;
+}
 .fc .fc-timegrid-now-indicator-line {
   border-width: 2px 0 0;
-  opacity: 0.65;
+  border-style: solid;
+  border-color: var(--a-now);
+  opacity: 1;
   z-index: 2;
   pointer-events: none;
-}
-.fc .fc-timegrid-event {
-  z-index: 4;
-}
-.fc .fc-timegrid-event .fc-event-main {
-  position: relative;
-  z-index: 5;
 }
 .fc .fc-timegrid-now-indicator-line::before {
   content: '';
   position: absolute;
-  left: -4px;
-  top: -4.5px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--a-now);
+  top: -2px;
+  right: 100%;
+  left: auto;
+  width: 2000px;
+  height: 2px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--a-now) 0,
+    var(--a-now) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+  opacity: 0.45;
+  pointer-events: none;
+  border-radius: 0;
+}
+.fc .fc-timegrid-now-indicator-line::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 100%;
+  right: auto;
+  width: 2000px;
+  height: 2px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--a-now) 0,
+    var(--a-now) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+  opacity: 0.45;
+  pointer-events: none;
+  border-radius: 0;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-now-indicator-line::before,
+.fc .fc-timeGridDay-view .fc-timegrid-now-indicator-line::after {
+  display: none;
 }
 .fc .fc-timegrid-now-indicator-arrow {
   border: 0;
   margin-top: -8px;
   right: 4px;
   left: auto;
-  padding: 2px 5px;
+  padding: 2px 6px;
   border-radius: 4px;
   background: var(--a-now);
-  color: var(--bg-0);
+  color: var(--tx-on-accent);
   font: 600 11px/1.2 var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
@@ -221,36 +264,35 @@
   margin: 0 2px 0 5px;
 }
 
-/* Einträge: neutrale Karte, Farbe nur als Punkt (Termin) bzw. Ring (Aufgabe) in der Projektfarbe (--acc, setzt CalendarView).
-   Termin = graue Fläche, Aufgabe = gestrichelter Umriss, läuft = Bernstein-Rahmen, erledigt = durchgestrichen. */
+/* Einträge: Minimalistisch & Theme-adaptiv — 8% Akzent-Tint auf --bg-1, feine 1px Kontur, 3px linker Akzentrand */
 .fc .fc-event {
-  --acc: var(--p-neutral);
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: var(--bg-2);
+  --ev-acc: var(--p-blue);
+
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ev-acc) 8%, var(--bg-1));
+  border: 1px solid color-mix(in srgb, var(--ev-acc) 22%, var(--br-subtle));
+  border-left: 3px solid var(--ev-acc);
+  box-sizing: border-box;
   cursor: pointer;
   padding: 0;
-  transition: background var(--dur) ease-out;
+  transition:
+    background var(--dur) ease-out,
+    border-color var(--dur) ease-out;
+  overflow: hidden;
 }
 .fc .fc-event:hover {
-  background: var(--bg-3);
-}
-.fc .fc-event.kt-task {
-  border: 1px dashed var(--br-strong);
-  background: transparent;
-}
-.fc .fc-event.kt-task:hover {
-  background: var(--bg-hover);
+  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
+  border-color: color-mix(in srgb, var(--ev-acc) 38%, var(--br-default));
+  border-left-color: var(--ev-acc);
 }
 .fc .fc-event.kt-running {
   box-shadow: inset 0 0 0 1.5px var(--a-run);
 }
-.fc .fc-event.kt-over .kt-title {
-  color: var(--a-red);
+.fc .fc-event.kt-done {
+  opacity: 0.5;
 }
 .fc .fc-event.kt-done .kt-title {
   text-decoration: line-through;
-  color: var(--tx-muted);
 }
 .fc .fc-event-selected,
 .fc .fc-event:focus-visible {
@@ -261,14 +303,43 @@
   background: var(--bg-selected);
 }
 
+/* Farb-Kategorien über --ev-acc (nutzt theme tokens) */
+.fc .fc-event[data-color='blue'],
+.fc .fc-event:not([data-color]) {
+  --ev-acc: var(--p-blue);
+}
+.fc .fc-event[data-color='green'] {
+  --ev-acc: var(--p-green);
+}
+.fc .fc-event[data-color='orange'],
+.fc .fc-event[data-color='yellow'] {
+  --ev-acc: var(--p-orange);
+}
+.fc .fc-event[data-color='violet'],
+.fc .fc-event[data-color='indigo'] {
+  --ev-acc: var(--p-violet);
+}
+.fc .fc-event[data-color='aqua'] {
+  --ev-acc: var(--p-aqua);
+}
+.fc .fc-event[data-color='red'] {
+  --ev-acc: var(--p-red);
+}
+.fc .fc-event[data-color='pink'] {
+  --ev-acc: var(--p-pink);
+}
+.fc .fc-event[data-color='neutral'] {
+  --ev-acc: var(--p-neutral);
+}
+
 .fc .fc-event-main {
   padding: 0;
   container-type: inline-size;
 }
-/* Schmale Spalten (Einträge nebeneinander): nur Titel, ohne Punkt, Projekt und Endzeit */
+/* Schmale Spalten (Einträge nebeneinander): nur Titel, ohne Projekt und Endzeit */
 @container (max-width: 110px) {
   .kt-in {
-    padding: 4px 5px;
+    padding: 4px 6px;
   }
   .kt-dot,
   .kt-ring,
@@ -305,29 +376,10 @@
   gap: 7px;
   min-width: 0;
 }
-.fc .kt-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  margin-top: 5px;
-  border-radius: 50%;
-  background: var(--acc);
-}
+.fc .kt-dot,
 .fc .kt-ring {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  margin-top: 3px;
-  border-radius: 50%;
-  box-sizing: border-box;
-  border: 1.5px solid var(--acc);
+  display: none !important;
 }
-.fc .kt-done .kt-ring {
-  background: var(--acc);
-}
-.fc .kt-habit .kt-ring {
-  border-radius: 3px;
-} /* Gewohnheit = Quadrat wie in der Gewohnheiten-Liste */
 .fc .kt-title {
   min-width: 0;
   font: 500 12.5px/1.3 var(--font-ui);
@@ -343,9 +395,9 @@
 }
 .fc .kt-time {
   flex: none;
-  font: 400 11.5px/1.3 var(--font-ui);
+  font: 500 11.5px/1.3 var(--font-ui);
   font-variant-numeric: tabular-nums;
-  color: var(--tx-secondary);
+  color: var(--tx-muted);
   white-space: nowrap;
 }
 .fc .kt-meta {
@@ -355,26 +407,36 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Kurze Einträge (30 min): einzeilig, Titel und Zeit nebeneinander */
+/* Kurze Einträge (15–30 min): kompaktes einzeiliges Flexbox-Layout mit sauberem vertikalem Alignment und text-overflow: ellipsis */
 .fc .fc-timegrid-event-short .kt-in {
+  display: flex;
   flex-direction: row;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   padding: 0 8px;
+  height: 100%;
+  box-sizing: border-box;
 }
 .fc .fc-timegrid-event-short .kt-head {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
   align-items: center;
-}
-.fc .fc-timegrid-event-short .kt-dot,
-.fc .fc-timegrid-event-short .kt-ring {
-  margin-top: 0;
+  overflow: hidden;
 }
 .fc .fc-timegrid-event-short .kt-title {
   display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: unset;
+  line-height: 1.2;
+}
+.fc .fc-timegrid-event-short .kt-time {
+  flex: none;
+  line-height: 1.2;
+  font-size: 11px;
 }
 .fc .fc-timegrid-event-short .kt-meta,
 .fc .fc-timegrid-event-short .kt-end {
@@ -385,6 +447,7 @@
 .fc .fc-timegrid .fc-daygrid-event {
   min-height: 24px;
   margin-bottom: 2px;
+  border-radius: 5px;
 }
 .fc .fc-timegrid .fc-daygrid-event .kt-in {
   flex-direction: row;
@@ -393,10 +456,6 @@
 }
 .fc .fc-timegrid .fc-daygrid-event .kt-head {
   align-items: center;
-}
-.fc .fc-timegrid .fc-daygrid-event .kt-dot,
-.fc .fc-timegrid .fc-daygrid-event .kt-ring {
-  margin-top: 0;
 }
 .fc .fc-timegrid .fc-daygrid-event .kt-title {
   display: block;
@@ -499,16 +558,15 @@
   font-size: 14px;
   font-weight: 600;
   -webkit-line-clamp: 1;
+  color: var(--tx-primary);
 }
 .fc .fc-timeGridDay-view .kt-time {
   font-size: 12.5px;
+  color: var(--tx-muted);
 }
 .fc .fc-timeGridDay-view .kt-meta {
   font-size: 12.5px;
-}
-.fc .fc-timeGridDay-view .kt-ring {
-  width: 12px;
-  height: 12px;
+  color: var(--tx-muted);
 }
 .fc .fc-timeGridDay-view .fc-timegrid-event-short .kt-in {
   flex-wrap: nowrap;
@@ -525,6 +583,7 @@
 }
 .fc .fc-timeGridDay-view .fc-daygrid-event .kt-in {
   gap: 8px;
+  padding: 0 8px;
 }
 .fc .fc-timeGridDay-view .fc-daygrid-event .kt-head {
   flex: 0 1 auto;
@@ -603,38 +662,18 @@
   margin-top: 0;
 }
 .fc .fc-dayGridMonth-view .fc-daygrid-event {
-  height: 21px;
+  position: relative;
+  height: 22px;
   margin: 0 0 3px;
-  border: 0;
   border-radius: 4px;
   box-shadow: none;
-  background: var(--bg-2);
   font-size: 12px;
-}
-.fc .fc-dayGridMonth-view .fc-daygrid-event:hover {
-  background: var(--bg-3);
-}
-.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-allday {
-  background: var(--bg-3);
-}
-.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-task {
-  border: 0;
-  background: transparent;
-}
-.fc .fc-dayGridMonth-view .fc-daygrid-event.kt-task:hover {
-  background: var(--bg-2);
 }
 .fc .fc-dayGridMonth-view .kt-in {
   flex-direction: row;
   align-items: center;
   gap: 6px;
   padding: 0 6px;
-}
-.fc .fc-dayGridMonth-view .kt-ring {
-  width: 9px;
-  height: 9px;
-  margin-top: 0;
-  border-color: var(--acc);
 }
 .fc .fc-dayGridMonth-view .kt-time {
   color: var(--tx-muted);
@@ -648,7 +687,7 @@
   color: var(--tx-primary);
 }
 .fc .fc-dayGridMonth-view .kt-task .kt-title {
-  color: var(--tx-secondary);
+  color: var(--tx-primary);
 }
 .fc .fc-more-link {
   margin: 0;

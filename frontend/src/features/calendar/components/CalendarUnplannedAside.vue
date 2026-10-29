@@ -16,7 +16,7 @@ export interface NextUpItem {
   task?: Task
 }
 
-defineProps<{
+const props = defineProps<{
   tasks: Task[]
   projects: Project[]
   isDay: boolean
@@ -65,6 +65,12 @@ onBeforeUnmount(() => {
 function formatInMinutes(d: Date): string {
   const m = Math.max(0, Math.round((d.getTime() - Date.now()) / 60_000))
   return m < 60 ? `${m} min` : `${hm(m)} h`
+}
+
+function projectColorName(projectId: string | null | undefined): string {
+  if (!projectId) return 'blue'
+  const p = props.projects.find((proj) => proj.id === projectId)
+  return p?.color ?? 'blue'
 }
 </script>
 
@@ -118,7 +124,27 @@ function formatInMinutes(d: Date): string {
       </div>
     </section>
 
-    <div class="up-head">
+    <!-- Eingeklappte Seitenleiste: Klares Inbox-Icon mit Badge -->
+    <div v-if="!isOpen" class="up-shut-wrap">
+      <button
+        type="button"
+        class="up-tray-btn"
+        :aria-expanded="false"
+        :aria-label="$t('Ungeplant ausklappen')"
+        :title="`${$t('Ungeplant')} (${tasks.length})`"
+        :data-tip="`${$t('Ungeplant')} (${tasks.length})`"
+        @click="emit('toggleOpen')"
+      >
+        <div class="up-tray-icon-wrap">
+          <svg class="ic"><use href="#i-inbox" /></svg>
+          <span v-if="tasks.length" class="up-tray-badge">{{ tasks.length }}</span>
+        </div>
+        <span class="up-tray-lbl">{{ $t('Ungeplant') }}</span>
+      </button>
+    </div>
+
+    <!-- Ausgeklappte Seitenleiste -->
+    <div v-else class="up-head">
       <h2 id="up-title">
         <span class="up-lbl">{{ $t('Ungeplant') }} </span>
         <span class="up-count">{{ tasks.length }}</span>
@@ -127,11 +153,13 @@ function formatInMinutes(d: Date): string {
       <button
         type="button"
         class="icon-btn"
-        :aria-expanded="isOpen"
-        :aria-label="isOpen ? 'Ungeplant einklappen' : 'Ungeplant ausklappen'"
+        :aria-expanded="true"
+        :aria-label="$t('Ungeplant einklappen')"
+        :title="$t('Ungeplant einklappen')"
+        :data-tip="$t('Ungeplant einklappen')"
         @click="emit('toggleOpen')"
       >
-        <svg class="ic"><use :href="isOpen ? '#i-right' : '#i-left'" /></svg>
+        <svg class="ic"><use href="#i-right" /></svg>
       </button>
     </div>
 
@@ -142,6 +170,7 @@ function formatInMinutes(d: Date): string {
         class="up-item"
         :class="{ picked: pickedIds.includes(t.id) }"
         :data-id="t.id"
+        :data-color="projectColorName(t.project_id)"
         :data-min="t.estimated_minutes || ''"
         :style="{ '--acc': projectColor(t.project_id) }"
         @click.capture="emit('pickRow', $event, t.id)"
@@ -170,14 +199,18 @@ function formatInMinutes(d: Date): string {
 <style scoped>
 .unplanned {
   flex: none;
-  width: 240px;
+  width: 250px;
   display: flex;
   flex-direction: column;
   min-height: 0;
   padding: 12px;
   background: var(--bg-1);
-  border: 1px solid var(--br-default);
+  border: 1px solid var(--br-subtle);
   border-radius: var(--r-m);
+  box-sizing: border-box;
+}
+.unplanned.wide:not(.shut) {
+  width: 320px;
 }
 .up-head {
   display: flex;
@@ -185,29 +218,76 @@ function formatInMinutes(d: Date): string {
   justify-content: space-between;
   gap: 8px;
 }
-.unplanned.wide:not(.shut) {
-  width: 300px;
-}
 .unplanned.shut {
-  width: 44px;
-  padding: 12px 6px;
+  width: 40px;
+  padding: 10px 4px;
   align-items: center;
 }
-.unplanned.shut .up-head {
-  flex-direction: column;
+.up-shut-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
-.unplanned.shut .up-lbl {
+.up-tray-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--tx-secondary);
+  cursor: pointer;
+  transition:
+    background var(--dur) ease-out,
+    color var(--dur) ease-out;
+}
+.up-tray-btn:hover {
+  background: var(--bg-hover);
+  color: var(--tx-primary);
+}
+.up-tray-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+.up-tray-icon-wrap .ic {
+  width: 16px;
+  height: 16px;
+}
+.up-tray-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--a-blue);
+  color: var(--tx-on-accent);
+  font: 600 9.5px/14px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  box-sizing: border-box;
+  box-shadow: 0 0 0 1.5px var(--bg-1);
+}
+.up-tray-lbl {
   display: none;
 }
 .unplanned h2,
 .unplanned h3 {
   margin: 0;
-  font: 600 14px/1.3 var(--font-ui);
+  font: 600 13px/1.3 var(--font-ui);
   color: var(--tx-primary);
 }
 .up-count {
-  margin-left: 6px;
-  font: 400 12px/1 var(--font-mono);
+  margin-left: 5px;
+  font: 500 11px/1 var(--font-mono);
   color: var(--tx-muted);
 }
 .unplanned.shut .up-count {
@@ -224,35 +304,40 @@ function formatInMinutes(d: Date): string {
 }
 .up-hint {
   flex: 1;
-  font: 400 12px/1 var(--font-ui);
+  font: 400 11px/1 var(--font-ui);
   color: var(--tx-muted);
   text-align: right;
 }
 .up-item {
+  --ev-acc: var(--p-blue);
+
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 7px 10px;
   cursor: grab;
-  border: 1px dashed var(--br-strong);
-  border-radius: 8px;
-  font: 400 13px/1.3 var(--font-ui);
+  border: 1px solid color-mix(in srgb, var(--ev-acc) 22%, var(--br-subtle));
+  border-left: 3px solid var(--ev-acc);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ev-acc) 8%, var(--bg-1));
+  font: 450 12.5px/1.35 var(--font-ui);
   color: var(--tx-primary);
+  transition:
+    background var(--dur) ease-out,
+    border-color var(--dur) ease-out;
 }
 .up-item:hover {
-  background: var(--bg-hover);
+  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
+  border-color: color-mix(in srgb, var(--ev-acc) 38%, var(--br-default));
+  border-left-color: var(--ev-acc);
 }
 .up-item.picked {
-  background: var(--bg-selected);
-  box-shadow: inset 0 0 0 1px var(--a-blue-hi);
+  background: color-mix(in srgb, var(--a-blue) 18%, var(--bg-1));
+  box-shadow: inset 0 0 0 1px var(--a-blue);
 }
 .up-dot {
-  flex: none;
-  width: 11px;
-  height: 11px;
-  box-sizing: border-box;
-  border: 1.5px solid var(--acc);
-  border-radius: 50%;
+  display: none;
 }
 .up-name {
   flex: 1;
@@ -260,32 +345,59 @@ function formatInMinutes(d: Date): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--tx-primary);
+  font-weight: 500;
+  font-size: 12.5px;
 }
 .up-min {
   flex: none;
-  font: 400 12px/1 var(--font-ui);
+  font: 400 11.5px/1 var(--font-mono);
   font-variant-numeric: tabular-nums;
-  color: var(--tx-secondary);
+  color: var(--tx-muted);
+}
+.up-item[data-color='blue'],
+.up-item:not([data-color]) {
+  --ev-acc: var(--p-blue);
+}
+.up-item[data-color='green'] {
+  --ev-acc: var(--p-green);
+}
+.up-item[data-color='aqua'] {
+  --ev-acc: var(--p-aqua);
+}
+.up-item[data-color='orange'],
+.up-item[data-color='yellow'] {
+  --ev-acc: var(--p-orange);
+}
+.up-item[data-color='violet'],
+.up-item[data-color='indigo'] {
+  --ev-acc: var(--p-violet);
+}
+.up-item[data-color='red'] {
+  --ev-acc: var(--p-red);
+}
+.up-item[data-color='pink'] {
+  --ev-acc: var(--p-pink);
 }
 .next {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
-  background: var(--bg-0);
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--bg-2);
   border: 1px solid var(--br-subtle);
-  border-radius: 12px;
+  border-radius: 10px;
 }
 .next-head {
   display: flex;
   justify-content: space-between;
-  font: 400 12px/1 var(--font-ui);
+  font: 400 11.5px/1 var(--font-ui);
   color: var(--tx-muted);
 }
 .next h3 {
   margin: 0;
-  font: 600 17px/1.3 var(--font-ui);
+  font: 600 15px/1.3 var(--font-ui);
   color: var(--tx-primary);
   text-wrap: pretty;
 }
@@ -293,28 +405,43 @@ function formatInMinutes(d: Date): string {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 12px;
-  margin-top: -6px;
-  font: 400 13px/1.3 var(--font-ui);
+  gap: 4px 10px;
+  margin-top: -4px;
+  font: 400 12px/1.3 var(--font-ui);
   font-variant-numeric: tabular-nums;
   color: var(--tx-secondary);
 }
 .next-meta span {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 .next-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
+}
+.next .row {
+  gap: 6px;
+}
+.next .btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 1200px) {
+  .unplanned:not(.shut) {
+    width: 220px;
+  }
+  .unplanned.wide:not(.shut) {
+    width: 280px;
+  }
 }
 
 @media (max-width: 900px) {
-  .unplanned,
-  .unplanned.wide:not(.shut) {
+  .unplanned:not(.shut) {
     width: auto;
-    max-height: 180px;
+    max-height: 200px;
     order: 2;
   }
 }
@@ -323,17 +450,21 @@ function formatInMinutes(d: Date): string {
   .unplanned.shut {
     width: auto;
     flex-direction: row;
-    padding: 4px 8px 4px 16px;
+    padding: 6px 12px;
   }
-  .unplanned.shut .up-head {
-    flex-direction: row;
-    flex: 1;
+  .up-shut-wrap {
+    justify-content: flex-start;
   }
-  .unplanned.shut .up-lbl {
+  .up-tray-btn {
+    width: auto;
+    height: auto;
+    padding: 4px 8px;
+    gap: 10px;
+  }
+  .up-tray-lbl {
     display: inline;
-  }
-  .unplanned.shut .up-count {
-    margin-left: 6px;
+    font: 500 13px/1 var(--font-ui);
+    color: var(--tx-primary);
   }
   .unplanned,
   .unplanned.wide:not(.shut) {
