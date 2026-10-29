@@ -30,7 +30,7 @@ const { data, form, version, restarting, dirty, error, save, resetForm, restart,
 </script>
 
 <template>
-  <div class="st">
+  <div class="st settings-view">
     <aside class="st-pane">
       <div class="st-head">
         <span class="lbl">{{ $t('Einstellungen') }}</span>

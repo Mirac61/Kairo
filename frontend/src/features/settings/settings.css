@@ -1,37 +1,38 @@
 .st-link {
   text-decoration: none;
 }
-.st {
+.settings-view.st,
+.settings-view {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
   height: 100%;
 }
-.st-pane {
+.settings-view .st-pane {
   display: flex;
   flex-direction: column;
   min-height: 0;
   border-right: 1px solid var(--br-subtle);
   background: var(--bg-1);
 }
-.st-head {
+.settings-view .st-head {
   display: flex;
   align-items: center;
   height: 48px;
   padding: 0 16px;
   border-bottom: 1px solid var(--br-subtle);
 }
-.st-nav {
+.settings-view .st-nav {
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 8px;
 }
-.st-nav .nav-item {
+.settings-view .st-nav .nav-item {
   width: 100%;
   text-align: left;
 }
 
-.st-main {
+.settings-view .st-main {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -435,15 +436,16 @@ select.st-ctl {
 }
 
 @media (max-width: 760px) {
-  .st {
+  .settings-view.st,
+  .settings-view {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
-  .st-pane {
+  .settings-view .st-pane {
     border-right: 0;
     border-bottom: 1px solid var(--br-subtle);
   }
-  .st-head {
+  .settings-view .st-head {
     display: none;
   }
   .st-nav {

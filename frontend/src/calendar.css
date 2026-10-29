@@ -337,6 +337,15 @@
   container-type: inline-size;
 }
 /* Schmale Spalten (Einträge nebeneinander): nur Titel, ohne Projekt und Endzeit */
+/* Monatszellen: bei knapper Breite hat der Titel Vorrang; die Uhrzeit steht im Tooltip. */
+.fc .fc-dayGridMonth-view .fc-daygrid-event {
+  container-type: inline-size;
+}
+@container (max-width: 175px) {
+  .kt-month .kt-time {
+    display: none;
+  }
+}
 @container (max-width: 110px) {
   .kt-in {
     padding: 4px 6px;

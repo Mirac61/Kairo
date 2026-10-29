@@ -71,7 +71,7 @@ export const navItems = [
   {
     path: '/review',
     name: 'review',
-    label: 'Woche',
+    label: 'Rückblick',
     icon: 'bars',
     component: () => import('@/views/ReviewView.vue'),
   },

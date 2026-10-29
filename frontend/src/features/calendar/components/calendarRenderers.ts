@@ -95,7 +95,7 @@ export function renderEventContent(a: { event: EventApi; view: { type: string } 
   }
   const titleText = createDomElement('span', 'kt-title', event.title)
   const meta = [p.proj, p.place].filter(Boolean).join(' · ')
-  const root = createDomElement('div', 'kt-in')
+  const root = createDomElement('div', month ? 'kt-in kt-month' : 'kt-in')
   if (month) {
     root.append(...(timed ? [time] : []), titleText)
   } else {

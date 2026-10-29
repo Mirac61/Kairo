@@ -118,6 +118,34 @@ function toggleSidebar() {
   void nextTick(() => window.dispatchEvent(new Event('resize')))
 }
 
+// Einklappbare Sektionen im ausgeklappten Zustand:
+interface SectionCollapseState {
+  focus?: boolean
+  projects?: boolean
+  pins?: boolean
+}
+function loadCollapsedSections(): SectionCollapseState {
+  try {
+    const raw = store.get('kairo-sidebar-sections')
+    return raw ? (JSON.parse(raw) as SectionCollapseState) : {}
+  } catch {
+    return {}
+  }
+}
+const collapsedSections = ref<SectionCollapseState>({
+  focus: false,
+  projects: false,
+  pins: false,
+  ...loadCollapsedSections(),
+})
+function toggleSection(sec: 'focus' | 'projects' | 'pins') {
+  collapsedSections.value = {
+    ...collapsedSections.value,
+    [sec]: !collapsedSections.value[sec],
+  }
+  store.set('kairo-sidebar-sections', JSON.stringify(collapsedSections.value))
+}
+
 // Handy: sechs Tabs für den Alltag, der Rest (und Einstellungen) im „Mehr“-Blatt. Die Seitenleiste blendet design.css unter 760px aus.
 const tabPaths = ['/today', '/calendar', '/tasks', '/habits', '/projects', '/notes']
 const tabs = tabPaths.map((p) => navItems.find((n) => n.path === p)!)
@@ -469,51 +497,99 @@ function openSearchFromMore() {
       </div>
       <nav :aria-label="$t('Hauptnavigation')">
         <div class="nav-group">
-          <div class="nav-group-head">{{ $t('Fokus') }}</div>
-          <RouterLink
-            v-for="item in focusItems"
-            :key="item.path"
-            :to="item.path"
-            class="nav-item"
-            :aria-label="mini ? $t(item.label) : undefined"
-            :data-tip="mini ? $t(item.label) : undefined"
+          <button
+            type="button"
+            class="nav-group-head"
+            :aria-expanded="!collapsedSections.focus"
+            @click="toggleSection('focus')"
           >
-            <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
-            ><span class="nav-l">{{ $t(item.label) }}</span>
-            <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
-          </RouterLink>
+            <span>{{ $t('Fokus') }}</span>
+            <svg
+              class="ic nav-group-chev"
+              :class="{ collapsed: collapsedSections.focus }"
+              aria-hidden="true"
+            >
+              <use href="#i-chev" />
+            </svg>
+          </button>
+          <div v-show="mini || !collapsedSections.focus" class="nav-group-items">
+            <RouterLink
+              v-for="item in focusItems"
+              :key="item.path"
+              :to="item.path"
+              class="nav-item"
+              :aria-label="mini ? $t(item.label) : undefined"
+              :data-tip="mini ? $t(item.label) : undefined"
+            >
+              <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
+              ><span class="nav-l">{{ $t(item.label) }}</span>
+              <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
+            </RouterLink>
+          </div>
         </div>
         <div class="nav-group">
-          <div class="nav-group-head">{{ $t('Projekte & Wissen') }}</div>
-          <RouterLink
-            v-for="item in projectItems"
-            :key="item.path"
-            :to="item.path"
-            class="nav-item"
-            :aria-label="mini ? $t(item.label) : undefined"
-            :data-tip="mini ? $t(item.label) : undefined"
+          <button
+            type="button"
+            class="nav-group-head"
+            :aria-expanded="!collapsedSections.projects"
+            @click="toggleSection('projects')"
           >
-            <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
-            ><span class="nav-l">{{ $t(item.label) }}</span>
-            <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
-          </RouterLink>
+            <span>{{ $t('Projekte & Wissen') }}</span>
+            <svg
+              class="ic nav-group-chev"
+              :class="{ collapsed: collapsedSections.projects }"
+              aria-hidden="true"
+            >
+              <use href="#i-chev" />
+            </svg>
+          </button>
+          <div v-show="mini || !collapsedSections.projects" class="nav-group-items">
+            <RouterLink
+              v-for="item in projectItems"
+              :key="item.path"
+              :to="item.path"
+              class="nav-item"
+              :aria-label="mini ? $t(item.label) : undefined"
+              :data-tip="mini ? $t(item.label) : undefined"
+            >
+              <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
+              ><span class="nav-l">{{ $t(item.label) }}</span>
+              <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
+            </RouterLink>
+          </div>
         </div>
       </nav>
       <div v-if="pins.length" class="pins">
-        <div class="pins-head">
-          <span>{{ $t('Aktiv') }}</span
-          ><span>{{ $t('diese Woche') }}</span>
-        </div>
-        <RouterLink
-          v-for="p in pins"
-          :key="p.id"
-          :to="{ path: '/projects', query: { project: p.id } }"
-          class="nav-item pin"
+        <button
+          type="button"
+          class="pins-head"
+          :aria-expanded="!collapsedSections.pins"
+          @click="toggleSection('pins')"
         >
-          <svg class="ic pin-ic" aria-hidden="true"><use :href="`#${projectIconOf(p)}`" /></svg
-          ><span class="nav-l">{{ p.name }}</span>
-          <span v-if="p.minutes" class="nav-n">{{ hm(p.minutes) }}</span>
-        </RouterLink>
+          <span class="pins-head-title">
+            <span>{{ $t('Aktiv') }}</span>
+            <span class="pins-sub">{{ $t('diese Woche') }}</span>
+          </span>
+          <svg
+            class="ic pins-chev"
+            :class="{ collapsed: collapsedSections.pins }"
+            aria-hidden="true"
+          >
+            <use href="#i-chev" />
+          </svg>
+        </button>
+        <div v-show="!collapsedSections.pins" class="pins-items">
+          <RouterLink
+            v-for="p in pins"
+            :key="p.id"
+            :to="{ path: '/projects', query: { project: p.id } }"
+            class="nav-item pin"
+          >
+            <svg class="ic pin-ic" aria-hidden="true"><use :href="`#${projectIconOf(p)}`" /></svg
+            ><span class="nav-l">{{ p.name }}</span>
+            <span v-if="p.minutes" class="nav-n">{{ hm(p.minutes) }}</span>
+          </RouterLink>
+        </div>
       </div>
       <div v-if="trashItem" class="nav-bottom">
         <RouterLink
@@ -524,11 +600,25 @@ function openSearchFromMore() {
         >
           <svg class="ic"><use :href="`#i-${trashItem.icon}`" /></svg
           ><span class="nav-l">{{ $t(trashItem.label) }}</span>
-          <span v-if="countOf[trashItem.icon]?.()" class="nav-n">{{ countOf[trashItem.icon]!() }}</span>
+          <span v-if="countOf[trashItem.icon]?.()" class="nav-n">{{
+            countOf[trashItem.icon]!()
+          }}</span>
         </RouterLink>
       </div>
       <div class="sidebar-footer">
-        <div class="status" :class="{ off: !online }">
+        <div
+          class="status"
+          :class="{ off: !online }"
+          :data-tip="
+            mini
+              ? online
+                ? version
+                  ? `${$t('Verbunden')} (${version})`
+                  : $t('Verbunden')
+                : $t('Getrennt')
+              : undefined
+          "
+        >
           <span class="status-dot" />
           <span :data-tip="online && version ? version : undefined">{{
             online ? $t('Verbunden') : $t('Getrennt')

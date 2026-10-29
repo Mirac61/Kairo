@@ -99,8 +99,8 @@ function setDays(n: 5 | 7) {
   goView(SPAN)
 }
 
-// Ungeplant-Spalte
-const upOpen = ref((store.get('kairo-cal-unplanned') ?? (innerWidth < 1440 ? '0' : '1')) !== '0')
+// Ungeplant-Spalte: unter 1600 px standardmäßig zu, sonst bleiben für die Wochentage zu wenig Pixel.
+const upOpen = ref((store.get('kairo-cal-unplanned') ?? (innerWidth < 1600 ? '0' : '1')) !== '0')
 function toggleUp() {
   upOpen.value = !upOpen.value
   store.set('kairo-cal-unplanned', upOpen.value ? '1' : '0')

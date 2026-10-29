@@ -208,26 +208,26 @@ watch(
 </script>
 
 <template>
-  <div class="view-inner st">
+  <div class="view-inner today-view">
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-    <div class="v-head st-head">
+    <div class="v-head td-head">
       <h1 class="v-title">{{ todayFormatted }}</h1>
-      <p class="st-sub">
+      <p class="td-sub">
         <template v-if="overdue.length">
-          <span class="st-sub-od">{{ $t('{n} überfällig', { n: overdue.length }) }}</span>
-          <span class="st-sub-sep" aria-hidden="true">·</span>
+          <span class="td-sub-od">{{ $t('{n} überfällig', { n: overdue.length }) }}</span>
+          <span class="td-sub-sep" aria-hidden="true">·</span>
         </template>
         <template v-if="eventCount">
           <span>{{ $tn(eventCount, '{n} Termin', '{n} Termine') }}</span>
-          <span class="st-sub-sep" aria-hidden="true">·</span>
+          <span class="td-sub-sep" aria-hidden="true">·</span>
         </template>
         <span>{{ $t('{time} frei', { time: dur(freeMin) }) }}</span>
       </p>
 
       <RouterLink
         v-if="yesterday"
-        class="st-journal"
+        class="st-journal td-journal"
         :to="{ name: 'journal', query: { date: yesterday.date } }"
       >
         <span>{{ $t('Gestern hast du dir vorgenommen:') }}</span>
@@ -235,8 +235,8 @@ watch(
       </RouterLink>
     </div>
 
-    <div class="st-grid">
-      <div class="st-main">
+    <div class="td-grid">
+      <div class="td-main">
         <!-- Ausgelagerte Hero-Karte -->
         <TodayHeroCard
           :hero-task="heroTask"
@@ -269,7 +269,7 @@ watch(
           @reopen="run(() => updateTask($event.id, { status: 'PLANNED' }))"
         />
 
-        <div class="st-keys" aria-hidden="true">
+        <div class="td-keys" aria-hidden="true">
           <span><kbd>J</kbd><kbd>K</kbd>{{ $t('bewegen') }}</span>
           <span><kbd>X</kbd>{{ $t('erledigt') }}</span>
           <span><kbd>S</kbd>{{ $t('starten') }}</span>
@@ -293,17 +293,17 @@ watch(
 </template>
 
 <style scoped>
-.st {
+.today-view {
   max-width: 1360px;
   padding-top: 36px;
 }
-.st-head {
+.td-head {
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
   margin-bottom: 24px;
 }
-.st-sub {
+.td-sub {
   margin: 0;
   display: flex;
   align-items: center;
@@ -313,13 +313,13 @@ watch(
   color: var(--tx-muted);
   font-variant-numeric: tabular-nums;
 }
-.st-sub-od {
+.td-sub-od {
   color: var(--a-red);
 }
-.st-sub-sep {
+.td-sub-sep {
   color: var(--br-strong);
 }
-.st-journal {
+.td-journal {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -328,7 +328,7 @@ watch(
   color: var(--tx-muted);
   text-decoration: none;
 }
-.st-journal b {
+.td-journal b {
   min-width: 0;
   font-weight: 500;
   color: var(--tx-primary);
@@ -336,16 +336,16 @@ watch(
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.st-journal:hover b {
+.td-journal:hover b {
   text-decoration: underline;
 }
-.st-grid {
+.td-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
   gap: 44px;
   align-items: start;
 }
-.st-main {
+.td-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -361,7 +361,7 @@ kbd {
   background: color-mix(in oklab, currentColor 10%, transparent);
   font: 500 10.5px/1 var(--font-ui);
 }
-.st-keys {
+.td-keys {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
@@ -372,14 +372,14 @@ kbd {
   color: var(--tx-muted);
   opacity: 0.65;
 }
-.st-keys span {
+.td-keys span {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
 @media (max-width: 960px) {
-  .st-grid {
+  .td-grid {
     grid-template-columns: 1fr;
     gap: 32px;
   }
