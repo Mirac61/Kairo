@@ -142,8 +142,11 @@ function handleDrop(gap: { start: number; end: number }) {
 <template>
   <aside class="st-side" :aria-label="$t('Zeitplan')">
     <div class="st-side-h">
-      <span>{{ $t('Zeitplan') }}</span>
-      <span class="st-pill">{{ $t('{time} frei', { time: dur(freeMin) }) }}</span>
+      <div class="st-side-title">
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-cal" /></svg>
+        <span>{{ $t('Zeitplan') }}</span>
+      </div>
+      <span class="st-side-badge">{{ $t('{time} frei', { time: dur(freeMin) }) }}</span>
     </div>
 
     <div ref="rail" class="st-rail" :style="{ '--mins': rangeEnd - rangeStart }">
@@ -333,23 +336,34 @@ function handleDrop(gap: { start: number; end: number }) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
-  font: 500 13px/1 var(--font-ui);
-  color: var(--tx-secondary);
+  /* Höhe und Abstand wie der Tagestitel links, damit Karte und Zeitplan oben fluchten */
+  height: 34px;
+  margin-bottom: 24px;
 }
-.st-pill {
+.st-side-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 600 13.5px/1 var(--font-ui);
+  color: var(--tx-primary);
+  letter-spacing: -0.01em;
+}
+.st-side-title .ic {
+  width: 15px;
+  height: 15px;
+  color: var(--tx-muted);
+}
+.st-side-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 20px;
+  height: 22px;
   padding: 0 8px;
-  border-radius: 6px;
+  border-radius: 9999px;
   background: var(--bg-2);
   box-shadow: inset 0 0 0 1px var(--br-subtle);
   font: 500 11.5px/1 var(--font-ui);
-  color: var(--tx-secondary);
-  white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  color: var(--tx-secondary);
 }
 .st-rail {
   position: relative;
@@ -357,7 +371,7 @@ function handleDrop(gap: { start: number; end: number }) {
   padding: 0 0 0 52px;
   border-radius: var(--r-l);
   background: var(--bg-1);
-  box-shadow: 0 0 0 1px var(--br-default);
+  box-shadow: 0 0 0 1px var(--br-default), 0 2px 10px rgba(0, 0, 0, 0.04);
   overflow: hidden;
 }
 .st-hour {
@@ -503,13 +517,14 @@ function handleDrop(gap: { start: number; end: number }) {
   padding-left: 8px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--a-red);
+  color: var(--a-now, var(--a-blue));
 }
 .st-now::after {
   content: '';
   flex: 1;
   height: 2px;
-  background: var(--a-red);
+  background: var(--a-now, var(--a-blue));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--a-now, var(--a-blue)) 40%, transparent);
 }
 
 .st-gap-dialog {
