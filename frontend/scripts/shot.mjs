@@ -135,6 +135,7 @@ const tasks = [
   ].map(([id, title, p, min]) => ({ ...task(id, title, p, 0, null, min), planned_date: null })), // ungeplant
   task('t10', 'Zusatz A', 'kairo', 3, null, 0),
   task('t11', 'Zusatz B', 'kairo', 3, null, 0),
+  task('t12', 'Zusatz C', 'kairo', 3, null, 0),
   task('t15', 'Fahrrad abholen', 'privat', 0, null, 30), // Montag, noch offen: ab Dienstag überfällig
   task('t16', 'Laborübung (Beispiel)', 'uni', todayIdx, '17:00', 60, 'IN_PROGRESS'), // läuft (siehe times)
 ]

@@ -115,7 +115,7 @@ async function onSubmit() {
   clip-path: polygon(50% 0, 0 100%, 58% 100%);
 }
 .auth-logo i::after {
-  background: #7a7a7e;
+  background: var(--tx-muted);
   clip-path: polygon(50% 0, 58% 100%, 100% 100%);
 }
 .auth-logo i.o {

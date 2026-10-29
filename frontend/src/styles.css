@@ -15,16 +15,16 @@ h3 {
   flex-wrap: nowrap;
 }
 .muted {
-  color: var(--p-text-muted-color);
+  color: var(--tx-muted);
   font-size: 13px;
 }
 .done {
   text-decoration: line-through;
-  color: var(--p-text-muted-color);
+  color: var(--tx-muted);
 }
 .card {
-  background: var(--p-content-background);
-  border: 1px solid var(--p-content-border-color);
-  border-radius: 10px;
+  background: var(--bg-1);
+  border: 1px solid var(--br-default);
+  border-radius: var(--r-m, 10px);
   padding: 12px 16px;
 }

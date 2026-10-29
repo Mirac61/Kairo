@@ -5,47 +5,49 @@
    ============================================================ */
 
 :root {
-  /* Flächen (Entwurf: Seite #000, Karten #0b0b0b, Linien #1c1c1c) */
-  --bg-0: #000000;
-  --bg-1: #0b0b0b;
-  --bg-2: #141414;
-  --bg-3: #1e1e1e;
-  --bg-hover: #151515;
-  --bg-selected: color-mix(in oklab, var(--a-blue-hi) 12%, transparent);
-  --br-subtle: #1c1c1c;
-  --br-default: #2a2a2a;
-  --br-strong: #3d3d3d;
-  --tx-primary: #f2f2f2;
-  --tx-secondary: #a8a8a8;
-  --tx-muted: #8a8a8a;
-  --tx-disabled: #6b6b6b;
+  /* Flächen (Kühles Anthrazit / Zinc) */
+  --bg-0: #0B0C0E;
+  --bg-1: #0B0C0E;
+  --bg-2: #14171C;
+  --bg-3: #1A1E24;
+  --bg-hover: #16181D;
+  --bg-selected: rgba(59, 130, 246, 0.12);
+  --br-subtle: #1F2229;
+  --br-default: #1F2229;
+  --br-strong: #2D313B;
+  --tx-primary: #F1F5F9;
+  --tx-secondary: #94A3B8;
+  --tx-muted: #64748B;
+  --tx-disabled: #475569;
   /* Farben nach dem Entwurf: Blau für Hauptaktionen und erfasste Zeit, Rot für Überfälliges, Grün für „läuft“, Heute neutral.
      Alles andere ist Grau; Farbe sonst nur als Projektpunkt (--p-*). */
   /* --a-hue ist die Akzentfarbe aus den Einstellungen (lib/prefs.ts), Standard Blau. */
   --a-hue: 255;
-  --a-blue: oklch(0.6 0.17 calc(var(--a-hue) + 3)); /* Hauptaktion (Fläche) */
-  --a-blue-hi: oklch(0.68 0.16 var(--a-hue)); /* erfasste Zeit, Auswahl, Jetzt-Linie */
-  --a-blue-tx: oklch(0.8 0.11 var(--a-hue)); /* Text-Links */
-  --a-now: var(--a-blue-hi);
-  --a-focus: var(--a-blue-hi);
-  --a-run: oklch(0.75 0.14 150);
-  --a-red: oklch(0.74 0.15 22);
-  /* Projektpunkte (Palette wie domain.ProjectColors, Farbtöne aus dem Entwurf) */
-  --p-violet: oklch(0.75 0.13 300);
-  --p-blue: oklch(0.75 0.13 255);
-  --p-orange: oklch(0.75 0.13 60);
-  --p-aqua: oklch(0.75 0.13 200);
-  --p-pink: oklch(0.75 0.13 350);
-  --p-yellow: oklch(0.78 0.13 95);
-  --p-green: oklch(0.75 0.13 145);
-  --p-red: oklch(0.74 0.15 22);
-  --p-neutral: #858585;
-  --a-event: var(--p-neutral); /* Termine in Tagesplan und Agenda der Startseite */
+  --a-blue: #3B82F6; /* Hauptaktion (Fläche) */
+  --a-blue-hi: #3B82F6; /* erfasste Zeit, Auswahl, Jetzt-Linie */
+  --a-blue-tx: #60A5FA; /* Text-Links */
+  --a-now: #3B82F6;
+  --a-focus: #3B82F6;
+  --a-run: #10B981;
+  --a-red: #EF4444;
+  /* Projektpunkte (Linear / Notion Calendar Palette) */
+  --p-violet: #8B5CF6;
+  --p-blue: #3B82F6;
+  --p-orange: #F59E0B;
+  --p-aqua: #14B8A6;
+  --p-pink: #EC4899;
+  --p-yellow: #F59E0B;
+  --p-green: #10B981;
+  --p-red: #EF4444;
+  --p-neutral: #94A3B8;
+  --a-event: var(--p-blue); /* Termine in Tagesplan und Agenda der Startseite */
   /* System */
-  --ring: color-mix(in srgb, var(--a-focus) 50%, transparent);
+  --ring: rgba(59, 130, 246, 0.5);
   --scrim: rgba(0, 0, 0, 0.62);
-  --toast-bg: #1a1a1a;
-  --shadow-pop: 0 0 0 1px #2a2a2a, 0 16px 40px rgba(0, 0, 0, 0.6);
+  --toast-bg: #14171C;
+  --shadow-pop: 0 0 0 1px #1F2229, 0 16px 40px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --tx-on-accent: #ffffff;
   --font-ui: 'Geist Variable', Inter, system-ui, -apple-system, sans-serif;
   --font-serif: 'Instrument Serif', Georgia, serif; /* Anzeigeschrift: Startseite und Ziele */
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -53,6 +55,7 @@
   --r-m: 10px;
   --r-l: 14px;
   --dur: 130ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
   color-scheme: dark;
 }
 :root[data-theme='light'] {
@@ -68,6 +71,7 @@
   --tx-secondary: #525252;
   --tx-muted: #6b6b6b;
   --tx-disabled: #8f8f8f;
+  --tx-on-accent: #ffffff;
   --a-blue: oklch(0.52 0.19 calc(var(--a-hue) + 3));
   --a-blue-hi: oklch(0.55 0.18 var(--a-hue));
   --a-blue-tx: oklch(0.5 0.16 var(--a-hue));
@@ -85,6 +89,7 @@
   --scrim: rgba(20, 20, 20, 0.22);
   --toast-bg: #ffffff;
   --shadow-pop: 0 0 0 1px #d1d1d1, 0 16px 40px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
   color-scheme: light;
 }
 
@@ -92,27 +97,39 @@
    Neutral (Vercel) steht oben in :root, die anderen überschreiben es.
    Schiefer und Neutral nehmen den Akzent aus der eigenen Wahl (--a-hue); Carbonfox und Kanagawa Dragon
    bringen wie im Editor ihre eigenen Farben mit, dort gilt die Akzentwahl nicht. */
-/* Schiefer (Standard): Blaugrau-Flächen mit kräftigen Projektfarben. */
+/* Schiefer (Standard): Blaugrau-Flächen mit kühlem Zinc/Anthrazit. */
 :root[data-palette='graphit'] {
-  --bg-0: #141517;
-  --bg-1: #18191c;
-  --bg-2: #1e1f23;
-  --bg-3: #26272c;
-  --bg-hover: #1b1c1f;
-  --br-subtle: #202125;
-  --br-default: #2a2c31;
-  --br-strong: #40434a;
-  --tx-primary: #e9e9eb;
-  --tx-secondary: #a4a6ac;
-  --tx-muted: #8b8d93;
-  --tx-disabled: #5f6269;
-  --a-blue-hi: oklch(0.76 0.09 var(--a-hue));
-  --a-blue-tx: oklch(0.8 0.08 var(--a-hue));
-  --bg-selected: color-mix(in oklab, var(--a-blue-hi) 14%, transparent);
+  --bg-0: #0B0C0E;
+  --bg-1: #0B0C0E;
+  --bg-2: #14171C;
+  --bg-3: #1A1E24;
+  --bg-hover: #16181D;
+  --br-subtle: #1F2229;
+  --br-default: #1F2229;
+  --br-strong: #2D313B;
+  --tx-primary: #F1F5F9;
+  --tx-secondary: #94A3B8;
+  --tx-muted: #64748B;
+  --tx-disabled: #475569;
+  --a-blue: #3B82F6;
+  --a-blue-hi: #3B82F6;
+  --a-blue-tx: #60A5FA;
+  --a-now: #3B82F6;
+  --a-focus: #3B82F6;
+  --p-violet: #8B5CF6;
+  --p-blue: #3B82F6;
+  --p-orange: #F59E0B;
+  --p-aqua: #14B8A6;
+  --p-pink: #EC4899;
+  --p-yellow: #F59E0B;
+  --p-green: #10B981;
+  --p-red: #EF4444;
+  --p-neutral: #94A3B8;
+  --bg-selected: rgba(59, 130, 246, 0.12);
   --a-event: var(--p-blue);
   --scrim: rgba(8, 9, 10, 0.6);
-  --toast-bg: #1e1f23;
-  --shadow-pop: 0 0 0 1px #2a2c31, 0 18px 40px -12px rgba(0, 0, 0, 0.7);
+  --toast-bg: #14171C;
+  --shadow-pop: 0 0 0 1px #1F2229, 0 18px 40px -12px rgba(0, 0, 0, 0.7);
   --r-s: 8px;
   --r-m: 12px;
   --r-l: 16px;
@@ -382,16 +399,6 @@
 :root[data-palette='dragon'] .wg-agenda {
   --wc: var(--p-red);
 }
-:root[data-palette='dragon'] .fc .fc-event:not(.kt-task) {
-  background: color-mix(in oklab, var(--acc) 20%, var(--bg-1));
-  box-shadow: inset 3px 0 0 var(--acc);
-}
-:root[data-palette='dragon'] .fc .fc-event:not(.kt-task):hover {
-  background: color-mix(in oklab, var(--acc) 30%, var(--bg-1));
-}
-:root[data-palette='dragon'] .fc .fc-event.kt-task {
-  border-color: color-mix(in oklab, var(--acc) 70%, transparent);
-}
 
 * {
   margin: 0;
@@ -436,10 +443,9 @@ svg.ic {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
+/* Beschriftungen in Satzschreibung, wie die Tabellenköpfe: eine Sprache für Labels in der ganzen App */
 .lbl {
-  font: 500 11px/1 var(--font-ui);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font: 500 12px/1 var(--font-ui);
   color: var(--tx-muted);
 }
 :focus {
@@ -561,6 +567,21 @@ svg.ic {
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.nav-group + .nav-group {
+  margin-top: 14px;
+}
+.nav-group-head {
+  padding: 8px 8px 4px;
+  font: 500 11px/1 var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tx-muted);
+}
 .pins {
   display: flex;
   flex-direction: column;
@@ -601,8 +622,15 @@ svg.ic {
   flex: none;
   margin-right: 2px;
 }
-.sidebar-footer {
+.nav-bottom {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 8px;
+}
+.sidebar-footer {
+  margin-top: 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -670,8 +698,11 @@ svg.ic {
   width: 64px;
   padding: 16px 8px 12px;
 }
-.sidebar.mini :is(.nav-l, .nav-n, .brand-t, .pins, .status span:not(.status-dot)) {
+.sidebar.mini :is(.nav-l, .nav-n, .brand-t, .pins, .nav-group-head, .status span:not(.status-dot)) {
   display: none;
+}
+.sidebar.mini .nav-group + .nav-group {
+  margin-top: 8px;
 }
 .sidebar.mini .nav-item {
   justify-content: center;
@@ -1324,7 +1355,7 @@ select.input {
   text-align: right;
 }
 .task-row .dur {
-  font: 400 13px/1 var(--font-mono);
+  font: 400 13px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
   color: var(--tx-secondary);
   min-width: 36px;
@@ -1854,7 +1885,7 @@ select.input {
     height: 48px;
     border-radius: 50%;
     background: var(--a-blue-hi);
-    color: #fff;
+    color: var(--tx-on-accent);
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
   }
   .fab .ic {
@@ -3127,7 +3158,7 @@ h1.v-title {
     gap: 16px;
   }
 }
-/* Primärknöpfe: Linear-Look */
+/* Primärknöpfe: Linear-Look für Startseite und Kalender */
 :root .btn-primary,
 :root[data-palette] .btn-primary {
   background: color-mix(in oklab, var(--a-blue) 34%, var(--bg-1));
@@ -3140,6 +3171,21 @@ h1.v-title {
 :root .btn-primary:hover,
 :root[data-palette] .btn-primary:hover {
   background: color-mix(in oklab, var(--a-blue) 44%, var(--bg-1));
+}
+:root[data-theme='light'] .btn-primary,
+:root[data-theme='light'][data-palette] .btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 1px 2px rgba(37, 99, 235, 0.25);
+  border-color: #1d4ed8;
+}
+:root[data-theme='light'] .btn-primary:hover,
+:root[data-theme='light'][data-palette] .btn-primary:hover {
+  background: #1d4ed8;
+  border-color: #1e40af;
+  color: #ffffff;
 }
 /* Scrollbars */
 :root:not([data-theme='light']) {

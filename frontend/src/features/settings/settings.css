@@ -417,7 +417,7 @@ select.st-ctl {
 }
 .st-switch:checked::after {
   transform: translateX(16px);
-  background: #fff;
+  background: var(--tx-on-accent);
 }
 .st-switch:focus-visible {
   outline: none;

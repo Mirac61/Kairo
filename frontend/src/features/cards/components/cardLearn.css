@@ -393,11 +393,11 @@
 }
 .cl-grade.is-default .cl-grade-name,
 .cl-grade.is-default .cl-grade-interval {
-  color: #fff;
+  color: var(--tx-on-accent);
 }
 .cl-grade.is-default .cl-grade-kbd {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.35);
+  color: var(--tx-on-accent);
+  border-color: color-mix(in srgb, var(--tx-on-accent) 35%, transparent);
   background: none;
 }
 .cl-grade.g0 .cl-grade-name {

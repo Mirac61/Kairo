@@ -669,7 +669,7 @@ kbd {
   margin-left: auto;
 }
 .btn-primary kbd {
-  border-color: rgba(255, 255, 255, 0.35);
+  border-color: color-mix(in srgb, var(--tx-on-accent) 35%, transparent);
   color: inherit;
   opacity: 0.8;
 }
