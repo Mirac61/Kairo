@@ -354,48 +354,50 @@ useLiveEvents(load)
             @select-example="quickAddEl?.setQuick($event)"
           />
 
-          <div v-if="rows.length" class="tk-cols" aria-hidden="true">
-            <span class="c-t">{{ $t('Aufgabe') }}</span>
-            <span class="c-p">{{ $t('Projekt') }}</span>
-            <span class="c-d">{{ $t('Dauer') }}</span>
-            <span class="c-i">{{ $t('Prio') }}</span>
-            <span class="c-f">{{ $t('Fällig') }}</span>
-          </div>
+          <div v-if="rows.length" class="tasks-table">
+            <div class="tk-cols" aria-hidden="true">
+              <span class="c-t">{{ $t('Aufgabe') }}</span>
+              <span class="c-p">{{ $t('Projekt') }}</span>
+              <span class="c-d">{{ $t('Dauer') }}</span>
+              <span class="c-i">{{ $t('Prio') }}</span>
+              <span class="c-f">{{ $t('Fällig') }}</span>
+            </div>
 
-          <div v-for="group in groups" :key="group.key" class="tgroup">
-            <span
-              v-if="group.title"
-              class="lbl"
-              :class="{ od: view.group === 'due' && group.key === '0' }"
-            >
-              {{ group.title }}
-              <span class="count">{{ group.rows.length }}</span>
-              <span v-if="group.minutes" class="g-sum">
-                {{ $t('{time} geschätzt', { time: hm(group.minutes) }) }}
-              </span>
-            </span>
+            <div v-for="group in groups" :key="group.key" class="tgroup">
+              <div
+                v-if="group.title"
+                class="tgroup-hdr"
+                :class="{ od: view.group === 'due' && group.key === '0' }"
+              >
+                <span class="tgroup-title">{{ group.title }}</span>
+                <span class="count">{{ group.rows.length }}</span>
+                <span v-if="group.minutes" class="g-sum">
+                  {{ $t('{time} geschätzt', { time: hm(group.minutes) }) }}
+                </span>
+              </div>
 
-            <div class="tasklist">
-              <TaskRow
-                v-for="task in group.rows"
-                :key="task.id"
-                :task="task"
-                :is-selected="sel === task.id"
-                :is-picked="picked.includes(task.id)"
-                :is-fresh="freshCreatedIds.includes(task.id)"
-                :is-open-detail="openId === task.id"
-                :project-name="task.project_id ? projectNameMap.get(task.project_id) : undefined"
-                :subtasks-progress="progress(task.id)"
-                :is-urgent="urgent(task)"
-                :is-overdue="overdue(task)"
-                :when-text="formatTaskWhen(task).text"
-                :when-tip="formatTaskWhen(task).tip"
-                @toggle-status="toggleTaskStatus"
-                @open-detail="toggleOpenDetail"
-                @pick="pickRow"
-                @pointer-down="onPointerDown"
-                @pointer-up="onPointerUp"
-              />
+              <div class="tasklist">
+                <TaskRow
+                  v-for="task in group.rows"
+                  :key="task.id"
+                  :task="task"
+                  :is-selected="sel === task.id"
+                  :is-picked="picked.includes(task.id)"
+                  :is-fresh="freshCreatedIds.includes(task.id)"
+                  :is-open-detail="openId === task.id"
+                  :project-name="task.project_id ? projectNameMap.get(task.project_id) : undefined"
+                  :subtasks-progress="progress(task.id)"
+                  :is-urgent="urgent(task)"
+                  :is-overdue="overdue(task)"
+                  :when-text="formatTaskWhen(task).text"
+                  :when-tip="formatTaskWhen(task).tip"
+                  @toggle-status="toggleTaskStatus"
+                  @open-detail="toggleOpenDetail"
+                  @pick="pickRow"
+                  @pointer-down="onPointerDown"
+                  @pointer-up="onPointerUp"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -475,6 +477,91 @@ useLiveEvents(load)
   margin-top: 16px;
 }
 
+.tasks-table {
+  background: var(--bg-1);
+  box-shadow: 0 0 0 1px var(--br-default);
+  border-radius: var(--r-l);
+  overflow: hidden;
+}
+
+.tk-cols {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 16px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--br-default);
+  font: 600 11px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tx-muted);
+  user-select: none;
+}
+.tk-cols .c-t {
+  flex: 1;
+  min-width: 0;
+  padding-left: 28px;
+}
+.tk-cols .c-p {
+  width: 150px;
+  flex: none;
+}
+.tk-cols .c-d {
+  width: 52px;
+  flex: none;
+  text-align: left;
+}
+.tk-cols .c-i {
+  width: 40px;
+  flex: none;
+  text-align: center;
+}
+.tk-cols .c-f {
+  width: 124px;
+  flex: none;
+  text-align: left;
+}
+
+.tgroup-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 16px;
+  background: color-mix(in srgb, var(--bg-2) 40%, var(--bg-1));
+  border-bottom: 1px solid var(--br-subtle);
+  font: 600 11px/1 var(--font-ui);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--tx-secondary);
+}
+.tgroup:not(:first-child) .tgroup-hdr {
+  border-top: 1px solid var(--br-default);
+}
+.tgroup-hdr.od .tgroup-title {
+  color: var(--a-red);
+}
+.tgroup-hdr .count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tx-primary) 8%, transparent);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--tx-muted);
+}
+.tgroup-hdr .g-sum {
+  margin-left: auto;
+  font: 400 12px/1 var(--font-mono);
+  color: var(--tx-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 @media (min-width: 1001px) {
   .view-inner.tk-split {
     display: grid;
@@ -485,11 +572,6 @@ useLiveEvents(load)
   .tk-split .tk-left {
     min-width: 0;
     padding: 32px 40px 64px 32px;
-  }
-  .tk-cols {
-    position: sticky;
-    top: 56px;
-    z-index: 2;
   }
 }
 

@@ -538,87 +538,96 @@ const allOpenAndUpcoming = computed(() => openToday.value.concat(upcoming.value)
 
         <!-- Aufgaben nach Gruppen -->
         <div class="st-groups">
-          <div v-for="g in groups" :key="g.key" class="tgroup">
-            <div class="lbl">
-              <span>{{ g.label }}</span>
-              <span class="count">{{ g.rows.length }}</span>
+          <div v-if="groups.length || doneToday.length" class="st-table-card">
+            <div class="st-tbl-head" aria-hidden="true">
+              <span class="st-c-t">{{ $t('Aufgabe') }}</span>
+              <span class="st-c-p">{{ $t('Projekt') }}</span>
+              <span class="st-c-d">{{ $t('Dauer') }}</span>
+              <span class="st-c-f">{{ $t('Fällig') }}</span>
             </div>
-            <div class="tasklist">
-              <div
-                v-for="x in g.rows"
-                :key="x.id"
-                class="st-row"
-                :class="{ sel: sel === x.id }"
-                @click="sel = x.id"
-              >
-                <button
-                  type="button"
-                  class="cb ring"
-                  role="checkbox"
-                  aria-checked="false"
-                  :aria-label="$t('{title} erledigt', { title: x.title })"
-                  @click.stop="setDone(x, 'COMPLETED', run)"
-                ></button>
-                <div class="st-row-t">
-                  <span class="t">{{ x.title }}</span>
-                  <span v-if="startOf(x) !== undefined" class="st-planned mono">
-                    {{ hm(startOf(x)!) }}
+
+            <div v-for="g in groups" :key="g.key" class="tgroup">
+              <div class="st-grp-hdr" :class="{ od: g.key === 'over' }">
+                <span class="st-grp-t">{{ g.label }}</span>
+                <span class="count">{{ g.rows.length }}</span>
+              </div>
+              <div class="tasklist">
+                <div
+                  v-for="x in g.rows"
+                  :key="x.id"
+                  class="st-row"
+                  :class="{ sel: sel === x.id }"
+                  @click="sel = x.id"
+                >
+                  <button
+                    type="button"
+                    class="cb ring"
+                    role="checkbox"
+                    aria-checked="false"
+                    :aria-label="$t('{title} erledigt', { title: x.title })"
+                    @click.stop="setDone(x, 'COMPLETED', run)"
+                  ></button>
+                  <div class="st-row-t">
+                    <span class="t">{{ x.title }}</span>
+                    <span v-if="startOf(x) !== undefined" class="st-planned mono">
+                      {{ hm(startOf(x)!) }}
+                    </span>
+                  </div>
+                  <span class="pcol">
+                    <span v-if="x.project_id" class="chip">
+                      {{ projectNames.get(x.project_id) }}
+                    </span>
                   </span>
-                </div>
-                <span class="pcol">
-                  <span v-if="x.project_id" class="chip">
-                    {{ projectNames.get(x.project_id) }}
-                  </span>
-                </span>
-                <span class="dur">{{ x.estimated_minutes ? dur(x.estimated_minutes) : '' }}</span>
-                <span class="due">{{ dueLabel(g.key, x) }}</span>
-                <div class="st-row-acts">
-                  <button type="button" class="btn btn-secondary" @click.stop="toggleTimer(x)">
-                    <kbd aria-hidden="true">S</kbd>{{ $t('Starten') }}
-                  </button>
-                  <button type="button" class="btn btn-secondary" @click.stop="togglePlan(x)">
-                    <kbd aria-hidden="true">P</kbd
-                    >{{ x.planned_start_at ? $t('Aus dem Plan') : $t('Einplanen') }}
-                  </button>
+                  <span class="dur">{{ x.estimated_minutes ? dur(x.estimated_minutes) : '' }}</span>
+                  <span class="due">{{ dueLabel(g.key, x) }}</span>
+                  <div class="st-row-acts">
+                    <button type="button" class="btn btn-secondary" @click.stop="toggleTimer(x)">
+                      <kbd aria-hidden="true">S</kbd>{{ $t('Starten') }}
+                    </button>
+                    <button type="button" class="btn btn-secondary" @click.stop="togglePlan(x)">
+                      <kbd aria-hidden="true">P</kbd
+                      >{{ x.planned_start_at ? $t('Aus dem Plan') : $t('Einplanen') }}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div v-if="doneToday.length" class="tgroup">
-            <button
-              type="button"
-              class="lbl st-done-btn"
-              :aria-expanded="showDone"
-              @click="showDone = !showDone"
-            >
-              <svg class="ic" :class="{ open: showDone }" viewBox="0 0 12 12" aria-hidden="true">
-                <path d="M4.5 3 7.5 6 4.5 9" />
-              </svg>
-              <span>{{ $t('Erledigt') }}</span>
-              <span class="count">{{ doneToday.length }}</span>
-            </button>
-            <div v-if="showDone" class="tasklist">
-              <div v-for="x in doneToday" :key="x.id" class="st-row done">
-                <button
-                  type="button"
-                  class="cb ring"
-                  role="checkbox"
-                  aria-checked="true"
-                  :aria-label="$t('Wieder öffnen')"
-                  :title="$t('Wieder öffnen')"
-                  @click="run(() => updateTask(x.id, { status: 'PLANNED' }))"
-                ></button>
-                <div class="st-row-t">
-                  <span class="t">{{ x.title }}</span>
-                </div>
-                <span class="pcol">
-                  <span v-if="x.project_id" class="chip">
-                    {{ projectNames.get(x.project_id) }}
+            <div v-if="doneToday.length" class="tgroup st-done-group">
+              <button
+                type="button"
+                class="st-grp-hdr st-done-btn"
+                :aria-expanded="showDone"
+                @click="showDone = !showDone"
+              >
+                <svg class="ic" :class="{ open: showDone }" viewBox="0 0 12 12" aria-hidden="true">
+                  <path d="M4.5 3 7.5 6 4.5 9" />
+                </svg>
+                <span>{{ $t('Erledigt') }}</span>
+                <span class="count">{{ doneToday.length }}</span>
+              </button>
+              <div v-if="showDone" class="tasklist">
+                <div v-for="x in doneToday" :key="x.id" class="st-row done">
+                  <button
+                    type="button"
+                    class="cb ring"
+                    role="checkbox"
+                    aria-checked="true"
+                    :aria-label="$t('Wieder öffnen')"
+                    :title="$t('Wieder öffnen')"
+                    @click="run(() => updateTask(x.id, { status: 'PLANNED' }))"
+                  ></button>
+                  <div class="st-row-t">
+                    <span class="t">{{ x.title }}</span>
+                  </div>
+                  <span class="pcol">
+                    <span v-if="x.project_id" class="chip">
+                      {{ projectNames.get(x.project_id) }}
+                    </span>
                   </span>
-                </span>
-                <span class="dur"></span>
-                <span class="due"></span>
+                  <span class="dur"></span>
+                  <span class="due"></span>
+                </div>
               </div>
             </div>
           </div>
@@ -848,41 +857,104 @@ kbd {
 
 .st-groups {
   margin-top: 32px;
-  display: grid;
-  gap: 24px;
 }
-.st-groups .lbl {
+.st-table-card {
+  background: var(--bg-1);
+  box-shadow: 0 0 0 1px var(--br-default);
+  border-radius: var(--r-l);
+  overflow: hidden;
+}
+.st-tbl-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 16px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--br-default);
+  font: 600 11px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tx-muted);
+  user-select: none;
+}
+.st-tbl-head .st-c-t {
+  flex: 1;
+  min-width: 0;
+  padding-left: 28px;
+}
+.st-tbl-head .st-c-p {
+  width: 140px;
+  flex: none;
+}
+.st-tbl-head .st-c-d {
+  width: 60px;
+  flex: none;
+  text-align: right;
+}
+.st-tbl-head .st-c-f {
+  width: 90px;
+  flex: none;
+  text-align: right;
+}
+.st-grp-hdr {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  height: 34px;
+  padding: 0 16px;
+  background: color-mix(in srgb, var(--bg-2) 40%, var(--bg-1));
+  border-bottom: 1px solid var(--br-subtle);
   font: 600 11px/1 var(--font-ui);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--tx-secondary);
+}
+.st-grp-hdr.od .st-grp-t {
+  color: var(--a-red);
+}
+.tgroup:not(:first-child) .st-grp-hdr {
+  border-top: 1px solid var(--br-default);
+}
+.st-grp-hdr .count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tx-primary) 8%, transparent);
+  font-size: 11px;
+  font-weight: 500;
   color: var(--tx-muted);
 }
 .st-groups .tasklist {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  flex-direction: column;
 }
 .st-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 38px;
-  padding: 0 10px;
-  border-radius: 8px;
+  gap: 12px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--br-subtle);
+  border-radius: 0;
   color: var(--tx-primary);
   font: 400 13.5px/1.4 var(--font-ui);
   cursor: pointer;
+  background: transparent;
   transition: background var(--dur);
+}
+.st-table-card .tgroup:last-child .tasklist .st-row:last-child {
+  border-bottom: 0;
 }
 .st-row:hover {
   background: var(--bg-hover);
 }
 .st-row.sel {
   background: var(--bg-2);
-  box-shadow: inset 0 0 0 1px var(--br-default);
 }
 .st-row.done {
   opacity: 0.6;
@@ -909,19 +981,33 @@ kbd {
   padding: 1px 5px;
   border-radius: 4px;
 }
+.st-row .pcol {
+  width: 140px;
+  flex: none;
+}
 .st-row .dur,
 .st-row .due {
   flex: none;
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--tx-muted);
+  font-variant-numeric: tabular-nums;
 }
 .st-row .dur {
   width: 60px;
   text-align: right;
+  font-family: var(--font-mono);
 }
 .st-row .due {
   width: 90px;
   text-align: right;
+}
+.st-done-btn {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--br-subtle);
+  border-top: 1px solid var(--br-default);
+  cursor: pointer;
+  text-align: left;
 }
 .st-row-acts {
   display: none;

@@ -3005,22 +3005,19 @@ h1.v-title {
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
 }
-/* Tabellenkopf entfällt */
-.tk-cols {
-  display: none;
-}
-/* Zeilen: ohne Rahmen, mehr Luft, Auswahl mit Akzentkante */
+/* Aufgabenliste: saubere Zeilen mit Trennlinie */
 :root .tasks-main .task-row {
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 0;
+  min-height: 42px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--br-subtle);
+  border-radius: 0;
   font-variant-numeric: tabular-nums;
 }
 :root .tasks-main .task-row:hover:not(.selected) {
   background: color-mix(in oklab, var(--tx-primary) 4%, transparent);
 }
 :root .tasks-main .task-row.selected {
-  background: var(--bg-2);
+  background: var(--bg-selected);
   box-shadow: none;
 }
 .tgroup {

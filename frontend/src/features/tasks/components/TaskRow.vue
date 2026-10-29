@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import { isOpen, type Task } from '@/api/client'
 import { hm, ruleText } from '@/lib/dates'
-import { projectColor } from '@/lib/projectColor'
 import { t } from '@/lib/i18n'
 
 const props = defineProps<{
@@ -77,13 +76,7 @@ const prioLevel = computed(() => {
       @click="emit('toggleStatus', task)"
     ></button>
 
-    <span
-      v-if="task.project_id"
-      class="pdot"
-      :style="{ '--pdot-c': projectColor(task.project_id) }"
-      :title="projectName"
-      :aria-label="projectName"
-    ></span>
+    <span v-if="task.project_id" class="pdot" :title="projectName" :aria-label="projectName"></span>
 
     <button
       type="button"
@@ -121,8 +114,8 @@ const prioLevel = computed(() => {
     </span>
 
     <span class="pcol">
-      <span class="chip" :style="{ '--chip-c': projectColor(task.project_id) }">
-        <template v-if="task.project_id"> <span class="cdot"></span>{{ projectName }} </template>
+      <span v-if="task.project_id" class="chip">
+        {{ projectName }}
       </span>
     </span>
 
