@@ -21,8 +21,8 @@ import { prefs } from '@/lib/prefs'
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
 
 // Gemeinsame Daten der Startseite:
-// TodayView lädt sie einmal, die Widgets holen sie sich über useHome().
-// Widgets mit eigenen Daten (Ziel, Lernkarten, Journal, Woche, Notiz, GitHub) laden diese selbst.
+// TodayView lädt sie einmal, die Karten holen sie sich über useHome().
+// Karten mit eigenen Daten (Ziel, Lernkarten, Journal, Woche, Notiz, GitHub) laden diese selbst.
 
 export interface Block {
   key: string
