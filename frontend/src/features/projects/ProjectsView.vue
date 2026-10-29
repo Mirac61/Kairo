@@ -547,16 +547,24 @@ useShortcuts((e) => {
     grid-template-columns: minmax(0, 1fr) 380px;
     max-width: none;
     padding: 0;
+    width: 100%;
+    box-sizing: border-box;
   }
   .proj-split .proj-left {
     min-width: 0;
-    padding: 32px 40px 64px 32px;
+    padding: 32px 32px 64px 32px;
   }
   .proj-split :deep(.project-aside) {
     position: sticky;
     top: 56px;
     align-self: start;
     height: calc(100dvh - 56px);
+  }
+}
+
+@media (min-width: 1001px) and (max-width: 1240px) {
+  .view-inner.proj-split {
+    grid-template-columns: minmax(0, 1fr) 340px;
   }
 }
 </style>

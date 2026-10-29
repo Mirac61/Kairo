@@ -359,10 +359,15 @@ function handleAddTask() {
 .project-aside {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   background: var(--bg-1);
   border-left: 1px solid var(--br-subtle);
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: none;
+  box-sizing: border-box;
 }
 .project-aside::-webkit-scrollbar {
   display: none;
@@ -372,12 +377,15 @@ function handleAddTask() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px 0 24px;
+  padding: 16px 20px 0 20px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .aside-status-wrap {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 .status-select {
   height: 28px;
@@ -389,13 +397,16 @@ function handleAddTask() {
 .proj-detail-body {
   display: grid;
   gap: 20px;
-  padding: 16px 24px 32px;
+  padding: 16px 20px 32px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .pd-hero {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 .pd-icon-btn {
   flex: none;
@@ -427,6 +438,8 @@ function handleAddTask() {
 
 .td-title {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   font: 600 20px/1.25 var(--font-ui);
   letter-spacing: -0.015em;
   color: var(--tx-primary);
@@ -484,6 +497,8 @@ function handleAddTask() {
 
 .td-desc {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 8px 10px;
   font: 400 13px/1.45 var(--font-ui);
   color: var(--tx-primary);
@@ -502,6 +517,7 @@ function handleAddTask() {
   align-items: center;
   gap: 8px;
   align-self: start;
+  max-width: 100%;
 }
 .vsc-btn .ic {
   width: 14px;
@@ -511,23 +527,28 @@ function handleAddTask() {
 .td-props {
   display: grid;
   border-top: 1px solid var(--br-subtle);
+  min-width: 0;
 }
 .td-row {
   display: flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 38px;
   padding: 4px 0;
   border-bottom: 1px solid var(--br-subtle);
   font: 400 13px/1.3 var(--font-ui);
   gap: 12px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .td-row > span {
   flex: none;
-  width: 90px;
+  width: 85px;
   color: var(--tx-muted);
 }
 .td-row .input {
   flex: 1;
+  min-width: 0;
+  width: 0;
 }
 
 .color-row .swatches {
@@ -561,19 +582,23 @@ function handleAddTask() {
 .td-sec {
   padding-top: 14px;
   border-top: 1px solid var(--br-subtle);
+  min-width: 0;
 }
 .pd-time-meta {
   font: 400 12.5px/1.4 var(--font-ui);
   color: var(--tx-muted);
+  word-break: break-word;
 }
 
 .sub-sec {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 .task-rows {
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
 .sub-row {
   display: flex;
@@ -583,6 +608,8 @@ function handleAddTask() {
   padding: 2px 6px;
   border-radius: var(--r-s);
   transition: background var(--dur) ease-out;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .sub-row:hover {
   background: var(--bg-hover);
@@ -607,6 +634,23 @@ function handleAddTask() {
   color: var(--tx-muted);
   text-decoration: line-through;
 }
+.sub-row :deep(.row-act) {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sub-row :deep(.row-act .btn) {
+  padding: 2px 7px;
+  font-size: 11.5px;
+  height: 24px;
+  line-height: 1;
+}
+.sub-row :deep(.row-act .act-code) {
+  padding: 2px 6px;
+  font-size: 11.5px;
+  height: 24px;
+}
 .res-mini {
   display: grid;
   place-items: center;
@@ -615,6 +659,7 @@ function handleAddTask() {
   border-radius: 4px;
   color: var(--tx-muted);
   text-decoration: none;
+  flex: none;
 }
 .res-mini:hover {
   color: var(--tx-primary);
@@ -635,14 +680,19 @@ function handleAddTask() {
   gap: 8px;
   padding: 4px 6px;
   border-radius: var(--r-s);
+  min-width: 0;
+  box-sizing: border-box;
 }
 .addrow .ic {
   width: 14px;
   height: 14px;
   color: var(--tx-muted);
+  flex: none;
 }
 .addrow input {
   flex: 1;
+  min-width: 0;
+  width: 0;
   font: 400 13px/1 var(--font-ui);
   color: var(--tx-primary);
   background: none;
@@ -659,6 +709,7 @@ function handleAddTask() {
   align-items: center;
   padding-top: 14px;
   border-top: 1px solid var(--br-subtle);
+  min-width: 0;
 }
 
 @media (max-width: 1000px) {
