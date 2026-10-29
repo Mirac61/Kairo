@@ -31,6 +31,8 @@ const en: Record<string, string> = {
   '{n} Termine': '{n} events',
   '▶ Starten': '▶ Start',
   Hauptnavigation: 'Main navigation',
+  Fokus: 'Focus',
+  'Projekte & Wissen': 'Projects & Knowledge',
   Mehr: 'More',
   Kairo: 'Kairo',
   Neu: 'New',
@@ -167,6 +169,7 @@ const en: Record<string, string> = {
   'Nächste Woche': 'Next week',
   'Letzte 7 Tage': 'Last 7 days',
   '7 Tage': '7 days',
+  '5 Tage': '5 days',
   'in {time}': 'in {time}',
   'seit {time}': 'since {time}',
   danach: 'then',
@@ -368,6 +371,8 @@ const en: Record<string, string> = {
   'Kein Projekt': 'No project',
   'ICS importieren': 'Import ICS',
   Ungeplant: 'Unplanned',
+  'Ungeplant ausklappen': 'Expand unplanned',
+  'Ungeplant einklappen': 'Collapse unplanned',
   'in den Plan ziehen': 'drag into the plan',
   Plan: 'Plan',
   Ist: 'Act',
@@ -865,6 +870,7 @@ const en: Record<string, string> = {
   'Heute weiterschreiben': 'Continue today',
   'Fällig am {date}': 'Due {date}',
   'Gestern hast du dir vorgenommen:': 'Yesterday you planned:',
+  'Gestern vorgenommen:': 'Yesterday planned:',
   '{n} Tag in Folge': '{n} day in a row',
   'Letzte Einträge': 'Recent entries',
   Vorgenommen: 'Planned',
@@ -1273,6 +1279,8 @@ const en: Record<string, string> = {
   flexibel: 'flexible',
   'Ungespeicherte Änderungen': 'Unsaved changes',
   'Weitere Optionen': 'More options',
+  'Heute {time}': 'Today {time}',
+  'überfällig seit {day}': 'overdue since {day}',
 }
 
 export default en

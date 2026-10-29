@@ -41,6 +41,20 @@ const countOf: Record<string, () => string | number> = {
   trash: () => counts.value.trash,
 }
 
+const focusPaths = ['/today', '/calendar', '/tasks', '/review']
+const projectPaths = ['/habits', '/projects', '/notes', '/goals', '/journal', '/cards']
+const focusItems = computed(() =>
+  focusPaths
+    .map((p) => navItems.find((n) => n.path === p))
+    .filter((n): n is (typeof navItems)[number] => n != null),
+)
+const projectItems = computed(() =>
+  projectPaths
+    .map((p) => navItems.find((n) => n.path === p))
+    .filter((n): n is (typeof navItems)[number] => n != null),
+)
+const trashItem = computed(() => navItems.find((n) => n.path === '/trash'))
+
 // „+“ (Handy): Schnelleingabe der Aufgabenliste (die Ansicht fokussiert das Feld).
 const newEntry = () => router.push({ path: '/tasks', query: { new: String(Date.now()) } })
 // ⌘K und „Suchen …“: Suche über alles; ohne Treffer legt sie eine Aufgabe an.
@@ -454,18 +468,36 @@ function openSearchFromMore() {
         >
       </div>
       <nav :aria-label="$t('Hauptnavigation')">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.path"
-          :to="item.path"
-          class="nav-item"
-          :aria-label="mini ? $t(item.label) : undefined"
-          :data-tip="mini ? $t(item.label) : undefined"
-        >
-          <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
-          ><span class="nav-l">{{ $t(item.label) }}</span>
-          <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
-        </RouterLink>
+        <div class="nav-group">
+          <div class="nav-group-head">{{ $t('Fokus') }}</div>
+          <RouterLink
+            v-for="item in focusItems"
+            :key="item.path"
+            :to="item.path"
+            class="nav-item"
+            :aria-label="mini ? $t(item.label) : undefined"
+            :data-tip="mini ? $t(item.label) : undefined"
+          >
+            <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
+            ><span class="nav-l">{{ $t(item.label) }}</span>
+            <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
+          </RouterLink>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-head">{{ $t('Projekte & Wissen') }}</div>
+          <RouterLink
+            v-for="item in projectItems"
+            :key="item.path"
+            :to="item.path"
+            class="nav-item"
+            :aria-label="mini ? $t(item.label) : undefined"
+            :data-tip="mini ? $t(item.label) : undefined"
+          >
+            <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
+            ><span class="nav-l">{{ $t(item.label) }}</span>
+            <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
+          </RouterLink>
+        </div>
       </nav>
       <div v-if="pins.length" class="pins">
         <div class="pins-head">
@@ -481,6 +513,18 @@ function openSearchFromMore() {
           <svg class="ic pin-ic" aria-hidden="true"><use :href="`#${projectIconOf(p)}`" /></svg
           ><span class="nav-l">{{ p.name }}</span>
           <span v-if="p.minutes" class="nav-n">{{ hm(p.minutes) }}</span>
+        </RouterLink>
+      </div>
+      <div v-if="trashItem" class="nav-bottom">
+        <RouterLink
+          :to="trashItem.path"
+          class="nav-item"
+          :aria-label="mini ? $t(trashItem.label) : undefined"
+          :data-tip="mini ? $t(trashItem.label) : undefined"
+        >
+          <svg class="ic"><use :href="`#i-${trashItem.icon}`" /></svg
+          ><span class="nav-l">{{ $t(trashItem.label) }}</span>
+          <span v-if="countOf[trashItem.icon]?.()" class="nav-n">{{ countOf[trashItem.icon]!() }}</span>
         </RouterLink>
       </div>
       <div class="sidebar-footer">
