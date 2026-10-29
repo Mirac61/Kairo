@@ -4,12 +4,13 @@ Der MVP umfasst die Phasen 0–5. Ab Phase 6 kommen Erweiterungen nach dem
 MVP.
 
 **Stand:** Die Phasen 0–7 sind gebaut. Dazu kamen nach dem MVP: der
-Wochenrückblick in der WebUI, ICS-Import, Papierkorb mit Rückgängig-Toast,
+Rückblick in der WebUI, ICS-Import, Papierkorb mit Rückgängig-Toast,
 Projektfarben, Statusleiste, Befehle und URI-Handler in der Extension, das
 SwiftBar-Plugin (`tools/menubar/`), Backups, die Einstellungsseite
 (`config.json`), Notizen mit PDFs, Bildern, Vorlagen, Code-Viewer und
-Zeichenwerkzeug, Zeichnungen (Excalidraw) in Notizen, Gewohnheiten mit
-Dauer, GitHub-Issues in der Aufgaben-Ansicht, Englisch/Deutsch,
+Zeichenwerkzeug, Zeichnungen (Excalidraw) in Notizen, Ziele, Journal,
+Lernkarten, Gewohnheiten mit Dauer, GitHub-Issues in der Aufgaben-Ansicht,
+Englisch/Deutsch,
 Playwright-Smoke-Tests und Releases mit fertigen Binaries für macOS,
 Linux und Windows. In Phase 8 steht nur noch, was fehlt, unter „Pflege“
 der Stand der Aufräumarbeiten.

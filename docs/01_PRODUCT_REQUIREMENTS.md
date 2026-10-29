@@ -641,7 +641,7 @@ Der MVP benötigt:
 -   Tasks (Suche, Gruppierung, Tastenkürzel)
 -   Habits
 -   Projects
--   Wochenrückblick (`/review`)
+-   Rückblick (`/review`)
 -   Papierkorb (`/trash`) und Rückgängig-Toast
 
 ### Extension
@@ -673,5 +673,5 @@ Zunächst nicht bauen:
 -   KI-Agent
 -   Social Features
 -   Habit-Gamification
--   Review-Dashboard über den Wochenrückblick hinaus (der Rückblick selbst ist gebaut, Phase 7)
+-   Review-Dashboard über den Rückblick hinaus (der Rückblick selbst ist gebaut, Phase 7)
 -   automatische Aktivitätserkennung (nur als Rückfrage bei Inaktivität gebaut, Phase 6)

@@ -13,7 +13,7 @@
 
 Wir bauen **Kairo**, ein lokales Personal OS.
 
-Das Repository liegt unter `~/code/kairo`.
+Das Repository liegt unter `~/code/personal/server/Kairo`.
 
 Es besteht aus:
 
@@ -34,10 +34,12 @@ Notizordner
   → Markdown, PDFs und Bilder als normale Dateien
 ```
 
-**Stand:** MVP (Phasen 0–5) und die Phasen 6–7 sind gebaut, dazu Notizen
-(mit Zeichnungen), Gewohnheiten mit Dauer, GitHub-Issues, Einstellungen,
-Englisch/Deutsch und Releases für macOS, Linux und Windows. Was noch
-fehlt, steht in `05_ROADMAP.md` (Phase 8 und Pflege).
+**Stand:** MVP (Phasen 0–5) und die Phasen 6–7 sind gebaut. Dazu kamen
+Notizen (Markdown, PDFs, Bilder, Zeichnungen), Ziele, Journal, Lernkarten,
+Rückblick, Papierkorb, ICS-Import, GitHub-Issues, Einstellungen,
+Englisch/Deutsch, Statusleiste/Befehle/URI-Handler der Extension und
+Releases für macOS, Linux und Windows. Was noch fehlt, steht in
+`05_ROADMAP.md` (Phase 8 und Pflege).
 
 ------------------------------------------------------------------------
 

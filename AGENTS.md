@@ -20,4 +20,4 @@ Anweisungen für Coding-Agenten in diesem Repository.
 - Arbeite in kleinen vertikalen Schritten.
 - Neue Texte in der WebUI auf Deutsch über `t('…')`/`$t('…')` und mit englischer Übersetzung in `frontend/src/lib/en.ts` (siehe `frontend/README.md`).
 - Vor dem Abschluss `make check` ausführen (gofmt, vet, Tests, Typprüfung, Extension-Build); bei Änderungen an Abläufen in der WebUI auch `make e2e` (Playwright-Smoke-Tests).
-- UI-Änderungen im Frontend ansehen, nicht nur bauen: `pnpm dev`, dann `pnpm shot --view week|work|day|month` (Kalender) bzw. `--route tasks|habits|projects|review|trash|notes|settings` [--theme light] [--size 1280x800] [--time 10:30] [--click '<Selektor>'] in `frontend/` und das PNG in `frontend/.shots/` lesen (Mock-Daten, siehe `scripts/shot.mjs`).
+- UI-Änderungen im Frontend ansehen, nicht nur bauen: `pnpm dev`, dann `pnpm shot --view week|work|day|month` (Kalender) bzw. `--route today|tasks|habits|projects|review|trash|notes|goals|journal|cards|settings` [--theme light] [--size 1280x800] [--time 10:30] [--click '<Selektor>'] in `frontend/` und das PNG in `frontend/.shots/` lesen (Mock-Daten, siehe `scripts/shot.mjs`).

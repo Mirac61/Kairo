@@ -54,10 +54,10 @@ Das Backend soll als lokaler Prozess laufen.
 Beispiel:
 
 ``` text
-~/code/kairo
+~/code/personal/server/Kairo
 ├── README.md
 ├── AGENTS.md
-├── docs/          00_VISION.md … 05_ROADMAP.md
+├── docs/          00_VISION.md … 07_UX_REVIEW.md
 ├── backend/       Go
 ├── frontend/      Vue 3 + TypeScript + Vite
 ├── extension/     VSCodium-Extension
