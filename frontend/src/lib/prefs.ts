@@ -39,9 +39,6 @@ const KEYS = {
   calHabits: 'kairo-cal-habits',
   name: 'kairo-name',
   journalPaper: 'kairo-journal-paper',
-  homeDesktop: 'kairo-home-desktop',
-  homeMobile: 'kairo-home-mobile',
-  homeNote: 'kairo-home-note',
 } as const
 
 const hour = (key: string, def: number) => {
@@ -66,10 +63,6 @@ export const prefs = reactive({
   // Gewohnheiten auch in der Wochenansicht (in der Tagesansicht immer); sonst füllen sie den Ganztags-Streifen.
   calHabits: store.get(KEYS.calHabits) === '1',
   name: store.get(KEYS.name) ?? '', // für die Begrüßung auf der Startseite
-  // Widget-Raster der Startseite je Gerät als JSON [{id, size}] (lib/homeLayout.ts); leer = Standard.
-  homeDesktop: store.get(KEYS.homeDesktop) ?? '',
-  homeMobile: store.get(KEYS.homeMobile) ?? '',
-  homeNote: store.get(KEYS.homeNote) ?? '', // Pfad der angepinnten Notiz
   journalPaper: paperOf(store.get(KEYS.journalPaper)),
 })
 if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
