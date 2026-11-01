@@ -4,6 +4,7 @@ import type { Project, Task } from '@/api/client'
 import type { Block } from '@/composables/useHome'
 import { locale, t } from '@/lib/i18n'
 import { projectIconOf } from '@/lib/projectIcons'
+import FoldTransition from '@/components/FoldTransition.vue'
 
 const props = defineProps<{
   tasks: Task[]
@@ -192,32 +193,34 @@ const projectIcon = (id: string | null) => {
           <span>{{ $t('Erledigt') }}</span>
           <span class="count">{{ doneToday.length }}</span>
         </button>
-        <div v-if="showDone" class="st-tbody st-done-body">
-          <div v-for="x in doneToday" :key="x.id" class="st-row done">
-            <button
-              type="button"
-              class="cb ring"
-              role="checkbox"
-              aria-checked="true"
-              :aria-label="$t('Wieder öffnen')"
-              :title="$t('Wieder öffnen')"
-              @click="emit('reopen', x)"
-            ></button>
-            <div class="st-row-t">
-              <span class="t">{{ x.title }}</span>
+        <FoldTransition>
+          <div v-if="showDone" class="st-tbody st-done-body">
+            <div v-for="x in doneToday" :key="x.id" class="st-row done">
+              <button
+                type="button"
+                class="cb ring"
+                role="checkbox"
+                aria-checked="true"
+                :aria-label="$t('Wieder öffnen')"
+                :title="$t('Wieder öffnen')"
+                @click="emit('reopen', x)"
+              ></button>
+              <div class="st-row-t">
+                <span class="t">{{ x.title }}</span>
+              </div>
+              <div class="st-col-p">
+                <span v-if="x.project_id" class="st-proj-item">
+                  <svg class="ic st-proj-ic" aria-hidden="true">
+                    <use :href="`#${projectIcon(x.project_id)}`" />
+                  </svg>
+                  <span class="st-proj-name">{{ projectNames.get(x.project_id) }}</span>
+                </span>
+              </div>
+              <span class="st-col-d"></span>
+              <div class="st-col-f"></div>
             </div>
-            <div class="st-col-p">
-              <span v-if="x.project_id" class="st-proj-item">
-                <svg class="ic st-proj-ic" aria-hidden="true">
-                  <use :href="`#${projectIcon(x.project_id)}`" />
-                </svg>
-                <span class="st-proj-name">{{ projectNames.get(x.project_id) }}</span>
-              </span>
-            </div>
-            <span class="st-col-d"></span>
-            <div class="st-col-f"></div>
           </div>
-        </div>
+        </FoldTransition>
       </div>
     </div>
 
@@ -467,7 +470,7 @@ const projectIcon = (id: string | null) => {
   width: 10px;
   height: 10px;
   fill: currentColor;
-  transition: transform var(--dur) ease;
+  transition: transform var(--dur-fold) var(--ease-fold);
 }
 .st-done-btn .ic.open {
   transform: rotate(90deg);

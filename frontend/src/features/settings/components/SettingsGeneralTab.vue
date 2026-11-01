@@ -3,6 +3,7 @@ import { lang, type Lang } from '@/lib/i18n'
 import { prefs } from '@/lib/prefs'
 import { store } from '@/lib/storage'
 import { navItems } from '@/router'
+import { startTour } from '@/composables/useTour'
 
 function setLang(v: Lang) {
   lang.value = v
@@ -56,6 +57,15 @@ function setLang(v: Lang) {
         autocomplete="given-name"
         :placeholder="$t('z. B. Alex')"
       />
+    </div>
+    <div class="st-row">
+      <div class="st-text">
+        <div class="st-t">{{ $t('Rundgang') }}</div>
+        <div class="st-h">{{ $t('Zeigt in einer Minute, was Kairo kann und wo es steht.') }}</div>
+      </div>
+      <button type="button" class="btn btn-secondary st-ctl" @click="startTour">
+        {{ $t('Rundgang starten') }}
+      </button>
     </div>
   </div>
 </template>

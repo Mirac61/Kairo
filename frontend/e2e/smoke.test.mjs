@@ -9,6 +9,7 @@ import { after, before, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
 
+const skipTour = () => localStorage.setItem('kairo-tour-done', '1') // sonst startet der Rundgang über jeder Seite
 const port = process.env.KAIRO_E2E_PORT ?? '8813'
 const base = `http://127.0.0.1:${port}`
 const dir = mkdtempSync(join(tmpdir(), 'kairo-e2e-'))
@@ -48,9 +49,9 @@ before(async () => {
     await new Promise((r) => setTimeout(r, 100))
   }
   browser = await chromium.launch()
-  page = await (
-    await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' })
-  ).newPage()
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' })
+  await ctx.addInitScript(skipTour)
+  page = await ctx.newPage()
 })
 
 after(async () => {
@@ -784,6 +785,7 @@ test('Einstellungen auf allen Geräten', async () => {
       .evaluateAll((els) => els.map((e) => e.getAttribute('content')))
   assert.deepEqual(await themeColors(), ['#f4f4f4', '#f4f4f4']) // Statusleiste folgt der Farbstimmung
   const other = await browser.newContext({ locale: 'de-DE' })
+  await other.addInitScript(skipTour)
   try {
     const p2 = await other.newPage()
     await p2.goto(`${base}/today`)
@@ -816,6 +818,7 @@ test('Handy: Fälligkeit sichtbar, Aufgabendetails über der Tab-Leiste', async 
     hasTouch: true,
     locale: 'de-DE',
   })
+  await ctx.addInitScript(skipTour)
   const m = await ctx.newPage()
   try {
     await m.goto(`${base}/tasks`)
@@ -837,6 +840,31 @@ test('Handy: Fälligkeit sichtbar, Aufgabendetails über der Tab-Leiste', async 
       return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
     })
     assert.ok(onTop, 'Löschen ist klickbar')
+  } finally {
+    await ctx.close()
+  }
+})
+
+// Rundgang: startet beim ersten Besuch, führt durch die Ansichten und kommt danach nicht wieder.
+test('Rundgang: erster Start, durchklicken, merkt sich Ende', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' })
+  try {
+    const p = await ctx.newPage()
+    await p.goto(`${base}/today`)
+    const tour = p.locator('.tour')
+    await tour.waitFor()
+    // Willkommen im Vollbild, dann in den Spotlight-Teil
+    await tour.getByRole('button', { name: 'Rundgang starten' }).click()
+    await p.waitForURL('**/today')
+    await tour.getByRole('button', { name: 'Weiter' }).click()
+    await p.waitForURL('**/tasks')
+    assert.ok(await p.locator('.tour-spot').isVisible(), 'Navigationspunkt ist hervorgehoben')
+    for (let i = 0; i < 5; i++) await tour.getByRole('button', { name: 'Weiter' }).click()
+    await tour.getByRole('button', { name: 'Los geht’s' }).click()
+    await tour.waitFor({ state: 'detached' })
+    await p.reload()
+    await p.waitForSelector('.sidebar')
+    assert.equal(await p.locator('.tour').count(), 0, 'kein zweiter Rundgang')
   } finally {
     await ctx.close()
   }

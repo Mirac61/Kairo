@@ -39,6 +39,7 @@ export const canDropHere = (e: DragEvent, from: string | null, dir: string) =>
 import { nextTick, ref } from 'vue'
 import { ymd } from '@/lib/dates'
 import { fileKind } from '@/lib/noteFiles'
+import FoldTransition from '@/components/FoldTransition.vue'
 
 // Rekursiv: ein Ordner rendert seine Kinder wieder mit NoteTree. parent '' ist der Wurzelordner.
 const props = withDefaults(
@@ -207,13 +208,15 @@ function dragOver(e: DragEvent, n: NoteNode) {
           </button>
         </span>
       </div>
-      <NoteTree
-        v-if="n.dir && ctx.open.has(n.path)"
-        :nodes="n.children ?? []"
-        :ctx="ctx"
-        :parent="n.path"
-        :depth="depth + 1"
-      />
+      <FoldTransition>
+        <NoteTree
+          v-if="n.dir && ctx.open.has(n.path)"
+          :nodes="n.children ?? []"
+          :ctx="ctx"
+          :parent="n.path"
+          :depth="depth + 1"
+        />
+      </FoldTransition>
     </li>
     <li v-if="ctx.adding?.parent === parent" role="none" class="nt-new" :style="indent()">
       <svg class="ic nt-ic" aria-hidden="true">
@@ -294,7 +297,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
   width: 12px;
   height: 12px;
   color: var(--tx-muted);
-  transition: transform var(--dur) ease-out;
+  transition: transform var(--dur-fold) var(--ease-fold);
 }
 .nt-chev.open {
   transform: rotate(90deg);
