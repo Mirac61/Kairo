@@ -160,12 +160,7 @@ function handleToggleArchive() {
                 : $t('Neues Langzeitziel')
           }}
         </h3>
-        <button
-          class="icon-btn"
-          type="button"
-          :aria-label="$t('Schließen')"
-          @click="emit('close')"
-        >
+        <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="emit('close')">
           <svg class="ic"><use href="#i-x" /></svg>
         </button>
       </div>

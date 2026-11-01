@@ -106,11 +106,7 @@ function openEdit(g: Goal) {
   dialog.value = true
 }
 
-function handleSaveGoal(payload: {
-  id?: string
-  body: Partial<Goal>
-  file: File | null
-}) {
+function handleSaveGoal(payload: { id?: string; body: Partial<Goal>; file: File | null }) {
   void run(async () => {
     const { id, body, file } = payload
     const g = id ? await updateGoal(id, body) : await createGoal(body)
