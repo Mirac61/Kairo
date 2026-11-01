@@ -30,7 +30,8 @@ genau ein Konto, ein zweiter Nutzer bekommt keinen eigenen Bereich.
 Vom Laptop aus, im Repository:
 
 ```sh
-PI=<benutzer>@<pi-host> ./deploy.sh
+cp .env.example .env   # einmalig: PI=<benutzer>@<pi-host> eintragen
+make deploy            # oder direkt: PI=<benutzer>@<pi-host> ./deploy.sh
 ```
 
 Das Skript prüft die Architektur des Pi (`armv6l`, `armv7l`, `aarch64`)
