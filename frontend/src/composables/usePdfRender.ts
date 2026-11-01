@@ -6,6 +6,8 @@ const MAX_PIXELS = 8e6 // je Seite (A4 bei 200 % und Pixeldichte 1,5 passt knapp
 const BUDGET = 24e6 // Summe über alle gerenderten Seiten, ca. 96 MB Bitmaps
 const MAX_DPR = 1.5 // Retina (2) kostet fast doppelt so viel Speicher bei kaum sichtbarem Unterschied
 
+export type OutlineItem = { title: string; page: number; items: OutlineItem[] } // page: 0-basiert, -1 = Ziel nicht auflösbar
+
 async function loadPdfjs() {
   const [pdfjs, worker] = await Promise.all([
     import('pdfjs-dist'),
@@ -48,6 +50,37 @@ export function usePdfRender(
       const v = p.getViewport({ scale: 1 })
       return { w: v.width, h: v.height, t: v.transform }
     })
+  }
+
+  // Eingebettetes Inhaltsverzeichnis; leer, wenn die PDF keines hat oder es sich nicht lesen lässt.
+  async function outline(): Promise<OutlineItem[]> {
+    const doc = pdf
+    if (!doc) return []
+    const pageOf = async (dest: unknown): Promise<number> => {
+      try {
+        const d =
+          typeof dest === 'string' ? await doc.getDestination(dest) : (dest as unknown[] | null)
+        const ref = d?.[0]
+        if (typeof ref === 'number') return ref
+        return ref ? await doc.getPageIndex(ref as Parameters<typeof doc.getPageIndex>[0]) : -1
+      } catch {
+        return -1
+      }
+    }
+    type Raw = { title: string; dest: unknown; items: Raw[] }
+    const walk = (list: Raw[]): Promise<OutlineItem[]> =>
+      Promise.all(
+        list.map(async (n) => ({
+          title: n.title.trim(),
+          page: await pageOf(n.dest),
+          items: await walk(n.items),
+        })),
+      )
+    try {
+      return await walk(((await doc.getOutline()) ?? []) as Raw[])
+    } catch {
+      return []
+    }
   }
 
   function observe() {
@@ -130,5 +163,5 @@ export function usePdfRender(
     void pdf?.loadingTask.destroy()
   }
 
-  return { open, observe, scheduleRender, setCanvas, dispose }
+  return { open, outline, observe, scheduleRender, setCanvas, dispose }
 }
