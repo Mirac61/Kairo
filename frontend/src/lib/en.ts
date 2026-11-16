@@ -670,6 +670,9 @@ const en: Record<string, string> = {
   'Im PDF-Viewer des Browsers öffnen': 'Open in the browser’s PDF viewer',
   'Im PDF-Viewer öffnen (Suche, Drucken)': 'Open in PDF viewer (search, print)',
   'Die Datei lässt sich nicht anzeigen ({reason}).': 'The file cannot be displayed ({reason}).',
+  'Formel (LaTeX)': 'Formula (LaTeX)',
+  'Formel einfügen oder markierte bearbeiten (LaTeX)':
+    'Insert formula or edit the selected one (LaTeX)',
   'Dieser Browser kann {type} nicht schreiben.': 'This browser cannot write {type}.',
   'Kairo kann diese PDF nicht bearbeiten (verschlüsselt oder beschädigt).':
     'Kairo cannot edit this PDF (encrypted or damaged).',

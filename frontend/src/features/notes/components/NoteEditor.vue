@@ -1,12 +1,29 @@
 <script lang="ts">
+import { ref } from 'vue'
 import { EditorView } from '@codemirror/view'
 import { config } from 'md-editor-v3'
 import { slugify } from '@/lib/noteFiles'
+
+// $…$ und $$…$$ rendert md-editor über die KaTeX-Schnittstelle; dahinter steckt MathJax (lib/tex, eigener Chunk wie bei den
+// Lernkarten). Der Chunk lädt erst bei der ersten Formel; bis dahin bleibt sie leer, texReady++ rendert die Vorschau dann neu.
+let tex: typeof import('@/lib/tex') | undefined
+const texReady = ref(0)
+const mathjaxAsKatex = {
+  renderToString(src: string, o: { displayMode: boolean }) {
+    if (tex) return tex.texToSvg(src, o.displayMode)
+    void import('@/lib/tex').then((m) => {
+      tex = m
+      texReady.value++
+    })
+    return ''
+  },
+}
 
 // Rechtschreibprüfung des Browsers bzw. von macOS (rote Wellenlinie, Vorschläge per Rechtsklick); CodeMirror schaltet sie sonst ab.
 // ![[Name]] und ![[Name|900]] wie in Obsidian: ein <img data-wiki>, das sanitize (previewImages) zum Pfad auflöst.
 // [[Name]], [[Name|Alias]], [[Name#Überschrift]]: ein <a data-wikilink>, das sanitize (previewWikiLinks) zur Notiz auflöst.
 config({
+  editorExtensions: { katex: { instance: mathjaxAsKatex } },
   codeMirrorExtensions: (exts) => [
     ...exts,
     {
@@ -60,7 +77,7 @@ config({
 </script>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, watch } from 'vue'
 import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ApiError, createNote, errorMessage, readNote, uploadFile } from '@/api/client'
@@ -79,8 +96,8 @@ import { wikiCompletionSource } from '@/lib/noteAutocomplete'
 import { drawingSrc, renderDrawing } from '@/lib/drawingPreview'
 import { parentOf } from './NoteTree.vue'
 
-// Markdown-Editor der Notizen. Mermaid, KaTeX, Prettier und Highlight lädt md-editor-v3 vom CDN; sie sind abgeschaltet
-// (Kairo läuft lokal). Bilder landen über uploadImages neben der Notiz.
+// Markdown-Editor der Notizen. Mermaid, Prettier und Highlight lädt md-editor-v3 vom CDN; sie sind abgeschaltet
+// (Kairo läuft lokal). Formeln rendert MathJax (oben, mathjaxAsKatex). Bilder landen über uploadImages neben der Notiz.
 // drawingRev: NotesView erhöht ihn nach dem Speichern einer Zeichnung und alle 5 s; eingebettete Zeichnungen prüfen dann ihre mtime.
 // files: alle Dateien im Notizordner, für ![[Name]] (Suche nach dem Namen wie in Obsidian). scrollHeading: Ziel-Überschrift.
 const props = defineProps<{
@@ -154,6 +171,7 @@ const redraw = (ps: string[]) =>
   })
 const sanitize = computed(() => {
   void rendered.value
+  void texReady.value
   const files = props.files ?? []
   return (html: string) => {
     const dir = parentOf(props.path)
@@ -236,7 +254,6 @@ onBeforeUnmount(() => themeObserver.disconnect())
       :completions="completions"
       no-highlight
       no-mermaid
-      no-katex
       no-prettier
       no-echarts
       @on-upload-img="uploadImages"
@@ -261,6 +278,10 @@ onBeforeUnmount(() => themeObserver.disconnect())
 }
 .nd :deep(.md-editor-preview img[data-drawing]) {
   cursor: pointer;
+}
+.nd :deep(.md-editor-katex-block) {
+  text-align: center;
+  overflow-x: auto;
 }
 
 /* md-editor-v3 an die Kairo-Tokens anpassen (gilt für Dark und Light, weil die Tokens mitwechseln). */
