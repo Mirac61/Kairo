@@ -42,6 +42,7 @@ const {
   runningTaskId,
   pausedTask,
   run,
+  offer,
   setDone,
   scheduleAt,
 } = home
@@ -186,6 +187,25 @@ useShortcuts((e) => {
   e.preventDefault()
 })
 
+// Alle überfälligen Aufgaben auf heute legen; Rückgängig stellt Tag und Uhrzeit jeder Aufgabe wieder her.
+function overdueToToday() {
+  const day = today.value?.date
+  const list = overdue.value.map(({ id, planned_date, planned_start_at }) => ({
+    id,
+    planned_date: planned_date ?? '',
+    planned_start_at: planned_start_at ?? '',
+  }))
+  if (!day || !list.length) return
+  void run(async () => {
+    await Promise.all(
+      list.map((x) => updateTask(x.id, { planned_date: day, planned_start_at: '' })),
+    )
+    offer(t('{n} überfällige auf heute gelegt', { n: list.length }), () =>
+      run(() => Promise.all(list.map(({ id, ...before }) => updateTask(id, before)))),
+    )
+  })
+}
+
 const openToday = computed(() => [...overdue.value, ...todays.value])
 
 // Vorhaben von gestern (dritte Journal-Frage) als Erinnerung mit Link auf den Eintrag.
@@ -216,6 +236,9 @@ watch(
       <p class="td-sub">
         <template v-if="overdue.length">
           <span class="td-sub-od">{{ $t('{n} überfällig', { n: overdue.length }) }}</span>
+          <button type="button" class="td-sub-btn" @click="overdueToToday">
+            {{ $t('Überfällige auf heute') }}
+          </button>
           <span class="td-sub-sep" aria-hidden="true">·</span>
         </template>
         <template v-if="eventCount">
@@ -315,6 +338,18 @@ watch(
 }
 .td-sub-od {
   color: var(--a-red);
+}
+.td-sub-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--tx-secondary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.td-sub-btn:hover {
+  color: var(--tx-primary);
 }
 .td-sub-sep {
   color: var(--br-strong);

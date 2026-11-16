@@ -277,6 +277,8 @@ const en: Record<string, string> = {
   '{n} Aufgaben angelegt': '{n} tasks created',
   '{n} offen': '{n} open',
   '{n} überfällig': '{n} overdue',
+  '{n} überfällige auf heute gelegt': '{n} overdue moved to today',
+  'Überfällige auf heute': 'Move overdue to today',
   '„{title}“ angelegt': '“{title}” created',
   '↑↓ wählen · Tab übernehmen': '↑↓ choose · Tab accept',
   Sortierung: 'Sort',
