@@ -634,6 +634,7 @@ const en: Record<string, string> = {
   'Nächste / vorige': 'Next / previous',
   'Timer starten oder pausieren': 'Start or pause timer',
   'Auf heute legen': 'Move to today',
+  'Auf morgen legen': 'Move to tomorrow',
   Abhaken: 'Check off',
   'Voriger / nächster Tag': 'Previous / next day',
   'Zurück / weiter': 'Back / forward',
