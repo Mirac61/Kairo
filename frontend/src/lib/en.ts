@@ -763,6 +763,8 @@ const en: Record<string, string> = {
   'Neu starten': 'Restart',
   Daten: 'Data',
   'Automatische Backups': 'Automatic backups',
+  'Der Timer läuft seit über 4 Stunden. Brauchst du ihn noch?':
+    'The timer has been running for over 4 hours. Still need it?',
   'Beim Start sichert Kairo die Datenbank nach backups/ neben der Datenbank, wenn das letzte Backup älter als einen Tag ist oder ein Update ansteht. Die neuesten 14 bleiben.':
     'On start Kairo copies the database to backups/ next to it if the last backup is older than a day or an update is pending. The newest 14 are kept.',
   'Backup von Hand': 'Manual backup',

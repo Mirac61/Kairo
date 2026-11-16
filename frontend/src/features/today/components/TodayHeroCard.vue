@@ -36,6 +36,7 @@ const {
   runningTaskId,
   pausedTask,
   runSecs,
+  timerLong,
   run,
   offer,
   scheduleAt,
@@ -205,6 +206,9 @@ defineExpose({
       </div>
       <div class="st-title">{{ runTitle }}</div>
       <div class="st-clock">{{ stopwatch(runSecs) }}</div>
+      <p v-if="timerLong" class="st-text" role="status">
+        {{ $t('Der Timer läuft seit über 4 Stunden. Brauchst du ihn noch?') }}
+      </p>
       <template v-if="current">
         <div class="st-prog-wrap">
           <div class="st-prog" aria-hidden="true">
