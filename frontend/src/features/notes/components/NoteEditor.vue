@@ -78,7 +78,7 @@ config({
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, watch } from 'vue'
-import { MdEditor, type ToolbarNames } from 'md-editor-v3'
+import { MdEditor, type ExposeParam, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ApiError, createNote, errorMessage, readNote, uploadFile } from '@/api/client'
 import {
@@ -229,6 +229,79 @@ function openPreviewImage(e: MouseEvent) {
   else if (img) window.open(img.src, '_blank')
 }
 
+// Export: ZIP mit der Notiz und allem, was die Vorschau einbettet (Zeichnungen, Bilder, PDFs), Pfade ab der Wurzel wie im
+// Notizordner; dazu die Vorschau hell als PDF über den Druckdialog. shortcut: PDF nur per Druckdialog („Als PDF sichern“),
+// kein Direkt-Download; dafür bräuchte es eine HTML-zu-PDF-Bibliothek. Ist die Vorschau aus, schaltet sie kurz ein.
+const editor = ref<ExposeParam>()
+async function exportNote() {
+  try {
+    let pv = root.value?.querySelector<HTMLElement>('.md-editor-preview')
+    if (!pv) {
+      if (text.value.includes('$')) tex ??= await import('@/lib/tex')
+      editor.value?.togglePreview(true)
+      await nextTick()
+      pv = root.value
+        ?.querySelector<HTMLElement>('.md-editor-preview')
+        ?.cloneNode(true) as HTMLElement
+      editor.value?.togglePreview(false)
+    } else pv = pv.cloneNode(true) as HTMLElement
+    if (!pv) return
+
+    const files = new Set([props.path])
+    for (const img of pv.querySelectorAll('img')) {
+      const src = img.getAttribute('src') ?? ''
+      const p = img.dataset.drawing
+      if (p) {
+        files.add(p)
+        await renderDrawing(p).catch(() => false)
+        img.src = drawingSrc(p) ?? src
+      } else if (src.startsWith('/api/files/')) files.add(decodeURIComponent(src.slice(11)))
+    }
+    const a = document.createElement('a')
+    a.href = `/api/export.zip?${new URLSearchParams([...files].map((p) => ['path', p]))}`
+    a.download = ''
+    a.click()
+
+    await printPreview(pv, props.path.replace(/^.*\//, '').replace(/\.md$/i, ''))
+  } catch (e) {
+    emit('error', errorMessage(e))
+  }
+}
+
+// Druckt die Vorschau in einem unsichtbaren iframe mit den Styles der Seite; .nd samt data-v-Attribut trägt die scoped Regeln.
+async function printPreview(pv: HTMLElement, title: string) {
+  const f = document.createElement('iframe')
+  f.style.cssText = 'position:fixed;width:0;height:0;border:0'
+  document.body.append(f)
+  const doc = f.contentDocument!
+  const css = [...document.querySelectorAll('style, link[rel="stylesheet"]')]
+  doc.open()
+  doc.write(
+    `<!doctype html><html><head><meta charset="utf-8">${css.map((n) => n.outerHTML).join('')}` +
+      '<style>@page{margin:16mm}body{margin:0;background:#fff}.nd,.md-editor{display:block!important;overflow:visible!important;background:none!important}' +
+      '.md-editor-preview{max-width:none!important;padding:0!important}</style></head><body></body></html>',
+  )
+  doc.close()
+  for (const at of document.documentElement.attributes)
+    doc.documentElement.setAttribute(at.name, at.value)
+  doc.documentElement.dataset.theme = 'light'
+  doc.title = title // Chrome und Safari schlagen ihn als Dateinamen der PDF vor
+  const shell = doc.importNode(root.value!, false)
+  const md = doc.createElement('div')
+  md.className = 'md-editor'
+  md.append(doc.importNode(pv, true))
+  shell.append(md)
+  doc.body.append(shell)
+  await Promise.all(
+    [...doc.querySelectorAll('link')].map((l) => new Promise((r) => (l.onload = l.onerror = r))),
+  )
+  await Promise.all([...doc.images].map((i) => i.decode().catch(() => {})))
+  await doc.fonts.ready
+  f.contentWindow!.addEventListener('afterprint', () => f.remove())
+  f.contentWindow!.print()
+}
+defineExpose({ exportNote })
+
 // md-editor-v3 bekommt das Theme als Prop; Kairo schaltet es über data-theme an <html>.
 const dark = ref(document.documentElement.dataset.theme !== 'light')
 const themeObserver = new MutationObserver(() => {
@@ -244,6 +317,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
 <template>
   <div ref="root" class="nd" @click="openPreviewImage">
     <MdEditor
+      ref="editor"
       v-model="text"
       :theme="dark ? 'dark' : 'light'"
       language="en-US"

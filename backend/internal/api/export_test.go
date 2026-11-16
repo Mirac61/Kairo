@@ -83,4 +83,25 @@ func TestExport(t *testing.T) {
 	if _, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len())); err != nil {
 		t.Errorf("export.zip ist kein gültiges ZIP: %v", err)
 	}
+
+	// Export einer Notiz: nur die genannten Dateien, benannt nach der ersten (Umlaut als filename*).
+	call(h, "POST", "/api/notes/uni", `{"dir":true}`)
+	call(h, "POST", "/api/notes/uni/Übung.md", ``)
+	call(h, "POST", "/api/notes/uni/andere.md", ``)
+	if rec := call(h, "POST", "/api/files/uni/skizze.excalidraw", `{"type":"excalidraw","elements":[]}`); rec.Code != http.StatusCreated {
+		t.Fatalf("Upload Zeichnung = %d %s", rec.Code, rec.Body)
+	}
+	rec = call(h, "GET", "/api/export.zip?path=uni/%C3%9Cbung.md&path=uni/skizze.excalidraw&path=../x", "")
+	zr, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len()))
+	if err != nil {
+		t.Fatalf("export.zip?path ist kein gültiges ZIP: %v", err)
+	}
+	var names []string
+	for _, f := range zr.File {
+		names = append(names, f.Name)
+	}
+	if strings.Join(names, ",") != "uni/skizze.excalidraw,uni/Übung.md" ||
+		rec.Header().Get("Content-Disposition") != "attachment; filename*=utf-8''%C3%9Cbung.zip" {
+		t.Errorf("export.zip?path = %v %q", names, rec.Header().Get("Content-Disposition"))
+	}
 }

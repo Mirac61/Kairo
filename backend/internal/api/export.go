@@ -3,7 +3,9 @@ package api
 import (
 	"encoding/csv"
 	"log/slog"
+	"mime"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -27,14 +29,22 @@ func (h exportHandlers) register(mux *http.ServeMux) {
 }
 
 // zip exportiert den Notizordner als ZIP; ohne Notizen ist die Datei leer.
+// ?path=a.md&path=b.excalidraw: nur diese Dateien, benannt nach der ersten (Export einer Notiz).
 func (h exportHandlers) zip(w http.ResponseWriter, r *http.Request) {
 	if h.svc.Notes == nil {
 		writeError(w, domain.ErrUnavailable)
 		return
 	}
 	longTransfer(w)
-	attachment(w, "application/zip", "zip")
-	if err := h.svc.Notes.Zip(w); err != nil {
+	only := r.URL.Query()["path"]
+	if len(only) > 0 {
+		name := strings.TrimSuffix(path.Base(only[0]), path.Ext(only[0])) + ".zip"
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
+	} else {
+		attachment(w, "application/zip", "zip")
+	}
+	if err := h.svc.Notes.Zip(w, only...); err != nil {
 		// Header sind schon gesetzt; nur loggen, den Stream kann man nicht mehr ändern.
 		slog.Error("Export ZIP", "err", err)
 	}

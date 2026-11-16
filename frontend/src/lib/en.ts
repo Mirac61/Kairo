@@ -670,6 +670,10 @@ const en: Record<string, string> = {
   'Im PDF-Viewer des Browsers öffnen': 'Open in the browser’s PDF viewer',
   'Im PDF-Viewer öffnen (Suche, Drucken)': 'Open in PDF viewer (search, print)',
   'Die Datei lässt sich nicht anzeigen ({reason}).': 'The file cannot be displayed ({reason}).',
+  Exportieren: 'Export',
+  'Erst speichern, dann exportieren': 'Save first, then export',
+  'Exportieren: Notiz mit Zeichnungen und Anhängen als ZIP, dazu PDF über den Druckdialog':
+    'Export: note with drawings and attachments as ZIP, plus PDF via the print dialog',
   'Formel (LaTeX)': 'Formula (LaTeX)',
   'Formel einfügen oder markierte bearbeiten (LaTeX)':
     'Insert formula or edit the selected one (LaTeX)',

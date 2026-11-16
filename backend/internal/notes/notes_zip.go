@@ -10,7 +10,12 @@ import (
 
 // Zip schreibt den ganzen Notizordner als ZIP nach w (Notizen, PDFs, Bilder,
 // Zeichnungen). Versteckte Einträge (.trash, .obsidian, .git, …) bleiben außen vor.
-func (s *Store) Zip(w io.Writer) error {
+// Mit only nur diese Dateien (Export einer Notiz samt Einbettungen), mit ihren Pfaden ab der Wurzel.
+func (s *Store) Zip(w io.Writer, only ...string) error {
+	want := map[string]bool{}
+	for _, p := range only {
+		want[path.Clean(p)] = true
+	}
 	zw := zip.NewWriter(w)
 	err := fs.WalkDir(s.root.FS(), ".", func(p string, d fs.DirEntry, err error) error {
 		switch {
@@ -21,7 +26,7 @@ func (s *Store) Zip(w io.Writer) error {
 				return fs.SkipDir
 			}
 			return nil
-		case d.IsDir():
+		case d.IsDir(), len(want) > 0 && !want[p]:
 			return nil
 		}
 		fi, err := d.Info()

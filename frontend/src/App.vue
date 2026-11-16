@@ -301,6 +301,9 @@ function openSearchFromMore() {
       <symbol id="i-upload" viewBox="0 0 24 24">
         <path d="M12 15V4.5M7.5 9 12 4.5 16.5 9M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15" />
       </symbol>
+      <symbol id="i-download" viewBox="0 0 24 24">
+        <path d="M12 4.5V15M7.5 10.5 12 15l4.5-4.5M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15" />
+      </symbol>
       <symbol id="i-cursor" viewBox="0 0 24 24">
         <path d="M6 3.5v15l4.2-4 2.8 6.3 2.4-1-2.8-6.2h5.9z" />
       </symbol>
