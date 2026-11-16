@@ -913,6 +913,21 @@ export function saveSettings(body: SettingsFile): Promise<Settings> {
   })
 }
 
+export interface Backup {
+  name: string
+  size: number
+  created_at: string
+}
+
+// Neueste zuerst.
+export function listBackups(): Promise<Backup[]> {
+  return api<Backup[]>('/backups')
+}
+
+export function createBackup(): Promise<Backup> {
+  return api<Backup>('/backups', { method: 'POST' })
+}
+
 export function restartBackend(): Promise<void> {
   return api<void>('/restart', {
     method: 'POST',
