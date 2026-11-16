@@ -161,6 +161,24 @@ async function uploadImages(files: File[], done: (urls: string[]) => void) {
     emit('error', errorMessage(e))
   }
 }
+// Bilder per Drag & Drop (Screenshot-Vorschau von macOS, Finder, Browser) gehen wie ⌘V nach assets/, eingefügt dort, wo
+// die Maus losgelassen wird. Ohne Bild übernimmt CodeMirror den Drop (Textdateien als Text).
+function dropImages(e: DragEvent) {
+  const files = [...(e.dataTransfer?.files ?? [])].filter((f) =>
+    /^image\/(png|jpeg|gif|webp)$/.test(f.type),
+  )
+  const view = editor.value?.getEditorView()
+  if (!files.length || !view) return
+  e.preventDefault()
+  const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
+  if (pos != null) view.dispatch({ selection: { anchor: pos } })
+  void uploadImages(files, (urls) => {
+    const at = view.state.selection.main.head // mitten in einer Zeile: Bild in eine eigene Zeile
+    const nl = at > 0 && view.state.sliceDoc(at - 1, at) !== '\n' ? '\n' : ''
+    editor.value?.insert(() => ({ targetValue: nl + urls.map((u) => `![](${u})\n`).join('') }))
+  })
+}
+
 // Eingebettete Zeichnungen (![](x.excalidraw)): sanitize ist synchron und nimmt fertige Bilder aus dem Cache. Fehlt eins,
 // rendert drawingPreview es nach; rendered++ gibt sanitize eine neue Identität, und md-editor rendert die Vorschau neu.
 const rendered = ref(0)
@@ -331,6 +349,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
       no-prettier
       no-echarts
       @on-upload-img="uploadImages"
+      @on-drop="dropImages"
     />
   </div>
 </template>
