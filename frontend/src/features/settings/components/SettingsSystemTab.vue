@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import type { Settings } from '@/api/client'
+import type { Backup, Settings } from '@/api/client'
 
 defineProps<{
   version: string
   data: Settings | null
   restarting: boolean
+  backups: Backup[]
 }>()
 
 defineEmits<{
   restart: []
+  backup: []
 }>()
 </script>
 
@@ -82,7 +84,17 @@ defineEmits<{
             )
           }}
         </div>
+        <div class="st-h">
+          {{
+            backups.length
+              ? `${$t('Letztes Backup')}: ${new Date(backups[0]!.created_at).toLocaleString()} · ${backups.length} ${$t('gespeichert')}`
+              : $t('Noch kein Backup.')
+          }}
+        </div>
       </div>
+      <button type="button" class="btn btn-secondary" @click="$emit('backup')">
+        {{ $t('Jetzt sichern') }}
+      </button>
     </div>
     <div class="st-row">
       <div class="st-text">
