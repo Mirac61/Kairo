@@ -26,7 +26,7 @@ func (s *Store) Zip(w io.Writer, only ...string) error {
 				return fs.SkipDir
 			}
 			return nil
-		case d.IsDir(), len(want) > 0 && !want[p]:
+		case d.IsDir(), len(want) > 0 && !wanted(want, p):
 			return nil
 		}
 		fi, err := d.Info()
@@ -55,4 +55,14 @@ func (s *Store) Zip(w io.Writer, only ...string) error {
 		return err
 	}
 	return zw.Close()
+}
+
+// wanted: p ist ein gewünschter Pfad oder liegt in einem gewünschten Ordner ("Uni" nimmt Uni/x.md, aber nicht Uni2/x.md).
+func wanted(want map[string]bool, p string) bool {
+	for ; p != "."; p = path.Dir(p) {
+		if want[p] {
+			return true
+		}
+	}
+	return false
 }

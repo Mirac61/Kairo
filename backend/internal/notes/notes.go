@@ -175,6 +175,48 @@ func (s *Store) CreateFile(p string) (string, error) {
 	return Version(fi), nil
 }
 
+// Copy dupliziert eine Datei als "Name Kopie.ext" (bei Bedarf "Name Kopie 2.ext"); nichts wird überschrieben. Nur Dateien, keine Ordner.
+func (s *Store) Copy(p string) (string, error) {
+	p, err := checkPath(p, "md", "pdf", "image", "code", "excalidraw")
+	if err != nil {
+		return "", err
+	}
+	src, err := s.root.Open(p)
+	if err != nil {
+		return "", mapErr(err)
+	}
+	defer src.Close()
+	if fi, err := src.Stat(); err != nil || !fi.Mode().IsRegular() {
+		return "", fmt.Errorf("%w: %s ist keine Datei", domain.ErrInvalid, p)
+	}
+	defer s.invalidate()
+	ext := path.Ext(p)
+	base := strings.TrimSuffix(p, ext)
+	for i := 1; i < 100; i++ {
+		to := base + " Kopie" + ext
+		if i > 1 {
+			to = fmt.Sprintf("%s Kopie %d%s", base, i, ext)
+		}
+		dst, err := s.root.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", mapErr(err)
+		}
+		_, err = io.Copy(dst, src)
+		if cerr := dst.Close(); err == nil {
+			err = cerr
+		}
+		if err != nil {
+			_ = s.root.Remove(to) // halbe Kopie nicht liegen lassen
+			return "", mapErr(err)
+		}
+		return to, nil
+	}
+	return "", fmt.Errorf("%w: zu viele Kopien von %s", domain.ErrConflict, p)
+}
+
 // Mkdir legt einen Ordner an; der übergeordnete Ordner muss existieren.
 func (s *Store) Mkdir(p string) error {
 	p, err := checkPath(p)
@@ -379,6 +421,28 @@ func (s *Store) Delete(p string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.trash(p)
+}
+
+// Untrash holt from (".trash/<Name>", wie Delete es nennt) nach to zurück, für „Rückgängig“; ein vorhandenes Ziel wird nie überschrieben.
+func (s *Store) Untrash(from, to string) error {
+	name, ok := strings.CutPrefix(from, Trash+"/")
+	if !ok || name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return fmt.Errorf("%w: %s liegt nicht in %s", domain.ErrInvalid, from, Trash)
+	}
+	to, err := checkPath(to)
+	if err != nil {
+		return err
+	}
+	if _, err := s.root.Lstat(from); err != nil {
+		return mapErr(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	defer s.invalidate()
+	if _, err := s.root.Lstat(to); err == nil {
+		return fmt.Errorf("%w: %s existiert schon", domain.ErrConflict, to)
+	}
+	return mapErr(s.root.Rename(from, to))
 }
 
 // trash verschiebt p nach .trash/; der Aufrufer hält s.mu.

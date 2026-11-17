@@ -1,11 +1,14 @@
 package notes
 
 import (
+	"archive/zip"
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -245,5 +248,98 @@ func TestHistory(t *testing.T) {
 	}
 	if tree, _ := s.Tree(); len(tree) != 1 {
 		t.Errorf("Baum zeigt %d Einträge, want 1 (.history versteckt)", len(tree))
+	}
+}
+
+func TestZipFolderAndCopy(t *testing.T) {
+	dir := t.TempDir()
+	for p, c := range map[string]string{
+		"Uni/a.md": "a", "Uni/sub/b.md": "b", "Uni2/c.md": "c", "Uni/.history/x.md": "h", "d.md": "d",
+	} {
+		full := filepath.Join(dir, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(c), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	var buf bytes.Buffer
+	if err := s.Zip(&buf, "Uni"); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, f := range zr.File {
+		got = append(got, f.Name)
+	}
+	slices.Sort(got)
+	if want := []string{"Uni/a.md", "Uni/sub/b.md"}; !slices.Equal(got, want) {
+		t.Errorf("ZIP von Uni = %v, want %v", got, want)
+	}
+
+	for i, want := range []string{"d Kopie.md", "d Kopie 2.md"} {
+		to, err := s.Copy("d.md")
+		if err != nil || to != want {
+			t.Fatalf("Copy %d = %q, %v; want %q", i, to, err, want)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "d Kopie 2.md")); string(b) != "d" {
+		t.Errorf("Inhalt der Kopie = %q", b)
+	}
+	if _, err := s.Copy("Uni"); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("Copy(Ordner) err = %v, want ErrInvalid", err)
+	}
+	if _, err := s.Copy("fehlt.md"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("Copy(fehlt) err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestUntrash(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "Uni"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "Uni", "a.md"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	dest, err := s.Delete("Uni")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, from := range []string{"Uni2", ".trash", ".trash/../x", ".history/x.md"} {
+		if err := s.Untrash(from, "Uni"); !errors.Is(err, domain.ErrInvalid) {
+			t.Errorf("Untrash(%q) err = %v, want ErrInvalid", from, err)
+		}
+	}
+	if err := s.Mkdir("Uni"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Untrash(dest, "Uni"); !errors.Is(err, domain.ErrConflict) {
+		t.Errorf("Untrash auf vorhandenes Ziel err = %v, want ErrConflict", err)
+	}
+	if err := os.Remove(filepath.Join(dir, "Uni")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Untrash(dest, "Uni"); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "Uni", "a.md")); string(b) != "a" {
+		t.Errorf("nach Untrash: Inhalt = %q", b)
 	}
 }

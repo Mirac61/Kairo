@@ -22,6 +22,8 @@ func (h noteHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/notes/backlinks", h.backlinks) // spezifischer als {path...}, gewinnt
 	mux.HandleFunc("GET /api/history/{path...}", h.history)
 	mux.HandleFunc("POST /api/history/{path...}", h.restore)
+	mux.HandleFunc("POST /api/copy/{path...}", h.copy)
+	mux.HandleFunc("POST /api/untrash", h.untrash)
 	mux.HandleFunc("GET /api/notes/{path...}", h.read)
 	mux.HandleFunc("PUT /api/notes/{path...}", h.save)
 	mux.HandleFunc("POST /api/notes/{path...}", h.create)
@@ -152,6 +154,32 @@ func (h noteHandlers) move(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.Move(r.PathValue("path"), in.To); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"path": in.To})
+}
+
+// copy dupliziert eine Datei und nennt den Pfad der Kopie.
+func (h noteHandlers) copy(w http.ResponseWriter, r *http.Request) {
+	to, err := h.store.Copy(r.PathValue("path"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"path": to})
+}
+
+// untrash macht ein delete rückgängig: {from: Ort in .trash, to: alter Pfad}.
+func (h noteHandlers) untrash(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	if err := h.store.Untrash(in.From, in.To); err != nil {
 		writeError(w, err)
 		return
 	}
