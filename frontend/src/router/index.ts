@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { prefs } from '@/lib/prefs'
+import { setViewTitle } from '@/lib/pageTitle'
+import { t } from '@/lib/i18n'
 import { initAuth, setupRequired, useAuth, setUnauthorizedHandler } from '@/composables/useAuth'
 import LoginView from '@/views/LoginView.vue'
 import SetupView from '@/views/SetupView.vue'
@@ -120,6 +122,12 @@ router.beforeEach(async (to) => {
   // Nicht angemeldet: Ohne Konto geht es nur zum Setup, sonst nur zum Login.
   const target = (await setupRequired()) ? '/setup' : '/login'
   if (to.path !== target) return target
+})
+
+router.afterEach((to, from) => {
+  if (to.name === from.name) return
+  const label = navItems.find((n) => n.name === to.name)?.label
+  setViewTitle(label && t(label))
 })
 
 // Ein Tab von vor dem letzten Build kennt nur alte Chunk-Namen; ohne Neuladen lässt sich die Ansicht nicht öffnen.

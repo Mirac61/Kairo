@@ -2,6 +2,7 @@
 import { navItems } from '@/router'
 import { vDialog } from '@/lib/dialog'
 import { GOTO, SHORTCUTS } from '@/lib/shortcuts'
+import { keys } from '@/lib/keys'
 
 defineEmits<{ close: [] }>()
 const label = (path: string) => navItems.find((n) => n.path === path)?.label ?? 'Einstellungen'
@@ -27,7 +28,7 @@ const label = (path: string) => navItems.find((n) => n.path === path)?.label ?? 
           <dl>
             <template v-for="[k, l] in g.keys" :key="k"
               ><dt>
-                <kbd class="key">{{ $t(k) }}</kbd>
+                <kbd class="key">{{ keys($t(k)) }}</kbd>
               </dt>
               <dd>{{ $t(l) }}</dd></template
             >

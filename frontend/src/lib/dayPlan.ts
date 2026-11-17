@@ -96,3 +96,12 @@ export function gaps(
   if (to - at >= minLen) out.push({ start: at, end: to })
   return out.filter((g) => g.end - g.start >= minLen)
 }
+
+// Ab dieser Länge eines einzelnen Laufs fragt die Startseite, ob der Timer noch gebraucht wird.
+export const LONG_TIMER_H = 4
+
+// Läuft der Eintrag (startedAt als ISO-Zeit) mindestens hours Stunden am Stück? Ohne Start: nein.
+export function isTimerLong(startedAt: string | undefined, nowMs: number, hours = LONG_TIMER_H) {
+  if (!startedAt) return false
+  return nowMs - Date.parse(startedAt) >= hours * 3600_000
+}

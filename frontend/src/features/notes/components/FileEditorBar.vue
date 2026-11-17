@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { COLORS, SCALES, SIZES, TOOLS, type Page, type Size, type Tool } from '@/lib/annotate'
 import { filesUrl } from '@/lib/noteFiles'
+import { keys } from '@/lib/keys'
 
 // Werkzeugleiste des FileEditor: Werkzeuge, Farbe, Stärke, Verlauf, Bildgröße beim Speichern und Zoom.
 defineProps<{
@@ -96,7 +97,7 @@ defineEmits<{
         type="button"
         class="icon-btn"
         :aria-label="$t('Rückgängig')"
-        :data-tip="$t('Rückgängig (⌘Z)')"
+        :data-tip="keys($t('Rückgängig (⌘Z)'))"
         :disabled="!canUndo"
         @click="$emit('undo')"
       >
@@ -106,7 +107,7 @@ defineEmits<{
         type="button"
         class="icon-btn"
         :aria-label="$t('Wiederholen')"
-        :data-tip="$t('Wiederholen (⇧⌘Z)')"
+        :data-tip="keys($t('Wiederholen (⇧⌘Z)'))"
         :disabled="!canRedo"
         @click="$emit('redo')"
       >
@@ -145,7 +146,7 @@ defineEmits<{
         type="button"
         class="icon-btn"
         :aria-label="$t('Verkleinern')"
-        :data-tip="$t('Verkleinern (⌘−)')"
+        :data-tip="keys($t('Verkleinern (⌘−)'))"
         @click="$emit('zoom', -1)"
       >
         <svg class="ic"><use href="#i-minus" /></svg>
@@ -154,7 +155,7 @@ defineEmits<{
         type="button"
         class="fe-pct"
         :aria-label="$t('Einpassen')"
-        :data-tip="$t('Einpassen (⌘0)')"
+        :data-tip="keys($t('Einpassen (⌘0)'))"
         @click="$emit('fit')"
       >
         {{ pct }} %
@@ -163,7 +164,7 @@ defineEmits<{
         type="button"
         class="icon-btn"
         :aria-label="$t('Vergrößern')"
-        :data-tip="$t('Vergrößern (⌘+)')"
+        :data-tip="keys($t('Vergrößern (⌘+)'))"
         @click="$emit('zoom', 1)"
       >
         <svg class="ic"><use href="#i-plus" /></svg>

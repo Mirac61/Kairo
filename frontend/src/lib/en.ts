@@ -277,6 +277,8 @@ const en: Record<string, string> = {
   '{n} Aufgaben angelegt': '{n} tasks created',
   '{n} offen': '{n} open',
   '{n} überfällig': '{n} overdue',
+  '{n} überfällige auf heute gelegt': '{n} overdue moved to today',
+  'Überfällige auf heute': 'Move overdue to today',
   '„{title}“ angelegt': '“{title}” created',
   '↑↓ wählen · Tab übernehmen': '↑↓ choose · Tab accept',
   Sortierung: 'Sort',
@@ -437,6 +439,7 @@ const en: Record<string, string> = {
   Pausieren: 'Pause',
   'Pausieren …': 'Pause …',
   'Weitere Aktionen': 'More actions',
+  Strg: 'Ctrl',
   'Urlaub bis {d}: nichts fällig, Serien laufen weiter.':
     'Vacation until {d}: nothing due, streaks keep going.',
   'Urlaub geplant: {d}': 'Vacation planned: {d}',
@@ -632,6 +635,7 @@ const en: Record<string, string> = {
   'Nächste / vorige': 'Next / previous',
   'Timer starten oder pausieren': 'Start or pause timer',
   'Auf heute legen': 'Move to today',
+  'Auf morgen legen': 'Move to tomorrow',
   Abhaken: 'Check off',
   'Voriger / nächster Tag': 'Previous / next day',
   'Zurück / weiter': 'Back / forward',
@@ -767,6 +771,8 @@ const en: Record<string, string> = {
   gespeichert: 'stored',
   'Noch kein Backup.': 'No backup yet.',
   'Jetzt sichern': 'Back up now',
+  'Der Timer läuft seit über 4 Stunden. Brauchst du ihn noch?':
+    'The timer has been running for over 4 hours. Still need it?',
   'Beim Start sichert Kairo die Datenbank nach backups/ neben der Datenbank, wenn das letzte Backup älter als einen Tag ist oder ein Update ansteht. Die neuesten 14 bleiben.':
     'On start Kairo copies the database to backups/ next to it if the last backup is older than a day or an update is pending. The newest 14 are kept.',
   'Backup von Hand': 'Manual backup',

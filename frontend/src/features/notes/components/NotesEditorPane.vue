@@ -8,6 +8,7 @@ import NoteBacklinks from './NoteBacklinks.vue'
 import NoteEditor from './NoteEditor.vue'
 import { fileKind, under } from '@/lib/noteFiles'
 import { tn } from '@/lib/i18n'
+import { keys } from '@/lib/keys'
 
 type Pane = 'doc' | 'note'
 type Buf = { text: string; saved: string; mtime: string; external: boolean }
@@ -120,7 +121,7 @@ const offerTemplates = computed(
         aria-keyshortcuts="Meta+S Control+S"
         @click="emit('save', false, pane)"
       >
-        {{ $t('Speichern') }}<kbd class="key" aria-hidden="true">⌘S</kbd>
+        {{ $t('Speichern') }}<kbd class="key" aria-hidden="true">{{ keys('⌘S') }}</kbd>
       </button>
       <button
         v-if="isMd"

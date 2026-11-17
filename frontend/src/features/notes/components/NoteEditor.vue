@@ -361,6 +361,13 @@ onBeforeUnmount(() => themeObserver.disconnect())
   flex-direction: column;
   min-height: 0;
 }
+.nd :deep(.md-editor-preview iframe.md-pdf) {
+  display: block;
+  width: 100%;
+  height: 75vh;
+  border: 1px solid var(--br-subtle);
+  border-radius: 6px;
+}
 .nd :deep(.md-editor-preview img) {
   cursor: zoom-in;
 }

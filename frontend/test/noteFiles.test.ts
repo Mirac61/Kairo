@@ -47,6 +47,10 @@ assert.equal(
   '<img src="/api/files/Uni/bilder/a.png">',
 )
 assert.equal(previewImages('<img src="a.png">', 'oben.md'), '<img src="/api/files/a.png">')
+assert.equal(
+  previewImages('<img src="Skript K7.pdf" data-wiki="">', 'oben.md', undefined, (n) => n),
+  '<iframe class="md-pdf" src="/api/files/Skript%20K7.pdf#view=FitH" loading="lazy"></iframe>',
+)
 for (const src of ['https://x.de/a.png', 'data:image/png;base64,AA', '/logo.png']) {
   assert.equal(previewImages(`<img src="${src}">`, note), `<img src="${src}">`)
 }

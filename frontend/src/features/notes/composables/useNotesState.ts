@@ -13,6 +13,7 @@ import { parentOf } from '../components/NoteTree.vue'
 import { fileKind, fillTemplate, isObsidianDrawing, join, withExt } from '@/lib/noteFiles'
 import { store } from '@/lib/storage'
 import { t } from '@/lib/i18n'
+import { setDocTitle } from '@/lib/pageTitle'
 import { useSplitRatio } from '@/composables/useSplitRatio'
 import { useNoteTreeOps } from './useNoteTreeOps'
 
@@ -264,6 +265,8 @@ export function useNotesState() {
   }
 
   onBeforeRouteLeave(() => !dirty.value || confirm(DISCARD))
+
+  watch(() => paths[current.value], setDocTitle, { immediate: true })
 
   watch([() => paths.note, () => paths.doc, shown, split], () => {
     store.set('kairo-notes-file', paths.note ?? '')
