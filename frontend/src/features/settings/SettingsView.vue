@@ -25,8 +25,21 @@ const tab = ref<Section>(
 watch(tab, (v) => store.set('kairo-settings-tab', v))
 const current = computed(() => SECTIONS.find((s) => s.id === tab.value)!)
 
-const { data, form, version, restarting, dirty, error, save, resetForm, restart, locked, leadMin } =
-  useSettingsData()
+const {
+  data,
+  form,
+  version,
+  restarting,
+  backups,
+  backupNow,
+  dirty,
+  error,
+  save,
+  resetForm,
+  restart,
+  locked,
+  leadMin,
+} = useSettingsData()
 </script>
 
 <template>
@@ -84,7 +97,9 @@ const { data, form, version, restarting, dirty, error, save, resetForm, restart,
             :version="version"
             :data="data"
             :restarting="restarting"
+            :backups="backups"
             @restart="restart"
+            @backup="backupNow"
           />
         </div>
       </div>

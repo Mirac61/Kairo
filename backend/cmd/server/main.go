@@ -329,6 +329,7 @@ func run() error {
 		Cards:     cards,
 		Notes:     notesStore,
 		Prefs:     repository.NewPrefsRepository(db),
+		Backups:   &api.Backups{Dir: backupDir(cfg), Create: func(ctx context.Context, dest string) error { return repository.Backup(ctx, db, dest) }},
 		Settings:  &api.Settings{Running: cfg, Getenv: os.Getenv, Restart: func() { restart.Store(true); stop() }},
 		Hub:       hub,
 		Location:  cfg.Location,
