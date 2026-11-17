@@ -58,6 +58,11 @@ export function previewImages(
       url = new URL(src, `http://x${filesUrl(notePath)}`).pathname
     }
 
+    // PDF (![[x.pdf]]): <img> kann es nicht zeigen, also der PDF-Viewer des Browsers im Rahmen.
+    if (fileKind(url) === 'pdf') {
+      return `<iframe class="md-pdf" src="${url}#view=FitH" loading="lazy"></iframe>`
+    }
+
     if (fileKind(url) !== 'excalidraw') {
       return tag.replace(/\ssrc="[^"]*"/, () => ` src="${url}"`)
     }
