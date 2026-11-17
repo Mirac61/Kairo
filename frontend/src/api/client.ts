@@ -801,6 +801,11 @@ export function createNote(path: string, dir = false): Promise<{ path: string; m
   })
 }
 
+// Dupliziert eine Datei als „Name Kopie.ext“ und liefert deren Pfad.
+export function copyNote(path: string): Promise<{ path: string }> {
+  return api<{ path: string }>(`/copy/${encodePathParts(path)}`, { method: 'POST' })
+}
+
 export function moveNote(path: string, to: string): Promise<{ path: string }> {
   return api<{ path: string }>(notePath(path), {
     method: 'PATCH',
@@ -812,6 +817,11 @@ export function deleteNote(path: string): Promise<{ trash: string }> {
   return api<{ trash: string }>(notePath(path), {
     method: 'DELETE',
   })
+}
+
+// Rückgängig nach deleteNote: holt from (dessen trash) nach to zurück.
+export function untrashNote(from: string, to: string): Promise<{ path: string }> {
+  return api<{ path: string }>('/untrash', { method: 'POST', body: JSON.stringify({ from, to }) })
 }
 
 export function uploadFile(path: string, file: Blob): Promise<{ path: string }> {

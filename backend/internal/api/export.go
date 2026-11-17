@@ -29,7 +29,7 @@ func (h exportHandlers) register(mux *http.ServeMux) {
 }
 
 // zip exportiert den Notizordner als ZIP; ohne Notizen ist die Datei leer.
-// ?path=a.md&path=b.excalidraw: nur diese Dateien, benannt nach der ersten (Export einer Notiz).
+// ?path=a.md&path=b.excalidraw: nur diese Dateien oder Ordner samt Inhalt, benannt nach dem ersten.
 func (h exportHandlers) zip(w http.ResponseWriter, r *http.Request) {
 	if h.svc.Notes == nil {
 		writeError(w, domain.ErrUnavailable)
