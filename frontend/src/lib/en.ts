@@ -437,6 +437,7 @@ const en: Record<string, string> = {
   Pausieren: 'Pause',
   'Pausieren …': 'Pause …',
   'Weitere Aktionen': 'More actions',
+  Strg: 'Ctrl',
   'Urlaub bis {d}: nichts fällig, Serien laufen weiter.':
     'Vacation until {d}: nothing due, streaks keep going.',
   'Urlaub geplant: {d}': 'Vacation planned: {d}',

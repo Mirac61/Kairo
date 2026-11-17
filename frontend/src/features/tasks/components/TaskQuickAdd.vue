@@ -6,6 +6,7 @@ import { dayLabel, hm, ruleText } from '@/lib/dates'
 import { t, tn } from '@/lib/i18n'
 import { projectColor } from '@/lib/projectColor'
 import { parseQuickAdd, quickTokens, taskBody, type TokenKind } from '@/lib/quickAdd'
+import { keys } from '@/lib/keys'
 
 const props = defineProps<{
   projects: Project[]
@@ -483,7 +484,7 @@ defineExpose({
         @mousedown.prevent
         @click="details = !details"
       >
-        {{ $t('Details') }}<kbd class="key" aria-hidden="true">⌘D</kbd>
+        {{ $t('Details') }}<kbd class="key" aria-hidden="true">{{ keys('⌘D') }}</kbd>
       </button>
     </div>
 
@@ -517,7 +518,8 @@ defineExpose({
           @mousedown.prevent
           @click="addTask(true)"
         >
-          <kbd class="key">⌘↵</kbd>{{ slotHint.text }}
+          <kbd class="key">{{ keys('⌘↵') }}</kbd
+          >{{ slotHint.text }}
         </button>
         <span v-else-if="slotHint">{{ slotHint.text }}</span>
         <span v-if="slotDay" class="tk-day" aria-hidden="true">
