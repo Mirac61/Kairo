@@ -20,6 +20,8 @@ func (h noteHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/notes", h.tree)
 	mux.HandleFunc("GET /api/search/notes", h.search)
 	mux.HandleFunc("GET /api/notes/backlinks", h.backlinks) // spezifischer als {path...}, gewinnt
+	mux.HandleFunc("GET /api/history/{path...}", h.history)
+	mux.HandleFunc("POST /api/history/{path...}", h.restore)
 	mux.HandleFunc("GET /api/notes/{path...}", h.read)
 	mux.HandleFunc("PUT /api/notes/{path...}", h.save)
 	mux.HandleFunc("POST /api/notes/{path...}", h.create)
@@ -50,6 +52,42 @@ func (h noteHandlers) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"path": p, "content": content, "mtime": mtime})
+}
+
+// history: ältere Fassungen einer Notiz, neueste zuerst; mit ?name=<Fassung> deren Inhalt.
+func (h noteHandlers) history(w http.ResponseWriter, r *http.Request) {
+	p := r.PathValue("path")
+	if name := r.URL.Query().Get("name"); name != "" {
+		content, err := h.store.ReadSnapshot(p, name)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"content": content})
+		return
+	}
+	snaps, err := h.store.History(p)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, snaps)
+}
+
+// restore schreibt die Fassung {"name": …} zurück; die aktuelle bleibt im Verlauf.
+func (h noteHandlers) restore(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Name string `json:"name"`
+	}
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	content, mtime, err := h.store.Restore(r.PathValue("path"), in.Name)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"content": content, "mtime": mtime})
 }
 
 // backlinks: ?path=<Notiz>; Notizen, die per [[…]] darauf verweisen.

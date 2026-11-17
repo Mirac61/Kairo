@@ -115,6 +115,11 @@ func (s *Store) Read(p string) (content, version string, err error) {
 // Geschrieben wird über eine temporäre Datei und Rename, damit ein Abbruch nie
 // eine halbe Notiz hinterlässt (ein Symlink wird dabei durch eine echte Datei ersetzt).
 func (s *Store) Save(p, content, version string, force bool) (string, error) {
+	return s.save(p, content, version, force, false)
+}
+
+// save ist Save; forceSnap legt den Verlaufs-Schnappschuss auch innerhalb der Sperrfrist an (Restore).
+func (s *Store) save(p, content, version string, force, forceSnap bool) (string, error) {
 	p, err := checkPath(p, "md")
 	if err != nil {
 		return "", err
@@ -130,6 +135,9 @@ func (s *Store) Save(p, content, version string, force bool) (string, error) {
 		return "", fmt.Errorf("%w: %s wurde außerhalb von Kairo geändert", domain.ErrConflict, p)
 	case err == nil:
 		perm = fi.Mode().Perm()
+	}
+	if old, err := s.root.ReadFile(p); err == nil && string(old) != content {
+		s.snapshot(p, old, forceSnap)
 	}
 	tmp := path.Join(path.Dir(p), "."+path.Base(p)+".kairo-tmp")
 	if err := s.root.WriteFile(tmp, []byte(content), perm); err != nil {
