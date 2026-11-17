@@ -20,7 +20,7 @@ import { useTaskFilter } from '@/composables/useTaskFilter'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { useUndo } from '@/composables/useUndo'
 import { useFreeSlot } from '@/composables/useFreeSlot'
-import { addDays, dur, ymd } from '@/lib/dates'
+import { addDays, dur, shiftDate, ymd } from '@/lib/dates'
 import { t } from '@/lib/i18n'
 import SelectionBar from '@/components/SelectionBar.vue'
 import TaskEditSheet from './components/TaskEditSheet.vue'
@@ -239,6 +239,8 @@ useShortcuts((event) => {
     )
   } else if (event.key === 't' && currentTask && isOpen(currentTask)) {
     setDate(currentTask, todayString())
+  } else if (event.key === 'm' && currentTask && isOpen(currentTask)) {
+    setDate(currentTask, shiftDate(todayString(), 1))
   } else if (/^[1-7]$/.test(event.key)) {
     filter.value = MAIN_FILTER_IDS[Number(event.key) - 1]!
   }
