@@ -5,6 +5,7 @@ import { parseCardList } from '@/lib/cards'
 import { vDialog } from '@/lib/dialog'
 import { store } from '@/lib/storage'
 import { tn } from '@/lib/i18n'
+import { keys } from '@/lib/keys'
 
 // Karten anlegen: einzeln (bleibt offen für die nächste) oder als eingefügte Liste „Frage :: Antwort“ / Tab-getrennt.
 const props = defineProps<{ decks: Deck[]; deck: string | null }>()
@@ -176,7 +177,7 @@ function onKey(e: KeyboardEvent, inQuestion = false) {
           mode === 'one'
             ? added
               ? tn(added, '{n} Karte hinzugefügt', '{n} Karten hinzugefügt')
-              : $t('⌘Enter fügt hinzu, das Fenster bleibt offen')
+              : keys($t('⌘Enter fügt hinzu, das Fenster bleibt offen'))
             : ''
         }}</span>
         <button class="btn btn-ghost" type="button" @click="emit('close')">

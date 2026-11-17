@@ -23,6 +23,7 @@ import FoldTransition from '@/components/FoldTransition.vue'
 import { tourOpen, tourSeen } from '@/composables/useTour'
 import { store } from '@/lib/storage'
 import { dark, prefs } from '@/lib/prefs'
+import { keys } from '@/lib/keys'
 
 const { online, version } = useBackendStatus()
 
@@ -672,7 +673,7 @@ function openSearchFromMore() {
           :aria-expanded="!mini"
           aria-keyshortcuts="Meta+B Control+B"
           :aria-label="mini ? $t('Seitenleiste ausklappen') : $t('Seitenleiste einklappen')"
-          :data-tip="`${mini ? $t('Ausklappen') : $t('Einklappen')} (⌘B)`"
+          :data-tip="`${mini ? $t('Ausklappen') : $t('Einklappen')} (${keys('⌘B')})`"
           @click="toggleSidebar"
         >
           <svg class="ic"><use href="#i-sidebar" /></svg>
@@ -700,11 +701,12 @@ function openSearchFromMore() {
                   type="button"
                   class="menu-i crumb-back"
                   role="menuitem"
-                  aria-keyshortcuts="Meta+BracketLeft"
+                  aria-keyshortcuts="Meta+BracketLeft Control+BracketLeft"
                   @click="goBack"
                 >
                   <svg class="ic"><use href="#i-left" /></svg
-                  >{{ $t('Zurück zu {name}', { name: $t(backLabel) }) }}<kbd class="key">⌘[</kbd>
+                  >{{ $t('Zurück zu {name}', { name: $t(backLabel) })
+                  }}<kbd class="key">{{ keys('⌘[') }}</kbd>
                 </button>
                 <div v-if="backLabel" class="crumb-hr"></div>
                 <RouterLink
@@ -730,7 +732,7 @@ function openSearchFromMore() {
           @click="searchOpen = true"
         >
           <svg class="ic"><use href="#i-search" /></svg><span>{{ $t('Suchen oder neu …') }}</span
-          ><kbd class="key" aria-hidden="true">⌘K</kbd>
+          ><kbd class="key" aria-hidden="true">{{ keys('⌘K') }}</kbd>
         </button>
         <button
           type="button"
