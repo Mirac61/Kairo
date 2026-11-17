@@ -6,6 +6,7 @@ import DrawingEditor from './DrawingEditor.vue'
 import FileEditor from './FileEditor.vue'
 import NoteBacklinks from './NoteBacklinks.vue'
 import NoteEditor from './NoteEditor.vue'
+import NoteHistoryDialog from './NoteHistoryDialog.vue'
 import { fileKind, under } from '@/lib/noteFiles'
 import { tn } from '@/lib/i18n'
 import { keys } from '@/lib/keys'
@@ -56,6 +57,7 @@ const emit = defineEmits<{
 }>()
 
 const noteEd = ref<InstanceType<typeof NoteEditor>>()
+const historyOpen = ref(false)
 const isMd = computed(() => !!props.path && fileKind(props.path) === 'md')
 const crumbs = computed(() => {
   if (!props.path) return []
@@ -141,6 +143,19 @@ const offerTemplates = computed(
         <svg class="ic"><use href="#i-download" /></svg>
       </button>
       <button
+        v-if="isMd && path"
+        type="button"
+        class="icon-btn"
+        :disabled="isDirty"
+        :aria-label="$t('Verlauf')"
+        :data-tip="
+          isDirty ? $t('Erst speichern, dann den Verlauf öffnen') : $t('Ältere Fassungen ansehen')
+        "
+        @click="historyOpen = true"
+      >
+        <svg class="ic"><use href="#i-clock" /></svg>
+      </button>
+      <button
         v-if="pane === (split ? 'note' : shown)"
         type="button"
         class="icon-btn"
@@ -153,6 +168,13 @@ const offerTemplates = computed(
         <svg class="ic"><use href="#i-split" /></svg>
       </button>
     </header>
+    <NoteHistoryDialog
+      v-if="path && isMd"
+      :open="historyOpen"
+      :path="path"
+      @close="historyOpen = false"
+      @restored="emit('reload', pane)"
+    />
     <div v-if="error && pane === errorPane" class="ed-bar" role="alert">{{ error }}</div>
     <div
       v-if="pane === errorPane && (obsidianDrawings.length || converted)"

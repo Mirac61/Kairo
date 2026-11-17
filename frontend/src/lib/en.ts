@@ -277,6 +277,12 @@ const en: Record<string, string> = {
   '{n} Aufgaben angelegt': '{n} tasks created',
   '{n} offen': '{n} open',
   '{n} überfällig': '{n} overdue',
+  Verlauf: 'History',
+  'Ältere Fassungen ansehen': 'View older versions',
+  'Erst speichern, dann den Verlauf öffnen': 'Save first, then open the history',
+  'Diese Fassung wiederherstellen': 'Restore this version',
+  'Noch keine älteren Fassungen. Sie entstehen beim Speichern, höchstens alle 5 Minuten.':
+    'No older versions yet. They are created on save, at most every 5 minutes.',
   '{n} überfällige auf heute gelegt': '{n} overdue moved to today',
   'Überfällige auf heute': 'Move overdue to today',
   '„{title}“ angelegt': '“{title}” created',

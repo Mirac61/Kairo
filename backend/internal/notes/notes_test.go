@@ -2,11 +2,13 @@ package notes
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"kairo/internal/domain"
 )
@@ -179,5 +181,70 @@ func TestMoveRewritesLinks(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(filepath.Join(dir, "b.md")); string(b) != "[[Andere]] bleibt unberührt.\n" {
 		t.Errorf("b.md wurde verändert: %q", b)
+	}
+}
+
+func TestHistory(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close() // Windows löscht das TempDir sonst nicht
+	clock := time.Date(2026, 11, 16, 10, 0, 0, 0, time.Local)
+	now = func() time.Time { return clock }
+	defer func() { now = time.Now }()
+
+	v, _ := s.CreateFile("a.md")
+	save := func(c string) {
+		t.Helper()
+		if v, err = s.Save("a.md", c, v, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snaps := func() []Snapshot {
+		t.Helper()
+		l, err := s.History("a.md")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return l
+	}
+
+	save("eins") // vorher leer: Schnappschuss von ""
+	save("zwei") // 0 s später: Sperrfrist
+	save("zwei") // unverändert
+	if n := len(snaps()); n != 1 {
+		t.Fatalf("nach drei Saves in der Sperrfrist: %d Schnappschüsse, want 1", n)
+	}
+	for i := range 25 { // alle 6 Minuten ein Stand, mehr als historyKeep
+		clock = clock.Add(6 * time.Minute)
+		save(fmt.Sprintf("v%d", i))
+	}
+	l := snaps()
+	if len(l) != historyKeep {
+		t.Fatalf("%d Schnappschüsse, want %d", len(l), historyKeep)
+	}
+	if got, _ := s.ReadSnapshot("a.md", l[0].Name); got != "v23" {
+		t.Errorf("neuester Schnappschuss = %q, want v23", got)
+	}
+
+	clock = clock.Add(time.Second) // gleiche Sekunde wie der letzte Save wird übersprungen
+	// Restore: ältere Fassung zurück, aktuelle (v24) landet trotz Sperrfrist im Verlauf.
+	got, _, err := s.Restore("a.md", l[1].Name)
+	if err != nil || got != "v22" {
+		t.Fatalf("Restore = %q, %v; want v22", got, err)
+	}
+	if cur, _, _ := s.Read("a.md"); cur != "v22" {
+		t.Errorf("Notiz = %q, want v22", cur)
+	}
+	if top, _ := s.ReadSnapshot("a.md", snaps()[0].Name); top != "v24" {
+		t.Errorf("Restore hat v24 nicht gesichert: %q", top)
+	}
+
+	if _, err := s.ReadSnapshot("a.md", "../../x.md"); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("Pfad im Namen: %v, want ErrInvalid", err)
+	}
+	if tree, _ := s.Tree(); len(tree) != 1 {
+		t.Errorf("Baum zeigt %d Einträge, want 1 (.history versteckt)", len(tree))
 	}
 }

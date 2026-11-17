@@ -759,6 +759,25 @@ export function readNote(path: string): Promise<Note> {
   return api<Note>(notePath(path))
 }
 
+export type NoteSnapshot = { name: string; time: string; size: number }
+
+export function noteHistory(path: string): Promise<NoteSnapshot[]> {
+  return api<NoteSnapshot[]>(`/history/${encodePathParts(path)}`)
+}
+
+export function noteSnapshot(path: string, name: string): Promise<{ content: string }> {
+  return api<{ content: string }>(
+    `/history/${encodePathParts(path)}?name=${encodeURIComponent(name)}`,
+  )
+}
+
+export function restoreNote(path: string, name: string): Promise<{ mtime: string }> {
+  return api<{ mtime: string }>(`/history/${encodePathParts(path)}`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
+}
+
 export function saveNote(
   path: string,
   content: string,
