@@ -24,9 +24,7 @@ const emit = defineEmits<{
   (e: 'trash', habit: Habit): void
 }>()
 
-const monthShortFmt = computed(
-  () => new Intl.DateTimeFormat(locale.value, { month: 'short' }),
-)
+const monthShortFmt = computed(() => new Intl.DateTimeFormat(locale.value, { month: 'short' }))
 
 const months = computed(() => {
   const gStart = getGridStartDate()

@@ -30,8 +30,9 @@ import { imageBlob, pdfBlob } from '@/lib/fileSave'
 import { store } from '@/lib/storage'
 import { t } from '@/lib/i18n'
 import { useHistory } from '@/composables/useHistory'
-import { usePdfRender } from '@/composables/usePdfRender'
+import { usePdfRender, type OutlineItem } from '@/composables/usePdfRender'
 import FileEditorBar from './FileEditorBar.vue'
+import PdfOutline from './PdfOutline.vue'
 
 // PDFs und Bilder ansehen und bezeichnen: Stift, Textmarker, Linie, Pfeil, Rechteck, Ellipse, Text; Zoom; Bilder auch verkleinern.
 // Bis zum Speichern bleibt jede Form einzeln wählbar; Speichern brennt sie in die Datei ein (die alte Fassung landet in .trash).
@@ -72,6 +73,7 @@ async function show(blob: Blob, keepView = false) {
   } else {
     bytes = await blob.arrayBuffer()
     pages.value = await pdfRender.open(bytes)
+    outline.value = await pdfRender.outline()
   }
   shapes.value = pages.value.map(() => [])
   history.reset()
@@ -132,6 +134,18 @@ async function save(force = false) {
 }
 
 defineExpose({ save, reload: load })
+
+// ---------- Inhaltsverzeichnis (nur PDFs, die eines eingebettet haben)
+const outline = ref<OutlineItem[]>([])
+const outlineOpen = ref(false)
+
+function goPage(i: number) {
+  const el = scroller.value
+  const page = el?.querySelector<HTMLElement>(`.fe-page[data-i="${i}"]`)
+  if (!el || !page) return
+  el.scrollTop += page.getBoundingClientRect().top - el.getBoundingClientRect().top - 16
+  if (matchMedia('(max-width: 640px)').matches) outlineOpen.value = false // Handy: Panel liegt über der Seite
+}
 
 // ---------- Zoom
 const scroller = ref<HTMLElement>()
@@ -617,6 +631,8 @@ onBeforeUnmount(() => {
       :can-remove="!!sel"
       :page="pages[0]"
       :pct="pct"
+      :has-outline="outline.length > 0"
+      :outline-open="outlineOpen"
       @tool="pickTool"
       @color="pickColor"
       @size="pickSize"
@@ -625,106 +641,116 @@ onBeforeUnmount(() => {
       @remove="removeSelected"
       @zoom="step"
       @fit="fit()"
+      @outline="outlineOpen = !outlineOpen"
     />
 
-    <div ref="scroller" class="fe-scroll" @scroll.passive="onScroll">
-      <p v-if="failed" class="fe-msg" role="alert">{{ failed }}</p>
-      <p v-else-if="loading && !pages.length" class="fe-msg">{{ $t('Lädt …') }}</p>
-      <div class="fe-pages" :class="{ single: kind === 'image' }">
-        <div
-          v-for="(pg, i) in pages"
-          :key="i"
-          class="fe-page"
-          :data-i="i"
-          :style="{ width: `${pg.w * zoom}px`, height: `${pg.h * zoom}px` }"
-        >
-          <img v-if="kind === 'image'" :src="imgUrl" alt="" draggable="false" />
-          <canvas v-else :ref="setCanvas(i)" />
-          <!-- Textmarker liegen in einer eigenen Ebene, die multipliziert: Schrift darunter bleibt schwarz. -->
-          <svg class="fe-mark" :viewBox="`0 0 ${pg.w} ${pg.h}`" aria-hidden="true">
-            <path
-              v-for="s in markersOf(i)"
-              :key="s.id"
-              :d="pathOf(s)"
-              :stroke="s.color"
-              :stroke-width="s.width"
-            />
-          </svg>
-          <svg
-            class="fe-ink"
-            :class="`t-${editable ? tool : 'none'}`"
-            :viewBox="`0 0 ${pg.w} ${pg.h}`"
-            @pointerdown="down($event, i)"
-            @pointermove="move($event, i)"
-            @pointerup="up(i)"
-            @pointercancel="up(i)"
-            @dblclick="dblclick($event, i)"
+    <div class="fe-body">
+      <nav
+        v-if="outlineOpen && outline.length"
+        class="fe-outline"
+        :aria-label="$t('Inhaltsverzeichnis')"
+      >
+        <PdfOutline :items="outline" @go="goPage" />
+      </nav>
+      <div ref="scroller" class="fe-scroll" @scroll.passive="onScroll">
+        <p v-if="failed" class="fe-msg" role="alert">{{ failed }}</p>
+        <p v-else-if="loading && !pages.length" class="fe-msg">{{ $t('Lädt …') }}</p>
+        <div class="fe-pages" :class="{ single: kind === 'image' }">
+          <div
+            v-for="(pg, i) in pages"
+            :key="i"
+            class="fe-page"
+            :data-i="i"
+            :style="{ width: `${pg.w * zoom}px`, height: `${pg.h * zoom}px` }"
           >
-            <g
-              v-for="s in inkOf(i)"
-              :key="s.id"
-              :data-id="s.id"
-              :class="{ hidden: editing?.id === s.id }"
+            <img v-if="kind === 'image'" :src="imgUrl" alt="" draggable="false" />
+            <canvas v-else :ref="setCanvas(i)" />
+            <!-- Textmarker liegen in einer eigenen Ebene, die multipliziert: Schrift darunter bleibt schwarz. -->
+            <svg class="fe-mark" :viewBox="`0 0 ${pg.w} ${pg.h}`" aria-hidden="true">
+              <path
+                v-for="s in markersOf(i)"
+                :key="s.id"
+                :d="pathOf(s)"
+                :stroke="s.color"
+                :stroke-width="s.width"
+              />
+            </svg>
+            <svg
+              class="fe-ink"
+              :class="`t-${editable ? tool : 'none'}`"
+              :viewBox="`0 0 ${pg.w} ${pg.h}`"
+              @pointerdown="down($event, i)"
+              @pointermove="move($event, i)"
+              @pointerup="up(i)"
+              @pointercancel="up(i)"
+              @dblclick="dblclick($event, i)"
             >
-              <template v-if="s.kind === 'text'">
-                <rect class="hit" v-bind="bounds(s, measure)" />
-                <text :fill="s.color" :font-size="s.size" :font-family="FONT">
-                  <tspan v-for="(l, k) in linesOf(s)" :key="k" :x="s.x" :y="baseline(s, k)">
-                    {{ l || ' ' }}
-                  </tspan>
-                </text>
-              </template>
-              <template v-else>
-                <path class="hit" :d="pathOf(s)" :stroke-width="Math.max(s.width, 12 / zoom)" />
-                <path
-                  v-if="s.kind !== 'marker'"
-                  :d="pathOf(s)"
-                  :stroke="s.color"
-                  :stroke-width="s.width"
-                />
-              </template>
-            </g>
-            <g v-if="sel?.page === i && selShape" class="sel">
-              <template v-if="selShape.kind === 'line' || selShape.kind === 'arrow'">
-                <rect
-                  v-for="h in ['a', 'b'] as const"
-                  :key="h"
-                  class="handle move"
-                  :data-h="h"
-                  :x="selShape[h][0] - handleSize / 2"
-                  :y="selShape[h][1] - handleSize / 2"
-                  :width="handleSize"
-                  :height="handleSize"
-                />
-              </template>
-              <template v-else-if="selBox">
-                <rect class="box" v-bind="selBox.box" />
-                <rect
-                  v-for="(c, k) in selBox.handles"
-                  :key="k"
-                  class="handle"
-                  :class="k % 2 ? 'nesw' : 'nwse'"
-                  :data-h="k"
-                  :x="c[0] - handleSize / 2"
-                  :y="c[1] - handleSize / 2"
-                  :width="handleSize"
-                  :height="handleSize"
-                />
-              </template>
-            </g>
-          </svg>
-          <textarea
-            v-if="editing?.page === i"
-            :ref="setTextarea"
-            v-model="editText"
-            class="fe-ta"
-            :style="taStyle"
-            spellcheck="false"
-            :aria-label="$t('Text')"
-            @blur="commitText"
-            @keydown.esc.prevent="commitText"
-            @keydown.meta.enter.prevent="commitText"
-          />
+              <g
+                v-for="s in inkOf(i)"
+                :key="s.id"
+                :data-id="s.id"
+                :class="{ hidden: editing?.id === s.id }"
+              >
+                <template v-if="s.kind === 'text'">
+                  <rect class="hit" v-bind="bounds(s, measure)" />
+                  <text :fill="s.color" :font-size="s.size" :font-family="FONT">
+                    <tspan v-for="(l, k) in linesOf(s)" :key="k" :x="s.x" :y="baseline(s, k)">
+                      {{ l || ' ' }}
+                    </tspan>
+                  </text>
+                </template>
+                <template v-else>
+                  <path class="hit" :d="pathOf(s)" :stroke-width="Math.max(s.width, 12 / zoom)" />
+                  <path
+                    v-if="s.kind !== 'marker'"
+                    :d="pathOf(s)"
+                    :stroke="s.color"
+                    :stroke-width="s.width"
+                  />
+                </template>
+              </g>
+              <g v-if="sel?.page === i && selShape" class="sel">
+                <template v-if="selShape.kind === 'line' || selShape.kind === 'arrow'">
+                  <rect
+                    v-for="h in ['a', 'b'] as const"
+                    :key="h"
+                    class="handle move"
+                    :data-h="h"
+                    :x="selShape[h][0] - handleSize / 2"
+                    :y="selShape[h][1] - handleSize / 2"
+                    :width="handleSize"
+                    :height="handleSize"
+                  />
+                </template>
+                <template v-else-if="selBox">
+                  <rect class="box" v-bind="selBox.box" />
+                  <rect
+                    v-for="(c, k) in selBox.handles"
+                    :key="k"
+                    class="handle"
+                    :class="k % 2 ? 'nesw' : 'nwse'"
+                    :data-h="k"
+                    :x="c[0] - handleSize / 2"
+                    :y="c[1] - handleSize / 2"
+                    :width="handleSize"
+                    :height="handleSize"
+                  />
+                </template>
+              </g>
+            </svg>
+            <textarea
+              v-if="editing?.page === i"
+              :ref="setTextarea"
+              v-model="editText"
+              class="fe-ta"
+              :style="taStyle"
+              spellcheck="false"
+              :aria-label="$t('Text')"
+              @blur="commitText"
+              @keydown.esc.prevent="commitText"
+              @keydown.meta.enter.prevent="commitText"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -739,8 +765,33 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
+.fe-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.fe-outline {
+  flex: none;
+  width: 240px;
+  overflow: auto;
+  padding: 8px;
+  border-right: 1px solid var(--br-subtle);
+  background: var(--bg-0);
+}
+@media (max-width: 640px) {
+  .fe-outline {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 2;
+    width: min(280px, 85%);
+    box-shadow: 0 2px 12px rgb(0 0 0 / 0.18);
+  }
+}
+
 .fe-scroll {
   position: relative;
+  min-width: 0;
   flex: 1;
   min-height: 0;
   overflow: auto;

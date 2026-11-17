@@ -75,7 +75,9 @@ function removeStep(e: Event, s: Goal) {
     <header class="gl-card-h">
       <img v-if="goal.image_path" class="gl-thumb" :src="filesUrl(goal.image_path)" alt="" />
       <button type="button" class="gl-card-t" @click="emit('edit', goal)">{{ goal.title }}</button>
-      <span v-if="pace" class="gl-state" :class="`gl-${pace.state}`"><i></i>{{ STATE[pace.state] }}</span>
+      <span v-if="pace" class="gl-state" :class="`gl-${pace.state}`"
+        ><i></i>{{ STATE[pace.state] }}</span
+      >
       <span v-else-if="goal.archived" class="gl-state gl-ok"><i></i>{{ $t('Erreicht') }}</span>
       <span v-else-if="!goal.due_date" class="gl-state">{{ $t('Ohne Frist') }}</span>
     </header>
@@ -205,9 +207,7 @@ function removeStep(e: Event, s: Goal) {
       v-if="!goal.archived"
       v-model="draft"
       class="gl-add"
-      :placeholder="
-        steps.length ? $t('Schritt hinzufügen …') : $t('Ersten Schritt hinzufügen …')
-      "
+      :placeholder="steps.length ? $t('Schritt hinzufügen …') : $t('Ersten Schritt hinzufügen …')"
       :aria-label="$t('Schritt zu „{title}“ hinzufügen', { title: goal.title })"
       @keydown.enter.prevent="handleAddStep"
     />

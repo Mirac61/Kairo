@@ -56,6 +56,8 @@
   --r-l: 14px;
   --dur: 130ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fold: 300ms; /* Auf- und Zuklappen, wie Shukatsu: ruhig, aber nicht träge */
+  --ease-fold: cubic-bezier(0, 0, 0.2, 1); /* ease-out: startet zügig, rollt weich aus */
   color-scheme: dark;
 }
 :root[data-theme='light'] {
@@ -581,13 +583,41 @@ svg.ic {
   color: var(--tx-muted);
   transform: rotate(90deg);
   transition:
-    transform var(--dur) ease-out,
+    transform var(--dur-fold) var(--ease-fold),
     color var(--dur) ease-out;
   flex: none;
 }
 .nav-group-chev.collapsed,
 .pins-chev.collapsed {
   transform: rotate(0deg);
+}
+
+/* Auf- und Zuklappen (components/FoldTransition.vue), wie das Collapsible in Shukatsu (templUI):
+   nur die Höhe gleitet und deckt den Inhalt auf wie ein Vorhang; alles darunter rückt mit. */
+.fold-enter-active,
+.fold-leave-active {
+  overflow: hidden;
+  transition: height var(--dur-fold) var(--ease-fold);
+}
+/* Flex-Kinder würden sonst mitschrumpfen und die gemessene Zielhöhe verfälschen */
+:is(.fold-enter-active, .fold-leave-active) > * {
+  flex-shrink: 0;
+}
+/* <details> klappt genauso, wo der Browser Höhe „auto“ animieren kann; sonst springt es wie bisher. */
+@supports (interpolate-size: allow-keywords) {
+  details {
+    interpolate-size: allow-keywords;
+  }
+  details::details-content {
+    height: 0;
+    overflow: clip;
+    transition:
+      height var(--dur-fold) var(--ease-fold),
+      content-visibility var(--dur-fold) allow-discrete;
+  }
+  details[open]::details-content {
+    height: auto;
+  }
 }
 .nav-group-head:hover .nav-group-chev,
 .pins-head:hover .pins-chev {
@@ -2287,28 +2317,10 @@ select.input {
     inset: -12px;
   }
   /* Kleine Bedienelemente behalten ihre Optik, bekommen aber eine Trefferfläche von mindestens 44px */
-  :where(
-    .btn,
-    .icon-btn,
-    .seg button,
-    .gl-box,
-    .fc-more-link,
-    .gl-x,
-    .col-link,
-    .hd-check
-  ) {
+  :where(.btn, .icon-btn, .seg button, .gl-box, .fc-more-link, .gl-x, .col-link, .hd-check) {
     position: relative;
   }
-  :where(
-    .btn,
-    .icon-btn,
-    .seg button,
-    .gl-box,
-    .fc-more-link,
-    .gl-x,
-    .col-link,
-    .hd-check
-  )::after {
+  :where(.btn, .icon-btn, .seg button, .gl-box, .fc-more-link, .gl-x, .col-link, .hd-check)::after {
     content: '';
     position: absolute;
     left: 50%;
@@ -2327,6 +2339,7 @@ select.input {
 /* Einstellung „Bewegung reduzieren“ */
 :root[data-motion='reduce'] {
   --dur: 0ms;
+  --dur-fold: 0ms;
 }
 :root[data-motion='reduce'] * {
   animation-duration: 0ms !important;

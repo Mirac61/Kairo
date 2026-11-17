@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { NoteNode } from '@/api/client'
 import CodeViewer from './CodeViewer.vue'
 import DrawingEditor from './DrawingEditor.vue'
@@ -54,6 +54,7 @@ const emit = defineEmits<{
   (e: 'docDirty', dirty: boolean): void
 }>()
 
+const noteEd = ref<InstanceType<typeof NoteEditor>>()
 const isMd = computed(() => !!props.path && fileKind(props.path) === 'md')
 const crumbs = computed(() => {
   if (!props.path) return []
@@ -120,6 +121,23 @@ const offerTemplates = computed(
         @click="emit('save', false, pane)"
       >
         {{ $t('Speichern') }}<kbd class="key" aria-hidden="true">⌘S</kbd>
+      </button>
+      <button
+        v-if="isMd"
+        type="button"
+        class="icon-btn"
+        :disabled="isDirty"
+        :aria-label="$t('Exportieren')"
+        :data-tip="
+          isDirty
+            ? $t('Erst speichern, dann exportieren')
+            : $t(
+                'Exportieren: Notiz mit Zeichnungen und Anhängen als ZIP, dazu PDF über den Druckdialog',
+              )
+        "
+        @click="noteEd?.exportNote()"
+      >
+        <svg class="ic"><use href="#i-download" /></svg>
       </button>
       <button
         v-if="pane === (split ? 'note' : shown)"
@@ -194,6 +212,7 @@ const offerTemplates = computed(
         </button>
       </div>
       <NoteEditor
+        ref="noteEd"
         :model-value="buf.text"
         :path="path!"
         :drawing-rev="drawingRev"

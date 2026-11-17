@@ -35,9 +35,7 @@ const projectTotal = computed(
         ></span>
       </div>
       <span class="rv-n mono">{{ hm(p.tracked_minutes) }}</span>
-      <span class="rv-n rv-pct"
-        >{{ Math.round((p.tracked_minutes / projectTotal) * 100) }} %</span
-      >
+      <span class="rv-n rv-pct">{{ Math.round((p.tracked_minutes / projectTotal) * 100) }} %</span>
     </div>
     <div v-if="!projectsList.length" class="rv-empty">
       <b>{{ $t('Keine Zeit erfasst.') }}</b>

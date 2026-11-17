@@ -15,6 +15,8 @@ defineProps<{
   canRemove: boolean
   page?: Page
   pct: number
+  hasOutline?: boolean
+  outlineOpen?: boolean
 }>()
 const outScale = defineModel<number>('outScale', { required: true })
 defineEmits<{
@@ -26,11 +28,26 @@ defineEmits<{
   remove: []
   zoom: [1 | -1]
   fit: []
+  outline: []
 }>()
 </script>
 
 <template>
   <div class="fe-bar" role="toolbar" :aria-label="$t('Bearbeiten')">
+    <template v-if="hasOutline">
+      <button
+        type="button"
+        class="icon-btn"
+        :class="{ on: outlineOpen }"
+        :aria-pressed="!!outlineOpen"
+        :aria-label="$t('Inhaltsverzeichnis')"
+        :data-tip="$t('Inhaltsverzeichnis')"
+        @click="$emit('outline')"
+      >
+        <svg class="ic"><use href="#i-list" /></svg>
+      </button>
+      <i class="sep" />
+    </template>
     <template v-if="editable">
       <template v-for="t in TOOLS" :key="t.id">
         <button

@@ -662,6 +662,7 @@ const en: Record<string, string> = {
   'Beim Speichern: {w} × {h} px': 'When saving: {w} × {h} px',
   Einpassen: 'Fit',
   'Einpassen (⌘0)': 'Fit (⌘0)',
+  Inhaltsverzeichnis: 'Table of contents',
   Verkleinern: 'Zoom out',
   'Verkleinern (⌘−)': 'Zoom out (⌘−)',
   Vergrößern: 'Zoom in',
@@ -669,6 +670,13 @@ const en: Record<string, string> = {
   'Im PDF-Viewer des Browsers öffnen': 'Open in the browser’s PDF viewer',
   'Im PDF-Viewer öffnen (Suche, Drucken)': 'Open in PDF viewer (search, print)',
   'Die Datei lässt sich nicht anzeigen ({reason}).': 'The file cannot be displayed ({reason}).',
+  Exportieren: 'Export',
+  'Erst speichern, dann exportieren': 'Save first, then export',
+  'Exportieren: Notiz mit Zeichnungen und Anhängen als ZIP, dazu PDF über den Druckdialog':
+    'Export: note with drawings and attachments as ZIP, plus PDF via the print dialog',
+  'Formel (LaTeX)': 'Formula (LaTeX)',
+  'Formel einfügen oder markierte bearbeiten (LaTeX)':
+    'Insert formula or edit the selected one (LaTeX)',
   'Dieser Browser kann {type} nicht schreiben.': 'This browser cannot write {type}.',
   'Kairo kann diese PDF nicht bearbeiten (verschlüsselt oder beschädigt).':
     'Kairo cannot edit this PDF (encrypted or damaged).',
@@ -1260,6 +1268,35 @@ const en: Record<string, string> = {
   'Weitere Optionen': 'More options',
   'Heute {time}': 'Today {time}',
   'überfällig seit {day}': 'overdue since {day}',
+  // Rundgang (components/TourGuide.vue; Texte stehen dort nicht in t('…'), der Test sieht sie nicht)
+  'Willkommen bei Kairo': 'Welcome to Kairo',
+  'Dein Tag auf einen Blick: was heute ansteht, welche Gewohnheiten offen sind und wie die Zeit verplant ist.':
+    'Your day at a glance: what is due today, which habits are open and how your time is planned.',
+  'Schreib eine Aufgabe in einem Satz, zum Beispiel „Sport 30m @morgen @14:30 #Kairo !hoch“. Dauer, Tag, Uhrzeit, Projekt und Priorität erkennt Kairo selbst.':
+    'Write a task in one sentence, for example “Sport 30m @tomorrow @14:30 #Kairo !high”. Kairo picks out duration, day, time, project and priority.',
+  'Termine und geplante Aufgaben in einer Woche. Aufgaben ohne Zeitpunkt ziehst du in einen freien Platz.':
+    'Events and planned tasks in one week. Drag tasks without a time into a free slot.',
+  'Hake täglich ab, was du dir vorgenommen hast. Die Serie zeigt, wie lange du dranbleibst.':
+    'Tick off what you set out to do every day. The streak shows how long you keep at it.',
+  'Markdown-Notizen mit Verknüpfungen. PDFs und Bilder kannst du hier ansehen und bezeichnen; hat eine PDF ein Inhaltsverzeichnis, springst du über die Liste links zur Stelle.':
+    'Markdown notes with links. You can view and annotate PDFs and images here; if a PDF has a table of contents, the list on the left jumps to the spot.',
+  'Suchen und neu anlegen': 'Search and create',
+  'Mit ⌘K (Strg + K) suchst du in allem. Findet die Suche nichts, legt sie daraus eine Aufgabe an.':
+    'Press ⌘K (Ctrl + K) to search everything. If nothing matches, the search turns your text into a task.',
+  'Mit ? siehst du alle Kürzel. Mit g und einem Buchstaben springst du direkt in eine Ansicht, etwa g a für Aufgaben. Diesen Rundgang findest du später in den Einstellungen wieder.':
+    'Press ? to see all shortcuts. g and a letter jump straight to a view, for example g a for tasks. You can find this tour again in the settings.',
+  Überspringen: 'Skip',
+  'Rundgang beenden': 'End tour',
+  'Rundgang beenden (Esc)': 'End tour (Esc)',
+  'Probier es aus: Klick auf den markierten Punkt.': 'Try it: click the highlighted item.',
+  'Aufgaben, Kalender, Gewohnheiten und Notizen an einem Ort. Gebaut für Leute, die ihren Tag planen wollen, ohne fünf Apps zu jonglieren.':
+    'Tasks, calendar, habits and notes in one place. Built for people who want to plan their day without juggling five apps.',
+  'Los geht’s': 'Let’s go',
+  'Alles bereit': 'All set',
+  Rundgang: 'Tour',
+  'Zeigt in einer Minute, was Kairo kann und wo es steht.':
+    'Shows in a minute what Kairo can do and where things are.',
+  'Rundgang starten': 'Start tour',
 }
 
 export default en

@@ -18,8 +18,7 @@ const emit = defineEmits<{
 const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((d) => t(d))
 const today = () => ymd(new Date())
 
-const projectName = (id: string | null) =>
-  props.projects.find((p) => p.project_id === id)?.name
+const projectName = (id: string | null) => props.projects.find((p) => p.project_id === id)?.name
 </script>
 
 <template>
@@ -28,12 +27,7 @@ const projectName = (id: string | null) =>
       {{ $t('Erledigt') }} <span class="count">{{ completed.length || '' }}</span>
     </h2>
     <div v-for="task in completed" :key="task.id" class="rv-row rv-task">
-      <span
-        class="cb ring"
-        role="img"
-        aria-checked="true"
-        :aria-label="$t('Erledigt')"
-      ></span>
+      <span class="cb ring" role="img" aria-checked="true" :aria-label="$t('Erledigt')"></span>
       <span class="t">{{ task.title }}</span>
       <span class="chip" :style="{ '--chip-c': projectColor(task.project_id) }"
         ><template v-if="projectName(task.project_id)"
@@ -41,9 +35,7 @@ const projectName = (id: string | null) =>
           ><span class="rv-ell">{{ projectName(task.project_id) }}</span></template
         ></span
       >
-      <span class="rv-n rv-wd">{{
-        WD[(new Date(task.completed_at!).getDay() + 6) % 7]
-      }}</span>
+      <span class="rv-n rv-wd">{{ WD[(new Date(task.completed_at!).getDay() + 6) % 7] }}</span>
     </div>
     <div v-if="!completed.length" class="rv-empty">{{ $t('Nichts erledigt.') }}</div>
   </section>

@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Root } from 'react-dom/client'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import type { FileId } from '@excalidraw/excalidraw/element/types'
 import { ApiError, errorMessage, fetchFile, replaceFile } from '@/api/client'
 import { lang, t } from '@/lib/i18n'
 import { loadExcalidraw } from '@/lib/drawingPreview'
@@ -46,6 +47,57 @@ function onChange(elements: readonly { version: number }[]) {
   if (dirty) timer = window.setTimeout(() => emit('autosave'), AUTOSAVE_MS)
 }
 
+// Formel (LaTeX) als SVG-Bild wie beim Obsidian-Plugin; customData.latex hält den Quelltext. Ist genau eine Formel markiert,
+// ersetzt der Knopf sie. shortcut: window.prompt (eine Zeile, keine Vorschau); eigener Dialog, wenn das stört.
+const EX_PX = 10 // MathJax misst in ex; 10 px passen zu Excalidraws 20-px-Text
+async function insertTex() {
+  if (!api || !lib) return
+  const selected = api.getAppState().selectedElementIds
+  const sel = api.getSceneElements().filter((e) => selected[e.id])
+  const old =
+    sel.length === 1 && sel[0]!.type === 'image' && sel[0]!.customData?.latex ? sel[0] : null
+  const src = window.prompt(t('Formel (LaTeX)'), old?.customData?.latex ?? '')?.trim()
+  if (!src) return
+  const { texToSvg } = await import('@/lib/tex')
+  const svg = texToSvg(src)
+  const [width, height] = ['width', 'height'].map(
+    (a) => parseFloat(new RegExp(`${a}="([\\d.]+)ex"`).exec(svg)?.[1] ?? '2') * EX_PX,
+  ) as [number, number]
+  const fileId = `tex-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}` as FileId
+  api.addFiles([
+    {
+      id: fileId,
+      mimeType: 'image/svg+xml',
+      dataURL: await lib.getDataURL(new Blob([svg], { type: 'image/svg+xml' })),
+      created: Date.now(),
+    },
+  ])
+  const all = api.getSceneElementsIncludingDeleted()
+  const customData = { ...old?.customData, latex: src }
+  let el
+  if (old) {
+    el = lib.newElementWith(old, { fileId, width, height, customData })
+  } else {
+    const { scrollX, scrollY, zoom, width: vw, height: vh } = api.getAppState()
+    el = lib.convertToExcalidrawElements([
+      {
+        type: 'image',
+        fileId,
+        x: vw / 2 / zoom.value - scrollX - width / 2,
+        y: vh / 2 / zoom.value - scrollY - height / 2,
+        width,
+        height,
+        customData,
+      },
+    ])[0]!
+  }
+  api.updateScene({
+    elements: old ? all.map((e) => (e.id === old.id ? el : e)) : [...all, el],
+    appState: { selectedElementIds: { [el.id]: true } },
+    captureUpdate: lib.CaptureUpdateAction.IMMEDIATELY,
+  })
+}
+
 async function paint() {
   if (!host.value) return
   const [{ createElement }, { createRoot }] = await Promise.all([
@@ -63,6 +115,18 @@ async function paint() {
       langCode: lang.value === 'de' ? 'de-DE' : 'en',
       // Speichern und Öffnen übernimmt Kairo (⌘S, Baum); Bild-Export bleibt.
       UIOptions: { canvasActions: { loadScene: false, saveToActiveFile: false } },
+      renderTopRightUI: () =>
+        createElement(
+          'button',
+          {
+            type: 'button',
+            className: 'sidebar-trigger dw-tex',
+            title: t('Formel einfügen oder markierte bearbeiten (LaTeX)'),
+            'aria-label': t('Formel einfügen oder markierte bearbeiten (LaTeX)'),
+            onClick: () => void insertTex(),
+          },
+          '∑',
+        ),
     }),
   )
 }
@@ -124,6 +188,12 @@ defineExpose({ save, reload: load })
   flex: 1;
   min-height: 0;
   position: relative;
+}
+/* Aussehen von Excalidraws Bibliotheks-Knopf (sidebar-trigger), nur quadratisch und mit größerem Zeichen. */
+.dw :deep(.dw-tex) {
+  width: var(--lg-button-size);
+  font-size: 16px;
+  line-height: 1;
 }
 .ed-empty {
   flex: 1;

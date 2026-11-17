@@ -1,4 +1,7 @@
-.PHONY: help install build check e2e run link
+.PHONY: help install build check e2e run link deploy deploy-notes
+
+# Ziel für make deploy (PI, ZIEL, VAULT) steht in .env, Vorlage: .env.example. Nur diese Werte gehen an deploy.sh.
+-include .env
 
 BIN := backend/bin/kairo
 BINDIR ?= $(HOME)/.local/bin
@@ -15,6 +18,14 @@ help:
 	@echo "make link     Befehl 'kairo' nach $(BINDIR) legen (startet 'make run')"
 	@echo "make check    gofmt, vet, Tests, Typprüfung, Extension-Build"
 	@echo "make e2e      bauen, dann Playwright-Smoke-Tests gegen ein Backend mit leerer Datenbank"
+	@echo "make deploy   auf den Pi aus .env bauen und neu starten (deploy.sh)"
+	@echo "make deploy-notes  lokalen Vault auf den Pi spiegeln (DRY=1 nur Vorschau)"
+
+deploy:
+	PI="$(PI)" ZIEL="$(ZIEL)" ./deploy.sh
+
+deploy-notes:
+	PI="$(PI)" ZIEL="$(ZIEL)" VAULT="$(VAULT)" ./deploy.sh --notes $(if $(DRY),--dry-run)
 
 install:
 	cd frontend && pnpm install --frozen-lockfile

@@ -10,14 +10,12 @@ const props = defineProps<{
   overdue: Task[]
 }>()
 
-const calendarMinutes = computed(
-  () => props.review.days.reduce((s, d) => s + d.calendar_minutes, 0),
+const calendarMinutes = computed(() =>
+  props.review.days.reduce((s, d) => s + d.calendar_minutes, 0),
 )
 
 const trackedPct = computed(() =>
-  props.planToDate
-    ? Math.round(((props.review.tracked_minutes ?? 0) / props.planToDate) * 100)
-    : 0,
+  props.planToDate ? Math.round(((props.review.tracked_minutes ?? 0) / props.planToDate) * 100) : 0,
 )
 </script>
 
@@ -46,9 +44,7 @@ const trackedPct = computed(() =>
       <div class="rv-card-h">
         <span>{{ $t('Termine') }}</span>
       </div>
-      <span class="rv-big mono" :class="{ zero: !calendarMinutes }">{{
-        hm(calendarMinutes)
-      }}</span>
+      <span class="rv-big mono" :class="{ zero: !calendarMinutes }">{{ hm(calendarMinutes) }}</span>
       <div class="rv-card-f">
         <span>{{ $t('Kalenderzeit') }}</span>
       </div>
@@ -72,9 +68,7 @@ const trackedPct = computed(() =>
       <div class="rv-card-h">
         <span>{{ $t('Überfällig geworden') }}</span>
       </div>
-      <span class="rv-big mono" :class="overdue.length ? 'od' : 'zero'">{{
-        overdue.length
-      }}</span>
+      <span class="rv-big mono" :class="overdue.length ? 'od' : 'zero'">{{ overdue.length }}</span>
       <div class="rv-card-f">
         <span v-if="overdue.length" class="rv-ell"
           >{{ overdue[0]!.title

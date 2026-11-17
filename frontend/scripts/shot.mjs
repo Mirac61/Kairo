@@ -716,6 +716,7 @@ await page.addInitScript(
     localStorage.setItem('kairo-cal-unplanned', aside === 'open' ? '1' : '0')
     localStorage.setItem('kairo-theme', theme)
     localStorage.setItem('kairo-lang', lang)
+    localStorage.setItem('kairo-tour-done', '1')
     localStorage.setItem('kairo-notes-open', '["uni"]')
     localStorage.setItem('kairo-notes-file', 'uni/Beispiel-Vorlesung.md')
     for (const kv of extra ? extra.split(',') : []) localStorage.setItem(...kv.split('='))

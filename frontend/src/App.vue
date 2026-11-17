@@ -18,6 +18,9 @@ import { vDialog } from '@/lib/dialog'
 import { GOTO } from '@/lib/shortcuts'
 import { useShortcuts } from '@/composables/useShortcuts'
 import ShortcutHelp from '@/components/ShortcutHelp.vue'
+import TourGuide from '@/components/TourGuide.vue'
+import FoldTransition from '@/components/FoldTransition.vue'
+import { tourOpen, tourSeen } from '@/composables/useTour'
 import { store } from '@/lib/storage'
 import { dark, prefs } from '@/lib/prefs'
 
@@ -89,6 +92,14 @@ onMounted(() => {
   window.addEventListener('keydown', onKey)
   void loadSidebar()
 })
+// Erster Start: Rundgang anbieten, sobald man eingeloggt in der App ist.
+watch(
+  hideSidebar,
+  (hide) => {
+    if (!hide && !tourSeen()) tourOpen.value = true
+  },
+  { immediate: true },
+)
 
 // ? zeigt alle Kürzel, g und ein Buchstabe springt in eine Ansicht (lib/shortcuts.ts).
 const helpOpen = ref(false)
@@ -289,6 +300,9 @@ function openSearchFromMore() {
       </symbol>
       <symbol id="i-upload" viewBox="0 0 24 24">
         <path d="M12 15V4.5M7.5 9 12 4.5 16.5 9M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15" />
+      </symbol>
+      <symbol id="i-download" viewBox="0 0 24 24">
+        <path d="M12 4.5V15M7.5 10.5 12 15l4.5-4.5M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15" />
       </symbol>
       <symbol id="i-cursor" viewBox="0 0 24 24">
         <path d="M6 3.5v15l4.2-4 2.8 6.3 2.4-1-2.8-6.2h5.9z" />
@@ -512,20 +526,22 @@ function openSearchFromMore() {
               <use href="#i-chev" />
             </svg>
           </button>
-          <div v-show="mini || !collapsedSections.focus" class="nav-group-items">
-            <RouterLink
-              v-for="item in focusItems"
-              :key="item.path"
-              :to="item.path"
-              class="nav-item"
-              :aria-label="mini ? $t(item.label) : undefined"
-              :data-tip="mini ? $t(item.label) : undefined"
-            >
-              <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
-              ><span class="nav-l">{{ $t(item.label) }}</span>
-              <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
-            </RouterLink>
-          </div>
+          <FoldTransition>
+            <div v-show="mini || !collapsedSections.focus" class="nav-group-items">
+              <RouterLink
+                v-for="item in focusItems"
+                :key="item.path"
+                :to="item.path"
+                class="nav-item"
+                :aria-label="mini ? $t(item.label) : undefined"
+                :data-tip="mini ? $t(item.label) : undefined"
+              >
+                <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
+                ><span class="nav-l">{{ $t(item.label) }}</span>
+                <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
+              </RouterLink>
+            </div>
+          </FoldTransition>
         </div>
         <div class="nav-group">
           <button
@@ -543,20 +559,22 @@ function openSearchFromMore() {
               <use href="#i-chev" />
             </svg>
           </button>
-          <div v-show="mini || !collapsedSections.projects" class="nav-group-items">
-            <RouterLink
-              v-for="item in projectItems"
-              :key="item.path"
-              :to="item.path"
-              class="nav-item"
-              :aria-label="mini ? $t(item.label) : undefined"
-              :data-tip="mini ? $t(item.label) : undefined"
-            >
-              <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
-              ><span class="nav-l">{{ $t(item.label) }}</span>
-              <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
-            </RouterLink>
-          </div>
+          <FoldTransition>
+            <div v-show="mini || !collapsedSections.projects" class="nav-group-items">
+              <RouterLink
+                v-for="item in projectItems"
+                :key="item.path"
+                :to="item.path"
+                class="nav-item"
+                :aria-label="mini ? $t(item.label) : undefined"
+                :data-tip="mini ? $t(item.label) : undefined"
+              >
+                <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
+                ><span class="nav-l">{{ $t(item.label) }}</span>
+                <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
+              </RouterLink>
+            </div>
+          </FoldTransition>
         </div>
       </nav>
       <div v-if="pins.length" class="pins">
@@ -578,18 +596,20 @@ function openSearchFromMore() {
             <use href="#i-chev" />
           </svg>
         </button>
-        <div v-show="!collapsedSections.pins" class="pins-items">
-          <RouterLink
-            v-for="p in pins"
-            :key="p.id"
-            :to="{ path: '/projects', query: { project: p.id } }"
-            class="nav-item pin"
-          >
-            <svg class="ic pin-ic" aria-hidden="true"><use :href="`#${projectIconOf(p)}`" /></svg
-            ><span class="nav-l">{{ p.name }}</span>
-            <span v-if="p.minutes" class="nav-n">{{ hm(p.minutes) }}</span>
-          </RouterLink>
-        </div>
+        <FoldTransition>
+          <div v-show="!collapsedSections.pins" class="pins-items">
+            <RouterLink
+              v-for="p in pins"
+              :key="p.id"
+              :to="{ path: '/projects', query: { project: p.id } }"
+              class="nav-item pin"
+            >
+              <svg class="ic pin-ic" aria-hidden="true"><use :href="`#${projectIconOf(p)}`" /></svg
+              ><span class="nav-l">{{ p.name }}</span>
+              <span v-if="p.minutes" class="nav-n">{{ hm(p.minutes) }}</span>
+            </RouterLink>
+          </div>
+        </FoldTransition>
       </div>
       <div v-if="trashItem" class="nav-bottom">
         <RouterLink
@@ -780,6 +800,9 @@ function openSearchFromMore() {
     </template>
     <SearchPalette v-if="searchOpen" @close="searchOpen = false" />
     <ShortcutHelp v-if="helpOpen" @close="helpOpen = false" />
+    <Transition name="tour-fade">
+      <TourGuide v-if="tourOpen && !hideSidebar" @close="tourOpen = false" />
+    </Transition>
     <ConfirmPopup />
     <UndoToast />
   </div>
