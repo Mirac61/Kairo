@@ -617,7 +617,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="fe">
+  <!-- fe-keys: die Werkzeugtasten gelten gerade; NotesSidebar lässt dann seine Einzeltasten weg -->
+  <div class="fe" :class="{ 'fe-keys': active && editable }">
     <FileEditorBar
       v-model:out-scale="outScale"
       :kind="kind"

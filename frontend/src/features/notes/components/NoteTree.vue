@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { InjectionKey, Ref } from 'vue'
 import type { NoteNode } from '@/api/client'
 
 // Gemeinsamer Zustand aller Ebenen; die Ansicht hält ihn, damit Ereignisse nicht durch jede Ebene gereicht werden müssen.
@@ -20,9 +21,18 @@ export interface TreeCtx {
   startRename(path: string, dir: boolean): void
   submitRename(name: string): void
   cancelRename(): void
-  remove(node: NoteNode, anchor: HTMLElement): void
+  remove(node: NoteNode): void // sofort, mit Rückgängig im Toast
+  duplicate(node: NoteNode): void // nur Dateien
+  exportDir(node: NoteNode): void // Ordner samt Inhalt als ZIP
   drop(dir: string, dt?: DataTransfer | null): void // dt.items: Dateien/Ordner aus dem Finder
 }
+
+// Das Menü gehört der Seitenleiste (eine Instanz); jede Ebene des Baums ruft es über inject.
+// x/y: Fensterkoordinaten; back bekommt den Fokus zurück, wenn das Menü mit Esc schließt.
+export const NT_MENU: InjectionKey<(x: number, y: number, n: NoteNode, back: HTMLElement) => void> =
+  Symbol('nt-menu')
+// Pfad der Zeile, auf die die Kürzel wirken ('' = oberste Ebene); die Zeile bekommt einen Rahmen.
+export const NT_CUR: InjectionKey<Ref<string | null>> = Symbol('nt-cur')
 
 export const parentOf = (path: string) => path.slice(0, Math.max(path.lastIndexOf('/'), 0))
 
@@ -36,7 +46,7 @@ export const canDropHere = (e: DragEvent, from: string | null, dir: string) =>
 </script>
 
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { inject, nextTick, ref } from 'vue'
 import { ymd } from '@/lib/dates'
 import { fileKind } from '@/lib/noteFiles'
 import FoldTransition from '@/components/FoldTransition.vue'
@@ -48,10 +58,16 @@ const props = withDefaults(
 )
 
 const name = ref('')
+const openMenu = inject(NT_MENU, () => {})
+const cur = inject(NT_CUR, ref(null))
+// Mit Wert (Umbenennen) holt sich das Feld den alten Namen selbst, egal ob Doppelklick, Menü oder Kürzel es öffnet.
 const vFocus = {
-  mounted: (el: HTMLInputElement) => {
-    el.focus()
-    el.select()
+  mounted: (el: HTMLInputElement, b: { value?: string }) => {
+    if (b.value !== undefined) name.value = b.value
+    void nextTick(() => {
+      el.focus()
+      el.select()
+    })
   },
 }
 // Neue Notiz: das Feld beginnt mit dem heutigen Datum (Vorlesungen sortieren sich so von selbst), der Cursor steht dahinter.
@@ -88,10 +104,16 @@ function submit(done: (n: string) => void, cancel: () => void) {
   if (n) done(n)
   else cancel()
 }
-function startRename(n: NoteNode) {
-  name.value = label(n)
-  props.ctx.startRename(n.path, n.dir)
+// Rechtsklick öffnet am Mauszeiger, „⋯“ unter dem Knopf.
+function menu(e: MouseEvent, n: NoteNode) {
+  const el = e.currentTarget as HTMLElement
+  const main = el.closest('.nt-row')!.querySelector<HTMLElement>('.nt-main')!
+  const r = el.getBoundingClientRect()
+  if (e.type === 'contextmenu') openMenu(e.clientX, e.clientY, n, main)
+  else openMenu(r.left, r.bottom + 4, n, main)
 }
+// Die Kürzel selbst verarbeitet NotesSidebar (aus den Menüeinträgen); hier nur für Screenreader.
+const ARIA_KEYS = 'N Z O R F2 Backspace Delete'
 function dragStart(e: DragEvent, n: NoteNode) {
   e.dataTransfer?.setData('text/plain', n.path)
   if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
@@ -112,7 +134,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
         <svg class="ic nt-ic" :data-kind="kind(n)" aria-hidden="true"><use :href="icon(n)" /></svg>
         <input
           v-model="name"
-          v-focus
+          v-focus="label(n)"
           class="input nt-input"
           :aria-label="`${n.name} umbenennen`"
           @keydown.enter.prevent="submit(ctx.submitRename, ctx.cancelRename)"
@@ -123,12 +145,15 @@ function dragOver(e: DragEvent, n: NoteNode) {
       <div
         v-else
         class="nt-row"
+        :data-path="n.path"
         draggable="true"
         :class="{
           active: !n.dir && ctx.isActive(n.path),
+          cur: cur === n.path,
           drop: n.dir && ctx.dropTarget === n.path,
           dragging: ctx.dragging === n.path,
         }"
+        @contextmenu.prevent="menu($event, n)"
         @dragstart="dragStart($event, n)"
         @dragend="ctx.clearDrag()"
         @dragover="dragOver($event, n)"
@@ -141,10 +166,9 @@ function dragOver(e: DragEvent, n: NoteNode) {
           :style="indent()"
           :aria-expanded="n.dir ? ctx.open.has(n.path) : undefined"
           :aria-current="!n.dir && ctx.isActive(n.path) ? 'page' : undefined"
-          aria-keyshortcuts="F2"
+          :aria-keyshortcuts="`${ARIA_KEYS} ${n.dir ? 'E' : 'D'}`"
           @click="n.dir ? ctx.toggle(n.path) : ctx.select(n.path)"
-          @dblclick="startRename(n)"
-          @keydown.f2.prevent="startRename(n)"
+          @dblclick="ctx.startRename(n.path, n.dir)"
         >
           <svg
             class="ic nt-chev"
@@ -158,55 +182,15 @@ function dragOver(e: DragEvent, n: NoteNode) {
           </svg>
           <span class="nt-name">{{ label(n) }}</span>
         </button>
-        <span class="nt-act">
-          <template v-if="n.dir">
-            <button
-              type="button"
-              class="icon-btn"
-              :aria-label="$t('Neue Notiz in {name}', { name: n.name })"
-              :data-tip="$t('Neue Notiz')"
-              @click="ctx.startAdd(n.path, false)"
-            >
-              <svg class="ic"><use href="#i-plus" /></svg>
-            </button>
-            <button
-              type="button"
-              class="icon-btn"
-              :aria-label="$t('Neue Zeichnung in {name}', { name: n.name })"
-              :data-tip="$t('Neue Zeichnung')"
-              @click="ctx.startAdd(n.path, false, true)"
-            >
-              <svg class="ic"><use href="#i-draw" /></svg>
-            </button>
-            <button
-              type="button"
-              class="icon-btn"
-              :aria-label="$t('Neuer Ordner in {name}', { name: n.name })"
-              :data-tip="$t('Neuer Ordner')"
-              @click="ctx.startAdd(n.path, true)"
-            >
-              <svg class="ic"><use href="#i-proj" /></svg>
-            </button>
-          </template>
-          <button
-            type="button"
-            class="icon-btn"
-            :aria-label="`${label(n)} umbenennen`"
-            :data-tip="$t('Umbenennen (F2)')"
-            @click="startRename(n)"
-          >
-            <svg class="ic"><use href="#i-pen" /></svg>
-          </button>
-          <button
-            type="button"
-            class="icon-btn"
-            :aria-label="$t('{name} löschen', { name: label(n) })"
-            :data-tip="$t('Löschen')"
-            @click="ctx.remove(n, $event.currentTarget as HTMLElement)"
-          >
-            <svg class="ic"><use href="#i-trash" /></svg>
-          </button>
-        </span>
+        <button
+          type="button"
+          class="icon-btn nt-more"
+          :aria-label="$t('Weitere Aktionen für {name}', { name: label(n) })"
+          aria-haspopup="menu"
+          @click="menu($event, n)"
+        >
+          <svg class="ic"><use href="#i-more" /></svg>
+        </button>
       </div>
       <FoldTransition>
         <NoteTree
@@ -266,6 +250,9 @@ function dragOver(e: DragEvent, n: NoteNode) {
 }
 .nt-row.active {
   background: var(--bg-selected);
+}
+.nt-row.cur {
+  box-shadow: inset 0 0 0 1px var(--ring);
 }
 .nt-row.drop {
   background: var(--bg-selected);
@@ -329,22 +316,25 @@ function dragOver(e: DragEvent, n: NoteNode) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.nt-act {
+.nt-more {
   display: none;
-  gap: 2px;
-  padding-right: 4px;
-}
-.nt-act .icon-btn {
   width: 24px;
   height: 24px;
+  margin-right: 4px;
 }
-.nt-act .ic {
+.nt-more .ic {
   width: 13px;
   height: 13px;
 }
-.nt-row:hover .nt-act,
-.nt-row:focus-within .nt-act {
-  display: flex;
+.nt-row:hover .nt-more,
+.nt-row:focus-within .nt-more {
+  display: inline-flex;
+}
+/* Touch kennt kein Hover: „⋯“ bleibt sichtbar, Rechtsklick gibt es dort nicht. */
+@media (hover: none) {
+  .nt-more {
+    display: inline-flex;
+  }
 }
 .nt-new {
   display: flex;

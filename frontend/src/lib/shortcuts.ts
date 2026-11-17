@@ -47,6 +47,18 @@ export const SHORTCUTS: { title: string; keys: [string, string][] }[] = [
     ],
   },
   {
+    title: 'Notizen',
+    keys: [
+      ['N / Z / O', 'Neue Notiz / Zeichnung / Ordner'],
+      ['R / F2', 'Umbenennen'],
+      ['D', 'Duplizieren'],
+      ['E', 'Ordner als ZIP exportieren'],
+      ['⌫', 'Löschen'],
+      ['⌘ V', 'Dateien einfügen (z. B. aus dem Finder)'],
+      ['Esc', 'Editor verlassen, danach gelten die Tasten'],
+    ],
+  },
+  {
     title: 'Kalender',
     keys: [
       ['n', 'Neuer Eintrag'],

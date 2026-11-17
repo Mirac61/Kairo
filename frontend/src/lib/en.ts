@@ -445,7 +445,18 @@ const en: Record<string, string> = {
   Pausieren: 'Pause',
   'Pausieren …': 'Pause …',
   'Weitere Aktionen': 'More actions',
+  'Weitere Aktionen für {name}': 'More actions for {name}',
+  Duplizieren: 'Duplicate',
   Strg: 'Ctrl',
+  'Als ZIP exportieren': 'Export as ZIP',
+  'Neue Notiz / Zeichnung / Ordner': 'New note / drawing / folder',
+  'Ordner als ZIP exportieren': 'Export folder as ZIP',
+  'Dateien einfügen (z. B. aus dem Finder)': 'Paste files (e.g. from Finder)',
+  'Editor verlassen, danach gelten die Tasten': 'Leave the editor, then the keys work',
+  'Dateien …': 'Files …',
+  'Ordner …': 'Folder …',
+  'Dateien oder Ordner hinzufügen': 'Add files or folders',
+  'PDFs, Bilder, Notizen oder ganze Ordner hinzufügen': 'Add PDFs, images, notes or whole folders',
   'Urlaub bis {d}: nichts fällig, Serien laufen weiter.':
     'Vacation until {d}: nothing due, streaks keep going.',
   'Urlaub geplant: {d}': 'Vacation planned: {d}',
@@ -576,12 +587,6 @@ const en: Record<string, string> = {
   // Notizen
   'Neue Notiz': 'New note',
   'Neuer Ordner': 'New folder',
-  'Ordner hinzufügen': 'Add folder',
-  'Ordner mit Notizen, PDFs und Bildern hinzufügen': 'Add a folder of notes, PDFs and images',
-  'Neue Notiz in {name}': 'New note in {name}',
-  'Neuer Ordner in {name}': 'New folder in {name}',
-  '{name} löschen': 'Delete {name}',
-  'Umbenennen (F2)': 'Rename (F2)',
   Ordnername: 'Folder name',
   'Name der Notiz': 'Note name',
   'Name der neuen Notiz': 'Name of the new note',
@@ -590,12 +595,9 @@ const en: Record<string, string> = {
   Anzeigen: 'Show',
   'Kairo steht unter MIT. Hinweise zu Excalidraw, React und den Schriften.':
     'Kairo is MIT licensed. Notices for Excalidraw, React and the fonts.',
-  'Neue Zeichnung in {name}': 'New drawing in {name}',
   'Name der Zeichnung': 'Drawing name',
   'Name der neuen Zeichnung': 'Name of the new drawing',
   'Name des neuen Ordners': 'Name of the new folder',
-  'Datei hinzufügen': 'Add file',
-  'PDF, Bild oder Notiz hinzufügen': 'Add PDF, image or note',
   Vorlage: 'Template',
   Rückverweise: 'Backlinks',
   Ungespeichert: 'Unsaved',
@@ -623,10 +625,6 @@ const en: Record<string, string> = {
   '„{name}“ existiert schon.': '“{name}” already exists.',
   '„{name}“: Kairo nimmt nur Markdown, PDFs, Bilder (png, jpg, gif, webp), C/C++, Makefiles und Zeichnungen.':
     '“{name}”: Kairo only accepts Markdown, PDFs, images (png, jpg, gif, webp), C/C++, Makefiles and drawings.',
-  '„{name}“ löschen? Die Notiz landet in .trash im Notizordner.':
-    'Delete “{name}”? The note moves to .trash in the notes folder.',
-  'Ordner „{name}“ mit allem Inhalt löschen? Er landet in .trash im Notizordner.':
-    'Delete folder “{name}” with all its contents? It moves to .trash in the notes folder.',
   '„{name}“ wurde seit dem Laden außerhalb von Kairo geändert, zum Beispiel in VSCodium. Überschreiben ersetzt diese Änderungen durch deinen Stand aus Kairo.':
     '“{name}” was changed outside Kairo since it was loaded, for example in VSCodium. Overwrite replaces those changes with your version from Kairo.',
 
