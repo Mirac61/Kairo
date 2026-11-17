@@ -1,9 +1,12 @@
 import { computed, onMounted, ref } from 'vue'
 import {
+  createBackup,
   getHealth,
   getSettings,
+  listBackups,
   restartBackend,
   saveSettings,
+  type Backup,
   type Settings,
   type SettingsFile,
 } from '@/api/client'
@@ -15,6 +18,7 @@ export function useSettingsData() {
   const form = ref<SettingsFile>({})
   const version = ref('')
   const restarting = ref(false)
+  const backups = ref<Backup[]>([])
 
   // Leere Felder im Formular bedeuten Standardwert, wie in config.json.
   const dirty = computed(
@@ -29,6 +33,15 @@ export function useSettingsData() {
     data.value = await getSettings()
     form.value = { ...data.value.settings }
   })
+
+  const loadBackups = async () => {
+    backups.value = await listBackups()
+  }
+  const backupNow = () =>
+    run(async () => {
+      await createBackup()
+      await loadBackups()
+    })
 
   const save = () => run(() => saveSettings(form.value))
 
@@ -74,6 +87,7 @@ export function useSettingsData() {
 
   onMounted(() => {
     void load()
+    void loadBackups().catch(() => {})
     getHealth().then(
       (h) => (version.value = h.version),
       () => {},
@@ -85,6 +99,8 @@ export function useSettingsData() {
     form,
     version,
     restarting,
+    backups,
+    backupNow,
     dirty,
     error,
     save,

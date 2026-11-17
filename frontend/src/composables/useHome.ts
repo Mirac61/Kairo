@@ -14,7 +14,7 @@ import {
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import { useUndo } from '@/composables/useUndo'
-import { blockEndMinutes, doneSeconds, gaps, minutesOfDay } from '@/lib/dayPlan'
+import { blockEndMinutes, doneSeconds, gaps, isTimerLong, minutesOfDay } from '@/lib/dayPlan'
 import { locale, t } from '@/lib/i18n'
 import { prefs } from '@/lib/prefs'
 
@@ -125,6 +125,8 @@ function createHome() {
 
     return tasksById.value.get(lastPausedEntry.task_id)
   })
+
+  const timerLong = computed(() => isTimerLong(runningEntry.value?.started_at, now.value))
 
   // Heute schon erfasste Zeit der Task plus laufender Eintrag, damit der Timer nach Pause weiterzählt.
   const runningSeconds = computed(() => {
@@ -276,6 +278,7 @@ function createHome() {
     runningTaskId,
     pausedTask,
     runSecs: runningSeconds,
+    timerLong,
     blocks,
     allDay,
     freeGaps,

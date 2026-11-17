@@ -34,6 +34,7 @@ export const SHORTCUTS: { title: string; keys: [string, string][] }[] = [
       ['x', 'Erledigt'],
       ['s', 'Timer starten oder pausieren'],
       ['t', 'Auf heute legen'],
+      ['m', 'Auf morgen legen'],
     ],
   },
   {

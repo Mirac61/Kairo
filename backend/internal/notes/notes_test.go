@@ -192,6 +192,7 @@ func TestHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer s.Close() // Windows löscht das TempDir sonst nicht
 	clock := time.Date(2026, 11, 16, 10, 0, 0, 0, time.Local)
 	now = func() time.Time { return clock }
 	defer func() { now = time.Now }()

@@ -7,6 +7,7 @@ import {
   doneSeconds,
   findSlot,
   gaps,
+  isTimerLong,
   minutesOfDay,
   stopwatch,
 } from '../src/lib/dayPlan.ts'
@@ -96,4 +97,12 @@ test('freie Lücken', () => {
     [b(540, 600)],
     'Blöcke nach dem Fenster kürzen nichts',
   )
+})
+
+test('isTimerLong: erst ab 4 Stunden am Stück', () => {
+  const start = '2026-11-16T08:00:00.000Z'
+  const at = (h: number) => Date.parse(start) + h * 3600_000
+  assert.equal(isTimerLong(start, at(3.9)), false)
+  assert.equal(isTimerLong(start, at(4)), true)
+  assert.equal(isTimerLong(undefined, at(9)), false) // kein laufender Eintrag
 })

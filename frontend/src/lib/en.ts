@@ -283,6 +283,8 @@ const en: Record<string, string> = {
   'Diese Fassung wiederherstellen': 'Restore this version',
   'Noch keine älteren Fassungen. Sie entstehen beim Speichern, höchstens alle 5 Minuten.':
     'No older versions yet. They are created on save, at most every 5 minutes.',
+  '{n} überfällige auf heute gelegt': '{n} overdue moved to today',
+  'Überfällige auf heute': 'Move overdue to today',
   '„{title}“ angelegt': '“{title}” created',
   '↑↓ wählen · Tab übernehmen': '↑↓ choose · Tab accept',
   Sortierung: 'Sort',
@@ -637,6 +639,7 @@ const en: Record<string, string> = {
   'Nächste / vorige': 'Next / previous',
   'Timer starten oder pausieren': 'Start or pause timer',
   'Auf heute legen': 'Move to today',
+  'Auf morgen legen': 'Move to tomorrow',
   Abhaken: 'Check off',
   'Voriger / nächster Tag': 'Previous / next day',
   'Zurück / weiter': 'Back / forward',
@@ -768,6 +771,12 @@ const en: Record<string, string> = {
   'Neu starten': 'Restart',
   Daten: 'Data',
   'Automatische Backups': 'Automatic backups',
+  'Letztes Backup': 'Last backup',
+  gespeichert: 'stored',
+  'Noch kein Backup.': 'No backup yet.',
+  'Jetzt sichern': 'Back up now',
+  'Der Timer läuft seit über 4 Stunden. Brauchst du ihn noch?':
+    'The timer has been running for over 4 hours. Still need it?',
   'Beim Start sichert Kairo die Datenbank nach backups/ neben der Datenbank, wenn das letzte Backup älter als einen Tag ist oder ein Update ansteht. Die neuesten 14 bleiben.':
     'On start Kairo copies the database to backups/ next to it if the last backup is older than a day or an update is pending. The newest 14 are kept.',
   'Backup von Hand': 'Manual backup',
