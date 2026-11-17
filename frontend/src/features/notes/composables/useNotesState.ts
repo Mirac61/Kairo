@@ -143,12 +143,13 @@ export function useNotesState() {
     openFile,
     blank,
     visible,
+    isDirty,
     panes: PANES,
   })
 
-  function onPickUploads(uploads: Upload[]) {
+  function onPickUploads(uploads: Upload[], dir?: string) {
     const p = paths[current.value] ?? paths.note ?? paths.doc
-    void addFiles(p ? parentOf(p) : '', uploads)
+    void addFiles(dir ?? (p ? parentOf(p) : ''), uploads)
   }
 
   function openDrawing(p: string) {

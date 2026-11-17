@@ -1,13 +1,15 @@
 import { reactive, type Ref } from 'vue'
-import { useConfirm } from 'primevue/useconfirm'
+import { useUndo } from '@/composables/useUndo'
 import {
   ApiError,
+  copyNote,
   createNote,
   deleteNote,
   errorMessage,
   listNotes,
   moveNote,
   saveNote,
+  untrashNote,
   uploadFile,
   type NoteNode,
 } from '@/api/client'
@@ -35,11 +37,12 @@ interface TreeOpsOptions {
   openFile: (p: string) => Promise<void>
   blank: () => Buf
   visible: (p: Pane) => boolean
+  isDirty: (p: Pane) => boolean
   panes: Pane[]
 }
 
 export function useNoteTreeOps(opts: TreeOpsOptions) {
-  const { tree, paths, bufs, shown, error, openFile, blank, visible, panes } = opts
+  const { tree, paths, bufs, shown, error, openFile, blank, visible, isDirty, panes } = opts
 
   function readOpen(): string[] {
     try {
@@ -49,7 +52,7 @@ export function useNoteTreeOps(opts: TreeOpsOptions) {
     }
   }
   const saveOpen = () => store.set('kairo-notes-open', JSON.stringify([...ctx.open]))
-  const confirmPopup = useConfirm()
+  const { offer } = useUndo()
   let renamingDir = false
 
   const ctx: TreeCtx = reactive({
@@ -91,7 +94,14 @@ export function useNoteTreeOps(opts: TreeOpsOptions) {
     cancelRename() {
       ctx.renaming = null
     },
-    remove: (n: NoteNode, anchor: HTMLElement) => remove(n, anchor),
+    remove: (n: NoteNode) => void remove(n),
+    duplicate: (n: NoteNode) => void duplicate(n),
+    exportDir(n: NoteNode) {
+      const a = document.createElement('a')
+      a.href = `/api/export.zip?${new URLSearchParams({ path: n.path })}`
+      a.download = ''
+      a.click()
+    },
     drop: (dir: string, dt?: DataTransfer | null) => void drop(dir, dt),
   })
 
@@ -210,37 +220,49 @@ export function useNoteTreeOps(opts: TreeOpsOptions) {
     if (last) await openFile(last)
   }
 
-  function remove(n: NoteNode, anchor: HTMLElement) {
-    confirmPopup.require({
-      target: anchor,
-      message: n.dir
-        ? t('Ordner „{name}“ mit allem Inhalt löschen? Er landet in .trash im Notizordner.', {
-            name: n.name,
-          })
-        : t('„{name}“ löschen? Die Notiz landet in .trash im Notizordner.', {
-            name: n.name.replace(/\.md$/i, ''),
-          }),
-      acceptLabel: t('Löschen'),
-      rejectLabel: t('Abbrechen'),
-      defaultFocus: 'reject',
-      acceptProps: { size: 'small' },
-      rejectProps: { severity: 'secondary', size: 'small', text: true },
-      accept: async () => {
-        try {
-          await deleteNote(n.path)
-          for (const pn of panes) {
-            if (!paths[pn] || !under(paths[pn]!, n.path)) continue
-            paths[pn] = null
-            Object.assign(bufs[pn], blank())
-          }
-          if (!paths[shown.value]) shown.value = paths.doc ? 'doc' : 'note'
-          tree.value = await listNotes()
-          error.value = ''
-        } catch (e) {
-          error.value = errorMessage(e)
-        }
-      },
-    })
+  async function duplicate(n: NoteNode) {
+    try {
+      const { path } = await copyNote(n.path)
+      tree.value = await listNotes()
+      await openFile(path)
+      error.value = ''
+    } catch (e) {
+      error.value = errorMessage(e)
+    }
+  }
+
+  // Wie Aufgaben und Gewohnheiten: sofort löschen (nach .trash), Rückgängig im Toast holt es zurück.
+  async function remove(n: NoteNode) {
+    // Rückgängig holt nur die gespeicherte Fassung zurück, wie beim Wechsel der Datei erst fragen.
+    const open = panes.filter((pn) => paths[pn] && under(paths[pn]!, n.path))
+    if (open.some(isDirty) && !confirm(t('Ungespeicherte Änderungen verwerfen?'))) return
+    try {
+      const { trash } = await deleteNote(n.path)
+      const reopen = panes.map((pn) => paths[pn]).find((p) => p && under(p, n.path))
+      for (const pn of open) {
+        paths[pn] = null
+        Object.assign(bufs[pn], blank())
+      }
+      if (!paths[shown.value]) shown.value = paths.doc ? 'doc' : 'note'
+      tree.value = await listNotes()
+      error.value = ''
+      offer(t('„{title}“ gelöscht', { title: n.dir ? n.name : n.name.replace(/\.md$/i, '') }), () =>
+        untrash(trash, n.path, reopen),
+      )
+    } catch (e) {
+      error.value = errorMessage(e)
+    }
+  }
+
+  async function untrash(from: string, to: string, reopen?: string | null) {
+    try {
+      await untrashNote(from, to)
+      tree.value = await listNotes()
+      if (reopen) await openFile(reopen)
+      error.value = ''
+    } catch (e) {
+      error.value = errorMessage(e)
+    }
   }
 
   async function add(name: string) {
