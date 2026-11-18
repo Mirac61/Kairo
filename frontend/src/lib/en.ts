@@ -762,6 +762,18 @@ const en: Record<string, string> = {
   'Gelöschte Notizen landen in .trash im Notizordner.':
     'Deleted notes go to .trash in the notes folder.',
   Version: 'Version',
+  Updates: 'Updates',
+  'Prüfe, ob auf GitHub eine neuere Fassung liegt.': 'Checking GitHub for a newer version.',
+  'Auf einem Raspberry Pi übernimmt ./deploy.sh die Aktualisierung.':
+    'On a Raspberry Pi, ./deploy.sh handles updates.',
+  'Version {version} ist verfügbar.': 'Version {version} is available.',
+  'Eigener Build: neue Fassungen kommen aus dem Repository.':
+    'Custom build: new versions come from the repository.',
+  'Kairo ist aktuell ({version}).': 'Kairo is up to date ({version}).',
+  Aktualisieren: 'Update',
+  'Nach Updates suchen': 'Check for updates',
+  'Die neue Fassung läuft noch nicht. Kairo einmal neu starten.':
+    'The new version is not running yet. Restart Kairo once.',
   Konfigurationsdatei: 'Config file',
   'Hier speichert Kairo Notizordner, Arbeitszeit und Zeitzone. Umgebungsvariablen haben Vorrang.':
     'Kairo stores the notes folder, working hours and time zone here. Environment variables take precedence.',

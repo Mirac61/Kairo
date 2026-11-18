@@ -962,3 +962,24 @@ export function restartBackend(): Promise<void> {
     method: 'POST',
   })
 }
+
+// ============================================================================
+// Updates (GitHub-Releases)
+// ============================================================================
+
+export interface UpdateStatus {
+  current: string
+  latest: string
+  available: boolean
+  url: string
+  disabled: boolean // Raspberry Pi oder KAIRO_UPDATE=off: dort aktualisiert ./deploy.sh
+}
+
+export function checkUpdate(): Promise<UpdateStatus> {
+  return api<UpdateStatus>('/update')
+}
+
+// Ersetzt das Binary; das Backend startet danach neu (202).
+export function applyUpdate(): Promise<void> {
+  return api<void>('/update', { method: 'POST' })
+}

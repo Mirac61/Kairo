@@ -1,5 +1,6 @@
-# Release-Build: `git tag v0.1.0 && git push --tags` startet .github/workflows/release.yml.
-# Lokal ausprobieren: goreleaser release --snapshot --clean (Ergebnis in dist/).
+# Release-Build. Tag und Release legt release-please aus den Conventional Commits an
+# (.github/workflows/release.yml); ein eigener Tag (git tag v0.2.0 && git push --tags)
+# geht weiterhin. Lokal ausprobieren: goreleaser release --snapshot --clean (Ergebnis in dist/).
 version: 2
 project_name: kairo
 
@@ -29,5 +30,7 @@ checksum:
   name_template: checksums.txt
 
 release:
+  # Der Release-Text kommt von release-please (CHANGELOG.md); goreleaser hängt nur die Dateien an.
+  mode: keep-existing
   extra_files:
     - glob: ./extension/*.vsix

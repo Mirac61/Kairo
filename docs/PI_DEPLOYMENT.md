@@ -34,6 +34,11 @@ cp .env.example .env   # einmalig: PI=<benutzer>@<pi-host> eintragen
 make deploy            # oder direkt: PI=<benutzer>@<pi-host> ./deploy.sh
 ```
 
+Auf dem Pi sind die Selbst-Updates aus (`kairo update` verweist auf dieses
+Skript, die WebUI bietet sie dort nicht an); neue Fassungen kommen so auf den
+Pi. Auf dem Laptop holt `kairo update` bzw. Einstellungen → System die neue
+Fassung direkt von GitHub.
+
 Das Skript prüft die Architektur des Pi (`armv6l`, `armv7l`, `aarch64`)
 und liest die WireGuard-Adresse von `wg0` auf dem Pi aus. Danach baut es
 WebUI und Binary, kopiert alles nach `~/kairo` und installiert

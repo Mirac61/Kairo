@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { computed, toRef } from 'vue'
 import type { Backup, Settings } from '@/api/client'
+import { t } from '@/lib/i18n'
+import { useUpdate } from '../composables/useUpdate'
 
-defineProps<{
+const props = defineProps<{
   version: string
   data: Settings | null
   restarting: boolean
@@ -12,6 +15,23 @@ defineEmits<{
   restart: []
   backup: []
 }>()
+
+const { status, error: updateError, busy, check, install } = useUpdate(toRef(props, 'version'))
+
+const hint = computed(() => {
+  const s = status.value
+  if (!s) return t('Prüfe, ob auf GitHub eine neuere Fassung liegt.')
+  if (s.disabled) return t('Auf einem Raspberry Pi übernimmt ./deploy.sh die Aktualisierung.')
+  if (s.available) return t('Version {version} ist verfügbar.', { version: s.latest })
+  // Ein eigener Build („dev“) trägt keine Release-Nummer.
+  if (!/^\d+\.\d+\.\d+$/.test(s.current))
+    return t('Eigener Build: neue Fassungen kommen aus dem Repository.')
+  return t('Kairo ist aktuell ({version}).', { version: s.latest })
+})
+
+const actionLabel = computed(() =>
+  busy.value ? t('Lädt …') : status.value?.available ? t('Aktualisieren') : t('Nach Updates suchen'),
+)
 </script>
 
 <template>
@@ -24,6 +44,22 @@ defineEmits<{
         <div class="st-t">{{ $t('Version') }}</div>
       </div>
       <code class="st-val">{{ version || '–' }}</code>
+    </div>
+    <div class="st-row">
+      <div class="st-text">
+        <div class="st-t">{{ $t('Updates') }}</div>
+        <div class="st-h">{{ hint }}</div>
+        <div v-if="updateError" class="st-h" role="alert">{{ updateError }}</div>
+      </div>
+      <button
+        v-if="!status?.disabled"
+        type="button"
+        class="btn btn-secondary"
+        :disabled="busy"
+        @click="status?.available ? install() : check()"
+      >
+        {{ actionLabel }}
+      </button>
     </div>
     <div class="st-row">
       <div class="st-text">
