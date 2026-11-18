@@ -46,15 +46,16 @@ func main() {
 // dispatch führt "install", "uninstall", "backup", "restore", "import", "update" oder (ohne Argument) den Server aus.
 func dispatch(args []string) error {
 	if len(args) == 0 {
+		// Vor dem Start lesen: nach einem Update meldet Linux sonst "<pfad> (deleted)".
+		bin, err := os.Executable()
+		if err != nil {
+			return err
+		}
 		if err := run(); !errors.Is(err, errRestart) {
 			return err
 		}
 		// Neustart aus der WebUI: dasselbe Binary mit denselben Argumenten und
 		// derselben Umgebung liest config.json neu.
-		bin, err := os.Executable()
-		if err != nil {
-			return err
-		}
 		return restartSelf(bin)
 	}
 	switch args[0] {

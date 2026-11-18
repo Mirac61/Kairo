@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"sync"
 
 	"kairo/internal/update"
 )
@@ -14,6 +15,8 @@ type Updates struct {
 	Current  string
 	Disabled bool
 	Restart  func()
+
+	busy sync.Mutex // ein Update zugleich
 }
 
 type updateHandlers struct{ u *Updates }
@@ -45,6 +48,11 @@ func (h updateHandlers) install(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if !h.u.busy.TryLock() {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "Ein Update läuft bereits."})
+		return
+	}
+	defer h.u.busy.Unlock()
 	rel, err := h.u.Client.Latest(r.Context())
 	if err != nil {
 		writeError(w, err)

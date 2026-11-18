@@ -91,7 +91,9 @@ func (c *Client) Status(ctx context.Context, current string) (Status, error) {
 	if err != nil {
 		return Status{Current: current}, err
 	}
-	return Status{Current: current, Latest: rel.Version, Available: Newer(rel.Version, current), URL: rel.URL}, nil
+	// Das Release ist kurz vor dem Upload der Archive schon "latest"; ohne Archiv gibt es nichts zu holen.
+	_, hasArchive := rel.asset(AssetName(rel.Version, c.goos(), c.goarch()))
+	return Status{Current: current, Latest: rel.Version, Available: hasArchive && Newer(rel.Version, current), URL: rel.URL}, nil
 }
 
 // Install lädt das Archiv für dieses System, prüft es gegen checksums.txt und

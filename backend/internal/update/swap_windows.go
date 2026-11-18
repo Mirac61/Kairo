@@ -5,7 +5,7 @@ package update
 import "os"
 
 // swap ersetzt exe durch tmp. Windows lässt eine laufende .exe nicht überschreiben,
-// aber umbenennen; der Rest heißt exe + ".alt" und verschwindet beim nächsten Lauf.
+// aber umbenennen; der Rest heißt exe + ".alt" und wird beim nächsten Update gelöscht.
 func swap(exe, tmp string) error {
 	old := exe + ".alt"
 	_ = os.Remove(old)

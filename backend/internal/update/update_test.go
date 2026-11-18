@@ -187,6 +187,11 @@ func TestInstall(t *testing.T) {
 	if st, _ = c.Status(ctx, "0.2.0"); st.Available {
 		t.Error("gleiche Fassung gilt als Update")
 	}
+	c.GOARCH = "riscv64" // kein Archiv für dieses System: noch kein Update anbieten
+	if st, _ = c.Status(ctx, "0.1.0"); st.Available {
+		t.Error("Update ohne Archiv angeboten")
+	}
+	c.GOARCH = "arm64"
 
 	got, err := c.Install(ctx, rel)
 	if err != nil {
