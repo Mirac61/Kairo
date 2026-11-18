@@ -147,7 +147,6 @@ function onHeatKey(e: KeyboardEvent, c: HeatCell) {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  margin-top: 16px;
 }
 .jr-streak {
   font: 400 13px/1.4 var(--font-ui);

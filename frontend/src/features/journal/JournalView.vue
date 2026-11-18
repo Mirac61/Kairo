@@ -134,72 +134,64 @@ function pickPaper(p: 'coffee' | 'white' | 'black') {
 <template>
   <div class="view-inner jr-wrap">
     <div class="jr-page">
-      <!-- Kopf -->
-      <header class="jr-head">
-        <div class="jr-head-row">
-          <div>
-            <div class="jr-head-kicker">
-              {{ $tn(totalEntriesCount, '{n} Eintrag', '{n} Einträge') }}
-            </div>
-            <h1 class="jr-title">{{ $t('Journal') }}</h1>
-          </div>
+      <!-- Eine Kopfzeile: Streak und Punktreihe links, Werkzeuge rechts -->
+      <header class="v-head">
+        <h1 class="v-title sr-only">{{ $t('Journal') }}</h1>
+        <div class="v-head-row jr-head-row">
+          <JournalHeatmap
+            :all-dates="allDates"
+            :today-str="todayStr"
+            :active-date="pageDate"
+            :streak="currentStreak"
+            @select="openDay"
+            @backfill="openBackfillModal"
+          />
 
-          <div class="menu-wrap" @keydown.esc="isPaperMenuOpen = false">
-            <button
-              type="button"
-              class="icon-btn jr-more-btn"
-              :aria-label="$t('Weitere Optionen')"
-              :aria-expanded="isPaperMenuOpen"
-              @click="isPaperMenuOpen = !isPaperMenuOpen"
-            >
-              <svg class="ic"><use href="#i-more" /></svg>
+          <div class="jr-tools">
+            <SearchField
+              v-if="pastRows.length"
+              v-model="pastSearch"
+              :label="$t('Einträge durchsuchen')"
+            />
+            <button type="button" class="col-link" @click="openBackfillModal()">
+              {{ $t('Nachtragen') }}
             </button>
+            <div class="menu-wrap" @keydown.esc="isPaperMenuOpen = false">
+              <button
+                type="button"
+                class="icon-btn jr-more-btn"
+                :aria-label="$t('Weitere Optionen')"
+                :aria-expanded="isPaperMenuOpen"
+                @click="isPaperMenuOpen = !isPaperMenuOpen"
+              >
+                <svg class="ic"><use href="#i-more" /></svg>
+              </button>
 
-            <template v-if="isPaperMenuOpen">
-              <div class="menu-scrim" @click="isPaperMenuOpen = false"></div>
-              <div class="menu jr-paper-menu" role="menu">
-                <span class="menu-l">{{ $t('Papier') }}</span>
-                <div class="jr-papers" role="group" :aria-label="$t('Papier')">
-                  <button
-                    v-for="p in PAPERS"
-                    :key="p"
-                    type="button"
-                    class="jr-paper-pick"
-                    :class="`is-${p}`"
-                    :aria-pressed="prefs.journalPaper === p"
-                    :aria-label="PAPER_LABELS[p]"
-                    :title="PAPER_LABELS[p]"
-                    @click="pickPaper(p)"
-                  ></button>
+              <template v-if="isPaperMenuOpen">
+                <div class="menu-scrim" @click="isPaperMenuOpen = false"></div>
+                <div class="menu jr-paper-menu" role="menu">
+                  <span class="menu-l">{{ $t('Papier') }}</span>
+                  <div class="jr-papers" role="group" :aria-label="$t('Papier')">
+                    <button
+                      v-for="p in PAPERS"
+                      :key="p"
+                      type="button"
+                      class="jr-paper-pick"
+                      :class="`is-${p}`"
+                      :aria-pressed="prefs.journalPaper === p"
+                      :aria-label="PAPER_LABELS[p]"
+                      :title="PAPER_LABELS[p]"
+                      @click="pickPaper(p)"
+                    ></button>
+                  </div>
                 </div>
-              </div>
-            </template>
+              </template>
+            </div>
           </div>
         </div>
-
-        <!-- Streak & Punktreihe -->
-        <JournalHeatmap
-          :all-dates="allDates"
-          :today-str="todayStr"
-          :active-date="pageDate"
-          :streak="currentStreak"
-          @select="openDay"
-          @backfill="openBackfillModal"
-        />
       </header>
 
       <div v-if="errorMessageText" class="badge" role="alert">{{ errorMessageText }}</div>
-
-      <div class="jr-tools">
-        <button type="button" class="col-link" @click="openBackfillModal()">
-          {{ $t('Nachtragen') }}
-        </button>
-        <SearchField
-          v-if="pastRows.length"
-          v-model="pastSearch"
-          :label="$t('Einträge durchsuchen')"
-        />
-      </div>
 
       <p v-if="normalizedSearchTerm && !visiblePastRows.length" class="v-sub jr-nohit">
         {{ $t('Keine Treffer für „{q}“.', { q: pastSearch.trim() }) }}
@@ -252,27 +244,9 @@ function pickPaper(p: 'coffee' | 'white' | 'black') {
   width: 100%;
 }
 
-/* Kopf */
-.jr-head {
-  margin-bottom: 16px;
-}
 .jr-head-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
+  flex-wrap: wrap;
 }
-.jr-head-kicker {
-  font: 500 13px/1 var(--font-ui);
-  color: var(--tx-muted);
-}
-.jr-title {
-  margin: 6px 0 0;
-  font: 400 38px/1.15 var(--font-serif);
-  color: var(--tx-primary);
-  letter-spacing: -0.01em;
-}
-
 /* Papierwahl: drei Farbfelder */
 .jr-papers {
   display: flex;
@@ -315,10 +289,8 @@ function pickPaper(p: 'coffee' | 'white' | 'black') {
 .jr-tools {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  min-height: 32px;
-  margin-bottom: 12px;
+  margin-left: auto;
 }
 button.col-link {
   padding: 0;
@@ -356,11 +328,5 @@ button.col-link:hover {
   padding: 2px 4px 6px;
   font: 500 12px/1 var(--font-ui);
   color: var(--tx-muted);
-}
-
-@media (max-width: 640px) {
-  .jr-title {
-    font-size: 30px;
-  }
 }
 </style>
