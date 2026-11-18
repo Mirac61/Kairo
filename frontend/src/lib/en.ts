@@ -141,6 +141,7 @@ const en: Record<string, string> = {
   Heute: 'Today',
   '{done} von {target}': '{done} of {target}',
   'von {plan} geplant': 'of {plan} planned',
+  'von {n} Aufgaben': 'of {n} tasks',
   'Noch nichts geplant': 'Nothing planned yet',
   'Starte einen Timer an einer Aufgabe, dann erscheint die Zeit hier.':
     'Start a timer on a task and the time shows up here.',
@@ -198,7 +199,6 @@ const en: Record<string, string> = {
   'Aufgabe wählen': 'Choose task',
   'Alle Aufgaben': 'All tasks',
   'Offene Aufgaben': 'Open tasks',
-  'Aufgaben dieser Woche': 'Tasks this week',
   Offen: 'Open',
   offen: 'open',
   Erledigt: 'Done',
@@ -336,7 +336,6 @@ const en: Record<string, string> = {
   Erfasst: 'Tracked',
   frei: 'free',
   'Frei ab jetzt': 'Free from now',
-  Kalenderzeit: 'Calendar time',
   'Kommt noch': 'Coming up',
   'geplant {time}': 'planned {time}',
   '{time} geplant': '{time} planned',
