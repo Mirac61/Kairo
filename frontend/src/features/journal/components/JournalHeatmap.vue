@@ -220,5 +220,9 @@ function onHeatKey(e: KeyboardEvent, c: HeatCell) {
   .jr-streak {
     display: none;
   }
+  /* Die aufgeschlagene Seite bleibt markiert, auch wenn sie älter ist */
+  .jr-heat-cell.open {
+    display: block;
+  }
 }
 </style>

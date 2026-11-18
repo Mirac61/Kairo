@@ -73,7 +73,8 @@
   border-radius: 50%;
   background: var(--tx-muted);
 }
-.jr-recap + :deep(.je) {
+/* Margins kollabieren: nach jedem Rückblick-Block 36 px bis zur ersten Frage */
+.jr-block + :deep(.je) {
   margin-top: 36px;
 }
 
