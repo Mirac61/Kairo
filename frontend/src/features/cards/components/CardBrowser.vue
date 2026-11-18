@@ -83,7 +83,8 @@ const rows = computed(() => {
         : a[key].localeCompare(b[key], locale.value),
   )
 })
-const sel = computed(() => props.cards.find((c) => c.key === selKey.value) ?? rows.value[0])
+// Der Editor erscheint erst, wenn eine Karte gewählt ist.
+const sel = computed(() => props.cards.find((c) => c.key === selKey.value))
 
 const dateFmt = computed(
   () => new Intl.DateTimeFormat(locale.value, { day: 'numeric', month: 'short' }),
@@ -197,6 +198,8 @@ useShortcuts((e) => {
   } else if (/^[1-9]$/.test(e.key)) {
     const d = props.decks[Number(e.key) - 1]
     if (d) deck.value = d.name
+  } else if (e.key === 'Escape' && selKey.value) {
+    selKey.value = null
   } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault()
     const i = rows.value.findIndex((c) => c.key === sel.value?.key)
@@ -212,12 +215,6 @@ useShortcuts((e) => {
     <aside class="kb-side">
       <h1 class="v-title kb-title sr-only">{{ $t('Lernkarten') }}</h1>
       <div class="kb-group" role="group" :aria-label="$t('Fächer')">
-        <div class="kb-dh" aria-hidden="true">
-          <span>{{ $t('Fach') }}</span
-          ><span>{{ $t('Neu') }}</span
-          ><span>{{ $t('Lern.') }}</span
-          ><span>{{ $t('Fällig') }}</span>
-        </div>
         <button
           v-for="d in deckRows"
           :key="d.name"
@@ -234,9 +231,7 @@ useShortcuts((e) => {
             ></i
             ><span class="kb-fname" :title="d.label">{{ d.label }}</span></span
           >
-          <b class="mono" :class="{ z: !d.new_due }">{{ d.new_due }}</b>
-          <b class="mono" :class="{ z: !d.learn_due }">{{ d.learn_due }}</b>
-          <b class="mono due" :class="{ z: !d.review }">{{ d.review }}</b>
+          <b class="due" :class="{ z: !d.due }">{{ d.due }}</b>
         </button>
         <form v-if="addingDeck" class="kb-newdeck" @submit.prevent="addDeck">
           <input
@@ -253,22 +248,6 @@ useShortcuts((e) => {
         </form>
         <button v-else type="button" class="kb-fi kb-add" @click="addingDeck = true">
           {{ $t('+ Fach anlegen') }}
-        </button>
-      </div>
-      <div class="kb-group" role="group" :aria-label="$t('Ansicht')">
-        <div class="kb-gh">{{ $t('Ansicht') }}</div>
-        <button
-          v-for="[f, label] in FILTERS"
-          :key="f"
-          type="button"
-          class="kb-fi"
-          :aria-pressed="filter === f"
-          @click="filter = f"
-        >
-          {{ label
-          }}<b class="mono">{{
-            cards.filter((c) => TESTS[f](c) && (!deck || c.deck === deck)).length
-          }}</b>
         </button>
       </div>
       <p class="kb-stats">
@@ -288,7 +267,14 @@ useShortcuts((e) => {
             ></span
           >
         </div>
-        <label class="kb-search">
+        <select v-model="filter" class="kb-filter" :aria-label="$t('Ansicht')">
+          <option v-for="[f, label] in FILTERS" :key="f" :value="f">
+            {{ label }} ({{
+              cards.filter((c) => TESTS[f](c) && (!deck || c.deck === deck)).length
+            }})
+          </option>
+        </select>
+        <label class="kb-search" :title="`${$t('Suchen')} (/)`">
           <svg class="ic" aria-hidden="true"><use href="#i-search" /></svg>
           <input
             ref="searchEl"
@@ -297,7 +283,6 @@ useShortcuts((e) => {
             :aria-label="$t('Karten durchsuchen')"
             :placeholder="$t('Suchen')"
           />
-          <kbd>/</kbd>
         </label>
         <button
           v-if="deck"
@@ -309,17 +294,23 @@ useShortcuts((e) => {
         >
           ⋯
         </button>
-        <button type="button" class="btn btn-secondary" @click="emit('add', deck || null)">
-          {{ $t('Hinzufügen') }}<kbd>N</kbd>
+        <button
+          type="button"
+          class="icon-btn"
+          :aria-label="$t('Hinzufügen')"
+          :title="`${$t('Hinzufügen')} (N)`"
+          @click="emit('add', deck || null)"
+        >
+          <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
         </button>
         <button
           type="button"
           class="btn btn-primary"
           :disabled="!current.due"
+          :title="current.due ? `${$t('Lernen')} (L)` : undefined"
           @click="emit('learn', deck || null)"
         >
-          {{ current.due ? $t('{n} lernen', { n: current.due }) : $t('Nichts fällig')
-          }}<kbd v-if="current.due">L</kbd>
+          {{ current.due ? $t('{n} lernen', { n: current.due }) : $t('Nichts fällig') }}
         </button>
       </header>
       <div v-if="error" class="badge" role="alert">{{ error }}</div>
@@ -345,7 +336,7 @@ useShortcuts((e) => {
           role="row"
           class="kb-tr"
           :class="{ on: c.key === sel?.key }"
-          @click="selKey = c.key"
+          @click="selKey = c.key === sel?.key ? null : c.key"
         >
           <span class="kb-cell kb-q">{{ c.question }}</span>
           <span class="kb-cell kb-a">{{ c.answer }}</span>
@@ -370,7 +361,18 @@ useShortcuts((e) => {
         </p>
       </div>
 
-      <section v-if="sel" class="kb-edit" :aria-label="$t('Karte bearbeiten')">
+      <section
+        v-if="sel"
+        class="kb-edit"
+        :aria-label="$t('Karte bearbeiten')"
+        :title="
+          sel.id
+            ? $t(
+                'Markdown, $Formeln$ und Bilder gehen. Speichert beim Verlassen des Felds; eine neue Frage beginnt von vorn.',
+              )
+            : undefined
+        "
+      >
         <template v-if="sel.id">
           <div v-if="!previewMode" class="kb-edit-fields">
             <div class="field">
@@ -393,13 +395,6 @@ useShortcuts((e) => {
                 @change="save"
               ></textarea>
             </div>
-            <p class="kb-hint">
-              {{
-                $t(
-                  'Markdown, $Formeln$ und Bilder gehen. Speichert beim Verlassen des Felds; eine neue Frage beginnt von vorn.',
-                )
-              }}
-            </p>
           </div>
           <div v-else class="kb-preview-card">
             <CardText class="kb-preview-front" :text="form.question || '–'" />
@@ -490,25 +485,11 @@ useShortcuts((e) => {
   flex-direction: column;
   gap: 2px;
 }
-.kb-gh {
-  padding: 0 10px 4px;
-  font: 400 12px/1 var(--font-ui);
-  color: var(--tx-muted);
-}
-.kb-dh,
 .kb-deck {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 26px 26px 34px;
+  grid-template-columns: minmax(0, 1fr) 34px;
   gap: 4px;
   align-items: center;
-}
-.kb-dh {
-  padding: 0 10px 6px;
-  font: 400 11px/1 var(--font-ui);
-  color: var(--tx-muted);
-}
-.kb-dh span + span {
-  text-align: right;
 }
 .kb-deck,
 .kb-fi {
@@ -542,9 +523,7 @@ useShortcuts((e) => {
   text-align: right;
   font-size: 12.5px;
   font-weight: 500;
-  color: var(--tx-secondary);
-}
-.kb-deck b.due {
+  font-variant-numeric: tabular-nums;
   color: var(--a-blue-tx);
 }
 .kb-deck b.z {
@@ -657,21 +636,18 @@ useShortcuts((e) => {
   padding: 0;
   justify-content: center;
 }
-kbd {
-  margin-left: 8px;
-  font: 500 10.5px/1 var(--font-mono);
-  padding: 2px 5px;
-  border-radius: 4px;
-  border: 1px solid var(--br-default);
-  color: var(--tx-muted);
+.kb-filter {
+  height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: var(--tx-secondary);
+  font: 400 13.5px/1 var(--font-ui);
+  cursor: pointer;
 }
-.kb-search kbd {
-  margin-left: auto;
-}
-.btn-primary kbd {
-  border-color: color-mix(in srgb, var(--tx-on-accent) 35%, transparent);
-  color: inherit;
-  opacity: 0.8;
+.kb-filter:hover {
+  background: var(--bg-hover);
 }
 
 .kb-table {
@@ -897,10 +873,7 @@ kbd {
   .kb-title {
     margin: 0 4px;
   }
-  .kb-group[aria-label] + .kb-group,
-  .kb-stats,
-  .kb-dh,
-  kbd {
+  .kb-stats {
     display: none;
   }
   .kb-group {
@@ -917,7 +890,6 @@ kbd {
     border: 1px solid var(--br-default);
     border-radius: 999px;
   }
-  .kb-deck b:not(.due),
   .kb-deck b.z {
     display: none;
   }
