@@ -402,10 +402,7 @@ const emit = defineEmits<{
 }
 .hw-c.part > i {
   border: 1.5px solid var(--tx-disabled);
-  background: conic-gradient(
-    var(--tx-muted) calc(var(--p) * 1turn),
-    transparent 0
-  );
+  background: conic-gradient(var(--tx-muted) calc(var(--p) * 1turn), transparent 0);
 }
 .hw-c.pause > i {
   background: repeating-linear-gradient(135deg, var(--tx-disabled) 0 1.5px, transparent 1.5px 4px);
