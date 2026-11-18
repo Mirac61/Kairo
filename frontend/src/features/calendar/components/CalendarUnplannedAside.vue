@@ -269,7 +269,8 @@ function projectColorName(projectId: string | null | undefined): string {
   border-radius: 7px;
   background: var(--a-blue);
   color: var(--tx-on-accent);
-  font: 600 9.5px/14px var(--font-mono);
+  font: 600 9.5px/14px var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   text-align: center;
   box-sizing: border-box;
@@ -286,7 +287,8 @@ function projectColorName(projectId: string | null | undefined): string {
 }
 .up-count {
   margin-left: 5px;
-  font: 500 11px/1 var(--font-mono);
+  font: 500 11px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
 .unplanned.shut .up-count {
@@ -346,7 +348,8 @@ function projectColorName(projectId: string | null | undefined): string {
 }
 .up-min {
   flex: none;
-  font: 400 11.5px/1 var(--font-mono);
+  font: 400 11.5px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }

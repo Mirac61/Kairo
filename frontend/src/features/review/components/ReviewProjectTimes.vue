@@ -104,7 +104,8 @@ const projectTotal = computed(
   border-radius: 3px;
 }
 .rv-n {
-  font: 400 12px/1.2 var(--font-mono);
+  font: 400 12px/1.2 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
   white-space: nowrap;

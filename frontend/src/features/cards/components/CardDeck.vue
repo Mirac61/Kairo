@@ -592,8 +592,6 @@ kbd {
 }
 .dk-big span {
   font: 500 11.5px/1 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--tx-muted);
 }
 .dk-go {

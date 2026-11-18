@@ -415,8 +415,12 @@ svg.ic {
   flex: none;
 }
 .mono {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-variant-numeric: tabular-nums;
+}
+/* Mono bleibt für Pfade, Code und Timer */
+.input.mono {
+  font-family: var(--font-mono);
 }
 /* Beschriftungen in Satzschreibung, wie die Tabellenköpfe: eine Sprache für Labels in der ganzen App */
 .lbl {
@@ -1087,7 +1091,8 @@ select.input {
   border-radius: 50%;
 }
 .badge.mono {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Toast ---------- */
@@ -1314,7 +1319,8 @@ select.input {
   position: absolute;
   top: -6px;
   right: 8px;
-  font: 400 11px/1 var(--font-mono);
+  font: 400 11px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
@@ -1661,7 +1667,8 @@ select.input {
   box-shadow: 0 0 0 2px var(--ring);
 }
 .count {
-  font: 400 13px/1 var(--font-mono);
+  font: 400 13px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
@@ -1680,7 +1687,8 @@ select.input {
   display: grid;
 }
 .hab-num .n {
-  font: 500 22px/1 var(--font-mono);
+  font: 500 22px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-primary);
   white-space: nowrap;
@@ -1693,7 +1701,8 @@ select.input {
   justify-items: stretch;
   gap: 6px;
   width: 100%;
-  font: 400 13px/1 var(--font-mono);
+  font: 400 13px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   color: var(--tx-secondary);
 }
 .hab-wkn .pbar-fill {
@@ -1789,10 +1798,6 @@ select.input {
   font: 400 12px/1 var(--font-ui);
   color: var(--tx-muted);
 }
-.proj-card:hover .proj-last,
-.proj-card:focus-within .proj-last {
-  opacity: 0;
-}
 .proj-desc {
   font: 400 13px/1.5 var(--font-ui);
   color: var(--tx-secondary);
@@ -1823,7 +1828,8 @@ select.input {
 }
 .proj-pct {
   white-space: nowrap;
-  font: 400 12px/1 var(--font-mono);
+  font: 400 12px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-secondary);
   min-width: 40px;
@@ -1842,6 +1848,7 @@ select.input {
 }
 .proj-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px 16px;
   margin-top: auto;
