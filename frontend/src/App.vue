@@ -11,15 +11,12 @@ import UndoToast from '@/components/UndoToast.vue'
 import SearchPalette from '@/components/SearchPalette.vue'
 import { useBackendStatus } from '@/composables/useBackendStatus'
 import { useLiveEvents } from '@/composables/useLiveEvents'
-import { counts, loadSidebar, pins } from '@/composables/useSidebar'
-import { hm } from '@/lib/dates'
-import { projectIconOf } from '@/lib/projectIcons'
+import { counts, loadSidebar } from '@/composables/useSidebar'
 import { vDialog } from '@/lib/dialog'
 import { GOTO } from '@/lib/shortcuts'
 import { useShortcuts } from '@/composables/useShortcuts'
 import ShortcutHelp from '@/components/ShortcutHelp.vue'
 import TourGuide from '@/components/TourGuide.vue'
-import FoldTransition from '@/components/FoldTransition.vue'
 import { tourOpen, tourSeen } from '@/composables/useTour'
 import { store } from '@/lib/storage'
 import { dark, prefs } from '@/lib/prefs'
@@ -111,29 +108,6 @@ function toggleSidebar() {
   void nextTick(() => window.dispatchEvent(new Event('resize')))
 }
 
-// Einklappbare Sektionen im ausgeklappten Zustand:
-interface SectionCollapseState {
-  pins?: boolean
-}
-function loadCollapsedSections(): SectionCollapseState {
-  try {
-    const raw = store.get('kairo-sidebar-sections')
-    return raw ? (JSON.parse(raw) as SectionCollapseState) : {}
-  } catch {
-    return {}
-  }
-}
-const collapsedSections = ref<SectionCollapseState>({
-  pins: true, // „Aktiv diese Woche“ steht auch in Projekte und Rückblick, deshalb zu
-  ...loadCollapsedSections(),
-})
-function toggleSection(sec: 'pins') {
-  collapsedSections.value = {
-    ...collapsedSections.value,
-    [sec]: !collapsedSections.value[sec],
-  }
-  store.set('kairo-sidebar-sections', JSON.stringify(collapsedSections.value))
-}
 
 // Handy: sechs Tabs für den Alltag, der Rest (und Einstellungen) im „Mehr“-Blatt. Die Seitenleiste blendet design.css unter 760px aus.
 const tabPaths = ['/today', '/calendar', '/tasks', '/habits', '/projects', '/notes']
@@ -506,40 +480,6 @@ function openSearchFromMore() {
           </RouterLink>
         </div>
       </nav>
-      <div v-if="pins.length" class="pins">
-        <button
-          type="button"
-          class="pins-head"
-          :aria-expanded="!collapsedSections.pins"
-          @click="toggleSection('pins')"
-        >
-          <span class="pins-head-title">
-            <span>{{ $t('Aktiv') }}</span>
-            <span class="pins-sub">{{ $t('diese Woche') }}</span>
-          </span>
-          <svg
-            class="ic pins-chev"
-            :class="{ collapsed: collapsedSections.pins }"
-            aria-hidden="true"
-          >
-            <use href="#i-chev" />
-          </svg>
-        </button>
-        <FoldTransition>
-          <div v-show="!collapsedSections.pins" class="pins-items">
-            <RouterLink
-              v-for="p in pins"
-              :key="p.id"
-              :to="{ path: '/projects', query: { project: p.id } }"
-              class="nav-item pin"
-            >
-              <svg class="ic pin-ic" aria-hidden="true"><use :href="`#${projectIconOf(p)}`" /></svg
-              ><span class="nav-l">{{ p.name }}</span>
-              <span v-if="p.minutes" class="nav-n">{{ hm(p.minutes) }}</span>
-            </RouterLink>
-          </div>
-        </FoldTransition>
-      </div>
       <div v-if="trashItem" class="nav-bottom">
         <RouterLink
           :to="trashItem.path"

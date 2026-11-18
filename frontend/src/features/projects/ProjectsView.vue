@@ -506,6 +506,14 @@ useShortcuts((e) => {
   margin-top: 0;
   padding-top: 0;
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.proj-list.list .proj-last {
+  min-width: 80px;
+  text-align: right;
 }
 
 @media (min-width: 1001px) {

@@ -269,14 +269,14 @@ useShortcuts((e) => {
             ></span
           >
         </div>
-        <select v-model="filter" class="kb-filter" :aria-label="$t('Ansicht')">
-          <option v-for="[f, label] in FILTERS" :key="f" :value="f">
-            {{ label }} ({{
-              cards.filter((c) => TESTS[f](c) && (!deck || c.deck === deck)).length
-            }})
-          </option>
-        </select>
         <template #actions>
+          <select v-model="filter" class="input kb-filter" :aria-label="$t('Ansicht')">
+            <option v-for="[f, label] in FILTERS" :key="f" :value="f">
+              {{ label }} ({{
+                cards.filter((c) => TESTS[f](c) && (!deck || c.deck === deck)).length
+              }})
+            </option>
+          </select>
           <label class="kb-search" :title="`${$t('Suchen')} (/)`">
             <svg class="ic" aria-hidden="true"><use href="#i-search" /></svg>
             <input
@@ -634,17 +634,10 @@ useShortcuts((e) => {
   justify-content: center;
 }
 .kb-filter {
-  height: 36px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--r-s);
-  background: none;
-  color: var(--tx-secondary);
-  font: 400 13.5px/1 var(--font-ui);
-  cursor: pointer;
-}
-.kb-filter:hover {
-  background: var(--bg-hover);
+  height: 34px;
+  width: auto;
+  max-width: 220px;
+  font-size: 13px;
 }
 
 .kb-table {

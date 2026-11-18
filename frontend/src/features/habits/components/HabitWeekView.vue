@@ -327,7 +327,12 @@ const emit = defineEmits<{
   place-items: center;
   width: 32px;
   height: 32px;
-  color: color-mix(in srgb, var(--hc) 85%, var(--tx-primary));
+  color: var(--tx-muted);
+  transition: color var(--dur) ease;
+}
+.hd-pick:hover .hd-icon,
+.hd-row.sel .hd-icon {
+  color: var(--tx-primary);
 }
 .hd-icon .ic {
   width: 15px;

@@ -342,16 +342,19 @@ watch(
   color: var(--a-red);
 }
 .td-sub-btn {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
+  padding: 1px 7px;
+  border: 1px solid var(--br-default);
+  border-radius: 4px;
+  background: var(--bg-card);
+  font: 500 11px/1.2 var(--font-ui);
   color: var(--tx-secondary);
-  text-decoration: underline;
   cursor: pointer;
+  transition: all var(--dur) ease;
 }
 .td-sub-btn:hover {
+  background: var(--bg-hover);
   color: var(--tx-primary);
+  border-color: var(--br-strong);
 }
 .td-sub-sep {
   color: var(--br-strong);
