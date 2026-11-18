@@ -15,6 +15,7 @@ import { locale, t } from '@/lib/i18n'
 import { PROJECT_COLORS } from '@/lib/projectColor'
 import PageHeader from '@/components/PageHeader.vue'
 import IconButton from '@/components/IconButton.vue'
+import SearchField from '@/components/SearchField.vue'
 import DeleteButton from '@/components/DeleteButton.vue'
 import CardText from './CardText.vue'
 
@@ -40,7 +41,6 @@ const query = ref('')
 const sort = ref<'question' | 'answer' | 'deck' | 'due' | 'interval'>('due')
 const selKey = ref<string | null>(null)
 const error = ref('')
-const searchEl = ref<HTMLInputElement>()
 const previewMode = ref(false)
 
 const lapsed = computed(() => lapses(props.log))
@@ -189,10 +189,7 @@ async function addDeck() {
 }
 
 useShortcuts((e) => {
-  if (e.key === '/') {
-    e.preventDefault()
-    searchEl.value?.focus()
-  } else if (e.key === 'n') {
+  if (e.key === 'n') {
     e.preventDefault()
     emit('add', deck.value || null)
   } else if (e.key === 'l' && current.value.due) {
@@ -277,16 +274,7 @@ useShortcuts((e) => {
               }})
             </option>
           </select>
-          <label class="kb-search" :title="`${$t('Suchen')} (/)`">
-            <svg class="ic" aria-hidden="true"><use href="#i-search" /></svg>
-            <input
-              ref="searchEl"
-              v-model="query"
-              type="search"
-              :aria-label="$t('Karten durchsuchen')"
-              :placeholder="$t('Suchen')"
-            />
-          </label>
+          <SearchField v-model="query" :label="$t('Karten durchsuchen')" />
           <button
             v-if="deck"
             type="button"
@@ -602,32 +590,6 @@ useShortcuts((e) => {
   font: 400 13px/1.3 var(--font-ui);
   color: var(--tx-muted);
 }
-.kb-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 220px;
-  height: 36px;
-  padding: 0 10px;
-  box-sizing: border-box;
-  border-radius: var(--r-s);
-  border: 1px solid var(--br-default);
-  background: var(--bg-1);
-  color: var(--tx-muted);
-}
-.kb-search:focus-within {
-  border-color: var(--a-focus);
-}
-.kb-search input {
-  flex: 1;
-  min-width: 0;
-  height: 32px;
-  border: 0;
-  background: none;
-  outline: none;
-  color: var(--tx-primary);
-  font: 400 13.5px/1 var(--font-ui);
-}
 .kb-more {
   width: 36px;
   padding: 0;
@@ -888,10 +850,8 @@ useShortcuts((e) => {
   }
   .kb-head {
     padding: 8px 12px;
-  }
-  .kb-search {
-    order: 5;
-    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .kb-table {
     padding: 0 4px 12px;

@@ -116,11 +116,14 @@ const segs = (id: string) => {
 .rv-hicon {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  color: color-mix(in srgb, var(--hc) 85%, var(--tx-primary));
-  background: color-mix(in srgb, var(--hc) 14%, var(--bg-2));
+  width: 28px;
+  height: 28px;
+  color: var(--tx-muted);
+  background: transparent;
+  transition: color var(--dur) ease;
+}
+.rv-row:hover .rv-hicon {
+  color: var(--tx-primary);
 }
 .rv-hicon .ic {
   width: 52%;

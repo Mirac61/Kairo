@@ -215,10 +215,13 @@ function handleGrade(gradeValue: number) {
   font-variant-numeric: tabular-nums;
 }
 .st-sec {
-  padding: 20px 0;
+  padding: 18px 0;
 }
 .st-sec:first-child {
   padding-top: 0;
+}
+.st-sec + .st-sec {
+  border-top: 1px solid var(--br-subtle);
 }
 .st-sec-h {
   display: flex;
