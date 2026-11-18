@@ -243,6 +243,7 @@ function handleToggleArchiveGoal(g: Goal, value: boolean) {
 .gl-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  align-items: start; /* eine aufgeklappte Karte zieht die Nachbarin nicht mit */
   gap: 14px;
 }
 </style>

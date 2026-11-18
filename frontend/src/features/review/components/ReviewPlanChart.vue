@@ -84,8 +84,7 @@ const dayText = (d: ReviewDay) =>
   margin-bottom: 40px;
   padding: 18px 20px 12px;
   border-radius: 14px;
-  background: linear-gradient(180deg, var(--bg-3), var(--bg-2) 60%);
-  box-shadow: inset 0 0 0 1px var(--br-subtle);
+  background: var(--bg-card);
 }
 .rv-h {
   margin: 0;

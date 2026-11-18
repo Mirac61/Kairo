@@ -96,7 +96,7 @@ const offerTemplates = computed(
         :data-tip="treeOpen ? 'Dateibaum einklappen' : 'Dateibaum ausklappen'"
         @click="emit('toggleTree')"
       >
-        <svg class="ic"><use :href="treeOpen ? '#i-left' : '#i-right'" /></svg>
+        <svg class="ic"><use href="#i-sidebar" /></svg>
       </button>
       <div class="ed-path">
         <template v-if="path">
@@ -111,12 +111,8 @@ const offerTemplates = computed(
       <span v-if="isDirty" class="save-status dirty" role="status"
         ><i></i>{{ $t('Ungespeicherte Änderungen') }}</span
       >
-      <span v-else-if="path && !saving" class="save-status saved" role="status"
-        ><svg class="ic" aria-hidden="true"><use href="#i-check" /></svg
-        >{{ $t('Gespeichert') }}</span
-      >
       <button
-        v-if="canSave"
+        v-if="canSave && isDirty"
         type="button"
         class="btn btn-secondary ed-save"
         :disabled="!isDirty || saving"

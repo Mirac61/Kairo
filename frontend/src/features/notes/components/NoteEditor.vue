@@ -115,29 +115,8 @@ const emit = defineEmits<{
   createNote: [string]
 }>()
 
-const TOOLBAR: ToolbarNames[] = [
-  'bold',
-  'italic',
-  'strikeThrough',
-  'title',
-  '-',
-  'quote',
-  'unorderedList',
-  'orderedList',
-  'task',
-  '-',
-  'codeRow',
-  'code',
-  'link',
-  'image',
-  'table',
-  '-',
-  'revoke',
-  'next',
-  '=',
-  'preview',
-  'previewOnly',
-]
+// Nur die Vorschau-Umschalter: Formatierung wird als Markdown getippt, Bilder kommen per ⌘V oder Drag & Drop.
+const TOOLBAR: ToolbarNames[] = ['=', 'preview', 'previewOnly']
 
 // Eingefügte Bilder (⌘V, Toolbar) landen in assets/ neben der Notiz; der Link ist relativ, damit VSCodium sie genauso zeigt.
 const ASSETS = 'assets'
@@ -341,6 +320,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
       language="en-US"
       preview-theme="default"
       :toolbars="TOOLBAR"
+      :preview="false"
       :footers="[]"
       :sanitize="sanitize"
       :completions="completions"
@@ -414,6 +394,16 @@ onBeforeUnmount(() => themeObserver.disconnect())
 .nd :deep(.md-editor .md-editor-toolbar-item) {
   color: var(--tx-secondary);
 }
+/* Ruhig: Eine Spalte (Vorschau über das Auge), die Leiste erscheint erst beim Zeigen oder Schreiben. Platz bleibt, damit nichts springt. */
+@media (hover: hover) {
+  .nd :deep(.md-editor .md-editor-toolbar-wrapper) {
+    border-bottom-color: transparent;
+    transition: opacity var(--dur) ease-out;
+  }
+  .nd:not(:hover, :focus-within) :deep(.md-editor .md-editor-toolbar-wrapper) {
+    opacity: 0;
+  }
+}
 @media (max-width: 760px) {
   .nd :deep(.md-editor .md-editor-toolbar-wrapper) {
     padding: 4px 8px;
@@ -426,6 +416,12 @@ onBeforeUnmount(() => themeObserver.disconnect())
 }
 .nd :deep(.md-editor .cm-scroller) {
   padding: 0 8px;
+}
+/* Schreibspalte wie in Bear/iA Writer: begrenzte Zeilenlänge, mittig */
+.nd :deep(.md-editor .cm-content) {
+  flex: 0 1 76ch;
+  max-width: 76ch;
+  margin: 0 auto;
 }
 .nd :deep(.md-editor .md-editor-preview) {
   max-width: 72ch; /* lange Zeilen lesen sich schlecht, auch wenn nur die Vorschau offen ist */

@@ -5,6 +5,8 @@
    ============================================================ */
 
 :root {
+  /* Karten heben sich über die Fläche ab statt über einen Rahmen; abgeleitet, damit jede Palette passt */
+  --bg-card: color-mix(in oklab, var(--bg-2) 55%, var(--bg-0));
   /* Flächen (Kühles Anthrazit / Zinc) */
   --bg-0: #0b0c0e;
   --bg-1: #0b0c0e;
@@ -541,6 +543,15 @@ svg.ic {
   font: 400 12px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
+}
+.nav-search {
+  margin-bottom: 12px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.nav-search .key {
+  font-size: 11px;
 }
 .nav-group {
   display: flex;
@@ -1326,8 +1337,7 @@ select.input {
 
 /* ---------- Cards ---------- */
 .card {
-  background: var(--bg-1);
-  border: 1px solid var(--br-default);
+  background: var(--bg-card);
   border-radius: var(--r-m);
 }
 
@@ -1447,11 +1457,7 @@ select.input {
   gap: 12px;
   min-height: 40px;
   padding: 6px 12px;
-  border-top: 1px solid var(--br-subtle);
   border-radius: var(--r-s);
-}
-.task-row:first-child {
-  border-top: 0;
 }
 .task-row:hover {
   background: var(--bg-hover);
@@ -2428,161 +2434,6 @@ select.input {
   border-radius: 9px;
 }
 
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 56px;
-  padding: 0 20px 0 14px;
-  border-bottom: 1px solid var(--br-subtle);
-  background: color-mix(in oklab, var(--bg-0) 86%, transparent);
-  backdrop-filter: blur(12px);
-}
-.tb-btn {
-  width: 32px;
-  height: 32px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 9px;
-  background: none;
-  color: var(--tx-muted);
-  cursor: pointer;
-}
-.tb-btn:hover {
-  background: var(--bg-hover);
-  color: var(--tx-primary);
-}
-.tb-btn .ic {
-  width: 18px;
-  height: 18px;
-}
-.tb-sep {
-  width: 1px;
-  height: 18px;
-  margin: 0 6px 0 4px;
-  background: var(--br-default);
-}
-.crumbs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-}
-.crumb {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 30px;
-  padding: 0 9px;
-  border: 0;
-  border-radius: 9px;
-  background: none;
-  font: 400 13.5px/1 var(--font-ui);
-  color: var(--tx-muted);
-  text-decoration: none;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.crumb:hover {
-  background: var(--bg-hover);
-  color: var(--tx-primary);
-}
-.crumb.cur {
-  color: var(--tx-primary);
-  font-weight: 500;
-}
-.crumb-sl {
-  color: var(--tx-muted);
-  font-size: 13px;
-}
-.crumb-chev {
-  width: 12px;
-  height: 12px;
-  transform: rotate(90deg);
-  opacity: 0.6;
-}
-.crumb-date {
-  margin-left: 6px;
-  font: 500 13px/1 var(--font-ui);
-  color: var(--tx-secondary);
-  white-space: nowrap;
-}
-.crumb-menu {
-  left: 0;
-  right: auto;
-  width: 260px;
-  border-radius: 14px;
-}
-.crumb-menu .menu-i {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--tx-secondary);
-  text-decoration: none;
-  border-radius: 9px;
-}
-.crumb-menu .menu-i:hover {
-  color: var(--tx-primary);
-}
-.crumb-menu .menu-i .ic {
-  color: var(--tx-muted);
-}
-.crumb-menu .key {
-  margin-left: auto;
-  font-size: 11px;
-}
-.crumb-menu .menu-i[aria-current='page'] {
-  color: var(--tx-primary);
-  background: var(--bg-2);
-}
-.crumb-back {
-  color: var(--tx-primary) !important;
-}
-.crumb-hr {
-  height: 1px;
-  margin: 4px 6px;
-  background: var(--br-subtle);
-}
-.tb-search {
-  margin-left: auto;
-  flex: 0 1 380px;
-  min-width: 0;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 8px 0 12px;
-  border: 0;
-  border-radius: 11px;
-  background: var(--bg-2);
-  font: 400 13.5px/1 var(--font-ui);
-  color: var(--tx-muted);
-  text-align: left;
-  cursor: text;
-}
-.tb-search:hover {
-  color: var(--tx-secondary);
-}
-.tb-search span {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tb-search .key {
-  font-size: 11px;
-}
-@media (max-width: 760px) {
-  .topbar {
-    display: none;
-  }
-}
-
 /* Ruhigere Grundbausteine: Pillen statt Segmentrahmen, gefüllte Schnelleingabe statt Strichelrahmen, Zeilen ohne Linien */
 .seg {
   gap: 4px;
@@ -2700,12 +2551,11 @@ h1.v-title {
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
 }
-/* Aufgabenliste: saubere Zeilen mit Trennlinie */
+/* Aufgabenliste: Zeilen ohne Trennlinie, Abstand und Hover tragen die Struktur */
 :root .tasks-main .task-row {
   min-height: 42px;
   padding: 0 16px;
-  border-bottom: 1px solid var(--br-subtle);
-  border-radius: 0;
+  border-radius: var(--r-s);
   font-variant-numeric: tabular-nums;
 }
 :root .tasks-main .task-row:hover:not(.selected) {

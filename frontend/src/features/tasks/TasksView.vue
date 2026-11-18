@@ -357,14 +357,6 @@ useLiveEvents(load)
           />
 
           <div v-if="rows.length" class="tasks-table">
-            <div class="tk-cols" aria-hidden="true">
-              <span class="c-t">{{ $t('Aufgabe') }}</span>
-              <span class="c-p">{{ $t('Projekt') }}</span>
-              <span class="c-d">{{ $t('Dauer') }}</span>
-              <span class="c-i">{{ $t('Prio') }}</span>
-              <span class="c-f">{{ $t('Fällig') }}</span>
-            </div>
-
             <div v-for="group in groups" :key="group.key" class="tgroup">
               <div
                 v-if="group.title"
@@ -482,52 +474,12 @@ useLiveEvents(load)
   font-variant-numeric: tabular-nums;
 }
 
-.tk-cols {
-  display: flex;
-  align-items: center;
-  gap: 16px; /* wie .task-row, damit Kopf und Zellen fluchten */
-  height: 34px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--br-default);
-  font: 500 13px/1 var(--font-ui);
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--tx-muted);
-  background: none;
-  user-select: none;
-}
-.tk-cols .c-t {
-  flex: 1;
-  min-width: 0;
-  padding-left: 28px;
-}
-.tk-cols .c-p {
-  width: 150px;
-  flex: none;
-}
-.tk-cols .c-d {
-  width: 52px;
-  flex: none;
-  text-align: left;
-}
-.tk-cols .c-i {
-  width: 40px;
-  flex: none;
-  text-align: center;
-}
-.tk-cols .c-f {
-  width: 124px;
-  flex: none;
-  text-align: left;
-}
-
 .tgroup-hdr {
   display: flex;
   align-items: center;
   gap: 8px;
   height: 38px;
   padding: 0 16px;
-  border-bottom: 1px solid var(--br-subtle);
   font: 600 13px/1 var(--font-ui);
   color: var(--tx-primary);
 }
@@ -536,9 +488,6 @@ useLiveEvents(load)
 }
 .tasks-table .tgroup + .tgroup {
   margin-top: 24px;
-}
-.tasks-table .tasklist :deep(.task-row:last-child) {
-  border-bottom: 0;
 }
 .tgroup-hdr.od .tgroup-title {
   color: var(--a-red);

@@ -32,12 +32,12 @@ const moreMenu = ref(false)
 
 function onOpenGithub() {
   emit('openGithub')
-  moreMenu.value = false
+  moreMenu.value = viewMenu.value = false
 }
 
 function onToggleSelection() {
   emit('toggleSelection')
-  moreMenu.value = false
+  moreMenu.value = viewMenu.value = false
 }
 
 function onTabKey(e: KeyboardEvent) {
@@ -140,23 +140,23 @@ function onTabKey(e: KeyboardEvent) {
                   <option v-for="[val, lbl] in sorts" :key="val" :value="val">{{ lbl }}</option>
                 </select>
               </label>
+              <div class="tk-more-actions">
+                <button class="btn btn-secondary" type="button" @click="onOpenGithub">
+                  {{ $t('GitHub-Issues') }}
+                </button>
+                <button
+                  class="btn tk-pick"
+                  type="button"
+                  :class="{ 'btn-primary': selectionMode }"
+                  :aria-pressed="selectionMode"
+                  @click="onToggleSelection"
+                >
+                  {{ $t('Auswählen') }}
+                </button>
+              </div>
             </div>
           </template>
         </div>
-
-        <button class="btn" type="button" @click="emit('openGithub')">
-          {{ $t('GitHub-Issues') }}
-        </button>
-
-        <button
-          class="btn tk-pick"
-          type="button"
-          :class="{ 'btn-primary': selectionMode }"
-          :aria-pressed="selectionMode"
-          @click="emit('toggleSelection')"
-        >
-          {{ $t('Auswählen') }}
-        </button>
       </div>
 
       <!-- Mobil-Menü -->
@@ -232,6 +232,19 @@ function onTabKey(e: KeyboardEvent) {
 </template>
 
 <style scoped>
+.tk-more-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--br-subtle);
+}
+.tk-more-actions .btn {
+  width: 100%;
+  justify-content: center;
+  font-size: 12px;
+}
 .tk-toolbar {
   display: flex;
   align-items: center;
@@ -351,19 +364,6 @@ function onTabKey(e: KeyboardEvent) {
     width: 220px;
     right: 0;
     left: auto;
-  }
-  .tk-more-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--br-subtle);
-  }
-  .tk-more-actions .btn {
-    width: 100%;
-    justify-content: center;
-    font-size: 12px;
   }
 }
 </style>

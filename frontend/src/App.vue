@@ -72,23 +72,6 @@ function onKey(e: KeyboardEvent) {
   e.preventDefault()
 }
 
-// Pfad in der Kopfleiste: wo man ist, wohin „Zurück“ führt (vue-router merkt sich die vorige Seite in history.state) und Sprung in jeden Bereich.
-const labelOf = (path: string) =>
-  path.split('?')[0] === '/settings'
-    ? 'Einstellungen'
-    : (navItems.find((n) => n.path === path.split('?')[0])?.label ?? '')
-const here = computed(() => labelOf(route.path) || 'Kairo')
-const backLabel = computed(
-  () => (
-    route.fullPath,
-    typeof history.state?.back === 'string' ? labelOf(history.state.back) : ''
-  ),
-)
-const crumbOpen = ref(false)
-const keyOf = Object.fromEntries(Object.entries(GOTO).map(([k, path]) => [path, k]))
-const jumpItems = [...navItems, { path: '/settings', label: 'Einstellungen', icon: 'gear' }].map(
-  (n) => ({ ...n, key: keyOf[n.path] }),
-)
 onMounted(() => {
   window.addEventListener('keydown', onKey)
   void loadSidebar()
@@ -147,7 +130,7 @@ function loadCollapsedSections(): SectionCollapseState {
 const collapsedSections = ref<SectionCollapseState>({
   focus: false,
   projects: false,
-  pins: false,
+  pins: true, // „Aktiv diese Woche“ steht auch in Projekte und Rückblick, deshalb zu
   ...loadCollapsedSections(),
 })
 function toggleSection(sec: 'focus' | 'projects' | 'pins') {
@@ -169,17 +152,11 @@ watch(
   () => route.path,
   () => {
     moreOpen.value = false
-    crumbOpen.value = false
   },
 )
 
 // Theme: der Knopf wählt das Gegenteil des aktuellen; „System“ gibt es in den Einstellungen.
 const toggleTheme = () => (prefs.theme = dark.value ? 'light' : 'dark')
-
-function goBack() {
-  crumbOpen.value = false
-  router.back()
-}
 
 function openSearchFromMore() {
   moreOpen.value = false
@@ -511,6 +488,17 @@ function openSearchFromMore() {
         >
       </div>
       <nav :aria-label="$t('Hauptnavigation')">
+        <button
+          type="button"
+          class="nav-item nav-search"
+          aria-keyshortcuts="Meta+K Control+K"
+          :aria-label="mini ? $t('Suche') : undefined"
+          :data-tip="mini ? `${$t('Suche')} (${keys('⌘K')})` : undefined"
+          @click="searchOpen = true"
+        >
+          <svg class="ic"><use href="#i-search" /></svg><span class="nav-l">{{ $t('Suche') }}</span
+          ><kbd class="key nav-n" aria-hidden="true">{{ keys('⌘K') }}</kbd>
+        </button>
         <div class="nav-group">
           <button
             type="button"
@@ -647,6 +635,17 @@ function openSearchFromMore() {
         </div>
         <div class="sb-btns">
           <button
+            type="button"
+            class="icon-btn"
+            :aria-expanded="!mini"
+            aria-keyshortcuts="Meta+B Control+B"
+            :aria-label="mini ? $t('Seitenleiste ausklappen') : $t('Seitenleiste einklappen')"
+            :data-tip="`${mini ? $t('Ausklappen') : $t('Einklappen')} (${keys('⌘B')})`"
+            @click="toggleSidebar"
+          >
+            <svg class="ic"><use href="#i-sidebar" /></svg>
+          </button>
+          <button
             class="icon-btn"
             :aria-label="$t('Tastenkürzel')"
             :data-tip="`${$t('Tastenkürzel')} (?)`"
@@ -666,84 +665,6 @@ function openSearchFromMore() {
       </div>
     </aside>
     <main class="content" :class="{ 'content-full': hideSidebar }">
-      <header v-if="!hideSidebar" class="topbar">
-        <button
-          type="button"
-          class="tb-btn"
-          :aria-expanded="!mini"
-          aria-keyshortcuts="Meta+B Control+B"
-          :aria-label="mini ? $t('Seitenleiste ausklappen') : $t('Seitenleiste einklappen')"
-          :data-tip="`${mini ? $t('Ausklappen') : $t('Einklappen')} (${keys('⌘B')})`"
-          @click="toggleSidebar"
-        >
-          <svg class="ic"><use href="#i-sidebar" /></svg>
-        </button>
-        <span class="tb-sep" aria-hidden="true"></span>
-        <nav class="crumbs" :aria-label="$t('Pfad')">
-          <RouterLink to="/today" class="crumb">Kairo</RouterLink
-          ><span class="crumb-sl" aria-hidden="true">/</span>
-          <div class="menu-wrap" @keydown.esc="crumbOpen = false">
-            <button
-              type="button"
-              class="crumb cur"
-              :aria-expanded="crumbOpen"
-              aria-haspopup="menu"
-              @click="crumbOpen = !crumbOpen"
-            >
-              {{ $t(here)
-              }}<svg class="ic crumb-chev" aria-hidden="true"><use href="#i-chev" /></svg>
-            </button>
-            <template v-if="crumbOpen">
-              <div class="menu-scrim" @click="crumbOpen = false"></div>
-              <div class="menu crumb-menu" role="menu">
-                <button
-                  v-if="backLabel"
-                  type="button"
-                  class="menu-i crumb-back"
-                  role="menuitem"
-                  aria-keyshortcuts="Meta+BracketLeft Control+BracketLeft"
-                  @click="goBack"
-                >
-                  <svg class="ic"><use href="#i-left" /></svg
-                  >{{ $t('Zurück zu {name}', { name: $t(backLabel) })
-                  }}<kbd class="key">{{ keys('⌘[') }}</kbd>
-                </button>
-                <div v-if="backLabel" class="crumb-hr"></div>
-                <RouterLink
-                  v-for="item in jumpItems"
-                  :key="item.path"
-                  :to="item.path"
-                  class="menu-i crumb-i"
-                  role="menuitem"
-                  :aria-current="item.path === route.path ? 'page' : undefined"
-                  @click="crumbOpen = false"
-                >
-                  <svg class="ic"><use :href="`#i-${item.icon}`" /></svg>{{ $t(item.label)
-                  }}<kbd v-if="item.key" class="key">G {{ item.key.toUpperCase() }}</kbd>
-                </RouterLink>
-              </div>
-            </template>
-          </div>
-        </nav>
-        <button
-          type="button"
-          class="tb-search"
-          aria-keyshortcuts="Meta+K Control+K"
-          @click="searchOpen = true"
-        >
-          <svg class="ic"><use href="#i-search" /></svg><span>{{ $t('Suchen oder neu …') }}</span
-          ><kbd class="key" aria-hidden="true">{{ keys('⌘K') }}</kbd>
-        </button>
-        <button
-          type="button"
-          class="tb-btn"
-          :aria-label="$t('Design wechseln')"
-          :data-tip="$t('Design wechseln')"
-          @click="toggleTheme"
-        >
-          <svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg>
-        </button>
-      </header>
       <RouterView />
     </main>
     <template v-if="!hideSidebar">

@@ -116,14 +116,6 @@ const projectIcon = (id: string | null) => {
 <template>
   <div class="st-table-wrap">
     <div v-if="tasks.length || doneToday.length" class="st-table-card">
-      <div class="st-tbl-head" aria-hidden="true">
-        <span class="st-th-cb"></span>
-        <span class="st-c-t">{{ $t('Aufgabe') }}</span>
-        <span class="st-c-p">{{ $t('Projekt') }}</span>
-        <span class="st-c-d">{{ $t('Dauer') }}</span>
-        <span class="st-c-f">{{ $t('Fällig') }}</span>
-      </div>
-
       <div class="st-tbody">
         <div
           v-for="x in tasks"
@@ -239,35 +231,6 @@ const projectIcon = (id: string | null) => {
 .st-table-card {
   font-variant-numeric: tabular-nums;
 }
-.st-tbl-head {
-  display: grid;
-  grid-template-columns: var(--st-cols);
-  align-items: center;
-  gap: 12px;
-  height: 34px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--br-default);
-  font: 500 13px/1 var(--font-ui);
-  color: var(--tx-muted);
-  user-select: none;
-}
-.st-th-cb {
-  width: 20px;
-}
-.st-tbl-head .st-c-t {
-  min-width: 0;
-}
-.st-tbl-head .st-c-p {
-  min-width: 0;
-}
-.st-tbl-head .st-c-d {
-  text-align: right;
-  white-space: nowrap;
-}
-.st-tbl-head .st-c-f {
-  text-align: right;
-}
-
 .st-tbody {
   display: flex;
   flex-direction: column;
@@ -280,7 +243,7 @@ const projectIcon = (id: string | null) => {
   gap: 12px;
   min-height: 46px;
   padding: 6px 12px;
-  border-bottom: 1px solid var(--br-subtle);
+  border-radius: var(--r-s);
   color: var(--tx-primary);
   font: 400 13.5px/1.4 var(--font-ui);
   cursor: pointer;
@@ -495,8 +458,6 @@ const projectIcon = (id: string | null) => {
   .st-table-wrap {
     --st-cols: 20px minmax(0, 1fr) auto;
   }
-  .st-tbl-head .st-c-p,
-  .st-tbl-head .st-c-d,
   .st-col-p,
   .st-col-d {
     display: none;

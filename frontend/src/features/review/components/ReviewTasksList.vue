@@ -40,7 +40,7 @@ const projectName = (id: string | null) => props.projects.find((p) => p.project_
     <div v-if="!completed.length" class="rv-empty">{{ $t('Nichts erledigt.') }}</div>
   </section>
 
-  <section class="rv-group">
+  <section v-if="overdue.length" class="rv-group">
     <h2 class="rv-gh">
       {{ $t('Überfällig geworden') }} <span class="count">{{ overdue.length || '' }}</span>
     </h2>
@@ -63,7 +63,6 @@ const projectName = (id: string | null) => props.projects.find((p) => p.project_
         {{ $t('Heute') }}
       </button>
     </div>
-    <div v-if="!overdue.length" class="rv-empty">{{ $t('Nichts überfällig.') }}</div>
   </section>
 </template>
 
