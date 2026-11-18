@@ -45,12 +45,9 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
+/* Offene Vorhaben als schlichter Abschnitt unter der Seite */
 .jr-open-box {
   margin-bottom: 48px;
-  padding: 16px 20px;
-  border-radius: var(--r-m);
-  background: var(--bg-1);
-  border: 1px solid var(--br-subtle);
 }
 .jr-open-head {
   display: flex;
@@ -62,7 +59,7 @@ const emit = defineEmits<{
 .jr-open-title {
   margin: 0;
   font: 500 13px/1.3 var(--font-ui);
-  color: var(--tx-secondary);
+  color: var(--tx-muted);
 }
 .jr-open-list {
   list-style: none;

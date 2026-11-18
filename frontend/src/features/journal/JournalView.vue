@@ -2,20 +2,14 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { shiftDate } from '@/lib/dates'
-import { t } from '@/lib/i18n'
-import { PAPERS, prefs } from '@/lib/prefs'
 import JournalHeatmap from './components/JournalHeatmap.vue'
 import JournalOpenTasks from './components/JournalOpenTasks.vue'
 import JournalBackfillDialog from './components/JournalBackfillDialog.vue'
 import JournalBook from './components/JournalBook.vue'
 import SearchField from '@/components/SearchField.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import IconButton from '@/components/IconButton.vue'
 import { useJournalData, type JournalRow } from './composables/useJournalData'
-
-const PAPER_LABELS: Record<'coffee' | 'white' | 'black', string> = {
-  coffee: t('Kaffee'),
-  white: t('Weiß'),
-  black: t('Schwarz'),
-}
 
 const route = useRoute()
 const {
@@ -41,7 +35,6 @@ const {
 } = useJournalData()
 
 const pageDate = ref('')
-const isPaperMenuOpen = ref(false)
 
 // Suche
 const pastSearch = ref('')
@@ -61,6 +54,13 @@ const pages = computed(() => [
   ...visiblePastRows.value.map((r) => r.date).reverse(),
   ...(todayStr.value ? [todayStr.value] : []),
 ])
+
+// Blättern im Kopf; JournalBook speichert die alte Seite, bevor es die neue aufschlägt.
+const pageIndex = computed(() => pages.value.indexOf(pageDate.value))
+function flip(step: number) {
+  const next = pages.value[pageIndex.value + step]
+  if (next) pageDate.value = next
+}
 
 const shownEntriesCount = computed(() => visiblePastRows.value.length + (todayEntry.value ? 1 : 0))
 const hasOlderEntries = computed(
@@ -125,85 +125,57 @@ async function handleBackfillSubmit(date: string) {
   isBackfillOpen.value = false
   await openDay(date)
 }
-function pickPaper(p: 'coffee' | 'white' | 'black') {
-  prefs.journalPaper = p
-  isPaperMenuOpen.value = false
-}
 </script>
 
 <template>
   <div class="view-inner jr-wrap">
-    <div class="jr-page">
-      <!-- Eine Kopfzeile: Streak und Punktreihe links, Werkzeuge rechts -->
-      <header class="v-head">
-        <h1 class="v-title sr-only">{{ $t('Journal') }}</h1>
-        <div class="v-head-row jr-head-row">
-          <JournalHeatmap
-            :all-dates="allDates"
-            :today-str="todayStr"
-            :active-date="pageDate"
-            :streak="currentStreak"
-            @select="openDay"
-            @backfill="openBackfillModal"
+    <PageHeader :title="$t('Journal')">
+      <JournalHeatmap
+        :all-dates="allDates"
+        :today-str="todayStr"
+        :active-date="pageDate"
+        :streak="currentStreak"
+        @select="openDay"
+        @backfill="openBackfillModal"
+      />
+      <template #actions>
+        <SearchField
+          v-if="pastRows.length"
+          v-model="pastSearch"
+          :label="$t('Einträge durchsuchen')"
+        />
+        <IconButton icon="plus" :label="$t('Nachtragen')" @click="openBackfillModal()" />
+        <nav class="jr-nav" :aria-label="$t('Seiten')">
+          <IconButton
+            icon="left"
+            :label="$t('Vorherige Seite')"
+            shortcut="←"
+            :disabled="pageIndex <= 0"
+            @click="flip(-1)"
           />
+          <IconButton
+            icon="right"
+            :label="$t('Nächste Seite')"
+            shortcut="→"
+            :disabled="pageIndex >= pages.length - 1"
+            @click="flip(1)"
+          />
+        </nav>
+      </template>
+    </PageHeader>
 
-          <div class="jr-tools">
-            <SearchField
-              v-if="pastRows.length"
-              v-model="pastSearch"
-              :label="$t('Einträge durchsuchen')"
-            />
-            <button type="button" class="col-link" @click="openBackfillModal()">
-              {{ $t('Nachtragen') }}
-            </button>
-            <div class="menu-wrap" @keydown.esc="isPaperMenuOpen = false">
-              <button
-                type="button"
-                class="icon-btn jr-more-btn"
-                :aria-label="$t('Weitere Optionen')"
-                :aria-expanded="isPaperMenuOpen"
-                @click="isPaperMenuOpen = !isPaperMenuOpen"
-              >
-                <svg class="ic"><use href="#i-more" /></svg>
-              </button>
-
-              <template v-if="isPaperMenuOpen">
-                <div class="menu-scrim" @click="isPaperMenuOpen = false"></div>
-                <div class="menu jr-paper-menu" role="menu">
-                  <span class="menu-l">{{ $t('Papier') }}</span>
-                  <div class="jr-papers" role="group" :aria-label="$t('Papier')">
-                    <button
-                      v-for="p in PAPERS"
-                      :key="p"
-                      type="button"
-                      class="jr-paper-pick"
-                      :class="`is-${p}`"
-                      :aria-pressed="prefs.journalPaper === p"
-                      :aria-label="PAPER_LABELS[p]"
-                      :title="PAPER_LABELS[p]"
-                      @click="pickPaper(p)"
-                    ></button>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-        </div>
-      </header>
-
+    <div class="jr-page">
       <div v-if="errorMessageText" class="badge" role="alert">{{ errorMessageText }}</div>
 
       <p v-if="normalizedSearchTerm && !visiblePastRows.length" class="v-sub jr-nohit">
         {{ $t('Keine Treffer für „{q}“.', { q: pastSearch.trim() }) }}
       </p>
 
-      <!-- Das Buch: links der Rückblick des Tages, rechts die Schreibseite -->
       <JournalBook
         v-if="pageDate"
         v-model="pageDate"
         :pages="pages"
         :today-str="todayStr"
-        :paper="prefs.journalPaper"
         :has-older-entries="hasOlderEntries"
         :get-entry-for-date="getEntryForDate"
         :get-plan-for-date="getPlanForDate"
@@ -214,14 +186,12 @@ function pickPaper(p: 'coffee' | 'white' | 'black') {
         @leaving-date="removeDraftIfEmpty"
       />
 
-      <!-- Offene Journal-Aufgaben -->
       <JournalOpenTasks
         :tasks="openJournalTasks"
         :completing-id="completingTaskId"
         @complete="handleCompleteTask"
       />
 
-      <!-- Nachtragen-Dialog -->
       <JournalBackfillDialog
         :open="isBackfillOpen"
         :initial-date="backfillDate"
@@ -234,99 +204,16 @@ function pickPaper(p: 'coffee' | 'white' | 'black') {
 </template>
 
 <style scoped>
-.jr-wrap {
-  padding-top: 18px;
-  padding-bottom: 28px;
-}
+/* Eine Schreibspalte wie im Notiz-Editor, ohne Blatt und Rahmen */
 .jr-page {
-  max-width: 1080px;
-  margin: 0 auto;
-  width: 100%;
+  max-width: 720px;
+  padding: 24px 0 0;
 }
-
-.jr-head-row {
-  flex-wrap: wrap;
-}
-/* Papierwahl: drei Farbfelder */
-.jr-papers {
+.jr-nav {
   display: flex;
-  gap: 8px;
-  padding-bottom: 6px;
-}
-.jr-paper-pick {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border-radius: 50%;
-  border: 1px solid var(--br-default);
-  cursor: pointer;
-  transition:
-    transform var(--dur) ease-out,
-    box-shadow var(--dur) ease-out;
-}
-.jr-paper-pick.is-coffee {
-  background: #efe3c8;
-}
-.jr-paper-pick.is-white {
-  background: #fbfaf7;
-}
-.jr-paper-pick.is-black {
-  background: #1b1a18;
-}
-.jr-paper-pick:hover {
-  transform: scale(1.08);
-}
-.jr-paper-pick[aria-pressed='true'] {
-  box-shadow:
-    0 0 0 2px var(--bg-0),
-    0 0 0 4px var(--tx-secondary);
-}
-.jr-paper-pick:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 3px;
-}
-
-.jr-tools {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
-}
-button.col-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  font: 400 13px/1 var(--font-ui);
-  color: var(--tx-muted);
-  transition: color var(--dur) ease-out;
-}
-button.col-link:hover {
-  color: var(--tx-secondary);
-}
-.jr-tools :deep(input[type='search']) {
-  max-width: 200px;
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-  border-radius: 999px;
+  gap: 2px;
 }
 .jr-nohit {
   margin: 0 0 12px;
-}
-
-.jr-more-btn {
-  width: 32px;
-  height: 32px;
-}
-.jr-paper-menu {
-  padding: 8px 10px;
-  min-width: 140px;
-}
-.jr-paper-menu .menu-l {
-  display: block;
-  padding: 2px 4px 6px;
-  font: 500 12px/1 var(--font-ui);
-  color: var(--tx-muted);
 }
 </style>
