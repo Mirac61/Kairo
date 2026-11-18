@@ -20,8 +20,7 @@ import { useTaskFilter } from '@/composables/useTaskFilter'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { useUndo } from '@/composables/useUndo'
 import { useFreeSlot } from '@/composables/useFreeSlot'
-import { addDays, dur, shiftDate, ymd } from '@/lib/dates'
-import { t } from '@/lib/i18n'
+import { addDays, shiftDate, ymd } from '@/lib/dates'
 import SelectionBar from '@/components/SelectionBar.vue'
 import TaskEditSheet from './components/TaskEditSheet.vue'
 import TaskQuickAdd from './components/TaskQuickAdd.vue'
@@ -121,20 +120,6 @@ function progress(id: string): string {
 function resOf(id: string): Resource[] {
   return resources.value.filter((r) => r.task_id === id)
 }
-
-const stats = computed(() => {
-  const openTasks = tasks.value.filter(isOpen)
-  const totalMinutes = openTasks.reduce((sum, task) => sum + task.estimated_minutes, 0)
-  const overdueCount = openTasks.filter(overdue).length
-
-  return [
-    t('{n} offen', { n: openTasks.length }),
-    t('{n} überfällig', { n: overdueCount }),
-    totalMinutes ? dur(totalMinutes) : '',
-  ]
-    .filter(Boolean)
-    .join(' · ')
-})
 
 const defaultProject = () => (projectId.value === 'alle' ? null : projectId.value)
 
@@ -304,23 +289,8 @@ useLiveEvents(load)
 <template>
   <div class="view-inner" :class="{ 'tk-split': openTask }">
     <div class="tk-left">
-      <div class="v-head v-head-row tk-head">
-        <h1 class="v-title sr-only">{{ $t('Aufgaben') }}</h1>
-        <p class="tk-stats">{{ stats }}</p>
-      </div>
-
+      <h1 class="v-title sr-only">{{ $t('Aufgaben') }}</h1>
       <div v-if="error" class="badge" role="alert">{{ error }}</div>
-
-      <!-- Quick Add Formular -->
-      <TaskQuickAdd
-        ref="quickAddEl"
-        :projects="projects"
-        :tasks="tasks"
-        :default-project-id="defaultProject()"
-        :today-string="todayString()"
-        @created="handleTasksCreated"
-        @error="error = $event"
-      />
 
       <!-- Toolbar & Filter -->
       <TasksToolbar
@@ -342,6 +312,17 @@ useLiveEvents(load)
         @update:sort="view.sort = $event as any"
         @open-github="github = true"
         @toggle-selection="selection.mode.value = !selection.mode.value"
+      />
+
+      <!-- Quick Add Formular -->
+      <TaskQuickAdd
+        ref="quickAddEl"
+        :projects="projects"
+        :tasks="tasks"
+        :default-project-id="defaultProject()"
+        :today-string="todayString()"
+        @created="handleTasksCreated"
+        @error="error = $event"
       />
 
       <!-- Aufgabenliste -->
@@ -512,12 +493,6 @@ useLiveEvents(load)
   }
 }
 
-.tk-stats {
-  margin: 0;
-  font: 400 13px/1 var(--font-ui);
-  font-variant-numeric: tabular-nums;
-  color: var(--tx-muted);
-}
 .tk-sum {
   font: 400 12px/1 var(--font-ui);
   color: var(--tx-muted);
@@ -527,16 +502,6 @@ useLiveEvents(load)
 @media (max-width: 640px) {
   .tk-sum {
     display: none;
-  }
-  .tk-head {
-    flex-wrap: wrap;
-  }
-  .tk-stats {
-    flex-basis: 100%;
-    order: 3;
-    margin: 6px 0 0;
-    font-size: 14px;
-    color: var(--tx-secondary);
   }
   .v-head-row .btn-primary {
     display: none;

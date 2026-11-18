@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import PageHeader from '@/components/PageHeader.vue'
+import IconButton from '@/components/IconButton.vue'
 import { computed, onMounted, ref } from 'vue'
 import {
   getReview,
@@ -126,12 +128,9 @@ useLiveEvents(load)
 
 <template>
   <div class="view-inner">
-    <div class="v-head v-head-row">
-      <div>
-        <h1 class="v-title sr-only">{{ $t('Rückblick') }}</h1>
-        <div class="v-sub rv-label">{{ $t('Woche') }} · {{ range }} · {{ $t('KW') }} {{ kw }}</div>
-      </div>
-      <div class="rv-nav">
+    <PageHeader :title="$t('Rückblick')">
+      <span class="ph-label">{{ $t('Woche') }} · {{ range }} · {{ $t('KW') }} {{ kw }}</span>
+      <template #actions>
         <button
           v-if="!isCurrent"
           class="btn btn-ghost"
@@ -140,25 +139,15 @@ useLiveEvents(load)
         >
           {{ $t('Diese Woche') }}
         </button>
-        <button
-          class="icon-btn"
-          type="button"
-          :aria-label="$t('Vorherige Woche')"
-          @click="go(addDays(monday, -7))"
-        >
-          <svg class="ic"><use href="#i-left" /></svg>
-        </button>
-        <button
-          class="icon-btn"
-          type="button"
-          :aria-label="$t('Nächste Woche')"
+        <IconButton icon="left" :label="$t('Vorherige Woche')" @click="go(addDays(monday, -7))" />
+        <IconButton
+          icon="right"
+          :label="$t('Nächste Woche')"
           :disabled="isCurrent"
           @click="go(addDays(monday, 7))"
-        >
-          <svg class="ic"><use href="#i-right" /></svg>
-        </button>
-      </div>
-    </div>
+        />
+      </template>
+    </PageHeader>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
     <template v-if="review">
@@ -194,19 +183,6 @@ useLiveEvents(load)
 </template>
 
 <style scoped>
-.rv-label {
-  margin: 0;
-}
-.rv-nav {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.rv-nav :disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
 .start-col :deep(.rv-group + .rv-group) {
   margin-top: 32px;
 }

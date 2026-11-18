@@ -18,6 +18,8 @@ import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import DeleteButton from '@/components/DeleteButton.vue'
 import SearchField from '@/components/SearchField.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import SegTabs from '@/components/SegTabs.vue'
 
 const trash = ref<Trash>({ tasks: [], events: [], habits: [] })
 const projects = ref<Project[]>([])
@@ -110,37 +112,31 @@ useLiveEvents(load)
 
 <template>
   <div class="view-inner">
-    <div class="v-head v-head-row">
-      <h1 class="v-title sr-only">{{ $t('Papierkorb') }}</h1>
-      <div class="v-sub">
-        {{ $tn(rows.length, '{n} Eintrag', '{n} Einträge') }} ·
-        {{ $t('Einträge werden hier aufbewahrt und können wiederhergestellt werden.') }}
-      </div>
-    </div>
+    <PageHeader :title="$t('Papierkorb')">
+      <SegTabs
+        v-if="rows.length"
+        v-model="kind"
+        :label="$t('Filter')"
+        :options="[
+          { value: '', label: $t('Alle'), count: count('') },
+          ...KINDS.map((k) => ({
+            value: k,
+            label: $t(PLURAL[k]),
+            count: count(k),
+            disabled: !count(k),
+          })),
+        ]"
+      />
+      <template #actions>
+        <SearchField v-if="rows.length" v-model="search" :label="$t('Papierkorb durchsuchen')" />
+      </template>
+    </PageHeader>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
     <div v-if="!rows.length" class="card tr-empty">
       <svg class="ic" aria-hidden="true"><use href="#i-trash" /></svg>
       <p>{{ $t('Der Papierkorb ist leer.') }}</p>
     </div>
     <template v-else>
-      <div class="filterbar">
-        <div class="seg" role="group" :aria-label="$t('Filter')">
-          <button type="button" :aria-pressed="kind === ''" @click="kind = ''">
-            {{ $t('Alle') }} <span class="count">{{ count('') }}</span>
-          </button>
-          <button
-            v-for="k in KINDS"
-            :key="k"
-            type="button"
-            :aria-pressed="kind === k"
-            :disabled="!count(k)"
-            @click="kind = k"
-          >
-            {{ $t(PLURAL[k]) }} <span class="count">{{ count(k) }}</span>
-          </button>
-        </div>
-        <SearchField v-model="search" :label="$t('Papierkorb durchsuchen')" />
-      </div>
       <div v-if="!shown.length" class="v-sub">
         {{ $t('Keine Treffer für „{q}“.', { q: search }) }}
       </div>
@@ -239,7 +235,7 @@ useLiveEvents(load)
   justify-items: center;
   gap: 10px;
   padding: 48px 16px;
-  border: 1px dashed var(--br-default);
+
   border-radius: var(--r-m);
   background: none;
   color: var(--tx-muted);
