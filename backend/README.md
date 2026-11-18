@@ -4,6 +4,7 @@ Go-Backend (stdlib `net/http`, SQLite via `modernc.org/sqlite`, ohne cgo).
 
 - Starten: `go run ./cmd/server` (Version: `-ldflags "-X main.version=1.0"`)
 - Autostart (macOS: LaunchAgent, Linux: systemd-User-Unit, Windows: Autostart-Ordner): `go build -o ~/.local/bin/kairo ./cmd/server`, dann `kairo install` (entfernen: `kairo uninstall`)
+- Update: `kairo update` holt die neueste Fassung aus den GitHub-Releases, prüft die Prüfsumme und ersetzt das Binary (`--check` zeigt nur, was es gäbe). Dasselbe macht Einstellungen → System in der WebUI, dort mit Neustart
 - Testen: `go test ./...` (auch `go vet ./...`, `gofmt -l .`)
 - WebUI: `frontend/` baut nach `internal/web/dist` und wird per `embed` ausgeliefert.
 
@@ -19,6 +20,7 @@ Vorrang vor der Datei; die WebUI sperrt das Feld dann.
 | `KAIRO_TIMEZONE` | Systemzone | IANA-Zeitzone, z. B. `Europe/Berlin` (auch in `config.json`) |
 | `KAIRO_WORK_START`, `KAIRO_WORK_END` | `09:00`, `17:00` | Arbeitszeitfenster `HH:MM` (auch in `config.json`) |
 | `KAIRO_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
+| `KAIRO_UPDATE` | automatisch | `off` schaltet `kairo update` und den Update-Knopf in den Einstellungen ab, `on` erzwingt ihn. Ohne Angabe ist er auf einem Raspberry Pi aus (dort aktualisiert `./deploy.sh`) |
 | `KAIRO_NOTES_DIR` | `~/Kairo` | Wurzelordner der Notizen (Markdown-Dateien), wird beim Start angelegt (auch in `config.json`) |
 | `KAIRO_TOKEN_PATH` | `~/.config/kairo/token` | Token-Datei (v. a. für Tests) |
 | `KAIRO_CONFIG_PATH` | `~/.config/kairo/config.json` | Einstellungsdatei (v. a. für Tests) |

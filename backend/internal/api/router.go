@@ -27,6 +27,7 @@ type Services struct {
 	Cards     CardService
 	Notes     *notes.Store
 	Settings  *Settings
+	Updates   *Updates
 	Prefs     PrefsStore
 	Backups   *Backups
 	// Location bestimmt die Ortszeit im ICS-Export; ohne Angabe gilt UTC.
@@ -95,6 +96,9 @@ func NewRouter(port int, token, version string, webUI http.Handler, svc Services
 	}
 	if svc.Settings != nil {
 		settingsHandlers{svc.Settings}.register(mux)
+	}
+	if svc.Updates != nil {
+		updateHandlers{svc.Updates}.register(mux)
 	}
 	if svc.Backups != nil {
 		backupHandlers{svc.Backups}.register(mux)

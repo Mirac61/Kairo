@@ -70,6 +70,8 @@ Optional: install `kairo-*.vsix` from the same release in VSCodium or VS Code (E
 | Linux   | systemd user service                      | `journalctl --user -u kairo`     |
 | Windows | script in your Startup folder (no window) | `%LOCALAPPDATA%\kairo\kairo.log` |
 
+**Keep Kairo up to date.** Settings → System checks GitHub and installs a newer release; Kairo restarts itself afterwards. In a terminal, `kairo update` does the same, and `kairo update --check` only reports. On a Raspberry Pi this is off on purpose, because there `./deploy.sh` brings the new version to the Pi.
+
 ## Usage
 
 Open <http://127.0.0.1:8742>. The Start page answers four questions: what is happening today, what is due, which habits are still open, and what to work on now.
@@ -162,7 +164,7 @@ More detail:
 - [`frontend/README.md`](frontend/README.md) and [`extension/README.md`](extension/README.md)
 - [`docs/`](docs/): vision, architecture, and roadmap (in German)
 - [`docs/PI_DEPLOYMENT.md`](docs/PI_DEPLOYMENT.md): how to run Kairo on a Raspberry Pi behind WireGuard (`./deploy.sh`)
-- Releases are built from tags with `.goreleaser.yaml`
+- Releases are cut by [release-please](https://github.com/googleapis/release-please): Conventional Commits on `main` become a release PR with the version and `CHANGELOG.md`, and the tag it creates is built by `.goreleaser.yaml`
 
 ## Tests
 

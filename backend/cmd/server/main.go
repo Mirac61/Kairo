@@ -29,6 +29,7 @@ import (
 	"kairo/internal/reminder"
 	"kairo/internal/repository"
 	"kairo/internal/service"
+	"kairo/internal/update"
 	"kairo/internal/web"
 )
 
@@ -42,7 +43,7 @@ func main() {
 	}
 }
 
-// dispatch führt "install", "uninstall", "backup", "restore" oder (ohne Argument) den Server aus.
+// dispatch führt "install", "uninstall", "backup", "restore", "import", "update" oder (ohne Argument) den Server aus.
 func dispatch(args []string) error {
 	if len(args) == 0 {
 		if err := run(); !errors.Is(err, errRestart) {
@@ -85,8 +86,10 @@ func dispatch(args []string) error {
 		return restore(args[1:])
 	case "import":
 		return importJSON(args[1:])
+	case "update":
+		return selfUpdate(args[1:])
 	default:
-		return fmt.Errorf("unbekannter Befehl %q (erlaubt: install, uninstall, backup [datei], restore <datei>, import <datei> oder ohne Argument den Server starten)", args[0])
+		return fmt.Errorf("unbekannter Befehl %q (erlaubt: install, uninstall, backup [datei], restore <datei>, import <datei>, update [--check] oder ohne Argument den Server starten)", args[0])
 	}
 }
 
@@ -229,7 +232,45 @@ func importJSON(args []string) error {
 	fmt.Printf("Importiert: %d Projekte, %d Aufgaben, %d Gewohnheiten, %d Abhakungen, %d Termine, %d Zeiteinträge, %d Ressourcen\n",
 		res.Projects, res.Tasks, res.Habits, res.HabitCompletions, res.CalendarEvents, res.TimeEntries, res.Resources)
 	return nil
-} // errRestart beendet run, damit dispatch den Prozess neu startet.
+}
+
+// selfUpdate holt die neueste Fassung von GitHub und ersetzt dieses Binary.
+// Auf einem Raspberry Pi bleibt das aus, dort aktualisiert ./deploy.sh.
+func selfUpdate(args []string) error {
+	check := false
+	switch {
+	case len(args) == 0:
+	case len(args) == 1 && args[0] == "--check":
+		check = true
+	default:
+		return errors.New("Aufruf: kairo update [--check]")
+	}
+	if update.Disabled(os.Getenv) {
+		return errors.New("Selbst-Updates sind aus (Raspberry Pi oder KAIRO_UPDATE=off); auf dem Pi aktualisiert ./deploy.sh")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	c := update.New()
+	rel, err := c.Latest(ctx)
+	if err != nil {
+		return err
+	}
+	if !update.Newer(rel.Version, version) {
+		fmt.Println("Kairo ist aktuell (" + version + ").")
+		return nil
+	}
+	fmt.Printf("Verfügbar: %s (%s)\n", rel.Version, rel.URL)
+	if check {
+		return nil
+	}
+	if _, err := c.Install(ctx, rel); err != nil {
+		return err
+	}
+	fmt.Printf("Aktualisiert auf %s. Eine laufende Instanz nutzt sie nach dem Neustart.\n", rel.Version)
+	return nil
+}
+
+// errRestart beendet run, damit dispatch den Prozess neu startet.
 var errRestart = errors.New("Neustart")
 
 // reminderStore verbindet TaskRepository und CalendarService für den Erinnerungs-Scheduler.
@@ -263,6 +304,8 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	var restart atomic.Bool
+	// Neustart aus der WebUI (Einstellungen, Update): dieselbe Datei neu ausführen.
+	restartNow := func() { restart.Store(true); stop() }
 
 	token, err := api.LoadOrCreateToken(cfg.TokenPath)
 	if err != nil {
@@ -330,7 +373,8 @@ func run() error {
 		Notes:     notesStore,
 		Prefs:     repository.NewPrefsRepository(db),
 		Backups:   &api.Backups{Dir: backupDir(cfg), Create: func(ctx context.Context, dest string) error { return repository.Backup(ctx, db, dest) }},
-		Settings:  &api.Settings{Running: cfg, Getenv: os.Getenv, Restart: func() { restart.Store(true); stop() }},
+		Settings:  &api.Settings{Running: cfg, Getenv: os.Getenv, Restart: restartNow},
+		Updates:   &api.Updates{Client: update.New(), Current: version, Disabled: update.Disabled(os.Getenv), Restart: restartNow},
 		Hub:       hub,
 		Location:  cfg.Location,
 		GitHub:    github.New(),

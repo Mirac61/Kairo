@@ -641,6 +641,13 @@ const mock = {
     path: '/Users/demo/.config/kairo/config.json',
     restart_needed: true,
   }),
+  '/api/update': () => ({
+    current: '0.1.0',
+    latest: '0.2.0',
+    available: true,
+    url: 'https://github.com/Mirac61/Kairo/releases/tag/v0.2.0',
+    disabled: false,
+  }),
   '/api/today': (q) => {
     const date = q.get('date') ?? day(todayIdx)
     const open = (t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
