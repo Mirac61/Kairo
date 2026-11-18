@@ -130,60 +130,10 @@
     display: inline;
   }
 }
-@container (max-width: 110px) {
-  .fc .kt-row {
-    font-size: 10px;
-    gap: 3px;
-  }
-  .fc .kt-ist {
-    display: none;
-  }
-}
-@container (max-width: 85px) {
-  .fc .kt-row {
-    display: none;
-  }
-  .fc .kt-bar {
-    display: none;
-  }
-}
 .fc .kt-dh.today b {
   background: var(--a-now);
   color: var(--tx-on-accent);
 }
-.fc .kt-row {
-  flex: 1 0 100%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  min-height: 11px;
-  font: 400 11px/1 var(--font-ui);
-  font-variant-numeric: tabular-nums;
-  color: var(--tx-secondary);
-}
-.fc .kt-cap {
-  color: var(--tx-secondary);
-}
-.fc .kt-bar {
-  flex: 1 0 100%;
-  position: relative;
-  height: 3px;
-  border-radius: 2px;
-  overflow: hidden;
-  background: var(--br-default);
-}
-.fc .kt-bar i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 0;
-  border-radius: 2px;
-  transition: width var(--dur) ease-out;
-}
-.fc .kt-bar .t {
-  background: var(--a-now);
-}
-
 /* Jetzt-Linie mit Uhrzeit im Achsen-Chip; am aktuellen Tag kräftig durchgezogen, über alle anderen Wochentage dezent gestrichelt */
 .fc .fc-timegrid-now-indicator-container {
   overflow: visible;

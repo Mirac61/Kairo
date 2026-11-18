@@ -17,24 +17,11 @@ export function isoWeek(date: Date): number {
   return Math.ceil(((target.getTime() - yearStart) / 86_400_000 + 1) / 7)
 }
 
+// Ist und Plan stehen nur noch im Tooltip des Tageskopfs; der Vergleich lebt im Rückblick.
 export function paintDay(th: HTMLElement, stats: Map<string, [number, number]>): void {
-  const capEl = th.querySelector<HTMLElement>('.kt-cap')
-  if (!capEl) return // Monatskopf hat keine Statistik
+  if (!th.querySelector('.kt-dh')) return // Monats- und Tagesansicht haben keine Statistik
 
   const [p, ist] = stats.get(th.dataset.date ?? '') ?? [0, 0]
-  capEl.textContent = `${hm(ist)} / ${hm(p)}h`
-
-  const tBar = th.querySelector<HTMLElement>('.kt-bar .t')
-  if (tBar) {
-    const pct =
-      p > 0
-        ? Math.min(100, Math.round((ist / p) * 100))
-        : ist > 0
-          ? Math.min(100, Math.round((ist / 480) * 100))
-          : 0
-    tBar.style.width = `${pct}%`
-  }
-
   th.title = `${t('Ist')}: ${hm(ist)} · ${t('Plan')}: ${hm(p)}`
 }
 
@@ -55,10 +42,6 @@ export function renderDayHeader(
     )
     return { domNodes: [head] }
   }
-  const row = createDomElement('div', 'kt-row')
-  row.append(createDomElement('span', 'kt-cap'))
-  const bar = createDomElement('div', 'kt-bar')
-  bar.append(createDomElement('i', 't'))
   const root = createDomElement('div', `kt-dh${a.isToday ? ' today' : ''}`)
   root.append(
     createDomElement('small', 'kt-wd-l', wd),
@@ -68,8 +51,6 @@ export function renderDayHeader(
       a.date.toLocaleDateString(localeVal, { weekday: 'short' }).replace('.', ''),
     ),
     createDomElement('b', '', String(a.date.getDate())),
-    row,
-    bar,
   )
   return { domNodes: [root] }
 }
