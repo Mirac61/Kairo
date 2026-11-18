@@ -675,7 +675,7 @@ test('PDF und Bild bezeichnen', async () => {
   for (const name of ['Blatt.pdf', 'Bild.png']) {
     const before = readFileSync(join(env.KAIRO_NOTES_DIR, name))
     await page.goto(`${base}/notes`)
-    await page.getByRole('treeitem', { name: name.replace(/\.\w+$/, ''), exact: true }).click()
+    await page.getByRole('treeitem', { name, exact: true }).click()
     await page.getByRole('button', { name: 'Rechteck' }).click()
     const box = await page.locator('.fe-page').first().boundingBox()
     await page.mouse.move(box.x + 40, box.y + 40)
@@ -738,6 +738,7 @@ test('Zeichnung', async () => {
   writeFileSync(join(env.KAIRO_NOTES_DIR, 'Mit Zeichnung.md'), '# Plan\n\n![](Skizze.excalidraw)\n')
   await page.goto(`${base}/notes`)
   await page.getByRole('treeitem', { name: 'Mit Zeichnung', exact: true }).click()
+  await page.getByTitle('preview', { exact: true }).click() // Vorschau ist standardmäßig aus
   const img = page.locator('img[data-drawing="Skizze.excalidraw"][src^="blob:"]')
   await img.click()
   await page.locator('.ed-doc .dw canvas.interactive').waitFor()

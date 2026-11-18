@@ -81,10 +81,12 @@ const vStart = {
   },
 }
 const indent = () => ({ paddingLeft: `${8 + props.depth * 14}px` })
-// Dateien ohne Endung; den Typ zeigt das Icon.
-// Code behält die Endung, sonst sähen tree.cpp und tree.hpp gleich aus.
+// Name ohne Endung; Code behält sie im Namen, sonst sähen tree.cpp und tree.hpp gleich aus.
 const label = (n: NoteNode) =>
   n.dir || fileKind(n.path) === 'code' ? n.name : n.name.replace(/\.[^.]+$/, '')
+// Endung gedämpft dahinter, damit Foto.png und Foto.jpg unterscheidbar sind; .md ist der Normalfall und bleibt weg.
+const ext = (n: NoteNode) =>
+  n.dir || ['md', 'code'].includes(fileKind(n.path)) ? '' : (n.name.match(/\.[^.]+$/)?.[0] ?? '')
 const ICONS = {
   md: '#i-md',
   pdf: '#i-pdf',
@@ -163,6 +165,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
           type="button"
           class="nt-main"
           role="treeitem"
+          :aria-label="label(n) + ext(n)"
           :style="indent()"
           :aria-expanded="n.dir ? ctx.open.has(n.path) : undefined"
           :aria-current="!n.dir && ctx.isActive(n.path) ? 'page' : undefined"
@@ -186,7 +189,8 @@ function dragOver(e: DragEvent, n: NoteNode) {
           >
             <use :href="icon(n)" />
           </svg>
-          <span class="nt-name">{{ label(n) }}</span>
+          <span class="nt-name">{{ label(n) }}</span
+          ><span v-if="ext(n)" class="nt-ext">{{ ext(n) }}</span>
         </button>
         <button
           type="button"
@@ -282,8 +286,6 @@ function dragOver(e: DragEvent, n: NoteNode) {
 .nt-row:hover .nt-main,
 .nt-row.active .nt-main {
   color: var(--tx-primary);
-}
-.nt-row.active .nt-main {
   font-weight: 500;
 }
 .nt-chev {
@@ -321,6 +323,11 @@ function dragOver(e: DragEvent, n: NoteNode) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.nt-ext {
+  flex: none;
+  margin-left: -6px; /* direkt am Namen statt mit dem gap der Zeile */
+  color: var(--tx-muted);
 }
 .nt-more {
   display: none;

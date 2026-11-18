@@ -157,7 +157,7 @@ const prioLevel = computed(() => {
   cursor: pointer;
 }
 .prio-i.quiet {
-  visibility: hidden; /* nur hohe Priorität zeigen, die Spalte bleibt für die Ausrichtung */
+  opacity: 0; /* nur hohe Priorität zeigen; die Spalte bleibt für die Ausrichtung, das aria-label für Screenreader */
 }
 .task-row.fresh {
   background: var(--bg-selected);

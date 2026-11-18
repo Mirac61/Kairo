@@ -42,7 +42,7 @@ const projectName = (id: string | null) => props.projects.find((p) => p.project_
 
   <section v-if="overdue.length" class="rv-group">
     <h2 class="rv-gh">
-      {{ $t('Überfällig geworden') }} <span class="count">{{ overdue.length || '' }}</span>
+      {{ $t('Überfällig geworden') }} <span class="count">{{ overdue.length }}</span>
     </h2>
     <div v-for="task in overdue" :key="task.id" class="rv-row rv-task rv-od">
       <span class="cb ring" aria-hidden="true"></span>

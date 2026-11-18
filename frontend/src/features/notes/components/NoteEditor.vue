@@ -220,6 +220,7 @@ watch(
   () => props.scrollHeading,
   (h) => {
     if (!h) return
+    editor.value?.togglePreview(true) // Anker gibt es nur in der Vorschau, und die ist standardmäßig aus
     void nextTick(() => {
       root.value
         ?.querySelector(`.md-editor-preview [id="${CSS.escape(slugify(h))}"]`)

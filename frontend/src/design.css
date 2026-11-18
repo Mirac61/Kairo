@@ -1548,35 +1548,7 @@ select.input {
 .task-row .due.od {
   color: var(--a-red);
 }
-/* Aufgabenliste (Entwurf „Kairo Aufgaben“): Spaltenkopf und Projekt als getönte Marke. Alle Spalten linksbündig mit festen Breiten, damit unterschiedlich lange Werte eine saubere Kante ergeben. */
-.tk-cols {
-  display: flex;
-  gap: 12px;
-  padding: 0 12px 0 40px;
-  height: 32px;
-  align-items: center;
-  font: 600 11px/1 var(--font-ui);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--tx-muted);
-  background: var(--bg-0);
-  border-bottom: 1px solid var(--br-subtle);
-}
-.tk-cols .c-t {
-  flex: 1;
-}
-.tk-cols .c-p {
-  width: 150px;
-}
-.tk-cols .c-d {
-  width: 52px;
-}
-.tk-cols .c-i {
-  width: 40px;
-}
-.tk-cols .c-f {
-  width: 124px;
-}
+/* Aufgabenliste (Entwurf „Kairo Aufgaben“): Projekt als getönte Marke. Alle Spalten linksbündig mit festen Breiten, damit unterschiedlich lange Werte eine saubere Kante ergeben. */
 .tgroup .task-row .chip:has(.cdot) {
   height: 22px;
   padding: 0 9px;
@@ -1618,11 +1590,6 @@ select.input {
   .tgroup .task-row .chip {
     width: auto;
     max-width: 100%;
-  }
-}
-@media (max-width: 640px) {
-  .tk-cols {
-    display: none;
   }
 }
 .key {

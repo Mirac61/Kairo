@@ -103,7 +103,7 @@ const offerTemplates = computed(
         v-if="canSave && isDirty"
         type="button"
         class="btn btn-secondary ed-save"
-        :disabled="!isDirty || saving"
+        :disabled="saving"
         aria-keyshortcuts="Meta+S Control+S"
         @click="emit('save', false, pane)"
       >

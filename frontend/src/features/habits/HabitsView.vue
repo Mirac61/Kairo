@@ -551,9 +551,9 @@ useLiveEvents(load)
   }
   .hab-split :deep(.hab-aside) {
     position: sticky;
-    top: 56px;
+    top: 0;
     align-self: start;
-    height: calc(100dvh - 56px);
+    height: 100dvh;
   }
 }
 </style>
