@@ -20,6 +20,7 @@ import { dur, shiftDate } from '@/lib/dates'
 import { locale, t } from '@/lib/i18n'
 import { journalPath, parseEntry } from '@/lib/journal'
 import { store } from '@/lib/storage'
+import PageHeader from '@/components/PageHeader.vue'
 import TodayHeroCard from './components/TodayHeroCard.vue'
 import TodayQuickStrip from './components/TodayQuickStrip.vue'
 import TodayTaskTable from './components/TodayTaskTable.vue'
@@ -231,34 +232,37 @@ watch(
   <div class="view-inner today-view">
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-    <div class="v-head td-head">
-      <h1 class="v-title">{{ todayFormatted }}</h1>
-      <p class="td-sub">
-        <template v-if="overdue.length">
-          <span class="td-sub-od">{{ $t('{n} überfällig', { n: overdue.length }) }}</span>
-          <button type="button" class="td-sub-btn" @click="overdueToToday">
-            {{ $t('Überfällige auf heute') }}
-          </button>
-          <span class="td-sub-sep" aria-hidden="true">·</span>
-        </template>
-        <template v-if="eventCount">
-          <span>{{ $tn(eventCount, '{n} Termin', '{n} Termine') }}</span>
-          <span class="td-sub-sep" aria-hidden="true">·</span>
-        </template>
-        <span>{{ $t('{time} frei', { time: dur(freeMin) }) }}</span>
-        <template v-if="yesterday">
-          <span class="td-sub-sep" aria-hidden="true">·</span>
-          <RouterLink
-            v-if="yesterday"
-            class="st-journal td-journal"
-            :to="{ name: 'journal', query: { date: yesterday.date } }"
-          >
-            <span>{{ $t('Gestern hast du dir vorgenommen:') }}</span>
-            <b>{{ yesterday.intention }}</b>
-          </RouterLink>
-        </template>
-      </p>
-    </div>
+    <PageHeader :title="$t('Start')">
+      <div class="td-head">
+        <span class="ph-label td-title">{{ todayFormatted }}</span>
+        <span class="td-sub-sep" aria-hidden="true">·</span>
+        <p class="td-sub">
+          <template v-if="overdue.length">
+            <span class="td-sub-od">{{ $t('{n} überfällig', { n: overdue.length }) }}</span>
+            <button type="button" class="td-sub-btn" @click="overdueToToday">
+              {{ $t('Überfällige auf heute') }}
+            </button>
+            <span class="td-sub-sep" aria-hidden="true">·</span>
+          </template>
+          <template v-if="eventCount">
+            <span>{{ $tn(eventCount, '{n} Termin', '{n} Termine') }}</span>
+            <span class="td-sub-sep" aria-hidden="true">·</span>
+          </template>
+          <span>{{ $t('{time} frei', { time: dur(freeMin) }) }}</span>
+          <template v-if="yesterday">
+            <span class="td-sub-sep" aria-hidden="true">·</span>
+            <RouterLink
+              v-if="yesterday"
+              class="st-journal td-journal"
+              :to="{ name: 'journal', query: { date: yesterday.date } }"
+            >
+              <span>{{ $t('Gestern hast du dir vorgenommen:') }}</span>
+              <b>{{ yesterday.intention }}</b>
+            </RouterLink>
+          </template>
+        </p>
+      </div>
+    </PageHeader>
 
     <div class="td-grid">
       <div class="td-main">
@@ -313,13 +317,16 @@ watch(
 <style scoped>
 .today-view {
   max-width: 1360px;
-  padding-top: 36px;
 }
 .td-head {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.td-title {
+  color: var(--tx-primary);
+  font-weight: 500;
 }
 .td-sub {
   margin: 0;

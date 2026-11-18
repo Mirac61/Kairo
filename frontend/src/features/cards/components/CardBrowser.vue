@@ -13,6 +13,8 @@ import { useShortcuts } from '@/composables/useShortcuts'
 import { accuracy, intervalText, lapses, perDay, streak, SETTLED_DAYS } from '@/lib/cards'
 import { locale, t } from '@/lib/i18n'
 import { PROJECT_COLORS } from '@/lib/projectColor'
+import PageHeader from '@/components/PageHeader.vue'
+import IconButton from '@/components/IconButton.vue'
 import DeleteButton from '@/components/DeleteButton.vue'
 import CardText from './CardText.vue'
 
@@ -257,7 +259,7 @@ useShortcuts((e) => {
     </aside>
 
     <main class="kb-main">
-      <header class="kb-head">
+      <PageHeader :title="$t('Lernkarten')" class="kb-head">
         <div class="kb-ht">
           <h2>{{ deck || $t('Alle Karten') }}</h2>
           <span
@@ -274,45 +276,44 @@ useShortcuts((e) => {
             }})
           </option>
         </select>
-        <label class="kb-search" :title="`${$t('Suchen')} (/)`">
-          <svg class="ic" aria-hidden="true"><use href="#i-search" /></svg>
-          <input
-            ref="searchEl"
-            v-model="query"
-            type="search"
-            :aria-label="$t('Karten durchsuchen')"
-            :placeholder="$t('Suchen')"
+        <template #actions>
+          <label class="kb-search" :title="`${$t('Suchen')} (/)`">
+            <svg class="ic" aria-hidden="true"><use href="#i-search" /></svg>
+            <input
+              ref="searchEl"
+              v-model="query"
+              type="search"
+              :aria-label="$t('Karten durchsuchen')"
+              :placeholder="$t('Suchen')"
+            />
+          </label>
+          <button
+            v-if="deck"
+            type="button"
+            class="btn btn-secondary kb-more"
+            :aria-label="$t('Fach-Optionen')"
+            :title="$t('Fach-Optionen')"
+            @click="emit('options', deck)"
+          >
+            ⋯
+          </button>
+          <IconButton
+            icon="plus"
+            :label="$t('Hinzufügen')"
+            shortcut="N"
+            @click="emit('add', deck || null)"
           />
-        </label>
-        <button
-          v-if="deck"
-          type="button"
-          class="btn btn-secondary kb-more"
-          :aria-label="$t('Fach-Optionen')"
-          :title="$t('Fach-Optionen')"
-          @click="emit('options', deck)"
-        >
-          ⋯
-        </button>
-        <button
-          type="button"
-          class="icon-btn"
-          :aria-label="$t('Hinzufügen')"
-          :title="`${$t('Hinzufügen')} (N)`"
-          @click="emit('add', deck || null)"
-        >
-          <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-        </button>
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="!current.due"
-          :title="current.due ? `${$t('Lernen')} (L)` : undefined"
-          @click="emit('learn', deck || null)"
-        >
-          {{ current.due ? $t('{n} lernen', { n: current.due }) : $t('Nichts fällig') }}
-        </button>
-      </header>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="!current.due"
+            :title="current.due ? `${$t('Lernen')} (L)` : undefined"
+            @click="emit('learn', deck || null)"
+          >
+            {{ current.due ? $t('{n} lernen', { n: current.due }) : $t('Nichts fällig') }}
+          </button>
+        </template>
+      </PageHeader>
       <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
       <div class="kb-table" role="table" :aria-label="$t('Karten')">
@@ -582,27 +583,23 @@ useShortcuts((e) => {
   flex-direction: column;
 }
 .kb-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 24px 24px 16px;
+  min-height: 48px;
+  padding: 8px 24px;
+  margin-bottom: 0;
   border-bottom: 1px solid var(--br-subtle);
 }
 .kb-ht {
-  flex: 1;
-  min-width: 180px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: baseline;
+  gap: 8px;
 }
 .kb-ht h2 {
   margin: 0;
-  font: 600 19px/1.25 var(--font-ui);
+  font: 500 15px/1.2 var(--font-ui);
   color: var(--tx-primary);
 }
 .kb-ht span {
-  font: 400 12.5px/1.3 var(--font-ui);
+  font: 400 13px/1.3 var(--font-ui);
   color: var(--tx-muted);
 }
 .kb-search {
@@ -897,7 +894,7 @@ useShortcuts((e) => {
     flex-shrink: 0;
   }
   .kb-head {
-    padding: 14px 12px;
+    padding: 8px 12px;
   }
   .kb-search {
     order: 5;
