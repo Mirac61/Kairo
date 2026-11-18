@@ -364,7 +364,6 @@ useLiveEvents(load)
               >
                 <span class="tgroup-title">{{ group.title }}</span>
                 <span class="count">{{ group.rows.length }}</span>
-                <span v-if="group.minutes" class="g-sum">· {{ dur(group.minutes) }}</span>
               </div>
 
               <div class="tasklist">
@@ -499,11 +498,6 @@ useLiveEvents(load)
   font-weight: 500;
   color: var(--tx-muted);
 }
-.tgroup-hdr .g-sum {
-  font: 400 12px/1 var(--font-ui);
-  color: var(--tx-muted);
-  font-variant-numeric: tabular-nums;
-}
 
 @media (min-width: 1001px) {
   .view-inner.tk-split {
@@ -558,9 +552,5 @@ useLiveEvents(load)
 }
 .tgroup > .lbl.od {
   color: var(--a-red);
-}
-.g-sum {
-  font: 400 12.5px/1 var(--font-ui);
-  color: var(--tx-muted);
 }
 </style>

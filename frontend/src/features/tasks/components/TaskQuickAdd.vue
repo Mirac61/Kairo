@@ -549,9 +549,9 @@ defineExpose({
 <style scoped>
 .tk-comp {
   position: relative;
-  margin-bottom: 28px;
-  padding: 16px 18px 14px;
-  border-radius: 14px;
+  margin-bottom: 16px;
+  padding: 8px 14px;
+  border-radius: 10px;
   background: var(--bg-card);
   transition: box-shadow var(--dur);
 }

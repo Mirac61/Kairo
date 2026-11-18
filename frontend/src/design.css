@@ -1485,6 +1485,12 @@ select.input {
   min-width: 36px;
   text-align: right;
 }
+/* Dauer erst beim Hover oder Fokus; die Spalte bleibt für die Ausrichtung, Touch zeigt sie immer */
+@media (hover: hover) {
+  .task-row:not(:hover, :focus-within, .selected) .dur {
+    opacity: 0;
+  }
+}
 /* Priorität als drei Balken: Niedrig 1, Mittel 2, Hoch 3 (Dringend rot) */
 .prio-i {
   display: inline-flex;
@@ -2521,7 +2527,6 @@ select.input {
 }
 .task-row :is(.due, .dur, .status-l),
 .tk-stats,
-.g-sum,
 .td-row input {
   font-variant-numeric: tabular-nums;
 }
