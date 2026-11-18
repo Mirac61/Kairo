@@ -140,20 +140,24 @@ const shown = computed(() => {
 const LAYOUT_KEY = 'kairo-projects-layout'
 const tab = ref('ACTIVE')
 const sort = ref<'recent' | 'name'>('recent')
-const layout = ref<'grid' | 'list'>('grid')
+// Liste ist der ruhige Standard; Kacheln nur auf Wunsch.
+const layout = ref<'grid' | 'list'>('list')
 
-if (store.get(LAYOUT_KEY) === 'list') layout.value = 'list'
+if (store.get(LAYOUT_KEY) === 'grid') layout.value = 'grid'
 function setLayout(l: 'grid' | 'list') {
   layout.value = l
   store.set(LAYOUT_KEY, l)
 }
 
+// Leere Reiter bleiben weg, der gewählte bleibt stehen.
 const tabs = computed(() =>
-  Object.entries(STATUS).map(([status, label]) => ({
-    status,
-    label,
-    n: shown.value.filter((p) => p.status === status).length,
-  })),
+  Object.entries(STATUS)
+    .map(([status, label]) => ({
+      status,
+      label,
+      n: shown.value.filter((p) => p.status === status).length,
+    }))
+    .filter((t) => t.n || t.status === tab.value),
 )
 
 const list = computed(() =>
@@ -262,7 +266,6 @@ useShortcuts((e) => {
             :key="tabItem.status"
             type="button"
             :aria-pressed="tab === tabItem.status"
-            :disabled="!tabItem.n && tab !== tabItem.status"
             @click="tab = tabItem.status"
           >
             {{ tabItem.label }} <span class="count">{{ tabItem.n }}</span>
@@ -276,25 +279,15 @@ useShortcuts((e) => {
           <option value="name">{{ $t('Name') }}</option>
         </select>
 
-        <span class="seg" role="group" :aria-label="$t('Ansicht')">
-          <button
-            type="button"
-            :aria-label="$t('Kacheln')"
-            :aria-pressed="layout === 'grid'"
-            @click="setLayout('grid')"
-          >
-            <svg class="ic"><use href="#i-grid" /></svg>
-          </button>
-          <button
-            type="button"
-            :aria-label="$t('Liste')"
-            :aria-pressed="layout === 'list'"
-            @click="setLayout('list')"
-          >
-            <svg class="ic"><use href="#i-list" /></svg>
-          </button>
-        </span>
-
+        <button
+          type="button"
+          class="icon-btn"
+          :aria-label="layout === 'list' ? $t('Kacheln') : $t('Liste')"
+          :title="layout === 'list' ? $t('Kacheln') : $t('Liste')"
+          @click="setLayout(layout === 'list' ? 'grid' : 'list')"
+        >
+          <svg class="ic"><use :href="layout === 'list' ? '#i-grid' : '#i-list'" /></svg>
+        </button>
         <SearchField v-model="search" :label="$t('Projekte durchsuchen')" />
 
         <button
@@ -343,9 +336,6 @@ useShortcuts((e) => {
             <svg class="ic proj-ic" aria-hidden="true"><use :href="`#${projectIconOf(p)}`" /></svg>
             <div class="proj-title-wrap">
               <div class="proj-name">{{ p.name }}</div>
-              <span v-if="lastActive(p.id)" class="proj-last">
-                {{ $t('aktiv {when}', { when: lastActive(p.id) }) }}
-              </span>
             </div>
             <button
               v-if="p.local_path"
@@ -373,6 +363,9 @@ useShortcuts((e) => {
             </span>
             <span v-if="minutes[p.id]?.week" class="proj-stat">
               <b class="mono">{{ hm(minutes[p.id]!.week) }}</b> {{ $t('diese Woche') }}
+            </span>
+            <span v-if="lastActive(p.id)" class="proj-last">
+              {{ $t('aktiv {when}', { when: lastActive(p.id) }) }}
             </span>
           </div>
         </article>
