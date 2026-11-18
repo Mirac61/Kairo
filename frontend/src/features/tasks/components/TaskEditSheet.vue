@@ -478,9 +478,9 @@ function noteTarget(): string | undefined {
 @media (min-width: 1001px) {
   .task-aside {
     position: sticky;
-    top: 56px;
+    top: 0;
     align-self: start;
-    height: calc(100dvh - 56px);
+    height: 100dvh;
   }
 }
 

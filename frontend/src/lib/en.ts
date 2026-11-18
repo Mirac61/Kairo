@@ -1133,6 +1133,7 @@ const en: Record<string, string> = {
   'Schritt hinzufügen …': 'Add a step …',
   'Ersten Schritt hinzufügen …': 'Add a first step …',
   'Fortschritt von „{title}“': 'Progress of “{title}”',
+  'Details zu „{title}“': 'Details for “{title}”',
   'Soll heute: {n} %': 'Target today: {n} %',
   'Verlauf: {p} % erreicht, Soll heute {s} %': 'History: {p} % reached, target today {s} %',
   'Verlauf: {p} % erreicht': 'History: {p} % reached',

@@ -37,8 +37,7 @@ const steps: Step[] = [
     text: 'Markdown-Notizen mit Verknüpfungen. PDFs und Bilder kannst du hier ansehen und bezeichnen; hat eine PDF ein Inhaltsverzeichnis, springst du über die Liste links zur Stelle.',
   },
   {
-    target: '.tb-search',
-    side: 'bottom',
+    target: '.nav-search',
     title: 'Suchen und neu anlegen',
     text: 'Mit ⌘K (Strg + K) suchst du in allem. Findet die Suche nichts, legt sie daraus eine Aufgabe an.',
   },

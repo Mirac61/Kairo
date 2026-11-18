@@ -125,7 +125,7 @@ const prioLevel = computed(() => {
 
     <span
       class="prio-i"
-      :class="{ high: isUrgent }"
+      :class="{ high: isUrgent, quiet: prioLevel < 3 }"
       role="img"
       :aria-label="`${$t('Priorität')}: ${prioLabel}`"
     >
@@ -155,6 +155,9 @@ const prioLevel = computed(() => {
   border: 0;
   color: inherit;
   cursor: pointer;
+}
+.prio-i.quiet {
+  opacity: 0; /* nur hohe Priorität zeigen; die Spalte bleibt für die Ausrichtung, das aria-label für Screenreader */
 }
 .task-row.fresh {
   background: var(--bg-selected);

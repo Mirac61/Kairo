@@ -44,6 +44,8 @@ const pace = computed(() => (props.goal.archived ? null : goalPace(props.goal, p
 const next = computed(() => props.steps.find((s) => !s.archived))
 
 const draft = ref('')
+// Zu: nur Titel, Status und Balken. Auf: Begründung, Verlauf, Schritte.
+const open = ref(false)
 
 function handleAddStep() {
   const title = draft.value.trim()
@@ -80,14 +82,21 @@ function removeStep(e: Event, s: Goal) {
       >
       <span v-else-if="goal.archived" class="gl-state gl-ok"><i></i>{{ $t('Erreicht') }}</span>
       <span v-else-if="!goal.due_date" class="gl-state">{{ $t('Ohne Frist') }}</span>
+      <button
+        type="button"
+        class="gl-more"
+        :aria-expanded="open"
+        :aria-label="$t('Details zu „{title}“', { title: goal.title })"
+        @click="open = !open"
+      >
+        <svg class="ic" :class="{ on: open }" aria-hidden="true"><use href="#i-chev" /></svg>
+      </button>
     </header>
-    <p v-if="goal.why" class="gl-why">{{ goal.why }}</p>
 
     <template v-if="goal.progress">
       <div class="gl-num">
         <b>{{ goal.progress.percent }}%</b>
         <span class="gl-muted">{{ goalProgressText(goal) }}</span>
-        <span v-if="pace" class="gl-hint">{{ pace.hint }}</span>
       </div>
       <div
         class="gl-bar"
@@ -107,7 +116,12 @@ function removeStep(e: Event, s: Goal) {
           :title="$t('Soll heute: {n} %', { n: pace.pace })"
         ></b>
       </div>
-      <figure v-if="goal.history?.length > 1" class="gl-chart">
+    </template>
+
+    <template v-if="open">
+      <p v-if="goal.why" class="gl-why">{{ goal.why }}</p>
+      <p v-if="pace" class="gl-hint">{{ pace.hint }}</p>
+      <figure v-if="goal.progress && goal.history?.length > 1" class="gl-chart">
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
@@ -144,73 +158,75 @@ function removeStep(e: Event, s: Goal) {
           <span>{{ goal.due_date ? shortDate(goal.due_date) : $t('heute') }}</span>
         </figcaption>
       </figure>
-    </template>
-    <p v-else class="gl-muted">
-      {{
-        $t(
-          'Noch kein Fortschritt. Leg Schritte an oder miss das Ziel an einem Projekt oder einer Gewohnheit.',
-        )
-      }}
-    </p>
+      <p v-if="!goal.progress" class="gl-muted">
+        {{
+          $t(
+            'Noch kein Fortschritt. Leg Schritte an oder miss das Ziel an einem Projekt oder einer Gewohnheit.',
+          )
+        }}
+      </p>
 
-    <div v-if="next" class="gl-next">
-      <button
-        type="button"
-        class="gl-box"
-        role="checkbox"
-        :aria-checked="false"
-        :aria-label="$t('„{title}“ erreicht', { title: next.title })"
-        @click="emit('archive', next, true)"
-      ></button>
-      <button type="button" class="gl-step-t" @click="emit('edit', next)">{{ next.title }}</button>
-      <span class="gl-muted">{{ $t('Als nächstes') }}</span>
-    </div>
-    <details v-if="steps.length" class="gl-steps">
-      <summary>
-        {{ $t('Alle Schritte') }}
-        <span class="count">{{ steps.filter((s) => s.archived).length }}/{{ steps.length }}</span>
-      </summary>
-      <ul class="gl-list">
-        <li v-for="st in steps" :key="st.id" :class="{ done: st.archived }">
-          <button
-            type="button"
-            class="gl-box"
-            role="checkbox"
-            :aria-checked="st.archived"
-            :aria-label="
-              st.archived
-                ? $t('„{title}“ wieder öffnen', { title: st.title })
-                : $t('„{title}“ erreicht', { title: st.title })
-            "
-            @click="emit('archive', st, !st.archived)"
-          >
-            <svg v-if="st.archived" viewBox="0 0 24 24">
-              <path d="M5 12.5l4.5 4.5L19 7.5" />
-            </svg>
-          </button>
-          <button type="button" class="gl-step-t" @click="emit('edit', st)">
-            {{ st.title
-            }}<small v-if="st.progress && !st.archived"> · {{ st.progress.percent }}%</small>
-          </button>
-          <button
-            type="button"
-            class="gl-x"
-            :aria-label="$t('„{title}“ löschen', { title: st.title })"
-            @click="removeStep($event, st)"
-          >
-            ×
-          </button>
-        </li>
-      </ul>
-    </details>
-    <input
-      v-if="!goal.archived"
-      v-model="draft"
-      class="gl-add"
-      :placeholder="steps.length ? $t('Schritt hinzufügen …') : $t('Ersten Schritt hinzufügen …')"
-      :aria-label="$t('Schritt zu „{title}“ hinzufügen', { title: goal.title })"
-      @keydown.enter.prevent="handleAddStep"
-    />
+      <div v-if="next" class="gl-next">
+        <button
+          type="button"
+          class="gl-box"
+          role="checkbox"
+          :aria-checked="false"
+          :aria-label="$t('„{title}“ erreicht', { title: next.title })"
+          @click="emit('archive', next, true)"
+        ></button>
+        <button type="button" class="gl-step-t" @click="emit('edit', next)">
+          {{ next.title }}
+        </button>
+        <span class="gl-muted">{{ $t('Als nächstes') }}</span>
+      </div>
+      <details v-if="steps.length" class="gl-steps">
+        <summary>
+          {{ $t('Alle Schritte') }}
+          <span class="count">{{ steps.filter((s) => s.archived).length }}/{{ steps.length }}</span>
+        </summary>
+        <ul class="gl-list">
+          <li v-for="st in steps" :key="st.id" :class="{ done: st.archived }">
+            <button
+              type="button"
+              class="gl-box"
+              role="checkbox"
+              :aria-checked="st.archived"
+              :aria-label="
+                st.archived
+                  ? $t('„{title}“ wieder öffnen', { title: st.title })
+                  : $t('„{title}“ erreicht', { title: st.title })
+              "
+              @click="emit('archive', st, !st.archived)"
+            >
+              <svg v-if="st.archived" viewBox="0 0 24 24">
+                <path d="M5 12.5l4.5 4.5L19 7.5" />
+              </svg>
+            </button>
+            <button type="button" class="gl-step-t" @click="emit('edit', st)">
+              {{ st.title
+              }}<small v-if="st.progress && !st.archived"> · {{ st.progress.percent }}%</small>
+            </button>
+            <button
+              type="button"
+              class="gl-x"
+              :aria-label="$t('„{title}“ löschen', { title: st.title })"
+              @click="removeStep($event, st)"
+            >
+              ×
+            </button>
+          </li>
+        </ul>
+      </details>
+      <input
+        v-if="!goal.archived"
+        v-model="draft"
+        class="gl-add"
+        :placeholder="steps.length ? $t('Schritt hinzufügen …') : $t('Ersten Schritt hinzufügen …')"
+        :aria-label="$t('Schritt zu „{title}“ hinzufügen', { title: goal.title })"
+        @keydown.enter.prevent="handleAddStep"
+      />
+    </template>
   </article>
 </template>
 
@@ -284,8 +300,35 @@ function removeStep(e: Event, s: Goal) {
   border-radius: 50%;
   background: var(--c, var(--tx-muted));
 }
+.gl-more {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px -6px -4px 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: var(--tx-muted);
+  cursor: pointer;
+}
+.gl-more:hover {
+  background: var(--bg-hover);
+  color: var(--tx-primary);
+}
+.gl-more .ic {
+  width: 14px;
+  height: 14px;
+  transform: rotate(90deg);
+  transition: transform var(--dur);
+}
+.gl-more .ic.on {
+  transform: rotate(-90deg);
+}
 .gl-why {
-  margin: -6px 0 0;
+  margin: 0;
   font: 400 13px/1.45 var(--font-ui);
   color: var(--tx-secondary);
 }
@@ -303,7 +346,7 @@ function removeStep(e: Event, s: Goal) {
   color: var(--tx-primary);
 }
 .gl-hint {
-  margin-left: auto;
+  margin: 0;
   font: 400 13px/1.4 var(--font-ui);
   color: var(--tx-secondary);
 }

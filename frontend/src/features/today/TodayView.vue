@@ -291,13 +291,6 @@ watch(
           @toggle-plan="togglePlan"
           @reopen="run(() => updateTask($event.id, { status: 'PLANNED' }))"
         />
-
-        <div class="td-keys" aria-hidden="true">
-          <span><kbd>J</kbd><kbd>K</kbd>{{ $t('bewegen') }}</span>
-          <span><kbd>X</kbd>{{ $t('erledigt') }}</span>
-          <span><kbd>S</kbd>{{ $t('starten') }}</span>
-          <span><kbd>P</kbd>{{ $t('einplanen') }}</span>
-        </div>
       </div>
 
       <!-- Rechte Spalte: Kompakte Tagesübersicht (Termine, Gewohnheiten, Fokus-Ziel, Lernkarte) -->
@@ -385,34 +378,6 @@ watch(
   display: flex;
   flex-direction: column;
 }
-kbd {
-  display: inline-grid;
-  place-items: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  box-sizing: border-box;
-  border-radius: 4px;
-  background: color-mix(in oklab, currentColor 10%, transparent);
-  font: 500 10.5px/1 var(--font-ui);
-}
-.td-keys {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-top: 28px;
-  padding-top: 12px;
-  border-top: 1px solid var(--br-subtle);
-  font: 400 11px/1 var(--font-ui);
-  color: var(--tx-muted);
-  opacity: 0.65;
-}
-.td-keys span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
 @media (max-width: 960px) {
   .td-grid {
     grid-template-columns: 1fr;

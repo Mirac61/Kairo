@@ -21,7 +21,7 @@ const trackedPct = computed(() =>
 
 <template>
   <!-- Kennzahlen als Karten wie auf der Startseite -->
-  <div class="rv-stats">
+  <div class="rv-stats" :class="{ three: !overdue.length }">
     <section class="rv-card">
       <div class="rv-card-h">
         <span>{{ $t('Erfasst') }}</span
@@ -64,17 +64,17 @@ const trackedPct = computed(() =>
         <span>{{ $t('Aufgaben dieser Woche') }}</span>
       </div>
     </section>
-    <section class="rv-card">
+    <!-- Nichts überfällig: Karte weglassen statt eine Null zu zeigen -->
+    <section v-if="overdue.length" class="rv-card">
       <div class="rv-card-h">
         <span>{{ $t('Überfällig geworden') }}</span>
       </div>
-      <span class="rv-big mono" :class="overdue.length ? 'od' : 'zero'">{{ overdue.length }}</span>
+      <span class="rv-big mono od">{{ overdue.length }}</span>
       <div class="rv-card-f">
-        <span v-if="overdue.length" class="rv-ell"
+        <span class="rv-ell"
           >{{ overdue[0]!.title
           }}<template v-if="overdue.length > 1"> + {{ overdue.length - 1 }}</template></span
         >
-        <span v-else>{{ $t('Nichts überfällig.') }}</span>
       </div>
     </section>
   </div>
@@ -95,6 +95,9 @@ const trackedPct = computed(() =>
   gap: 12px;
   margin: 4px 0 16px;
 }
+.rv-stats.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .rv-card {
   display: flex;
   flex-direction: column;
@@ -102,12 +105,7 @@ const trackedPct = computed(() =>
   min-width: 0;
   padding: 14px 16px;
   border-radius: var(--r-m);
-  background: var(--bg-1);
-  border: 1px solid var(--br-default);
-  transition: border-color var(--dur) ease-out;
-}
-.rv-card:hover {
-  border-color: var(--br-strong);
+  background: var(--bg-card);
 }
 .rv-card-h {
   display: flex;
@@ -174,7 +172,8 @@ const trackedPct = computed(() =>
 }
 
 @media (max-width: 640px) {
-  .rv-stats {
+  .rv-stats,
+  .rv-stats.three {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
