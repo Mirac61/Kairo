@@ -567,27 +567,6 @@ svg.ic {
   flex-direction: column;
   gap: 1px;
 }
-.nav-group-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 8px 8px 4px;
-  font: 500 11px/1 var(--font-ui);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--tx-muted);
-  background: none;
-  border: none;
-  border-radius: var(--r-s);
-  cursor: pointer;
-  text-align: left;
-  transition: color var(--dur) ease-out;
-}
-.nav-group-head:hover {
-  color: var(--tx-secondary);
-}
-.nav-group-chev,
 .pins-chev {
   width: 12px;
   height: 12px;
@@ -598,7 +577,6 @@ svg.ic {
     color var(--dur) ease-out;
   flex: none;
 }
-.nav-group-chev.collapsed,
 .pins-chev.collapsed {
   transform: rotate(0deg);
 }
@@ -630,7 +608,6 @@ svg.ic {
     height: auto;
   }
 }
-.nav-group-head:hover .nav-group-chev,
 .pins-head:hover .pins-chev {
   color: var(--tx-secondary);
 }
@@ -759,6 +736,7 @@ svg.ic {
   display: flex;
   align-items: center;
   gap: 2px;
+  margin-left: auto;
 }
 .sb-help {
   padding: 2px 5px;
@@ -770,7 +748,7 @@ svg.ic {
   width: 64px;
   padding: 16px 8px 12px;
 }
-.sidebar.mini :is(.nav-l, .nav-n, .brand-t, .pins, .nav-group-head, .status span:not(.status-dot)) {
+.sidebar.mini :is(.nav-l, .nav-n, .brand-t, .pins, .status span:not(.status-dot)) {
   display: none;
 }
 .sidebar.mini .nav-group + .nav-group {
@@ -2400,11 +2378,6 @@ select.input {
 .brand-t b {
   font: 600 14px/1.2 var(--font-ui);
   color: var(--tx-primary);
-}
-.brand-t small {
-  font: 400 12px/1.2 var(--font-ui);
-  color: var(--tx-muted);
-  white-space: nowrap;
 }
 .sidebar.mini .brand {
   justify-content: center;

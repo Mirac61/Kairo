@@ -25,7 +25,7 @@ import { store } from '@/lib/storage'
 import { dark, prefs } from '@/lib/prefs'
 import { keys } from '@/lib/keys'
 
-const { online, version } = useBackendStatus()
+const { online } = useBackendStatus()
 
 // Sprache: <html lang> für Screenreader und Silbentrennung, PrimeVue für seine eigenen Texte.
 const primevue = usePrimeVue()
@@ -41,8 +41,6 @@ useLiveEvents(loadSidebar)
 const countOf: Record<string, () => string | number> = {
   tasks: () => counts.value.tasks,
   habits: () => counts.value.habits,
-  proj: () => counts.value.projects,
-  trash: () => counts.value.trash,
 }
 
 const focusPaths = ['/today', '/calendar', '/tasks', '/review']
@@ -115,8 +113,6 @@ function toggleSidebar() {
 
 // Einklappbare Sektionen im ausgeklappten Zustand:
 interface SectionCollapseState {
-  focus?: boolean
-  projects?: boolean
   pins?: boolean
 }
 function loadCollapsedSections(): SectionCollapseState {
@@ -128,12 +124,10 @@ function loadCollapsedSections(): SectionCollapseState {
   }
 }
 const collapsedSections = ref<SectionCollapseState>({
-  focus: false,
-  projects: false,
   pins: true, // „Aktiv diese Woche“ steht auch in Projekte und Rückblick, deshalb zu
   ...loadCollapsedSections(),
 })
-function toggleSection(sec: 'focus' | 'projects' | 'pins') {
+function toggleSection(sec: 'pins') {
   collapsedSections.value = {
     ...collapsedSections.value,
     [sec]: !collapsedSections.value[sec],
@@ -483,9 +477,7 @@ function openSearchFromMore() {
     <aside v-if="!hideSidebar" class="sidebar" :class="{ mini }">
       <div class="brand">
         <span class="logo-mark" aria-hidden="true"><i></i></span
-        ><span class="brand-t"
-          ><b>Kairo</b><small>{{ $t('Persönliches OS') }}</small></span
-        >
+        ><span class="brand-t"><b>Kairo</b></span>
       </div>
       <nav :aria-label="$t('Hauptnavigation')">
         <button
@@ -499,71 +491,19 @@ function openSearchFromMore() {
           <svg class="ic"><use href="#i-search" /></svg><span class="nav-l">{{ $t('Suche') }}</span
           ><kbd class="key nav-n" aria-hidden="true">{{ keys('⌘K') }}</kbd>
         </button>
-        <div class="nav-group">
-          <button
-            type="button"
-            class="nav-group-head"
-            :aria-expanded="!collapsedSections.focus"
-            @click="toggleSection('focus')"
+        <div v-for="items in [focusItems, projectItems]" :key="items[0]?.path" class="nav-group">
+          <RouterLink
+            v-for="item in items"
+            :key="item.path"
+            :to="item.path"
+            class="nav-item"
+            :aria-label="mini ? $t(item.label) : undefined"
+            :data-tip="mini ? $t(item.label) : undefined"
           >
-            <span>{{ $t('Fokus') }}</span>
-            <svg
-              class="ic nav-group-chev"
-              :class="{ collapsed: collapsedSections.focus }"
-              aria-hidden="true"
-            >
-              <use href="#i-chev" />
-            </svg>
-          </button>
-          <FoldTransition>
-            <div v-show="mini || !collapsedSections.focus" class="nav-group-items">
-              <RouterLink
-                v-for="item in focusItems"
-                :key="item.path"
-                :to="item.path"
-                class="nav-item"
-                :aria-label="mini ? $t(item.label) : undefined"
-                :data-tip="mini ? $t(item.label) : undefined"
-              >
-                <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
-                ><span class="nav-l">{{ $t(item.label) }}</span>
-                <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
-              </RouterLink>
-            </div>
-          </FoldTransition>
-        </div>
-        <div class="nav-group">
-          <button
-            type="button"
-            class="nav-group-head"
-            :aria-expanded="!collapsedSections.projects"
-            @click="toggleSection('projects')"
-          >
-            <span>{{ $t('Projekte & Wissen') }}</span>
-            <svg
-              class="ic nav-group-chev"
-              :class="{ collapsed: collapsedSections.projects }"
-              aria-hidden="true"
-            >
-              <use href="#i-chev" />
-            </svg>
-          </button>
-          <FoldTransition>
-            <div v-show="mini || !collapsedSections.projects" class="nav-group-items">
-              <RouterLink
-                v-for="item in projectItems"
-                :key="item.path"
-                :to="item.path"
-                class="nav-item"
-                :aria-label="mini ? $t(item.label) : undefined"
-                :data-tip="mini ? $t(item.label) : undefined"
-              >
-                <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
-                ><span class="nav-l">{{ $t(item.label) }}</span>
-                <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
-              </RouterLink>
-            </div>
-          </FoldTransition>
+            <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
+            ><span class="nav-l">{{ $t(item.label) }}</span>
+            <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
+          </RouterLink>
         </div>
       </nav>
       <div v-if="pins.length" class="pins">
@@ -609,29 +549,12 @@ function openSearchFromMore() {
         >
           <svg class="ic"><use :href="`#i-${trashItem.icon}`" /></svg
           ><span class="nav-l">{{ $t(trashItem.label) }}</span>
-          <span v-if="countOf[trashItem.icon]?.()" class="nav-n">{{
-            countOf[trashItem.icon]!()
-          }}</span>
         </RouterLink>
       </div>
       <div class="sidebar-footer">
-        <div
-          class="status"
-          :class="{ off: !online }"
-          :data-tip="
-            mini
-              ? online
-                ? version
-                  ? `${$t('Verbunden')} (${version})`
-                  : $t('Verbunden')
-                : $t('Getrennt')
-              : undefined
-          "
-        >
+        <div v-if="!online" class="status off" :data-tip="mini ? $t('Getrennt') : undefined">
           <span class="status-dot" />
-          <span :data-tip="online && version ? version : undefined">{{
-            online ? $t('Verbunden') : $t('Getrennt')
-          }}</span>
+          <span>{{ $t('Getrennt') }}</span>
         </div>
         <div class="sb-btns">
           <button
@@ -698,9 +621,9 @@ function openSearchFromMore() {
           <svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg
           ><span class="nav-l">{{ $t('Design wechseln') }}</span>
         </button>
-        <div class="status" :class="{ off: !online }">
+        <div v-if="!online" class="status off">
           <span class="status-dot" />
-          <span>{{ online ? $t('Verbunden') : $t('Getrennt') }}</span>
+          <span>{{ $t('Getrennt') }}</span>
         </div>
       </div>
       <nav class="tabbar" :aria-label="$t('Hauptnavigation')">
