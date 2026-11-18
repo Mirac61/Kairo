@@ -246,16 +246,18 @@ watch(
           <span class="td-sub-sep" aria-hidden="true">·</span>
         </template>
         <span>{{ $t('{time} frei', { time: dur(freeMin) }) }}</span>
+        <template v-if="yesterday">
+          <span class="td-sub-sep" aria-hidden="true">·</span>
+          <RouterLink
+            v-if="yesterday"
+            class="st-journal td-journal"
+            :to="{ name: 'journal', query: { date: yesterday.date } }"
+          >
+            <span>{{ $t('Gestern hast du dir vorgenommen:') }}</span>
+            <b>{{ yesterday.intention }}</b>
+          </RouterLink>
+        </template>
       </p>
-
-      <RouterLink
-        v-if="yesterday"
-        class="st-journal td-journal"
-        :to="{ name: 'journal', query: { date: yesterday.date } }"
-      >
-        <span>{{ $t('Gestern hast du dir vorgenommen:') }}</span>
-        <b>{{ yesterday.intention }}</b>
-      </RouterLink>
     </div>
 
     <div class="td-grid">
@@ -351,7 +353,7 @@ watch(
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-top: 6px;
+  min-width: 0;
   font: 400 13px/1.4 var(--font-ui);
   color: var(--tx-muted);
   text-decoration: none;
