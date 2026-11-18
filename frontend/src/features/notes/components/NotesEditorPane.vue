@@ -86,18 +86,6 @@ const offerTemplates = computed(
     @focusin="emit('activatePane', pane)"
   >
     <header class="ed-head">
-      <button
-        v-if="pane === (split ? 'doc' : shown)"
-        type="button"
-        class="icon-btn"
-        aria-controls="nt-pane"
-        :aria-expanded="treeOpen"
-        :aria-label="treeOpen ? 'Dateibaum einklappen' : 'Dateibaum ausklappen'"
-        :data-tip="treeOpen ? 'Dateibaum einklappen' : 'Dateibaum ausklappen'"
-        @click="emit('toggleTree')"
-      >
-        <svg class="ic"><use href="#i-sidebar" /></svg>
-      </button>
       <div class="ed-path">
         <template v-if="path">
           <span v-for="(c, i) in crumbs" :key="i" :class="{ last: i === crumbs.length - 1 }">{{
@@ -162,6 +150,18 @@ const offerTemplates = computed(
         @click="emit('toggleSplit')"
       >
         <svg class="ic"><use href="#i-split" /></svg>
+      </button>
+      <button
+        v-if="pane === (split ? 'note' : shown)"
+        type="button"
+        class="icon-btn"
+        aria-controls="nt-pane"
+        :aria-expanded="treeOpen"
+        :aria-label="treeOpen ? 'Dateibaum einklappen' : 'Dateibaum ausklappen'"
+        :data-tip="treeOpen ? 'Dateibaum einklappen' : 'Dateibaum ausklappen'"
+        @click="emit('toggleTree')"
+      >
+        <svg class="ic flip"><use href="#i-sidebar" /></svg>
       </button>
     </header>
     <NoteHistoryDialog

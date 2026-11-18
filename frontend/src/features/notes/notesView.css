@@ -1,6 +1,6 @@
 .notes {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 260px;
   height: 100%;
 }
 .notes.shut {
@@ -14,7 +14,7 @@
     display: none;
   }
   .nt-pane {
-    border-right: 0;
+    border-left: 0;
   }
   .ed-head {
     padding-right: 8px;
@@ -24,7 +24,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-right: 1px solid var(--br-subtle);
+  order: 1; /* Baum rechts, damit nicht zwei Leisten links stehen */
   background: var(--bg-1);
 }
 .nt-head {
@@ -33,7 +33,6 @@
   justify-content: space-between;
   height: 48px;
   padding: 0 8px 0 16px;
-  border-bottom: 1px solid var(--br-subtle);
 }
 .nt-head-act {
   display: flex;
@@ -110,7 +109,6 @@
   gap: 12px;
   height: 48px;
   padding: 0 16px 0 12px;
-  border-bottom: 1px solid var(--br-subtle);
 }
 .ed-path {
   flex: 1;
@@ -128,7 +126,7 @@
   color: var(--tx-disabled);
 }
 .ed-path .last {
-  color: var(--tx-primary);
+  color: var(--tx-secondary);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -192,4 +190,41 @@
 .ed-msg {
   font: 400 13px/1.5 var(--font-ui);
   color: var(--tx-secondary);
+}
+.ed-head .ic.flip {
+  transform: scaleX(-1);
+}
+/* Ruhig, aber auffindbar: Kopfzeilen-Symbole immer da, nur gedämpft; beim Zeigen auf die Zeile oder per Tastatur voll */
+@media (hover: hover) {
+  .ed-head .icon-btn,
+  .nt-head-act {
+    transition: opacity var(--dur) ease-out;
+  }
+  .ed-head:not(:hover, :focus-within) .icon-btn:not(.on),
+  .nt-head:not(:hover, :focus-within) .nt-head-act {
+    opacity: 0.45;
+  }
+}
+/* Kopfzeilen-Symbole: beim Zeigen nur heller, keine Fläche; Tooltip nach unten, weil oben der Fensterrand abschneidet */
+.ed-head .icon-btn,
+.nt-head .icon-btn {
+  background: none;
+}
+.ed-head .icon-btn:hover,
+.nt-head .icon-btn:hover {
+  background: none;
+  color: var(--tx-primary);
+}
+.ed-head .icon-btn.on {
+  background: none;
+}
+@media (hover: hover) {
+  .ed-head [data-tip]:hover::after,
+  .nt-head [data-tip]:hover::after {
+    top: calc(100% + 8px);
+    bottom: auto;
+    left: auto;
+    right: 0;
+    transform: none;
+  }
 }

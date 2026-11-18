@@ -1,6 +1,8 @@
 <script lang="ts">
 import { ref } from 'vue'
 import { EditorView } from '@codemirror/view'
+import { syntaxHighlighting } from '@codemirror/language'
+import { tagHighlighter, tags } from '@lezer/highlight'
 import { config } from 'md-editor-v3'
 import { slugify } from '@/lib/noteFiles'
 
@@ -29,6 +31,23 @@ config({
     {
       type: 'spellcheck',
       extension: EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }),
+    },
+    // Feste Klassen für Markdown-Tokens (CodeMirror vergibt sonst nur wechselnde Hash-Namen), gestylt unten wie in Bear/iA Writer
+    {
+      type: 'kairoTokens',
+      extension: syntaxHighlighting(
+        tagHighlighter([
+          { tag: tags.heading1, class: 'tk-h1' },
+          { tag: tags.heading2, class: 'tk-h2' },
+          { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], class: 'tk-h3' },
+          { tag: tags.processingInstruction, class: 'tk-mark' },
+          { tag: tags.monospace, class: 'tk-code' },
+          { tag: tags.quote, class: 'tk-quote' },
+          { tag: tags.url, class: 'tk-url' },
+          { tag: tags.link, class: 'tk-link' },
+          { tag: tags.atom, class: 'tk-mark' }, // [x] einer Aufgabe
+        ]),
+      ),
     },
   ],
   markdownItConfig: (md) => {
@@ -336,6 +355,9 @@ onBeforeUnmount(() => themeObserver.disconnect())
 
 <style scoped>
 .nd {
+  /* Lesetext: gedämpftes Weiß statt Grau/Weiß-Sprung, Überschriften nur etwas heller */
+  --nd-ink: color-mix(in oklab, var(--tx-primary) 78%, var(--bg-0));
+  --nd-ink-strong: color-mix(in oklab, var(--tx-primary) 90%, var(--bg-0));
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -366,7 +388,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
 
 /* md-editor-v3 an die Kairo-Tokens anpassen (gilt für Dark und Light, weil die Tokens mitwechseln). */
 .nd :deep(.md-editor) {
-  --md-color: var(--tx-primary);
+  --md-color: var(--nd-ink);
   --md-hover-color: var(--tx-primary);
   --md-bk-color: var(--bg-0);
   --md-bk-color-outstand: var(--bg-2);
@@ -394,14 +416,14 @@ onBeforeUnmount(() => themeObserver.disconnect())
 .nd :deep(.md-editor .md-editor-toolbar-item) {
   color: var(--tx-secondary);
 }
-/* Ruhig: Eine Spalte (Vorschau über das Auge), die Leiste erscheint erst beim Zeigen oder Schreiben. Platz bleibt, damit nichts springt. */
+/* Ruhig: Eine Spalte (Vorschau über das Auge), die Leiste ist gedämpft und wird beim Zeigen auf sie voll sichtbar. Platz bleibt, damit nichts springt. */
 @media (hover: hover) {
   .nd :deep(.md-editor .md-editor-toolbar-wrapper) {
     border-bottom-color: transparent;
     transition: opacity var(--dur) ease-out;
   }
-  .nd:not(:hover, :focus-within) :deep(.md-editor .md-editor-toolbar-wrapper) {
-    opacity: 0;
+  .nd :deep(.md-editor .md-editor-toolbar-wrapper:not(:hover, :focus-within)) {
+    opacity: 0.45;
   }
 }
 @media (max-width: 760px) {
@@ -410,24 +432,80 @@ onBeforeUnmount(() => themeObserver.disconnect())
     overflow-x: auto;
   }
 }
-.nd :deep(.md-editor .cm-editor) {
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
+/* auf .cm-scroller, weil md-editor dort Menlo und 20px Zeilenhöhe setzt */
 .nd :deep(.md-editor .cm-scroller) {
   padding: 0 8px;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--nd-ink);
 }
 /* Schreibspalte wie in Bear/iA Writer: begrenzte Zeilenlänge, mittig */
 .nd :deep(.md-editor .cm-content) {
-  flex: 0 1 76ch;
-  max-width: 76ch;
+  flex: 0 1 80ch !important; /* CodeMirror setzt sonst inline flex-basis (gemessene Zeilenbreite) und die Spalte fällt zusammen */
+  max-width: 80ch;
   margin: 0 auto;
+  padding: 56px 0 40vh; /* Luft oben, und die letzte Zeile lässt sich bis zur Mitte hochscrollen */
+}
+/* Schreiben wie in Bear/iA Writer: Überschriften in echter Größe, Markdown-Zeichen treten zurück */
+.nd :deep(.tk-h1),
+.nd :deep(.tk-h2),
+.nd :deep(.tk-h3) {
+  color: var(--nd-ink-strong);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.nd :deep(.tk-h1) {
+  font-size: 1.6em;
+}
+.nd :deep(.tk-h2) {
+  font-size: 1.3em;
+}
+.nd :deep(.tk-h3) {
+  font-size: 1.1em;
+}
+.nd :deep(.tk-mark) {
+  color: color-mix(in oklab, var(--nd-ink) 35%, var(--bg-0));
+  font-weight: 400;
+}
+.nd :deep(.tk-code) {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+.nd :deep(.tk-quote) {
+  color: var(--tx-secondary);
+  font-style: italic;
+}
+.nd :deep(.tk-url) {
+  color: var(--tx-muted);
+  text-decoration: none;
+}
+.nd :deep(.tk-link) {
+  color: var(--nd-ink-strong);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--nd-ink) 40%, transparent);
+  text-underline-offset: 3px;
+}
+/* Klammern und Adresse eines Links bleiben leise, nur der Linktext ist betont */
+.nd :deep(.tk-link.tk-url),
+.nd :deep(.tk-link.tk-mark) {
+  color: color-mix(in oklab, var(--nd-ink) 35%, var(--bg-0));
+  text-decoration: none;
+}
+.nd :deep(.md-editor .cm-cursor) {
+  border-left: 2px solid var(--a-blue-hi);
+}
+.nd :deep(.md-editor .cm-selectionBackground),
+.nd :deep(.md-editor .cm-focused .cm-selectionBackground) {
+  background: color-mix(in oklab, var(--a-blue-hi) 22%, transparent) !important;
 }
 .nd :deep(.md-editor .md-editor-preview) {
-  max-width: 72ch; /* lange Zeilen lesen sich schlecht, auch wenn nur die Vorschau offen ist */
-  --md-theme-color: var(--tx-secondary);
-  --md-theme-heading-color: var(--tx-primary);
-  --md-theme-strong-color: var(--tx-primary);
+  margin-inline: auto;
+  max-width: 92ch; /* lange Zeilen lesen sich schlecht, auch wenn nur die Vorschau offen ist */
+  --md-theme-color: var(--nd-ink);
+  --md-theme-heading-color: var(--nd-ink-strong);
+  --md-theme-strong-color: var(--nd-ink-strong);
   --md-theme-link-color: var(--a-blue-tx);
   --md-theme-link-hover-color: var(--a-blue-hi);
   --md-theme-border-color: var(--br-subtle);

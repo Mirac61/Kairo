@@ -177,7 +177,13 @@ function dragOver(e: DragEvent, n: NoteNode) {
           >
             <use href="#i-chev" />
           </svg>
-          <svg class="ic nt-ic" :data-kind="kind(n)" aria-hidden="true">
+          <!-- Ordner und Notizen ohne Symbol: Pfeil und Name reichen -->
+          <svg
+            v-if="!n.dir && kind(n) !== 'md'"
+            class="ic nt-ic"
+            :data-kind="kind(n)"
+            aria-hidden="true"
+          >
             <use :href="icon(n)" />
           </svg>
           <span class="nt-name">{{ label(n) }}</span>
@@ -249,7 +255,7 @@ function dragOver(e: DragEvent, n: NoteNode) {
   background: var(--bg-hover);
 }
 .nt-row.active {
-  background: var(--bg-selected);
+  background: var(--bg-hover); /* neutral statt blauer Fläche */
 }
 .nt-row.cur {
   box-shadow: inset 0 0 0 1px var(--ring);
@@ -277,8 +283,8 @@ function dragOver(e: DragEvent, n: NoteNode) {
 .nt-row.active .nt-main {
   color: var(--tx-primary);
 }
-.nt-row.active .nt-ic {
-  color: var(--a-blue-hi);
+.nt-row.active .nt-main {
+  font-weight: 500;
 }
 .nt-chev {
   width: 12px;
