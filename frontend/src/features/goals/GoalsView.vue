@@ -144,16 +144,9 @@ function handleToggleArchiveGoal(g: Goal, value: boolean) {
       <div class="v-head">
         <h1 class="v-title sr-only">{{ $t('Ziele') }}</h1>
         <p v-if="counts.ok + counts.tight + counts.off" class="v-sub">
-          <span :class="{ 'gl-ok': counts.ok > 0 }">{{ $t('{n} im Plan', { n: counts.ok }) }}</span>
-          ·
-          <span :class="{ 'gl-tight': counts.tight > 0 }">{{
-            $t('{n} knapp', { n: counts.tight })
-          }}</span>
-          ·
-          <span :class="{ 'gl-off': counts.off > 0 }">{{
-            $t('{n} hinterher', { n: counts.off })
-          }}</span
-          >. {{ $t('Der Strich im Balken zeigt, wo du heute stehen müsstest.') }}
+          {{ $t('{n} im Plan', { n: counts.ok }) }} · {{ $t('{n} knapp', { n: counts.tight }) }} ·
+          {{ $t('{n} hinterher', { n: counts.off }) }}.
+          {{ $t('Der Strich im Balken zeigt, wo du heute stehen müsstest.') }}
         </p>
       </div>
       <div class="seg" role="group" :aria-label="$t('Filter')">
@@ -236,18 +229,6 @@ function handleToggleArchiveGoal(g: Goal, value: boolean) {
 }
 .gl-empty {
   max-width: 560px;
-}
-.gl-ok {
-  --c: var(--a-run);
-  color: var(--c);
-}
-.gl-tight {
-  --c: var(--p-yellow);
-  color: var(--c);
-}
-.gl-off {
-  --c: var(--a-red);
-  color: var(--c);
 }
 
 .gl-grid {
