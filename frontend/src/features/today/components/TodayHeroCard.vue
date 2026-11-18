@@ -365,8 +365,7 @@ kbd {
   position: relative;
   padding: 24px 28px;
   border-radius: var(--r-l);
-  background: var(--bg-1);
-  box-shadow: 0 0 0 1px var(--br-default);
+  background: var(--bg-card);
 }
 .st-eyebrow {
   display: flex;

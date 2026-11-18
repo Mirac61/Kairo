@@ -264,14 +264,13 @@
   margin: 0 2px 0 5px;
 }
 
-/* Einträge: Minimalistisch & Theme-adaptiv — 8% Akzent-Tint auf --bg-1, feine 1px Kontur, 3px linker Akzentrand */
+/* Einträge: Minimalistisch & Theme-adaptiv, nur ein Akzent-Tint auf --bg-1 (kein Rahmen, kein Seitenstreifen) */
 .fc .fc-event {
   --ev-acc: var(--p-blue);
 
   border-radius: 6px;
-  background: color-mix(in srgb, var(--ev-acc) 8%, var(--bg-1));
-  border: 1px solid color-mix(in srgb, var(--ev-acc) 22%, var(--br-subtle));
-  border-left: 3px solid var(--ev-acc);
+  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
+  border: 0;
   box-sizing: border-box;
   cursor: pointer;
   padding: 0;
@@ -281,9 +280,7 @@
   overflow: hidden;
 }
 .fc .fc-event:hover {
-  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
-  border-color: color-mix(in srgb, var(--ev-acc) 38%, var(--br-default));
-  border-left-color: var(--ev-acc);
+  background: color-mix(in srgb, var(--ev-acc) 22%, var(--bg-1));
 }
 .fc .fc-event.kt-running {
   box-shadow: inset 0 0 0 1.5px var(--a-run);

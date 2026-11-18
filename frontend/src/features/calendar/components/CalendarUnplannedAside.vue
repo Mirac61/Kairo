@@ -204,8 +204,7 @@ function projectColorName(projectId: string | null | undefined): string {
   flex-direction: column;
   min-height: 0;
   padding: 12px;
-  background: var(--bg-1);
-  border: 1px solid var(--br-subtle);
+  background: var(--bg-card);
   border-radius: var(--r-m);
   box-sizing: border-box;
 }
@@ -317,10 +316,8 @@ function projectColorName(projectId: string | null | undefined): string {
   gap: 8px;
   padding: 7px 10px;
   cursor: grab;
-  border: 1px solid color-mix(in srgb, var(--ev-acc) 22%, var(--br-subtle));
-  border-left: 3px solid var(--ev-acc);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--ev-acc) 8%, var(--bg-1));
+  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
   font: 450 12.5px/1.35 var(--font-ui);
   color: var(--tx-primary);
   transition:
@@ -328,9 +325,7 @@ function projectColorName(projectId: string | null | undefined): string {
     border-color var(--dur) ease-out;
 }
 .up-item:hover {
-  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
-  border-color: color-mix(in srgb, var(--ev-acc) 38%, var(--br-default));
-  border-left-color: var(--ev-acc);
+  background: color-mix(in srgb, var(--ev-acc) 22%, var(--bg-1));
 }
 .up-item.picked {
   background: color-mix(in srgb, var(--a-blue) 18%, var(--bg-1));

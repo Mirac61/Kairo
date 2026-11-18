@@ -251,15 +251,7 @@ useShortcuts((e) => {
 <template>
   <div class="view-inner" :class="{ 'proj-split': !!openProject }">
     <div class="proj-left">
-      <div class="v-head v-head-row">
-        <div>
-          <h1 class="v-title">{{ $t('Projekte') }}</h1>
-          <div class="v-sub">{{ $t('Fortschritt und verknüpfte Ressourcen.') }}</div>
-        </div>
-        <button class="btn btn-primary" type="button" @click="openNewDialog()">
-          <svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neues Projekt') }}
-        </button>
-      </div>
+      <h1 class="v-title sr-only">{{ $t('Projekte') }}</h1>
 
       <div v-if="error && !isCreateDialogOpen" class="badge" role="alert">{{ error }}</div>
 
@@ -304,6 +296,16 @@ useShortcuts((e) => {
         </span>
 
         <SearchField v-model="search" :label="$t('Projekte durchsuchen')" />
+
+        <button
+          class="icon-btn"
+          type="button"
+          :title="$t('Neues Projekt')"
+          :aria-label="$t('Neues Projekt')"
+          @click="openNewDialog()"
+        >
+          <svg class="ic"><use href="#i-plus" /></svg>
+        </button>
       </div>
 
       <div v-if="!projects.length" class="empty-cta">
@@ -420,22 +422,16 @@ useShortcuts((e) => {
   display: flex;
   flex-direction: column;
   padding: 16px;
-  background: var(--bg-1);
-  border: 1px solid var(--br-subtle);
+  background: var(--bg-card);
   border-radius: var(--r-m);
   cursor: pointer;
-  transition:
-    transform var(--dur) ease-out,
-    border-color var(--dur) ease-out,
-    box-shadow var(--dur) ease-out;
+  transition: background var(--dur) ease-out;
 }
 .proj-card:hover {
-  border-color: var(--br-default);
-  box-shadow: var(--shadow-sm);
+  background: var(--bg-2);
 }
 .proj-card.selected {
-  border-color: var(--pc);
-  background: color-mix(in srgb, var(--pc) 4%, var(--bg-1));
+  background: color-mix(in srgb, var(--pc) 10%, var(--bg-card));
 }
 
 .proj-head {
@@ -498,7 +494,6 @@ useShortcuts((e) => {
   flex-wrap: wrap;
   gap: 12px;
   padding-top: 10px;
-  border-top: 1px solid var(--br-subtle);
   font: 400 12px/1 var(--font-ui);
   color: var(--tx-muted);
 }
@@ -537,7 +532,6 @@ useShortcuts((e) => {
 .proj-list.list .proj-foot {
   margin-top: 0;
   padding-top: 0;
-  border-top: 0;
   flex: none;
 }
 

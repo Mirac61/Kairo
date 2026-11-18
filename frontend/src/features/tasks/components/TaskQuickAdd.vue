@@ -552,8 +552,7 @@ defineExpose({
   margin-bottom: 28px;
   padding: 16px 18px 14px;
   border-radius: 14px;
-  background: var(--bg-1);
-  box-shadow: 0 0 0 1px var(--br-default);
+  background: var(--bg-card);
   transition: box-shadow var(--dur);
 }
 .tk-comp.focus .tk-tip {

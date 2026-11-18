@@ -142,12 +142,13 @@ function onSetDays(n: 5 | 7) {
     </div>
 
     <button
-      class="btn btn-primary"
+      class="icon-btn"
       :title="$t('Neuer Eintrag (n)')"
+      :aria-label="$t('Neuer Eintrag')"
       aria-keyshortcuts="n"
       @click="$emit('newEntry')"
     >
-      <svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neuer Eintrag') }}
+      <svg class="ic"><use href="#i-plus" /></svg>
     </button>
   </div>
 

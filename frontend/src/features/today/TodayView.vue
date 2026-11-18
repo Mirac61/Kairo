@@ -317,7 +317,7 @@ watch(
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 .td-sub {
   margin: 0;

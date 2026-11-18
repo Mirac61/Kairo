@@ -210,7 +210,7 @@ useShortcuts((e) => {
 <template>
   <div class="kb">
     <aside class="kb-side">
-      <h1 class="v-title kb-title">{{ $t('Lernkarten') }}</h1>
+      <h1 class="v-title kb-title sr-only">{{ $t('Lernkarten') }}</h1>
       <div class="kb-group" role="group" :aria-label="$t('Fächer')">
         <div class="kb-dh" aria-hidden="true">
           <span>{{ $t('Fach') }}</span
@@ -469,7 +469,7 @@ useShortcuts((e) => {
 .kb {
   flex: 1;
   display: flex;
-  margin: -32px -32px -64px;
+  margin: -8px -32px -64px;
   min-height: 100dvh;
 }
 .kb-side {
@@ -479,7 +479,7 @@ useShortcuts((e) => {
   display: flex;
   flex-direction: column;
   gap: 22px;
-  padding: 28px 14px 20px;
+  padding: 20px 14px 20px;
   border-right: 1px solid var(--br-subtle);
 }
 .kb-title {

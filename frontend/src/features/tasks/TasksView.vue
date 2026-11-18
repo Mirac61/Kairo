@@ -305,8 +305,7 @@ useLiveEvents(load)
   <div class="view-inner" :class="{ 'tk-split': openTask }">
     <div class="tk-left">
       <div class="v-head v-head-row tk-head">
-        <h1 class="v-title">{{ $t('Aufgaben') }}</h1>
-        <span class="spacer"></span>
+        <h1 class="v-title sr-only">{{ $t('Aufgaben') }}</h1>
         <p class="tk-stats">{{ stats }}</p>
       </div>
 
@@ -520,7 +519,7 @@ useLiveEvents(load)
 }
 
 .tk-stats {
-  margin: 0 4px 3px 0;
+  margin: 0;
   font: 400 13px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);

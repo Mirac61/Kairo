@@ -220,11 +220,9 @@ function handleGrade(gradeValue: number) {
 }
 .st-sec {
   padding: 20px 0;
-  border-top: 1px solid var(--br-subtle);
 }
 .st-sec:first-child {
   padding-top: 0;
-  border-top: none;
 }
 .st-sec-h {
   display: flex;

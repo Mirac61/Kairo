@@ -110,8 +110,8 @@ useLiveEvents(load)
 
 <template>
   <div class="view-inner">
-    <div class="v-head">
-      <h1 class="v-title">{{ $t('Papierkorb') }}</h1>
+    <div class="v-head v-head-row">
+      <h1 class="v-title sr-only">{{ $t('Papierkorb') }}</h1>
       <div class="v-sub">
         {{ $tn(rows.length, '{n} Eintrag', '{n} Einträge') }} ·
         {{ $t('Einträge werden hier aufbewahrt und können wiederhergestellt werden.') }}
