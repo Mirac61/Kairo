@@ -115,12 +115,7 @@ function removeStep(e: Event, s: Goal) {
           :title="$t('Soll heute: {n} %', { n: pace.pace })"
         ></b>
       </div>
-    </template>
-
-    <template v-if="open">
-      <p v-if="goal.why" class="gl-why">{{ goal.why }}</p>
-      <p v-if="pace" class="gl-hint">{{ pace.hint }}</p>
-      <figure v-if="goal.progress && goal.history?.length > 1" class="gl-chart">
+      <figure v-if="goal.history?.length > 1" class="gl-chart">
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
@@ -157,6 +152,11 @@ function removeStep(e: Event, s: Goal) {
           <span>{{ goal.due_date ? shortDate(goal.due_date) : $t('heute') }}</span>
         </figcaption>
       </figure>
+    </template>
+
+    <template v-if="open">
+      <p v-if="goal.why" class="gl-why">{{ goal.why }}</p>
+      <p v-if="pace" class="gl-hint">{{ pace.hint }}</p>
       <p v-if="!goal.progress" class="gl-muted">
         {{
           $t(
@@ -253,6 +253,7 @@ function removeStep(e: Event, s: Goal) {
   gap: 14px;
   min-width: 0;
   padding: 18px 20px;
+  border: 1px solid var(--br-subtle);
 }
 .gl-card-h {
   display: flex;
@@ -366,12 +367,16 @@ function removeStep(e: Event, s: Goal) {
 }
 
 .gl-chart {
-  margin: 0;
+  margin: 2px 0 0;
+  padding: 10px 12px 6px;
+  background: var(--bg-0);
+  border: 1px solid var(--br-subtle);
+  border-radius: 8px;
 }
 .gl-chart svg {
   display: block;
   width: 100%;
-  height: 88px;
+  height: 82px;
   overflow: visible;
 }
 .gl-chart line,
@@ -383,16 +388,16 @@ function removeStep(e: Event, s: Goal) {
   stroke: var(--br-subtle);
 }
 .gl-chart .soll {
-  stroke: var(--tx-disabled);
+  stroke: color-mix(in oklab, var(--tx-secondary) 35%, transparent);
   stroke-width: 1.5;
   stroke-dasharray: 4 5;
 }
 .gl-chart .now {
-  stroke: var(--br-strong);
+  stroke: color-mix(in oklab, var(--a-blue-hi) 42%, transparent);
 }
 .gl-chart .ist {
-  stroke: var(--tx-primary);
-  stroke-width: 2;
+  stroke: var(--a-blue-hi);
+  stroke-width: 2.2;
   stroke-linejoin: round;
   stroke-linecap: round;
 }

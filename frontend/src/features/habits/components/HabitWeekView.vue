@@ -278,7 +278,7 @@ const emit = defineEmits<{
   margin: -3px 0;
   border-radius: 50%;
   background: var(--a-now);
-  color: var(--bg-0);
+  color: var(--tx-on-accent);
   font-weight: 600;
 }
 .hw-d.future {
@@ -397,7 +397,7 @@ const emit = defineEmits<{
   border: 1.5px solid var(--tx-disabled);
 }
 .hw-c.open.today > i {
-  border: 2px solid var(--tx-secondary);
+  border: 2px solid color-mix(in oklab, var(--a-blue-hi) 60%, var(--br-default));
 }
 .hw-c.open.soft > i {
   border-style: dashed;
@@ -405,9 +405,18 @@ const emit = defineEmits<{
 .hw-c.done > i {
   background: var(--tx-muted);
 }
+.hw-c.done.today > i {
+  background: var(--a-blue-hi);
+  border-color: var(--a-blue-hi);
+  color: var(--tx-on-accent);
+}
 .hw-c.part > i {
   border: 1.5px solid var(--tx-disabled);
   background: conic-gradient(var(--tx-muted) calc(var(--p) * 1turn), transparent 0);
+}
+.hw-c.part.today > i {
+  border-color: var(--a-blue-hi);
+  background: conic-gradient(var(--a-blue-hi) calc(var(--p) * 1turn), transparent 0);
 }
 .hw-c.pause > i {
   background: repeating-linear-gradient(135deg, var(--tx-disabled) 0 1.5px, transparent 1.5px 4px);
@@ -423,6 +432,10 @@ const emit = defineEmits<{
 }
 .hw-c.done:hover:not(:disabled) > i {
   background-color: var(--tx-secondary);
+}
+.hw-c.done.today:hover:not(:disabled) > i {
+  border-color: var(--a-blue-hi);
+  background-color: color-mix(in oklab, var(--a-blue-hi) 86%, var(--tx-primary));
 }
 .hw-c:active:not(:disabled) > i {
   transform: scale(0.9);

@@ -196,13 +196,16 @@ defineExpose({
 <template>
   <section class="st-hero" :aria-label="$t('Jetzt')">
     <template v-if="kind === 'run'">
-      <div class="st-eyebrow">
-        <span class="st-dot" :class="{ off: !runEntry }"></span>
-        <b>{{ runEntry ? $t('Läuft') : $t('Pausiert') }}</b>
-        <template v-if="current?.project_id">
-          <span>·</span>
-          <span>{{ projectNames.get(current.project_id) }}</span>
+      <div v-if="!runEntry || current?.project_id" class="st-eyebrow">
+        <template v-if="!runEntry">
+          <span class="st-dot off"></span>
+          <b>{{ $t('Pausiert') }}</b>
+          <template v-if="current?.project_id">
+            <span>·</span>
+            <span>{{ projectNames.get(current.project_id) }}</span>
+          </template>
         </template>
+        <span v-else>{{ projectNames.get(current!.project_id!) }}</span>
       </div>
       <div class="st-title">{{ runTitle }}</div>
       <div class="st-clock">{{ stopwatch(runSecs) }}</div>
@@ -212,7 +215,7 @@ defineExpose({
       <template v-if="current">
         <div class="st-prog-wrap">
           <div class="st-prog" aria-hidden="true">
-            <i :style="{ width: runPct + '%' }"></i>
+            <i :class="{ running: Boolean(runEntry) }" :style="{ width: runPct + '%' }"></i>
           </div>
           <div class="st-progt">
             <span>{{
@@ -364,6 +367,7 @@ kbd {
 .st-hero {
   position: relative;
   padding: 24px 28px;
+  border: 1px solid var(--br-subtle);
   border-radius: var(--r-l);
   background: var(--bg-card);
 }
@@ -411,18 +415,51 @@ kbd {
   flex-direction: column;
   gap: 6px;
 }
+@keyframes kairo-bar-sheen {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
 .st-prog {
-  height: 4px;
+  height: 8px;
   border-radius: 9999px;
   background: var(--bg-2);
   overflow: hidden;
 }
 .st-prog i {
+  position: relative;
   display: block;
   height: 100%;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--a-run) 80%, var(--tx-primary));
+  background: var(--a-run);
+  overflow: hidden;
   transition: width 0.3s ease;
+}
+.st-prog i.running::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 232, 214, 0.36) 50%,
+    transparent 100%
+  );
+  animation: kairo-bar-sheen 2.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-prog i.running::after {
+    animation: none;
+    display: none;
+  }
+}
+:global(:root[data-motion='reduce']) .st-prog i.running::after {
+  animation: none;
+  display: none;
 }
 .st-progt {
   display: flex;

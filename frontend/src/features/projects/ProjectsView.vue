@@ -332,14 +332,14 @@ useShortcuts((e) => {
           <div v-if="p.description" class="proj-desc">{{ p.description }}</div>
 
           <div class="proj-foot">
+            <span v-if="issueCount[p.id]" class="proj-stat issues">
+              <b class="mono">{{ issueCount[p.id] }}</b> {{ $t('GitHub-Issues') }}
+            </span>
             <span v-if="fractionText(p.id)" class="proj-stat tasks">
               <b class="mono">{{ fractionText(p.id) }}</b> {{ $t('erledigt') }}
             </span>
             <span v-else class="proj-stat tasks">
               <b class="mono">{{ openTasks(p.id).length }}</b> {{ $t('offen') }}
-            </span>
-            <span v-if="issueCount[p.id]" class="proj-stat issues">
-              <b class="mono">{{ issueCount[p.id] }}</b> {{ $t('GitHub-Issues') }}
             </span>
             <span class="proj-stat time" :class="{ 'sr-hide': !minutes[p.id]?.week }">
               <template v-if="minutes[p.id]?.week">
@@ -520,7 +520,7 @@ useShortcuts((e) => {
   min-width: 120px;
 }
 .proj-list.list .proj-last {
-  min-width: 86px;
+  min-width: 108px;
   text-align: right;
 }
 

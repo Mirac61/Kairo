@@ -218,11 +218,10 @@ const dayText = (d: ReviewDay) =>
   padding: 0 3px;
   border-radius: 10px;
   background: var(--a-blue-hi);
-  color: var(--bg-0);
+  color: var(--tx-on-accent);
 }
 .rv-n {
   font: 400 12px/1.2 var(--font-ui);
-  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
   white-space: nowrap;
