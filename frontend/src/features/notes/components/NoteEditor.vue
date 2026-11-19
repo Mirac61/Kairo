@@ -424,7 +424,7 @@ onBeforeUnmount(() => themeObserver.disconnect())
     transition: opacity var(--dur) ease-out;
   }
   .nd :deep(.md-editor .md-editor-toolbar-wrapper:not(:hover, :focus-within)) {
-    opacity: 0.45;
+    opacity: 0.24;
   }
 }
 @media (max-width: 760px) {
@@ -437,42 +437,80 @@ onBeforeUnmount(() => themeObserver.disconnect())
 .nd :deep(.md-editor .cm-scroller) {
   padding: 0 8px;
   font-family: var(--font-ui);
-  font-size: 16px;
-  line-height: 1.7;
+  font-size: 15.5px;
+  line-height: 1.8;
   color: var(--nd-ink);
 }
-/* Schreibspalte wie in Bear/iA Writer: begrenzte Zeilenlänge, mittig */
+/* Schreibspalte: begrenzte Zeilenlänge, mittig, nicht-kopierbare Zeilennummern am linken Rand */
 .nd :deep(.md-editor .cm-content) {
-  flex: 0 1 80ch !important; /* CodeMirror setzt sonst inline flex-basis (gemessene Zeilenbreite) und die Spalte fällt zusammen */
-  max-width: 80ch;
+  flex: 0 1 74ch !important; /* CodeMirror setzt sonst inline flex-basis (gemessene Zeilenbreite) und die Spalte fällt zusammen */
+  max-width: 74ch;
   margin: 0 auto;
   padding: 56px 0 40vh; /* Luft oben, und die letzte Zeile lässt sich bis zur Mitte hochscrollen */
+  counter-reset: cm-ln;
 }
-/* Schreiben wie in Bear/iA Writer: Überschriften in echter Größe, Markdown-Zeichen treten zurück */
+.nd :deep(.md-editor .cm-line) {
+  position: relative;
+  padding-left: 46px;
+}
+.nd :deep(.md-editor .cm-line::before) {
+  counter-increment: cm-ln;
+  content: counter(cm-ln);
+  position: absolute;
+  left: 0;
+  width: 34px;
+  box-sizing: border-box;
+  padding-right: 10px;
+  border-right: 1px solid color-mix(in oklab, var(--br-subtle) 85%, transparent);
+  text-align: right;
+  white-space: nowrap;
+  font: 400 11px/1.8 var(--font-mono);
+  color: color-mix(in oklab, var(--tx-muted) 45%, transparent);
+  user-select: none;
+  pointer-events: none;
+}
+.nd :deep(.md-editor .cm-activeLine) {
+  background: color-mix(in oklab, var(--tx-primary) 2.5%, transparent);
+  border-radius: 4px;
+}
+.nd :deep(.md-editor .cm-activeLine::before) {
+  color: var(--a-blue-hi);
+  border-right-color: color-mix(in oklab, var(--a-blue-hi) 50%, transparent);
+}
+/* Schreiben wie in Bear/iA Writer: Überschriften in echter Größe, Markdown-Zeichen in ruhigem Ember */
 .nd :deep(.tk-h1),
 .nd :deep(.tk-h2),
 .nd :deep(.tk-h3) {
   color: var(--nd-ink-strong);
   font-weight: 600;
-  letter-spacing: -0.01em;
   line-height: 1.3;
 }
 .nd :deep(.tk-h1) {
-  font-size: 1.6em;
+  font-size: 1.72em;
+  letter-spacing: -0.028em;
 }
 .nd :deep(.tk-h2) {
   font-size: 1.3em;
+  letter-spacing: -0.018em;
 }
 .nd :deep(.tk-h3) {
   font-size: 1.1em;
+  letter-spacing: -0.01em;
 }
 .nd :deep(.tk-mark) {
-  color: color-mix(in oklab, var(--nd-ink) 35%, var(--bg-0));
+  color: var(--a-blue-hi);
+  opacity: 0.8;
+  font-family: var(--font-mono);
   font-weight: 400;
 }
 .nd :deep(.tk-code) {
   font-family: var(--font-mono);
-  font-size: 0.88em;
+  font-size: 0.85em;
+  color: var(--tx-primary);
+  background: var(--bg-2);
+  border: 1px solid var(--br-default);
+  padding: 1px 6px;
+  border-radius: 5px;
 }
 .nd :deep(.tk-quote) {
   color: var(--tx-secondary);
@@ -483,15 +521,15 @@ onBeforeUnmount(() => themeObserver.disconnect())
   text-decoration: none;
 }
 .nd :deep(.tk-link) {
-  color: var(--nd-ink-strong);
+  color: var(--tx-primary);
   text-decoration: underline;
-  text-decoration-color: color-mix(in oklab, var(--nd-ink) 40%, transparent);
-  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in oklab, var(--a-blue-hi) 65%, transparent);
+  text-underline-offset: 4px;
 }
 /* Klammern und Adresse eines Links bleiben leise, nur der Linktext ist betont */
 .nd :deep(.tk-link.tk-url),
 .nd :deep(.tk-link.tk-mark) {
-  color: color-mix(in oklab, var(--nd-ink) 35%, var(--bg-0));
+  color: var(--tx-disabled);
   text-decoration: none;
 }
 .nd :deep(.md-editor .cm-cursor) {
@@ -501,19 +539,22 @@ onBeforeUnmount(() => themeObserver.disconnect())
 .nd :deep(.md-editor .cm-focused .cm-selectionBackground) {
   background: color-mix(in oklab, var(--a-blue-hi) 22%, transparent) !important;
 }
+.nd :deep(.md-editor .md-editor-preview-wrapper) {
+  padding: 40px 28px 20vh;
+}
 .nd :deep(.md-editor .md-editor-preview) {
   margin-inline: auto;
-  max-width: 92ch; /* lange Zeilen lesen sich schlecht, auch wenn nur die Vorschau offen ist */
+  max-width: 72ch; /* lange Zeilen lesen sich schlecht, auch wenn nur die Vorschau offen ist */
   --md-theme-color: var(--nd-ink);
   --md-theme-heading-color: var(--nd-ink-strong);
   --md-theme-strong-color: var(--nd-ink-strong);
-  --md-theme-link-color: var(--a-blue-tx);
-  --md-theme-link-hover-color: var(--a-blue-hi);
+  --md-theme-link-color: var(--tx-primary);
+  --md-theme-link-hover-color: var(--a-blue-tx);
   --md-theme-border-color: var(--br-subtle);
   --md-theme-bg-color: var(--bg-0);
   --md-theme-bg-color-inset: var(--bg-2);
-  --md-theme-quote-color: var(--tx-muted);
-  --md-theme-quote-border: 3px solid var(--br-strong);
+  --md-theme-quote-color: var(--tx-secondary);
+  --md-theme-quote-border: 2.5px solid var(--a-blue-hi);
   --md-theme-quote-bg-color: transparent;
   --md-theme-code-inline-color: var(--tx-primary);
   --md-theme-code-inline-bg-color: var(--bg-2);
@@ -522,9 +563,42 @@ onBeforeUnmount(() => themeObserver.disconnect())
   --md-theme-table-stripe-color: var(--bg-1);
   --md-theme-table-border-color: var(--br-subtle);
   --md-theme-table-td-border-color: var(--br-subtle);
-  font: 400 15px/1.6 var(--font-ui);
+  font: 400 16px/1.8 var(--font-ui);
   word-break: normal;
   overflow-wrap: anywhere; /* Standard ist break-all: bricht mitten im Wort */
+}
+.nd :deep(.md-editor .md-editor-preview h1) {
+  font-size: 1.85em;
+  font-weight: 600;
+  letter-spacing: -0.028em;
+  border-bottom: 1px solid var(--br-subtle);
+  padding-bottom: 0.35em;
+  margin-bottom: 0.8em;
+}
+.nd :deep(.md-editor .md-editor-preview h2) {
+  font-size: 1.32em;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  margin-top: 1.6em;
+}
+.nd :deep(.md-editor .md-editor-preview a) {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--a-blue-hi) 65%, transparent);
+  text-underline-offset: 4px;
+}
+.nd :deep(.md-editor .md-editor-preview :not(pre) > code) {
+  border: 1px solid var(--br-default);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+.nd :deep(.md-editor .md-editor-preview blockquote) {
+  padding-left: 16px;
+  font-style: italic;
+}
+.nd :deep(.md-editor .md-editor-preview input[type='checkbox']) {
+  accent-color: var(--a-blue-hi);
 }
 </style>
 

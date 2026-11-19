@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { isOpen, type Task } from '@/api/client'
 import { hm, ruleText } from '@/lib/dates'
 import { t } from '@/lib/i18n'
+import { projectColor } from '@/lib/projectColor'
 
 const props = defineProps<{
   task: Task
@@ -55,10 +56,12 @@ const prioLevel = computed(() => {
     class="task-row"
     :class="{
       done: !isOpen(task),
+      running: task.status === 'IN_PROGRESS',
       selected: isSelected,
       picked: isPicked,
       fresh: isFresh,
     }"
+    :style="task.project_id ? { '--pdot-c': projectColor(task.project_id) } : undefined"
     :data-task="task.id"
     @click.capture="emit('pick', $event, task.id)"
     @mousedown.shift.prevent
@@ -87,6 +90,8 @@ const prioLevel = computed(() => {
       {{ task.title }}
     </button>
 
+    <span v-if="task.status === 'IN_PROGRESS'" class="sr-only">{{ statusLabel }}</span>
+
     <span
       v-if="task.recurrence_rule"
       class="rec-i"
@@ -105,11 +110,7 @@ const prioLevel = computed(() => {
       {{ subtasksProgress }}
     </span>
 
-    <span
-      v-if="task.status === 'IN_PROGRESS' || task.status === 'PAUSED'"
-      class="status-l"
-      :class="{ run: task.status === 'IN_PROGRESS' }"
-    >
+    <span v-if="task.status === 'PAUSED'" class="status-l">
       <span class="cdot"></span>{{ statusLabel }}
     </span>
 
@@ -126,6 +127,7 @@ const prioLevel = computed(() => {
     <span
       class="prio-i"
       :class="{ high: isUrgent, quiet: prioLevel < 3 }"
+      :data-prio="task.priority"
       role="img"
       :aria-label="`${$t('Priorität')}: ${prioLabel}`"
     >
@@ -156,8 +158,9 @@ const prioLevel = computed(() => {
   color: inherit;
   cursor: pointer;
 }
-.prio-i.quiet {
-  opacity: 0; /* nur hohe Priorität zeigen; die Spalte bleibt für die Ausrichtung, das aria-label für Screenreader */
+.task-row.running .row-title {
+  color: var(--a-run);
+  font-weight: 500;
 }
 .task-row.fresh {
   background: var(--bg-selected);

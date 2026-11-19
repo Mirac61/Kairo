@@ -5,166 +5,176 @@
    ============================================================ */
 
 :root {
-  /* Karten heben sich über die Fläche ab statt über einen Rahmen; abgeleitet, damit jede Palette passt */
-  --bg-card: color-mix(in oklab, var(--bg-2) 55%, var(--bg-0));
-  /* Flächen (Kühles Anthrazit / Zinc) */
-  --bg-0: #0b0c0e;
-  --bg-1: #0b0c0e;
-  --bg-2: #14171c;
-  --bg-3: #1a1e24;
-  --bg-hover: #16181d;
-  --bg-selected: rgba(59, 130, 246, 0.12);
-  --br-subtle: #1f2229;
-  --br-default: #1f2229;
-  --br-strong: #2d313b;
-  --tx-primary: #f1f5f9;
-  --tx-secondary: #94a3b8;
-  --tx-muted: #7f8d93; /* ≥ 4,5:1 auf --bg-2; vorher #64748b (ca. 3,9:1) */
-  --tx-disabled: #475569;
-  /* Farben nach dem Entwurf: Blau für Hauptaktionen und erfasste Zeit, Rot für Überfälliges, Grün für „läuft“, Heute neutral.
-     Alles andere ist Grau; Farbe sonst nur als Projektpunkt (--p-*). */
-  /* --a-hue ist die Akzentfarbe aus den Einstellungen (lib/prefs.ts), Standard Blau. */
-  --a-hue: 255;
-  --a-blue: #3b82f6; /* Hauptaktion (Fläche) */
-  --a-blue-hi: #3b82f6; /* erfasste Zeit, Auswahl, Jetzt-Linie */
-  --a-blue-tx: #60a5fa; /* Text-Links */
-  --a-now: #3b82f6;
-  --a-focus: #3b82f6;
-  --a-run: #10b981;
-  --a-red: #ef4444;
-  /* Projektpunkte (Linear / Notion Calendar Palette) */
-  --p-violet: #8b5cf6;
-  --p-blue: #3b82f6;
-  --p-orange: #f59e0b;
-  --p-aqua: #14b8a6;
-  --p-pink: #ec4899;
-  --p-yellow: #f59e0b;
-  --p-green: #10b981;
-  --p-red: #ef4444;
-  --p-neutral: #94a3b8;
-  --a-event: var(--p-blue); /* Termine in Tagesplan und Agenda der Startseite */
+  /* Kairo Monochrome + Spark (Obsidian, Alabaster, verfeinertes Logo-Ember #d97343) */
+  --bg-card: #121215;
+  --bg-0: #0b0b0c;
+  --bg-1: #0f0f11;
+  --bg-2: #17171a;
+  --bg-3: #202024;
+  --bg-hover: #18181c;
+  --bg-selected: rgba(255, 255, 255, 0.065);
+  --br-subtle: #1c1c20;
+  --br-default: #25252b;
+  --br-strong: #373740;
+  --tx-primary: #f0eeeb;
+  --tx-secondary: #9898a0;
+  --tx-muted: #76767f;
+  --tx-disabled: #46464d;
+  --a-hue: 38;
+  --a-blue: #eceae6;
+  --a-blue-hi: #d97343;
+  --a-blue-tx: #e4976d;
+  --a-now: #d97343;
+  --a-focus: #d97343;
+  --a-run: #d97343;
+  --a-red: #e05252;
+  /* Gedämpfte Projektfarben */
+  --p-violet: #9e82d4;
+  --p-blue: #6f9de0;
+  --p-orange: #df8a50;
+  --p-aqua: #55b4b4;
+  --p-pink: #d27697;
+  --p-yellow: #d4aa52;
+  --p-green: #58b485;
+  --p-red: #df6666;
+  --p-neutral: #7b7b84;
+  --a-event: var(--p-blue);
   /* System */
-  --ring: rgba(59, 130, 246, 0.5);
+  --ring: rgba(217, 115, 67, 0.35);
   --scrim: rgba(0, 0, 0, 0.62);
-  --toast-bg: #14171c;
-  --shadow-pop: 0 0 0 1px #1f2229, 0 16px 40px rgba(0, 0, 0, 0.6);
+  --toast-bg: #141418;
+  --shadow-pop: 0 0 0 1px #25252b, 0 16px 40px rgba(0, 0, 0, 0.65);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --tx-on-accent: #ffffff;
+  --tx-on-accent: #fffaf6;
   --font-ui: 'Geist Variable', Inter, system-ui, -apple-system, sans-serif;
-  --font-serif: 'Instrument Serif', Georgia, serif; /* Anzeigeschrift: Startseite und Ziele */
+  --font-serif: 'Instrument Serif', Georgia, serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
   --r-s: 6px;
   --r-m: 10px;
   --r-l: 14px;
   --dur: 130ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
-  --dur-fold: 300ms; /* Auf- und Zuklappen, wie Shukatsu: ruhig, aber nicht träge */
-  --ease-fold: cubic-bezier(0, 0, 0.2, 1); /* ease-out: startet zügig, rollt weich aus */
+  --dur-fold: 300ms;
+  --ease-fold: cubic-bezier(0, 0, 0.2, 1);
   color-scheme: dark;
 }
 :root[data-theme='light'] {
-  --bg-0: #fafafa;
+  --bg-card: #ffffff;
+  --bg-0: #f7f6f4;
   --bg-1: #ffffff;
-  --bg-2: #f0f0f0;
-  --bg-3: #e6e6e6;
-  --bg-hover: #f0f0f0;
-  --br-subtle: #e6e6e6;
-  --br-default: #d1d1d1;
-  --br-strong: #9e9e9e;
-  --tx-primary: #171717;
-  --tx-secondary: #525252;
-  --tx-muted: #6b6b6b;
-  --tx-disabled: #8f8f8f;
+  --bg-2: #eceae6;
+  --bg-3: #e2dfd9;
+  --bg-hover: #f0eee9;
+  --bg-selected: rgba(20, 20, 22, 0.06);
+  --br-subtle: #e7e5e0;
+  --br-default: #d7d4ce;
+  --br-strong: #a7a39b;
+  --tx-primary: #141416;
+  --tx-secondary: #4e4e54;
+  --tx-muted: #6b6b73;
+  --tx-disabled: #9b9ba3;
   --tx-on-accent: #ffffff;
-  --a-blue: oklch(0.52 0.19 calc(var(--a-hue) + 3));
-  --a-blue-hi: oklch(0.55 0.18 var(--a-hue));
-  --a-blue-tx: oklch(0.5 0.16 var(--a-hue));
-  --a-run: oklch(0.55 0.14 150);
-  --a-red: oklch(0.55 0.2 25);
-  --p-violet: oklch(0.58 0.13 300);
-  --p-blue: oklch(0.58 0.13 255);
-  --p-orange: oklch(0.6 0.13 60);
-  --p-aqua: oklch(0.58 0.11 200);
-  --p-pink: oklch(0.6 0.13 350);
-  --p-yellow: oklch(0.62 0.12 95);
-  --p-green: oklch(0.58 0.12 145);
-  --p-red: oklch(0.57 0.17 22);
-  --p-neutral: #6b6b6b;
-  --scrim: rgba(20, 20, 20, 0.22);
+  --a-blue: #141416;
+  --a-blue-hi: #c85f30;
+  --a-blue-tx: #b85326;
+  --a-now: #c85f30;
+  --a-focus: #c85f30;
+  --a-run: #c85f30;
+  --a-red: #cf3d3d;
+  --p-violet: #7254b5;
+  --p-blue: #3b6fc2;
+  --p-orange: #c46427;
+  --p-aqua: #278585;
+  --p-pink: #b54b72;
+  --p-yellow: #a87e22;
+  --p-green: #2c8a5b;
+  --p-red: #c44343;
+  --p-neutral: #6b6b73;
+  --ring: rgba(200, 95, 48, 0.3);
+  --scrim: rgba(20, 20, 22, 0.22);
   --toast-bg: #ffffff;
-  --shadow-pop: 0 0 0 1px #d1d1d1, 0 16px 40px rgba(0, 0, 0, 0.12);
+  --shadow-pop: 0 0 0 1px #d7d4ce, 0 16px 40px rgba(20, 20, 22, 0.12);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
   color-scheme: light;
 }
 
-/* ---------- Farbstimmungen (Einstellungen → Darstellung → Farbstimmung) ----------
-   Neutral (Vercel) steht oben in :root, die anderen überschreiben es.
-   Schiefer und Neutral nehmen den Akzent aus der eigenen Wahl (--a-hue); Carbonfox und Kanagawa Dragon
-   bringen wie im Editor ihre eigenen Farben mit, dort gilt die Akzentwahl nicht. */
-/* Schiefer (Standard): Blaugrau-Flächen mit kühlem Zinc/Anthrazit. */
+/* ---------- Farbstimmungen (Einstellungen → Darstellung → Farbstimmung) ---------- */
+/* Graphit (Standard): Kairo Monochrome + Spark */
 :root[data-palette='graphit'] {
-  --bg-0: #0b0c0e;
-  --bg-1: #0b0c0e;
-  --bg-2: #14171c;
-  --bg-3: #1a1e24;
-  --bg-hover: #16181d;
-  --br-subtle: #1f2229;
-  --br-default: #1f2229;
-  --br-strong: #2d313b;
-  --tx-primary: #f1f5f9;
-  --tx-secondary: #94a3b8;
-  --tx-muted: #7f8d93; /* ≥ 4,5:1 auf --bg-2; vorher #64748b (ca. 3,9:1) */
-  --tx-disabled: #475569;
-  --a-blue: #3b82f6;
-  --a-blue-hi: #3b82f6;
-  --a-blue-tx: #60a5fa;
-  --a-now: #3b82f6;
-  --a-focus: #3b82f6;
-  --p-violet: #8b5cf6;
-  --p-blue: #3b82f6;
-  --p-orange: #f59e0b;
-  --p-aqua: #14b8a6;
-  --p-pink: #ec4899;
-  --p-yellow: #f59e0b;
-  --p-green: #10b981;
-  --p-red: #ef4444;
-  --p-neutral: #94a3b8;
-  --bg-selected: rgba(59, 130, 246, 0.12);
+  --bg-card: #121215;
+  --bg-0: #0b0b0c;
+  --bg-1: #0f0f11;
+  --bg-2: #17171a;
+  --bg-3: #202024;
+  --bg-hover: #18181c;
+  --br-subtle: #1c1c20;
+  --br-default: #25252b;
+  --br-strong: #373740;
+  --tx-primary: #f0eeeb;
+  --tx-secondary: #9898a0;
+  --tx-muted: #76767f;
+  --tx-disabled: #46464d;
+  --a-blue: #eceae6;
+  --a-blue-hi: #d97343;
+  --a-blue-tx: #e4976d;
+  --a-now: #d97343;
+  --a-focus: #d97343;
+  --a-run: #d97343;
+  --a-red: #e05252;
+  --p-violet: #9e82d4;
+  --p-blue: #6f9de0;
+  --p-orange: #df8a50;
+  --p-aqua: #55b4b4;
+  --p-pink: #d27697;
+  --p-yellow: #d4aa52;
+  --p-green: #58b485;
+  --p-red: #df6666;
+  --p-neutral: #7b7b84;
+  --bg-selected: rgba(255, 255, 255, 0.065);
   --a-event: var(--p-blue);
-  --scrim: rgba(8, 9, 10, 0.6);
-  --toast-bg: #14171c;
-  --shadow-pop: 0 0 0 1px #1f2229, 0 18px 40px -12px rgba(0, 0, 0, 0.7);
+  --ring: rgba(217, 115, 67, 0.35);
+  --scrim: rgba(8, 8, 10, 0.62);
+  --toast-bg: #141418;
+  --shadow-pop: 0 0 0 1px #25252b, 0 18px 40px -12px rgba(0, 0, 0, 0.72);
   --r-s: 8px;
   --r-m: 12px;
   --r-l: 16px;
 }
 :root[data-palette='graphit'][data-theme='light'] {
-  --bg-0: #f6f6f4;
+  --bg-card: #ffffff;
+  --bg-0: #f7f6f4;
   --bg-1: #ffffff;
-  --bg-2: #ececea;
-  --bg-3: #e2e2df;
-  --bg-hover: #efefec;
-  --br-subtle: #e6e6e3;
-  --br-default: #d6d6d2;
-  --br-strong: #a3a39e;
-  --tx-primary: #18191b;
-  --tx-secondary: #4c4e53;
-  --tx-muted: #62646a;
-  --tx-disabled: #9a9ca1;
-  --a-blue-hi: oklch(0.55 0.14 var(--a-hue));
-  --a-blue-tx: oklch(0.48 0.14 var(--a-hue));
-  --p-violet: oklch(0.55 0.17 300);
-  --p-blue: oklch(0.55 0.16 250);
-  --p-orange: oklch(0.6 0.16 55);
-  --p-aqua: oklch(0.56 0.11 200);
-  --p-pink: oklch(0.57 0.17 355);
-  --p-yellow: oklch(0.62 0.13 85);
-  --p-green: oklch(0.56 0.15 148);
-  --p-red: oklch(0.56 0.19 22);
-  --p-neutral: #62646a;
-  --scrim: rgba(24, 25, 27, 0.2);
+  --bg-2: #eceae6;
+  --bg-3: #e2dfd9;
+  --bg-hover: #f0eee9;
+  --bg-selected: rgba(20, 20, 22, 0.06);
+  --br-subtle: #e7e5e0;
+  --br-default: #d7d4ce;
+  --br-strong: #a7a39b;
+  --tx-primary: #141416;
+  --tx-secondary: #4e4e54;
+  --tx-muted: #6b6b73;
+  --tx-disabled: #9b9ba3;
+  --a-blue: #141416;
+  --a-blue-hi: #c85f30;
+  --a-blue-tx: #b85326;
+  --a-now: #c85f30;
+  --a-focus: #c85f30;
+  --a-run: #c85f30;
+  --a-red: #cf3d3d;
+  --p-violet: #7254b5;
+  --p-blue: #3b6fc2;
+  --p-orange: #c46427;
+  --p-aqua: #278585;
+  --p-pink: #b54b72;
+  --p-yellow: #a87e22;
+  --p-green: #2c8a5b;
+  --p-red: #c44343;
+  --p-neutral: #6b6b73;
+  --ring: rgba(200, 95, 48, 0.3);
+  --scrim: rgba(20, 20, 22, 0.2);
   --toast-bg: #ffffff;
-  --shadow-pop: 0 0 0 1px #d6d6d2, 0 18px 40px -12px rgba(24, 25, 27, 0.18);
+  --shadow-pop: 0 0 0 1px #d7d4ce, 0 18px 40px -12px rgba(20, 20, 22, 0.16);
 }
 /* Graphit: Hauptknopf hell auf dunkel (bzw. umgekehrt) statt Akzentfläche. */
 :root[data-palette='graphit'] .btn-primary {
@@ -529,9 +539,20 @@ svg.ic {
   color: var(--tx-primary);
 }
 .nav-item[aria-current='page'] {
-  background: var(--bg-2);
+  position: relative;
+  background: var(--bg-selected);
   color: var(--tx-primary);
   font-weight: 500;
+}
+.nav-item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 2.5px;
+  border-radius: 2px;
+  background: var(--a-blue-hi);
 }
 .nav-item[aria-current='page'] .ic {
   color: var(--a-blue-hi);
@@ -1516,7 +1537,7 @@ select.input {
     opacity: 0;
   }
 }
-/* Priorität als drei Balken: Niedrig 1, Mittel 2, Hoch 3 (Dringend rot) */
+/* Priorität als drei Balken: Niedrig/Mittel dezent neutral → Hoch gelb → Dringend rot */
 .prio-i {
   display: inline-flex;
   align-items: flex-end;
@@ -1539,12 +1560,24 @@ select.input {
 .prio-i i:nth-child(3) {
   height: 11px;
 }
-.prio-i i.on {
-  background: var(--tx-secondary);
+.prio-i.quiet {
+  opacity: 0.42;
 }
-.prio-i.high i.on {
+.prio-i i.on {
   background: var(--tx-primary);
-} /* kräftiger, aber nicht rot: Rot heißt nur „überfällig“ */
+}
+.prio-i[data-prio='HIGH'] {
+  opacity: 1;
+}
+.prio-i[data-prio='HIGH'] i.on {
+  background: var(--p-yellow);
+}
+.prio-i[data-prio='URGENT'] {
+  opacity: 1;
+}
+.prio-i[data-prio='URGENT'] i.on {
+  background: var(--a-red);
+}
 .task-row .status-l {
   min-width: 72px;
   display: inline-flex;
@@ -1613,9 +1646,21 @@ select.input {
     width: 150px;
     min-width: 0;
   }
-  .tgroup .task-row .chip {
+  .tgroup .task-row .pcol .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     width: auto;
     max-width: 100%;
+    color: var(--tx-secondary);
+  }
+  .tgroup .task-row .pcol .chip::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--pdot-c, var(--tx-muted));
   }
 }
 .key {
@@ -2077,7 +2122,7 @@ select.input {
   }
   .task-row .t {
     order: 3;
-    flex: 1 1 calc(100% - 44px);
+    flex: 1 1 calc(100% - 68px);
     white-space: normal;
     overflow-wrap: anywhere;
   }
@@ -2660,27 +2705,42 @@ select.input {
     gap: 16px;
   }
 }
-/* Primärknopf: eine flache getönte Fläche, kein Ring und kein Schatten */
+/* Primärknopf: Kairo Monochrome + Spark (klares Weiß auf Schwarz im Dark Mode, tiefes Schwarz auf Weiß im Light Mode) */
 :root .btn-primary,
-:root[data-palette] .btn-primary {
+:root[data-palette='graphit'] .btn-primary {
+  background: #eceae6;
+  color: #0b0b0c;
+  border-color: transparent;
+}
+:root .btn-primary:hover,
+:root[data-palette='graphit'] .btn-primary:hover {
+  background: #ffffff;
+  color: #0b0b0c;
+}
+:root[data-theme='light'] .btn-primary,
+:root[data-theme='light'][data-palette='graphit'] .btn-primary {
+  background: #141416;
+  color: #ffffff;
+  border-color: transparent;
+}
+:root[data-theme='light'] .btn-primary:hover,
+:root[data-theme='light'][data-palette='graphit'] .btn-primary:hover {
+  background: #2b2b30;
+  color: #ffffff;
+}
+:root[data-palette]:not([data-palette='graphit']) .btn-primary {
   background: color-mix(in oklab, var(--a-blue) 34%, var(--bg-1));
   color: #fff;
 }
-:root .btn-primary:hover,
-:root[data-palette] .btn-primary:hover {
+:root[data-palette]:not([data-palette='graphit']) .btn-primary:hover {
   background: color-mix(in oklab, var(--a-blue) 44%, var(--bg-1));
 }
-:root[data-theme='light'] .btn-primary,
-:root[data-theme='light'][data-palette] .btn-primary {
-  background: #2563eb;
+:root[data-theme='light'][data-palette]:not([data-palette='graphit']) .btn-primary {
+  background: var(--a-blue);
   color: #ffffff;
-  border-color: #2563eb;
 }
-:root[data-theme='light'] .btn-primary:hover,
-:root[data-theme='light'][data-palette] .btn-primary:hover {
-  background: #1d4ed8;
-  border-color: #1e40af;
-  color: #ffffff;
+:root[data-theme='light'][data-palette]:not([data-palette='graphit']) .btn-primary:hover {
+  background: color-mix(in oklab, var(--a-blue) 88%, #000);
 }
 /* Scrollbars */
 :root:not([data-theme='light']) {
