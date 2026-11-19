@@ -1,10 +1,40 @@
 <script lang="ts">
 import { ref } from 'vue'
-import { EditorView } from '@codemirror/view'
+import { Decoration, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view'
+import { RangeSetBuilder } from '@codemirror/state'
 import { syntaxHighlighting } from '@codemirror/language'
 import { tagHighlighter, tags } from '@lezer/highlight'
 import { config } from 'md-editor-v3'
 import { slugify } from '@/lib/noteFiles'
+
+const lineNoPlugin = ViewPlugin.fromClass(
+  class {
+    decorations
+    constructor(view: EditorView) {
+      this.decorations = this.build(view)
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view)
+    }
+    build(view: EditorView) {
+      const b = new RangeSetBuilder<Decoration>()
+      for (const { from, to } of view.visibleRanges) {
+        let pos = from
+        while (pos <= to) {
+          const line = view.state.doc.lineAt(pos)
+          b.add(
+            line.from,
+            line.from,
+            Decoration.line({ attributes: { 'data-ln': String(line.number) } }),
+          )
+          pos = line.to + 1
+        }
+      }
+      return b.finish()
+    }
+  },
+  { decorations: (v) => v.decorations },
+)
 
 // $…$ und $$…$$ rendert md-editor über die KaTeX-Schnittstelle; dahinter steckt MathJax (lib/tex, eigener Chunk wie bei den
 // Lernkarten). Der Chunk lädt erst bei der ersten Formel; bis dahin bleibt sie leer, texReady++ rendert die Vorschau dann neu.
@@ -31,6 +61,10 @@ config({
     {
       type: 'spellcheck',
       extension: EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }),
+    },
+    {
+      type: 'lineNumbers',
+      extension: lineNoPlugin,
     },
     // Feste Klassen für Markdown-Tokens (CodeMirror vergibt sonst nur wechselnde Hash-Namen), gestylt unten wie in Bear/iA Writer
     {
@@ -447,15 +481,13 @@ onBeforeUnmount(() => themeObserver.disconnect())
   max-width: 74ch;
   margin: 0 auto;
   padding: 56px 0 40vh; /* Luft oben, und die letzte Zeile lässt sich bis zur Mitte hochscrollen */
-  counter-reset: cm-ln;
 }
 .nd :deep(.md-editor .cm-line) {
   position: relative;
   padding-left: 46px;
 }
 .nd :deep(.md-editor .cm-line::before) {
-  counter-increment: cm-ln;
-  content: counter(cm-ln);
+  content: attr(data-ln);
   position: absolute;
   left: 0;
   width: 34px;

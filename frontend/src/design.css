@@ -176,14 +176,6 @@
   --toast-bg: #ffffff;
   --shadow-pop: 0 0 0 1px #d7d4ce, 0 18px 40px -12px rgba(20, 20, 22, 0.16);
 }
-/* Graphit: Hauptknopf hell auf dunkel (bzw. umgekehrt) statt Akzentfläche. */
-:root[data-palette='graphit'] .btn-primary {
-  background: var(--tx-primary);
-  color: var(--bg-0);
-}
-:root[data-palette='graphit'] .btn-primary:hover {
-  background: color-mix(in oklab, var(--tx-primary) 86%, var(--bg-0));
-}
 :root[data-palette='slate2'] {
   --bg-0: #090c0d;
   --bg-1: #0f1415;
@@ -1349,7 +1341,6 @@ select.input {
   right: 8px;
   font: 400 11px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
-  font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
 .hline {
@@ -1733,7 +1724,6 @@ select.input {
 .count {
   font: 400 13px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
-  font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
 
@@ -1752,7 +1742,6 @@ select.input {
 }
 .hab-num .n {
   font: 500 22px/1 var(--font-ui);
-  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-primary);
   white-space: nowrap;
@@ -1893,7 +1882,6 @@ select.input {
 .proj-pct {
   white-space: nowrap;
   font: 400 12px/1 var(--font-ui);
-  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-secondary);
   min-width: 40px;
@@ -2728,18 +2716,40 @@ select.input {
   background: #2b2b30;
   color: #ffffff;
 }
-:root[data-palette]:not([data-palette='graphit']) .btn-primary {
-  background: color-mix(in oklab, var(--a-blue) 34%, var(--bg-1));
-  color: #fff;
+:root[data-palette='slate2'] .btn-primary,
+:root[data-palette='carbonfox'] .btn-primary,
+:root[data-palette='dragon'] .btn-primary {
+  background: color-mix(in oklab, var(--a-blue) 84%, #000);
+  color: #ffffff;
 }
-:root[data-palette]:not([data-palette='graphit']) .btn-primary:hover {
-  background: color-mix(in oklab, var(--a-blue) 44%, var(--bg-1));
+:root[data-palette='slate2'] .btn-primary:hover,
+:root[data-palette='carbonfox'] .btn-primary:hover,
+:root[data-palette='dragon'] .btn-primary:hover {
+  background: color-mix(in oklab, var(--a-blue) 74%, #000);
 }
-:root[data-theme='light'][data-palette]:not([data-palette='graphit']) .btn-primary {
+:root[data-palette='carbonfox']:not([data-theme='light']) .btn-primary {
+  background: var(--a-blue);
+  color: #0c0c0c;
+}
+:root[data-palette='carbonfox']:not([data-theme='light']) .btn-primary:hover {
+  background: color-mix(in oklab, var(--a-blue) 88%, #fff);
+}
+:root[data-palette='dragon']:not([data-theme='light']) .btn-primary {
+  background: var(--a-blue);
+  color: #12120f;
+}
+:root[data-palette='dragon']:not([data-theme='light']) .btn-primary:hover {
+  background: color-mix(in oklab, var(--a-blue) 88%, #fff);
+}
+:root[data-theme='light'][data-palette='slate2'] .btn-primary,
+:root[data-theme='light'][data-palette='carbonfox'] .btn-primary,
+:root[data-theme='light'][data-palette='dragon'] .btn-primary {
   background: var(--a-blue);
   color: #ffffff;
 }
-:root[data-theme='light'][data-palette]:not([data-palette='graphit']) .btn-primary:hover {
+:root[data-theme='light'][data-palette='slate2'] .btn-primary:hover,
+:root[data-theme='light'][data-palette='carbonfox'] .btn-primary:hover,
+:root[data-theme='light'][data-palette='dragon'] .btn-primary:hover {
   background: color-mix(in oklab, var(--a-blue) 88%, #000);
 }
 /* Scrollbars */

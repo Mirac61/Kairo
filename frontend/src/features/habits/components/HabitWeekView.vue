@@ -278,7 +278,7 @@ const emit = defineEmits<{
   margin: -3px 0;
   border-radius: 50%;
   background: var(--a-now);
-  color: var(--bg-0);
+  color: var(--tx-on-accent);
   font-weight: 600;
 }
 .hw-d.future {
