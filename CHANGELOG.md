@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.3.0](https://github.com/Mirac61/Kairo/compare/v0.2.0...v0.3.0) (2026-11-19)
+
+
+### Features
+
+* **calendar:** calm typographic calendar (variant 3C) ([aabc1c0](https://github.com/Mirac61/Kairo/commit/aabc1c030438bda0c675690ec445562d2dc46047))
+* **calendar:** drop the day load bars from the column heads ([7bb66c5](https://github.com/Mirac61/Kairo/commit/7bb66c5f0550656921d7adc38d50f26e59568c99))
+* **calendar:** ruhiger Kalender 3C (Typografisch Pur) und monochrome Ungeplant-Leiste ([7d24758](https://github.com/Mirac61/Kairo/commit/7d247586ccfe1bfc38986534d8c206e320da462c))
+* **cards:** one deck list, filter dropdown, editor only on selection ([dd4ca49](https://github.com/Mirac61/Kairo/commit/dd4ca49dd25ed9e21844920c2f81816fedc41ee2))
+* **goals:** status only as bar colour ([da020f2](https://github.com/Mirac61/Kairo/commit/da020f27931ab41dbb35f913e0ebdc97f58df3e8))
+* **journal:** flat paper page instead of the book ([adc7fbf](https://github.com/Mirac61/Kairo/commit/adc7fbfe1be84291e6ee9d04721c7cc085ea8d2f))
+* **journal:** plain page in notes style without book metaphor ([73411ae](https://github.com/Mirac61/Kairo/commit/73411ae142d33a4dc2c3e3eea3caef5613b077c8))
+* **journal:** plain page in the notes style ([412c56d](https://github.com/Mirac61/Kairo/commit/412c56d0a482da0e03b6b7310da7ef3437045667))
+* **journal:** Redesign mit Mo-So-Heatmap, Monatsarchiv, Schreiben/Lesen-Modus und ruhiger Recap-Karte ([8807fa4](https://github.com/Mirac61/Kairo/commit/8807fa4db52d007717b440fabb436abea20446fe))
+* **journal:** redesign with calendar heatmap, monthly archive and read mode ([d0c0313](https://github.com/Mirac61/Kairo/commit/d0c0313ac6f0ddcacce514ece5ddc08f07ed6902))
+* **mobile:** 4+1 Hub Bottom-Tab-Bar, 2-Spalten-Mehr-Sheet und überarbeitetes App-Icon ([aeb356a](https://github.com/Mirac61/Kairo/commit/aeb356ade8bd5194d77ef5541f275e5f745ec3b8))
+* **projects:** list by default, hide empty tabs, one layout toggle ([e6b74e5](https://github.com/Mirac61/Kairo/commit/e6b74e56801ec8aaa3150c8995b3cf8ce014c8d7))
+* **review:** stats as one typographic line, drop calendar time ([e82c0e6](https://github.com/Mirac61/Kairo/commit/e82c0e6ee73098ec6bbd990166b840250a8022e9))
+* **settings:** App-Icon-Auswahl (Kairo Gipfel, Kairos Fokus, K + Funke) in Darstellung ([ac6cf9d](https://github.com/Mirac61/Kairo/commit/ac6cf9dcb65776c4c46f4ba8017d32b12ed6bf60))
+* **sidebar:** drop subtitle, group titles and idle status ([c460605](https://github.com/Mirac61/Kairo/commit/c46060587e983f57d93531cd7c850ac72bbd840f))
+* **tasks:** quieter rows, plain group headers, slim quick-add ([8197c19](https://github.com/Mirac61/Kairo/commit/8197c194ead10b9e69217bf85235caef1e9be65b))
+* **today:** one line under the date, no section icons ([5053dbb](https://github.com/Mirac61/Kairo/commit/5053dbb0fd9cfcc3ff30f14eac12a05c47247e2f))
+* **ui:** calm UI round 1 & 2 (quieter surfaces, sidebar & views) ([92bd902](https://github.com/Mirac61/Kairo/commit/92bd902c9e26238b2eab62fc90b62cb67d06b98a))
+* **ui:** Kairo Monochrome + Spark design system across core views ([985f21f](https://github.com/Mirac61/Kairo/commit/985f21f9fcbe27c0ed8ac30351eaf88b9058e85a))
+* **ui:** Kairo Monochrome + Spark Designsystem für Start, Aufgaben, Notizen, Gewohnheiten, Projekte und Ziele ([bb6865f](https://github.com/Mirac61/Kairo/commit/bb6865f7bb000ce495db1ea28bb3492f9846279c))
+* **ui:** migrate calendar, cards and today views to PageHeader ([79b7dd8](https://github.com/Mirac61/Kairo/commit/79b7dd876e3d8b061ecb9cce1fcef22e18cf04c2))
+* **ui:** migrate calendar, cards and today views to PageHeader + calm UI polish ([651b14e](https://github.com/Mirac61/Kairo/commit/651b14ea47a46ac58471b42e78d390e869081119))
+* **ui:** round 1 of calmer UI, unified page header and flat surfaces ([8665cef](https://github.com/Mirac61/Kairo/commit/8665cef637b20f74a126ee99d44e2aceb2f1676b))
+* **ui:** shared PageHeader, SegTabs and IconButton components ([e6599f8](https://github.com/Mirac61/Kairo/commit/e6599f87c8b783bb896ce689506e8b51f7dad3fa))
+* **ui:** shared PageHeader, SegTabs and IconButton for every view head ([9dc51b6](https://github.com/Mirac61/Kairo/commit/9dc51b670255c5b0414f9b4bf7d57277f6dac1bf))
+
+
+### Bug Fixes
+
+* **calendar:** use --tx-on-accent for today badge in month view ([9d6ec84](https://github.com/Mirac61/Kairo/commit/9d6ec84e7b7ffa9e77c323756682e5aac1ef2bfe))
+* **i18n:** reactive translations and date formatters across views, deduplicate isoWeek ([d79bdfa](https://github.com/Mirac61/Kairo/commit/d79bdfad4879534703ececb787276eca84056ae2))
+* **journal:** ignore pointercancel swipes and serialize page flips ([09d2550](https://github.com/Mirac61/Kairo/commit/09d255085c986f672b9fa9640bad34f94d166aa1))
+* **journal:** keep sub-headings and duplicate question sections when parsing, wrap ### free notes ([61e5072](https://github.com/Mirac61/Kairo/commit/61e5072fe4cfe5683dbc4ba99cf2e58869f2362d))
+* **journal:** keep the open day marked on phones, same gap after the recap ([a166aa8](https://github.com/Mirac61/Kairo/commit/a166aa82fdec9fca127f1cb5e098fea4881f29d6))
+* **journal:** preserve preamble text and code fences in parseEntry and show freeNotes snippet ([5ab6be3](https://github.com/Mirac61/Kairo/commit/5ab6be367c35f61b9e29d8a7a8b37b352d567e23))
+* **journal:** reuse isoWeek helper, sync entry prop changes, and render bullet lines in read mode ([57d2185](https://github.com/Mirac61/Kairo/commit/57d21851886749a40f3cf58d92da052c1dcec0a6))
+* **mobile-nav:** auto-fit tabbar columns when fewer than 4 tabs are pinned ([9b486e9](https://github.com/Mirac61/Kairo/commit/9b486e96ebde0dc54205c8dc7676834e4b06d293))
+* **settings:** match DOM order to visual layout and define neutral palette tokens ([50a3b4e](https://github.com/Mirac61/Kairo/commit/50a3b4ee333527685ac0837329ce8f6bcad43a36))
+* **ui:** use CodeMirror line numbers plugin and fix button/badge contrast ([b439be9](https://github.com/Mirac61/Kairo/commit/b439be91ecd453138cd689e08cbdc0045e13b6cd))
+
 ## [0.2.0](https://github.com/Mirac61/Kairo/compare/v0.1.0...v0.2.0) (2026-11-18)
 
 
