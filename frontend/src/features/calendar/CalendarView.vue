@@ -330,7 +330,7 @@ useLiveEvents(() => {
 .cal-fc {
   flex: 1;
   min-height: 0;
-  background: var(--bg-1);
+  background: transparent;
   border: 1px solid var(--br-subtle);
   border-radius: var(--r-m);
   overflow: hidden;

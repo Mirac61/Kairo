@@ -20,7 +20,7 @@
 .fc .fc-scrollgrid,
 .fc .fc-scrollgrid-section > td,
 .fc .fc-scrollgrid-section > th {
-  border-color: var(--br-subtle);
+  border-color: color-mix(in oklab, var(--br-subtle) 85%, transparent);
 }
 .fc .fc-scrollgrid {
   border-width: 0;
@@ -28,7 +28,7 @@
 .fc .fc-timegrid-col,
 .fc .fc-col-header-cell {
   border-left-width: 0;
-  border-right: 1px solid var(--br-subtle);
+  border-right: 1px solid color-mix(in oklab, var(--br-subtle) 75%, transparent);
 }
 .fc .fc-timegrid-col:last-child,
 .fc .fc-col-header-cell:last-child {
@@ -36,7 +36,7 @@
 }
 .fc .fc-timegrid-axis {
   border-left-width: 0;
-  border-right: 1px solid var(--br-subtle);
+  border-right: 1px solid color-mix(in oklab, var(--br-subtle) 75%, transparent);
 }
 .fc .fc-timegrid-body td {
   border-left-width: 0;
@@ -44,16 +44,16 @@
 }
 .fc .fc-scrollgrid-section-header > th {
   border-top: 0;
-  border-bottom: 1px solid var(--br-default);
-  background: var(--bg-1);
+  border-bottom: 1px solid var(--br-subtle);
+  background: transparent;
 }
 .fc .fc-timegrid-slot {
   height: 28px;
-  border-color: var(--br-subtle);
+  border-color: color-mix(in oklab, var(--br-subtle) 75%, transparent);
 }
 .fc .fc-timegrid-slot-minor {
   border-top-style: solid;
-  border-top-color: var(--br-subtle);
+  border-top-color: transparent;
 }
 .fc .fc-timegrid-slot-label {
   vertical-align: top;
@@ -83,11 +83,11 @@
 }
 .fc .fc-day-sat,
 .fc .fc-day-sun {
-  background: color-mix(in srgb, var(--bg-2) 30%, transparent);
+  background: color-mix(in oklab, var(--tx-primary) 1.6%, transparent);
 }
 .fc .fc-timegrid .fc-day-today,
 .fc .fc-timegrid .fc-day-today.fc-col-header-cell {
-  background: color-mix(in srgb, var(--a-blue) 4%, transparent);
+  background: color-mix(in oklab, var(--tx-primary) 2.2%, transparent);
 }
 
 /* Tageskopf: Wochentag und Zahl, darunter geplant vs. erfasst (Plan/Ist) mit schmalem Balken */
@@ -140,7 +140,7 @@
   overflow: visible;
 }
 .fc .fc-timegrid-now-indicator-line {
-  border-width: 2px 0 0;
+  border-width: 1.5px 0 0;
   border-style: solid;
   border-color: var(--a-now);
   opacity: 1;
@@ -150,11 +150,11 @@
 .fc .fc-timegrid-now-indicator-line::before {
   content: '';
   position: absolute;
-  top: -2px;
+  top: -1px;
   right: 100%;
   left: auto;
   width: 2000px;
-  height: 2px;
+  height: 1px;
   background: repeating-linear-gradient(
     to right,
     var(--a-now) 0,
@@ -162,18 +162,18 @@
     transparent 5px,
     transparent 10px
   );
-  opacity: 0.45;
+  opacity: 0.25;
   pointer-events: none;
   border-radius: 0;
 }
 .fc .fc-timegrid-now-indicator-line::after {
   content: '';
   position: absolute;
-  top: -2px;
+  top: -1px;
   left: 100%;
   right: auto;
   width: 2000px;
-  height: 2px;
+  height: 1px;
   background: repeating-linear-gradient(
     to right,
     var(--a-now) 0,
@@ -181,7 +181,7 @@
     transparent 5px,
     transparent 10px
   );
-  opacity: 0.45;
+  opacity: 0.25;
   pointer-events: none;
   border-radius: 0;
 }
@@ -195,34 +195,34 @@
   right: 4px;
   left: auto;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 5px;
   background: var(--a-now);
   color: var(--tx-on-accent);
-  font: 600 11px/1.2 var(--font-ui);
-  font-variant-numeric: tabular-nums;
+  font: 500 11px/1.2 var(--font-ui);
   font-variant-numeric: tabular-nums;
 }
 
-/* Erfasste Zeit: schmale Spur links im Tag in der Projektfarbe */
+/* Erfasste Zeit: in der Woche ruhig ausgeblendet (vermeidet blaue Linie über Jetzt-Linie); im Tag eigene rechte Spalte */
 .fc .fc-bg-event.kt-track {
   left: 0;
   right: auto;
   width: 3px;
   border-radius: 2px;
   background: var(--acc, var(--p-neutral));
-  opacity: 0.9;
+  opacity: 0;
 }
 .fc .fc-timegrid-col-events {
-  margin: 0 2px 0 5px;
+  margin: 0 3px 0 4px;
 }
 
-/* Einträge: Minimalistisch & Theme-adaptiv, nur ein Akzent-Tint auf --bg-1 (kein Rahmen, kein Seitenstreifen) */
+/* Einträge (Kalender 3C — Typografisch Pur): ruhige monochrome Kacheln, Farbe lebt typografisch im Projekt-Untertitel */
 .fc .fc-event {
   --ev-acc: var(--p-blue);
 
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
-  border: 0;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--br-default);
+  box-shadow: none;
   box-sizing: border-box;
   cursor: pointer;
   padding: 0;
@@ -232,13 +232,19 @@
   overflow: hidden;
 }
 .fc .fc-event:hover {
-  background: color-mix(in srgb, var(--ev-acc) 22%, var(--bg-1));
+  background: var(--bg-hover);
+  border-color: var(--br-strong);
 }
 .fc .fc-event.kt-running {
-  box-shadow: inset 0 0 0 1.5px var(--a-run);
+  background: color-mix(in oklab, var(--a-run) 4%, var(--bg-card));
+  border-color: color-mix(in oklab, var(--a-run) 55%, var(--br-default));
+  box-shadow: none;
+}
+.fc .fc-event.kt-running .kt-title {
+  color: var(--a-run);
 }
 .fc .fc-event.kt-done {
-  opacity: 0.5;
+  opacity: 0.4;
 }
 .fc .fc-event.kt-done .kt-title {
   text-decoration: line-through;
@@ -341,7 +347,7 @@
 .fc .kt-title {
   min-width: 0;
   font: 500 12.5px/1.3 var(--font-ui);
-  color: var(--tx-primary);
+  color: color-mix(in oklab, var(--ev-acc) 22%, var(--tx-primary));
   overflow: hidden;
   text-overflow: ellipsis;
   word-break: normal;
@@ -360,7 +366,7 @@
 }
 .fc .kt-meta {
   font: 400 11.5px/1.3 var(--font-ui);
-  color: var(--tx-muted);
+  color: color-mix(in oklab, var(--ev-acc) 72%, var(--tx-secondary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -421,6 +427,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   -webkit-line-clamp: 1;
+  color: color-mix(in oklab, var(--ev-acc) 55%, var(--tx-primary));
 }
 .fc .fc-timegrid .fc-daygrid-event .kt-meta {
   display: none;
@@ -464,9 +471,10 @@
   width: 138px;
   overflow: hidden;
   opacity: 1;
-  border-radius: 5px;
-  background: var(--bg-1);
-  box-shadow: inset 3px 0 0 var(--acc, var(--p-neutral));
+  border-radius: 7px;
+  border: 1px solid var(--br-subtle);
+  background: var(--bg-card);
+  box-shadow: inset 2.5px 0 0 var(--acc, var(--p-neutral));
 }
 /* Handy: Plan bekommt die Breite, „Erfasst“ schrumpft auf 96 px. */
 @media (max-width: 760px) {
@@ -514,9 +522,8 @@
 }
 .fc .fc-timeGridDay-view .kt-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   -webkit-line-clamp: 1;
-  color: var(--tx-primary);
 }
 .fc .fc-timeGridDay-view .kt-time {
   font-size: 12.5px;
@@ -524,7 +531,6 @@
 }
 .fc .fc-timeGridDay-view .kt-meta {
   font-size: 12.5px;
-  color: var(--tx-muted);
 }
 .fc .fc-timeGridDay-view .fc-timegrid-event-short .kt-in {
   flex-wrap: nowrap;
@@ -642,10 +648,10 @@
   font-size: 12px;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--tx-primary);
+  color: color-mix(in oklab, var(--ev-acc) 45%, var(--tx-primary));
 }
 .fc .fc-dayGridMonth-view .kt-task .kt-title {
-  color: var(--tx-primary);
+  color: color-mix(in oklab, var(--ev-acc) 45%, var(--tx-primary));
 }
 .fc .fc-more-link {
   margin: 0;
