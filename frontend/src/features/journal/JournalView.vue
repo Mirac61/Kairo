@@ -105,8 +105,10 @@ function formatMonthHeading(ym: string): string {
   return monthTitleFmt.value.format(new Date(y, m - 1, 1))
 }
 
-function snippetOf(answers?: string[]): string {
-  const first = answers?.find((a) => a.trim())?.trim() ?? ''
+function snippetOf(answers?: string[], other?: string): string {
+  const first =
+    answers?.find((a) => a.trim())?.trim() ||
+    (other ?? '').replace(/^##\s+Freie Notizen\s*/i, '').trim()
   return first.replace(/\s+/g, ' ').replace(/^[-*#>\s]+/, '')
 }
 
@@ -174,7 +176,7 @@ const archiveGroups = computed<ArchiveGroup[]>(() => {
     const entry = getEntryForDate(d)
     const isToday = d === todayStr.value
     const snippet = entry
-      ? snippetOf(entry.answers) || t('Noch kein Eintrag')
+      ? snippetOf(entry.answers, entry.other) || t('Noch kein Eintrag')
       : isToday
         ? t('Noch kein Eintrag')
         : ''

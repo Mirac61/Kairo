@@ -298,7 +298,11 @@ watch(
     q1.value = e?.answers[1] ?? ''
     const ps = splitPoints(e?.answers[2] ?? '')
     points.value = ps.length ? ps : ['']
-    other = e?.other ?? ''
+    freeNotes.value = unwrapOther(e?.other ?? '')
+    rawMd.value = toMarkdown(props.date, {
+      answers: [q0.value, q1.value, points.value.join('\n')],
+      other: wrapOther(freeNotes.value),
+    })
     mtime = e?.mtime ?? ''
     void nextTick(growAll)
   },
@@ -522,6 +526,17 @@ async function submitImport(titles: string[]) {
                 <template v-else>{{ tok.text }}</template>
               </template>
             </blockquote>
+            <div v-else-if="b.kind === 'bullet'" class="je-read-li">
+              <span class="je-bullet" aria-hidden="true">-</span>
+              <span>
+                <template v-for="(tok, ti) in b.tokens" :key="ti">
+                  <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+                  <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+                  <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+                  <template v-else>{{ tok.text }}</template>
+                </template>
+              </span>
+            </div>
             <p v-else class="je-read-p">
               <template v-for="(tok, ti) in b.tokens" :key="ti">
                 <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
