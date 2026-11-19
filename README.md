@@ -1,16 +1,29 @@
-# Kairo
+<p align="center">
+  <img src="frontend/public/icon-192.png" alt="Kairo app icon" width="96" height="96">
+</p>
 
-**Plan your day in the browser. Do the work in your editor. Kairo keeps both in sync.**
+<h1 align="center">Kairo</h1>
+
+<p align="center">
+  <strong>Plan your day in the browser. Do the work in your editor. Kairo keeps both in sync.</strong>
+</p>
+
+<p align="center">
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go-1.27%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.27+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT"></a>
+  <a href="https://github.com/Mirac61/Kairo/actions/workflows/ci.yml"><img src="https://github.com/Mirac61/Kairo/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="#tests"><img src="https://img.shields.io/badge/tests-make%20check-green.svg" alt="Tests"></a>
+</p>
 
 Kairo is a local-first planner for tasks, calendar events, habits, notes, goals, journaling, and flashcards. It runs on your own computer (macOS, Windows, Linux, or Raspberry Pi): no cloud, no subscription. Your data is one SQLite file you can copy anywhere.
 
-[![Go 1.27+](https://img.shields.io/badge/Go-1.27%2B-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/Mirac61/Kairo/actions/workflows/ci.yml/badge.svg)](https://github.com/Mirac61/Kairo/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-make%20check-green.svg)](#tests)
-
-![Kairo start page with a running timer, today's tasks, and the day plan](docs/screenshots/start.png)
-*Demo data, not a real account.*
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/start-dark.png">
+    <img src="docs/screenshots/start-light.png" alt="Kairo start page with a running timer, today's tasks, the day plan, habits, and a focus goal" width="900">
+  </picture>
+</p>
+<p align="center"><sub>Demo data, not a real account. Screenshots follow your light or dark theme.</sub></p>
 
 By default Kairo only listens on `127.0.0.1` and needs no account. When you bind it to another address (for example on a Raspberry Pi with `KAIRO_HOST=<wg-ip>`, reachable only through WireGuard), login is enabled automatically and the first start asks you to create the one account at `/setup`. On your laptop it stays login-free.
 
@@ -21,6 +34,7 @@ By default Kairo only listens on `127.0.0.1` and needs no account. When you bind
 - [Getting started](#getting-started)
 - [Usage](#usage)
 - [What's inside](#whats-inside)
+- [Screenshots](#screenshots)
 - [Your data](#your-data)
 - [Development](#development)
 - [Tests](#tests)
@@ -84,9 +98,6 @@ Open <http://127.0.0.1:8742>. The Start page answers four questions: what is hap
 
 ## What's inside
 
-![Kairo calendar with events, planned tasks, and tracked time](docs/screenshots/kalender.png)
-*Calendar: events and planned tasks in one week, next to the time you tracked.*
-
 | View | What it does |
 | --- | --- |
 | **Start** | Running timer, what's next, today's plan with drag and drop |
@@ -103,11 +114,43 @@ Open <http://127.0.0.1:8742>. The Start page answers four questions: what is hap
 
 Almost every action can be undone right away.
 
-![Kairo task list with priorities, estimates, and quick add](docs/screenshots/aufgaben.png)
-*Tasks: quick add, filters, priorities, estimates, and the running timer.*
+## Screenshots
 
-![Kairo weekly review with planned versus tracked time and completed tasks](docs/screenshots/review.png)
-*Review: planned versus tracked time, completed tasks, and habits.*
+**Calendar.** Events and planned tasks in one week, next to the time you tracked.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/calendar-dark.png">
+    <img src="docs/screenshots/calendar-light.png" alt="Kairo week calendar with events, planned tasks, and tracked time" width="900">
+  </picture>
+</p>
+
+**Tasks.** Quick add, filters, priorities, estimates, and the running timer.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/tasks-dark.png">
+    <img src="docs/screenshots/tasks-light.png" alt="Kairo task list with priorities, estimates, and quick add" width="900">
+  </picture>
+</p>
+
+**Journal.** A daily page with three questions, free notes, and a month overview.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/journal-dark.png">
+    <img src="docs/screenshots/journal-light.png" alt="Kairo journal page with three daily questions, free notes, and a calendar of past entries" width="900">
+  </picture>
+</p>
+
+**Review.** Planned versus tracked time, completed tasks, and habits.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/review-dark.png">
+    <img src="docs/screenshots/review-light.png" alt="Kairo weekly review with planned versus tracked time and completed tasks" width="900">
+  </picture>
+</p>
 
 ## Your data
 
