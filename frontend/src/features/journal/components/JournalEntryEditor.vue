@@ -23,7 +23,7 @@ const props = defineProps<{
   date: string
   entry: JournalEntryData | null
   importedTitles: string[]
-  mode?: 'write' | 'read'
+  mode?: 'write' | 'markdown' | 'read'
 }>()
 
 const emit = defineEmits<{
@@ -35,13 +35,26 @@ const HINTS = computed(() => [
   t('Etwas, das heute geklappt hat, auch Kleines'),
   t('Was würdest du beim nächsten Mal anders machen?'),
   t('Punkt …'),
+  t('Gedanken, Markdown, [[Notizen]] oder eigene ## Abschnitte …'),
 ])
+
+function unwrapOther(rawOther: string): string {
+  return rawOther.replace(/^##\s+Freie Notizen\s*\n+/i, '').trim()
+}
+
+function wrapOther(text: string): string {
+  const trimmed = text.trim()
+  if (!trimmed) return ''
+  if (/^#{2,6}\s/.test(trimmed)) return trimmed
+  return `## Freie Notizen\n\n${trimmed}`
+}
 
 const q0 = ref(props.entry?.answers[0] ?? '')
 const q1 = ref(props.entry?.answers[1] ?? '')
 const initPoints = splitPoints(props.entry?.answers[2] ?? '')
 const points = ref<string[]>(initPoints.length ? initPoints : [''])
-let other = props.entry?.other ?? ''
+const freeNotes = ref(unwrapOther(props.entry?.other ?? ''))
+const rawMd = ref('')
 let mtime = props.entry?.mtime ?? ''
 
 type Status = 'idle' | 'saving' | 'saved' | 'conflict' | 'error'
@@ -78,6 +91,18 @@ function grow(el: HTMLTextAreaElement) {
 
 function onAreaInput(e: Event) {
   grow(e.target as HTMLTextAreaElement)
+  onChange()
+}
+
+function onRawMdInput(e: Event) {
+  const el = e.target as HTMLTextAreaElement
+  grow(el)
+  const parsed = parseEntry(rawMd.value)
+  q0.value = parsed.answers[0] ?? ''
+  q1.value = parsed.answers[1] ?? ''
+  const ps = splitPoints(parsed.answers[2] ?? '')
+  points.value = ps.length ? ps : ['']
+  freeNotes.value = unwrapOther(parsed.other)
   onChange()
 }
 
@@ -140,6 +165,7 @@ async function saveOnce(): Promise<boolean> {
   if (alive) status.value = 'saving'
   const v = version
   const answers = [q0.value, q1.value, points.value.join('\n')]
+  const other = wrapOther(freeNotes.value)
   try {
     // Vor dem Schreiben prüfen, ob die Datei seit dem Laden außerhalb geändert wurde.
     if (mtime) {
@@ -236,7 +262,8 @@ async function reload() {
     q1.value = e.answers[1] ?? ''
     const ps = splitPoints(e.answers[2] ?? '')
     points.value = ps.length ? ps : ['']
-    other = e.other
+    freeNotes.value = unwrapOther(e.other)
+    rawMd.value = toMarkdown(props.date, e)
     mtime = n.mtime
     status.value = 'idle'
     error.value = ''
@@ -250,7 +277,8 @@ async function reload() {
     q0.value = ''
     q1.value = ''
     points.value = ['']
-    other = ''
+    freeNotes.value = ''
+    rawMd.value = toMarkdown(props.date, { answers: ['', '', ''], other: '' })
     mtime = ''
     status.value = 'idle'
     error.value = ''
@@ -278,8 +306,15 @@ watch(
 watch(
   () => props.mode,
   (m) => {
+    if (m === 'markdown') {
+      rawMd.value = toMarkdown(props.date, {
+        answers: [q0.value, q1.value, points.value.join('\n')],
+        other: wrapOther(freeNotes.value),
+      })
+    }
     if (m !== 'read') void nextTick(growAll)
   },
+  { immediate: true },
 )
 onBeforeUnmount(() => {
   alive = false
@@ -326,8 +361,24 @@ function parseBlocks(src: string): BlockLine[] {
 
 const cleanPoints = computed(() => points.value.map((p) => p.trim()).filter(Boolean))
 const hasAnyContent = computed(() =>
-  Boolean(q0.value.trim() || q1.value.trim() || cleanPoints.value.length),
+  Boolean(q0.value.trim() || q1.value.trim() || cleanPoints.value.length || freeNotes.value.trim()),
 )
+
+const freeReadSections = computed(() => {
+  const raw = wrapOther(freeNotes.value)
+  if (!raw) return []
+  return raw
+    .split(/^(?=#{2,6}\s)/m)
+    .map((b) => b.trim())
+    .filter(Boolean)
+    .map((block) => {
+      const m = block.match(/^(#{2,6})\s+([^\n]+)\n*([\s\S]*)$/)
+      const title = m ? (m[2] ?? '').trim() : t('Freie Notizen')
+      const body = m ? (m[3] ?? '').trim() : block
+      return { title, blocks: parseBlocks(body) }
+    })
+    .filter((s) => s.blocks.length > 0)
+})
 
 // ---- Aufgaben übernehmen ----
 const importOpen = ref(false)
@@ -459,8 +510,55 @@ async function submitImport(titles: string[]) {
             </li>
           </ul>
         </section>
+
+        <section v-for="(sec, sIdx) in freeReadSections" :key="sIdx" class="je-read-sec">
+          <h3 class="je-label"><span class="je-mk" aria-hidden="true">##</span>{{ sec.title }}</h3>
+          <template v-for="(b, idx) in sec.blocks" :key="idx">
+            <blockquote v-if="b.kind === 'quote'" class="je-read-quote">
+              <template v-for="(tok, ti) in b.tokens" :key="ti">
+                <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+                <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+                <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+                <template v-else>{{ tok.text }}</template>
+              </template>
+            </blockquote>
+            <p v-else class="je-read-p">
+              <template v-for="(tok, ti) in b.tokens" :key="ti">
+                <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+                <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+                <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+                <template v-else>{{ tok.text }}</template>
+              </template>
+            </p>
+          </template>
+        </section>
       </template>
     </div>
+
+    <form v-else-if="mode === 'markdown'" ref="formEl" class="je-form" @submit.prevent>
+      <section class="je-q">
+        <textarea
+          v-model="rawMd"
+          class="je-area je-raw-md"
+          rows="12"
+          :aria-label="$t('Freies Markdown für den gesamten Eintrag')"
+          @input="onRawMdInput"
+        ></textarea>
+        <div class="je-foot">
+          <span class="je-status" aria-live="polite">
+            <span v-if="dirty" class="save-status dirty"
+              ><i></i>{{ $t('Ungespeicherte Änderungen') }}</span
+            >
+            <span v-else-if="status === 'saving'" class="save-status">{{
+              $t('Wird gespeichert …')
+            }}</span>
+            <span v-else class="save-status saved je-saved"
+              ><svg class="ic"><use href="#i-check" /></svg>{{ $t('Gespeichert') }}</span
+            >
+          </span>
+        </div>
+      </section>
+    </form>
 
     <form v-else ref="formEl" class="je-form" @submit.prevent>
       <section class="je-q">
@@ -509,6 +607,20 @@ async function submitImport(titles: string[]) {
             />
           </div>
         </div>
+      </section>
+
+      <section class="je-q">
+        <label class="je-label" for="je-free">
+          <span class="je-mk" aria-hidden="true">##</span>{{ $t('Freie Notizen') }}
+        </label>
+        <textarea
+          id="je-free"
+          v-model="freeNotes"
+          class="je-area"
+          rows="2"
+          :placeholder="HINTS[3]"
+          @input="onAreaInput"
+        ></textarea>
         <div class="je-foot">
           <button
             v-if="canImport"

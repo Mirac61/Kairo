@@ -55,6 +55,17 @@
   color: var(--tx-muted);
   opacity: 0.85;
 }
+.je-raw-md {
+  min-height: 280px;
+  padding: 14px 16px;
+  border: 1px solid var(--br-subtle);
+  border-radius: 10px;
+  background: var(--bg-card);
+  font: 400 14px/1.75 var(--font-mono);
+}
+.je-raw-md:focus {
+  border-color: var(--br-default);
+}
 
 .je-points {
   display: grid;

@@ -36,7 +36,7 @@ const {
 } = useJournalData()
 
 const pageDate = ref('')
-const mode = ref<'write' | 'read'>('write')
+const mode = ref<'write' | 'markdown' | 'read'>('write')
 const selectedMonth = ref('')
 
 // Suche
@@ -286,6 +286,15 @@ async function handleBackfillSubmit(date: string) {
                 @click="mode = 'write'"
               >
                 {{ $t('Schreiben') }}
+              </button>
+              <button
+                type="button"
+                class="jr-mode-btn"
+                :class="{ on: mode === 'markdown' }"
+                :aria-pressed="mode === 'markdown'"
+                @click="mode = 'markdown'"
+              >
+                {{ $t('Markdown') }}
               </button>
               <button
                 type="button"
