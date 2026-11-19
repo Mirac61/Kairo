@@ -13,6 +13,7 @@ const props = defineProps<{
   pages: string[]
   todayStr: string
   hasOlderEntries: boolean
+  mode?: 'write' | 'read'
   getEntryForDate: (d: string) => JournalRow | JournalEntryData | null
   getPlanForDate: (d: string) => string[]
   getDoneItemsOn: (d: string) => string[]
@@ -47,7 +48,7 @@ function setEditorInstance(date: string, instance: unknown) {
 }
 
 // Das Jahr steht nur bei älteren Seiten dabei.
-const dateFmt = computed(
+const dateHeadingFmt = computed(
   () =>
     new Intl.DateTimeFormat(locale.value, {
       weekday: 'long',
@@ -55,7 +56,7 @@ const dateFmt = computed(
       month: 'long',
     }),
 )
-const dateYearFmt = computed(
+const dateHeadingYearFmt = computed(
   () =>
     new Intl.DateTimeFormat(locale.value, {
       weekday: 'long',
@@ -67,7 +68,18 @@ const dateYearFmt = computed(
 
 function formatDate(dateStr: string): string {
   const sameYear = dateStr.slice(0, 4) === props.todayStr.slice(0, 4)
-  return (sameYear ? dateFmt.value : dateYearFmt.value).format(new Date(`${dateStr}T00:00`))
+  return (sameYear ? dateHeadingFmt.value : dateHeadingYearFmt.value).format(
+    new Date(`${dateStr}T00:00`),
+  )
+}
+
+function isoWeek(dateStr: string): number {
+  const [y = 2000, m = 1, d = 1] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  const day = dt.getUTCDay() || 7
+  dt.setUTCDate(dt.getUTCDate() + 4 - day)
+  const yearStart = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1))
+  return Math.ceil(((dt.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
 }
 
 function getRelativeDateLabel(dateStr: string): string {
@@ -75,6 +87,9 @@ function getRelativeDateLabel(dateStr: string): string {
   if (dateStr === shiftDate(props.todayStr, -1)) return t('Gestern')
   return ''
 }
+
+const planItems = computed(() => (pageDate.value ? props.getPlanForDate(pageDate.value) : []))
+const doneItems = computed(() => (pageDate.value ? props.getDoneItemsOn(pageDate.value) : []))
 
 const currentPageIndex = computed(() => props.pages.indexOf(pageDate.value))
 
@@ -135,14 +150,16 @@ function onSwipeEnd(e: PointerEvent) {
       @pointerup="onSwipeEnd"
       @pointercancel="onSwipeEnd"
     >
-      <!-- Das Datum ist die Überschrift der Seite, geblättert wird im Kopf der Ansicht -->
+      <!-- Einheitliche Kairo-Typografie mit klarer Hierarchie -->
       <div class="jr-bar">
-        <h2 class="jr-date">
-          {{ formatDate(pageDate) }}
+        <div class="jr-eyebrow">
           <span v-if="getRelativeDateLabel(pageDate)" class="jr-rel">{{
             getRelativeDateLabel(pageDate)
           }}</span>
-        </h2>
+          <span v-if="getRelativeDateLabel(pageDate)" class="jr-sep" aria-hidden="true">·</span>
+          <span class="jr-eyebrow-muted">{{ $t('KW {n}', { n: isoWeek(pageDate) }) }}</span>
+        </div>
+        <h2 class="jr-date">{{ formatDate(pageDate) }}</h2>
       </div>
 
       <article
@@ -152,25 +169,38 @@ function onSwipeEnd(e: PointerEvent) {
         :data-date="pageDate"
         :aria-label="formatDate(pageDate)"
       >
-        <div v-if="getPlanForDate(pageDate).length" class="jr-block">
-          <h3 class="jr-block-h">{{ $t('Vorgenommen') }}</h3>
-          <ul class="jr-block-list">
-            <li v-for="(p, i) in getPlanForDate(pageDate)" :key="i">{{ p }}</li>
-          </ul>
-        </div>
+        <section
+          v-if="planItems.length || doneItems.length"
+          class="jr-context"
+          :class="{ single: !(planItems.length && doneItems.length) }"
+        >
+          <div v-if="planItems.length" class="jr-block">
+            <div class="jr-block-head">
+              <h3 class="jr-block-h">{{ $t('Vorgenommen') }}</h3>
+              <span class="jr-block-cnt">{{ planItems.length }}</span>
+            </div>
+            <ul class="jr-block-list jr-plan-list">
+              <li v-for="(p, i) in planItems" :key="i">{{ p }}</li>
+            </ul>
+          </div>
 
-        <div v-if="getDoneItemsOn(pageDate).length" class="jr-block jr-recap">
-          <h3 class="jr-block-h">{{ $t('Erledigt') }}</h3>
-          <ul class="jr-block-list">
-            <li v-for="(p, i) in getDoneItemsOn(pageDate)" :key="i">{{ p }}</li>
-          </ul>
-        </div>
+          <div v-if="doneItems.length" class="jr-block jr-recap">
+            <div class="jr-block-head">
+              <h3 class="jr-block-h">{{ $t('Erledigt') }}</h3>
+              <span class="jr-block-cnt">{{ doneItems.length }}</span>
+            </div>
+            <ul class="jr-block-list jr-done-list">
+              <li v-for="(p, i) in doneItems" :key="i">{{ p }}</li>
+            </ul>
+          </div>
+        </section>
 
         <JournalEntryEditor
           :ref="(c) => setEditorInstance(pageDate, c)"
           :date="pageDate"
           :entry="getEntryForDate(pageDate)"
           :imported-titles="getImportedTitles(pageDate)"
+          :mode="mode"
           @saved="emit('saved', pageDate, $event)"
           @imported="emit('imported', $event)"
         />

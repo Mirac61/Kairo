@@ -45,43 +45,47 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-/* Offene Vorhaben als schlichter Abschnitt unter der Seite */
+/* Offene Vorhaben im unteren Bereich der Journal-Timeline */
 .jr-open-box {
-  margin-bottom: 48px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--br-subtle);
 }
 .jr-open-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 .jr-open-title {
   margin: 0;
-  font: 500 13px/1.3 var(--font-ui);
-  color: var(--tx-muted);
+  font: 500 12px/1.2 var(--font-ui);
+  color: var(--tx-secondary);
 }
 .jr-open-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: 7px;
 }
 .jr-open-item {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: start;
-  gap: 10px;
+  gap: 9px;
 }
 .jr-open-cb {
-  margin-top: 3px;
+  margin-top: 2px;
   cursor: pointer;
 }
 .jr-open-link {
-  font: 400 14px/1.4 var(--font-ui);
+  font: 400 13px/1.4 var(--font-ui);
   color: var(--tx-secondary);
   text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .jr-open-link:hover {
   color: var(--tx-primary);
@@ -97,17 +101,18 @@ const emit = defineEmits<{
 .jr-open-all {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   color: var(--tx-muted);
-  font: 500 12px/1 var(--font-ui);
+  font: 500 11.5px/1 var(--font-ui);
   text-decoration: none;
+  white-space: nowrap;
   transition: color var(--dur) ease-out;
 }
 .jr-open-all:hover {
-  color: var(--tx-secondary);
+  color: var(--tx-primary);
 }
 .jr-open-all .ic {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
 }
 </style>

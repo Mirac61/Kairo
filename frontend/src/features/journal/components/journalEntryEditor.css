@@ -1,19 +1,33 @@
-.je-form {
+.je-form,
+.je-read {
   display: grid;
-  gap: 24px;
+  gap: 26px;
 }
-.je-q {
+.je-q,
+.je-read-sec {
   display: grid;
   gap: 8px;
   padding: 0;
   border-top: 0;
 }
-/* Fragen wie Zwischenüberschriften einer Notiz */
+/* Markdown-inspirierte Abschnittsüberschriften mit Ember-Präfix */
 .je-label {
-  font: 600 17px/1.35 var(--font-ui);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font: 600 18px/1.35 var(--font-ui);
+  letter-spacing: -0.015em;
   color: var(--tx-primary);
-  letter-spacing: normal;
   text-transform: none;
+}
+.je-mk {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  font-weight: 400;
+  color: var(--a-blue-hi);
+  opacity: 0.8;
+  user-select: none;
 }
 .je-area {
   width: 100%;
@@ -25,8 +39,8 @@
   resize: none;
   overflow: hidden;
   background: none;
-  color: var(--tx-primary);
-  font: 400 16px/1.7 var(--font-ui);
+  color: color-mix(in oklab, var(--tx-primary) 90%, var(--bg-0));
+  font: 400 15.5px/1.75 var(--font-ui);
   transition: border-color var(--dur) ease-out;
 }
 .je-area:focus {
@@ -39,7 +53,7 @@
 }
 .je-area::placeholder {
   color: var(--tx-muted);
-  opacity: 1;
+  opacity: 0.85;
 }
 
 .je-points {
@@ -48,15 +62,15 @@
 }
 .je-point {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: baseline;
+  gap: 10px;
 }
 .je-bullet {
   flex: none;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--tx-muted);
+  font: 500 14px/1.7 var(--font-mono);
+  color: var(--a-blue-hi);
+  opacity: 0.82;
+  user-select: none;
 }
 .je-point-input {
   flex: 1;
@@ -67,8 +81,8 @@
   border-bottom: 1px solid transparent;
   outline: none;
   background: none;
-  color: var(--tx-primary);
-  font: 400 16px/1.7 var(--font-ui);
+  color: color-mix(in oklab, var(--tx-primary) 90%, var(--bg-0));
+  font: 400 15.5px/1.75 var(--font-ui);
   transition: border-color var(--dur) ease-out;
 }
 .je-point-input:focus {
@@ -81,14 +95,70 @@
 }
 .je-point-input::placeholder {
   color: var(--tx-muted);
-  opacity: 1;
+  opacity: 0.85;
+}
+
+/* Leseansicht (Markdown gerendert) */
+.je-empty {
+  margin: 0;
+  font: 400 15px/1.6 var(--font-ui);
+  color: var(--tx-muted);
+}
+.je-read-p {
+  margin: 0;
+  font: 400 15.5px/1.8 var(--font-ui);
+  color: color-mix(in oklab, var(--tx-primary) 88%, var(--bg-0));
+}
+.je-read-p strong,
+.je-read-quote strong {
+  color: var(--tx-primary);
+  font-weight: 600;
+}
+.je-read-quote {
+  margin: 4px 0;
+  padding-left: 14px;
+  border-left: 2.5px solid var(--a-blue-hi);
+  color: var(--tx-secondary);
+  font: italic 400 15.5px/1.75 var(--font-ui);
+}
+.je-read-code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--bg-2);
+  border: 1px solid var(--br-default);
+  padding: 1px 6px;
+  border-radius: 5px;
+  color: var(--tx-primary);
+}
+.je-read-wiki {
+  color: var(--tx-primary);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--a-blue-hi) 65%, transparent);
+  text-underline-offset: 4px;
+}
+.je-read-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.je-read-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font: 400 15.5px/1.75 var(--font-ui);
+  color: color-mix(in oklab, var(--tx-primary) 90%, var(--bg-0));
 }
 
 .je-foot {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-top: 8px;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--br-subtle);
 }
 .je-import {
   height: 28px;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   ApiError,
   createNote,
@@ -23,6 +23,7 @@ const props = defineProps<{
   date: string
   entry: JournalEntryData | null
   importedTitles: string[]
+  mode?: 'write' | 'read'
 }>()
 
 const emit = defineEmits<{
@@ -261,6 +262,12 @@ onMounted(() => {
   window.addEventListener('resize', growAll)
   void nextTick(growAll)
 })
+watch(
+  () => props.mode,
+  (m) => {
+    if (m !== 'read') void nextTick(growAll)
+  },
+)
 onBeforeUnmount(() => {
   alive = false
   if (savedTimer) clearTimeout(savedTimer)
@@ -268,6 +275,42 @@ onBeforeUnmount(() => {
   // Die Seite wird verlassen; die Anfrage läuft als SPA-Navigation weiter.
   void flush()
 })
+
+type InlineToken = { kind: 'text' | 'bold' | 'code' | 'wiki'; text: string }
+type BlockLine = { kind: 'quote' | 'para'; tokens: InlineToken[] }
+
+function parseInline(src: string): InlineToken[] {
+  const out: InlineToken[] = []
+  const re = /\[\[([^\]]+)\]\]|\*\*([^*]+)\*\*|`([^`]+)`/g
+  let last = 0
+  for (const m of src.matchAll(re)) {
+    const idx = m.index ?? 0
+    if (idx > last) out.push({ kind: 'text', text: src.slice(last, idx) })
+    if (m[1] !== undefined) out.push({ kind: 'wiki', text: m[1] })
+    else if (m[2] !== undefined) out.push({ kind: 'bold', text: m[2] })
+    else if (m[3] !== undefined) out.push({ kind: 'code', text: m[3] })
+    last = idx + m[0].length
+  }
+  if (last < src.length) out.push({ kind: 'text', text: src.slice(last) })
+  return out
+}
+
+function parseBlocks(src: string): BlockLine[] {
+  return src
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) =>
+      line.startsWith('> ')
+        ? { kind: 'quote', tokens: parseInline(line.slice(2)) }
+        : { kind: 'para', tokens: parseInline(line) },
+    )
+}
+
+const cleanPoints = computed(() => points.value.map((p) => p.trim()).filter(Boolean))
+const hasAnyContent = computed(() =>
+  Boolean(q0.value.trim() || q1.value.trim() || cleanPoints.value.length),
+)
 
 // ---- Aufgaben übernehmen ----
 const importOpen = ref(false)
@@ -315,9 +358,76 @@ async function submitImport(titles: string[]) {
     </div>
     <div v-else-if="status === 'error'" class="badge" role="alert">{{ error }}</div>
 
-    <form ref="formEl" class="je-form" @submit.prevent>
+    <div v-if="mode === 'read'" class="je-read">
+      <p v-if="!hasAnyContent" class="je-empty">{{ $t('Noch kein Eintrag') }}</p>
+      <template v-else>
+        <section v-if="q0.trim()" class="je-read-sec">
+          <h3 class="je-label">
+            <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was lief gut?') }}
+          </h3>
+          <template v-for="(b, idx) in parseBlocks(q0)" :key="idx">
+            <blockquote v-if="b.kind === 'quote'" class="je-read-quote">
+              <template v-for="(tok, ti) in b.tokens" :key="ti">
+                <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+                <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+                <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+                <template v-else>{{ tok.text }}</template>
+              </template>
+            </blockquote>
+            <p v-else class="je-read-p">
+              <template v-for="(tok, ti) in b.tokens" :key="ti">
+                <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+                <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+                <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+                <template v-else>{{ tok.text }}</template>
+              </template>
+            </p>
+          </template>
+        </section>
+
+        <section v-if="q1.trim()" class="je-read-sec">
+          <h3 class="je-label">
+            <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was lerne ich daraus?') }}
+          </h3>
+          <template v-for="(b, idx) in parseBlocks(q1)" :key="idx">
+            <blockquote v-if="b.kind === 'quote'" class="je-read-quote">
+              <template v-for="(tok, ti) in b.tokens" :key="ti">
+                <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+                <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+                <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+                <template v-else>{{ tok.text }}</template>
+              </template>
+            </blockquote>
+            <p v-else class="je-read-p">
+              <template v-for="(tok, ti) in b.tokens" :key="ti">
+                <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+                <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+                <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+                <template v-else>{{ tok.text }}</template>
+              </template>
+            </p>
+          </template>
+        </section>
+
+        <section v-if="cleanPoints.length" class="je-read-sec">
+          <h3 class="je-label">
+            <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was ist morgen wichtig?') }}
+          </h3>
+          <ul class="je-read-list">
+            <li v-for="(p, idx) in cleanPoints" :key="idx">
+              <span class="je-bullet" aria-hidden="true">-</span>
+              <span>{{ p }}</span>
+            </li>
+          </ul>
+        </section>
+      </template>
+    </div>
+
+    <form v-else ref="formEl" class="je-form" @submit.prevent>
       <section class="je-q">
-        <label class="je-label" for="je-a">{{ $t('Was lief gut?') }}</label>
+        <label class="je-label" for="je-a">
+          <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was lief gut?') }}
+        </label>
         <textarea
           id="je-a"
           v-model="q0"
@@ -329,7 +439,9 @@ async function submitImport(titles: string[]) {
       </section>
 
       <section class="je-q">
-        <label class="je-label" for="je-b">{{ $t('Was lerne ich daraus?') }}</label>
+        <label class="je-label" for="je-b">
+          <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was lerne ich daraus?') }}
+        </label>
         <textarea
           id="je-b"
           v-model="q1"
@@ -341,10 +453,12 @@ async function submitImport(titles: string[]) {
       </section>
 
       <section class="je-q">
-        <label class="je-label" for="je-c">{{ $t('Was ist morgen wichtig?') }}</label>
+        <label class="je-label" for="je-c">
+          <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was ist morgen wichtig?') }}
+        </label>
         <div ref="pointList" class="je-points">
           <div v-for="(p, i) in points" :key="i" class="je-point">
-            <span class="je-bullet" aria-hidden="true"></span>
+            <span class="je-bullet" aria-hidden="true">-</span>
             <input
               :id="i === 0 ? 'je-c' : undefined"
               class="je-point-input"
