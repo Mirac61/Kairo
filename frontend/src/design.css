@@ -567,19 +567,9 @@ svg.ic {
 }
 .nav-item[aria-current='page'] {
   position: relative;
-  background: var(--bg-selected);
+  background: color-mix(in oklab, var(--a-blue-hi) 11%, var(--bg-selected));
   color: var(--tx-primary);
   font-weight: 500;
-}
-.nav-item[aria-current='page']::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 7px;
-  bottom: 7px;
-  width: 2.5px;
-  border-radius: 2px;
-  background: var(--a-blue-hi);
 }
 .nav-item[aria-current='page'] .ic {
   color: var(--a-blue-hi);
