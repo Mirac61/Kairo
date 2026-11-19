@@ -19,7 +19,7 @@ const THEME_COLORS: Record<Palette, { dark: string; light: string }> = {
   dragon: { dark: '#181616', light: '#f2ecbc' },
 }
 // Akzentfarben als Farbton für --a-hue; Rot und Grün fehlen, weil sie „überfällig“ und „läuft“ bedeuten.
-export const ACCENTS = { blue: 255, violet: 300, aqua: 200, pink: 350, orange: 60 } as const
+export const ACCENTS = { orange: 38, blue: 255, violet: 300, aqua: 200, pink: 350 } as const
 export type Accent = keyof typeof ACCENTS
 
 // App-Icon-Varianten: Standard ist der Kairo-Gipfel („peak“), dazu Kairos Fokus („focus“) und K + Funke („monogram“).
@@ -51,7 +51,7 @@ const hour = (key: string, def: number) => {
 export const prefs = reactive({
   theme: (store.get(KEYS.theme) ?? 'system') as Theme,
   palette: paletteOf(store.get(KEYS.palette)),
-  accent: (store.get(KEYS.accent) ?? 'blue') as Accent,
+  accent: (store.get(KEYS.accent) ?? 'orange') as Accent,
   appIcon: appIconOf(store.get(KEYS.appIcon)),
   motion: store.get(KEYS.motion) === '1', // true = Bewegung reduzieren
   start: store.get(KEYS.start) ?? '/today',
@@ -91,14 +91,22 @@ export function applyPrefs() {
     root.dataset.palette = palette
     root.dataset.appIcon = appIcon
     root.dataset.motion = prefs.motion ? 'reduce' : ''
-    root.style.setProperty('--a-hue', String(ACCENTS[prefs.accent] ?? ACCENTS.blue))
+    root.style.setProperty('--a-hue', String(ACCENTS[prefs.accent] ?? ACCENTS.orange))
     const color = THEME_COLORS[palette][dark.value ? 'dark' : 'light']
     document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => {
       m.content = color
     })
-    const suffix = appIcon === 'peak' ? '' : `-${appIcon}`
+    const cs = getComputedStyle(root)
+    const accentHi = cs.getPropertyValue('--a-blue-hi').trim() || '#d97343'
+    const favSvg =
+      appIcon === 'focus'
+        ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#0b0b0c"/><path d="M44.5 36.5 A 15.5 15.5 0 1 1 27.5 17" fill="none" stroke="#f0eeeb" stroke-width="5.2" stroke-linecap="round"/><circle cx="41.8" cy="22.2" r="6.8" fill="${accentHi}"/></svg>`
+        : appIcon === 'monogram'
+          ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#0b0b0c"/><rect x="17" y="16" width="6" height="32" rx="3" fill="#f0eeeb"/><path d="M26 32.8 L42 48" stroke="#f0eeeb" stroke-width="6" stroke-linecap="round"/><path d="M26 31.8 L34.5 23.8" stroke="#52525b" stroke-width="5.4" stroke-linecap="round"/><circle cx="42" cy="19.5" r="5.8" fill="${accentHi}"/></svg>`
+          : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#0b0b0c"/><circle cx="44" cy="20" r="10.5" fill="${accentHi}"/><polygon points="27,22 10,50 31,50" fill="#f0eeeb"/><polygon points="27,22 31,50 45,50" fill="#52525b"/></svg>`
     const fav = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-    if (fav) fav.href = `/favicon${suffix}.svg`
+    if (fav) fav.href = `data:image/svg+xml,${encodeURIComponent(favSvg)}`
+    const suffix = appIcon === 'peak' ? '' : `-${appIcon}`
     const touch = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]')
     if (touch) touch.href = `/icon${suffix}-180.png`
     const mf = document.querySelector<HTMLLinkElement>('link[rel="manifest"]')

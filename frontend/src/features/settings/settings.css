@@ -33,6 +33,12 @@
   width: 100%;
   text-align: left;
 }
+.settings-view .st-nav .nav-item[aria-current='page']::before {
+  display: none;
+}
+.settings-view .st-nav .nav-item[aria-current='page'] .ic {
+  color: var(--tx-primary);
+}
 
 .settings-view .st-main {
   grid-column: 1;
@@ -305,12 +311,12 @@ select.st-ctl {
 .pal-graphit {
   --q1: #141517;
   --q2: #2a2c31;
-  --q3: oklch(0.76 0.09 255);
+  --q3: var(--a-blue-hi);
 }
 .pal-slate2 {
   --q1: #090c0d;
   --q2: #243034;
-  --q3: oklch(0.68 0.16 255);
+  --q3: var(--a-blue-hi);
 }
 .pal-neutral {
   --q1: #000;
@@ -330,12 +336,12 @@ select.st-ctl {
 :root[data-theme='light'] .pal-graphit {
   --q1: #f6f6f4;
   --q2: #dcdcd8;
-  --q3: oklch(0.52 0.14 255);
+  --q3: var(--a-blue-hi);
 }
 :root[data-theme='light'] .pal-slate2 {
   --q1: #f3f5f6;
   --q2: #cdd6da;
-  --q3: oklch(0.55 0.18 255);
+  --q3: var(--a-blue-hi);
 }
 :root[data-theme='light'] .pal-neutral {
   --q1: #fafafa;
