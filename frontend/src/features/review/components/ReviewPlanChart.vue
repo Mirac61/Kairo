@@ -141,7 +141,8 @@ const dayText = (d: ReviewDay) =>
   left: 0;
   right: 0;
   height: 0;
-  font: 400 10.5px/1 var(--font-mono);
+  font: 400 10.5px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
   transform: translateY(-5px);
 }
@@ -220,7 +221,8 @@ const dayText = (d: ReviewDay) =>
   color: var(--bg-0);
 }
 .rv-n {
-  font: 400 12px/1.2 var(--font-mono);
+  font: 400 12px/1.2 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
   white-space: nowrap;

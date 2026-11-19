@@ -142,18 +142,11 @@ function handleToggleArchiveGoal(g: Goal, value: boolean) {
   <div class="view-inner gl">
     <div class="gl-head">
       <div class="v-head">
-        <h1 class="v-title">{{ $t('Ziele') }}</h1>
+        <h1 class="v-title sr-only">{{ $t('Ziele') }}</h1>
         <p v-if="counts.ok + counts.tight + counts.off" class="v-sub">
-          <span :class="{ 'gl-ok': counts.ok > 0 }">{{ $t('{n} im Plan', { n: counts.ok }) }}</span>
-          ·
-          <span :class="{ 'gl-tight': counts.tight > 0 }">{{
-            $t('{n} knapp', { n: counts.tight })
-          }}</span>
-          ·
-          <span :class="{ 'gl-off': counts.off > 0 }">{{
-            $t('{n} hinterher', { n: counts.off })
-          }}</span
-          >. {{ $t('Der Strich im Balken zeigt, wo du heute stehen müsstest.') }}
+          {{ $t('{n} im Plan', { n: counts.ok }) }} · {{ $t('{n} knapp', { n: counts.tight }) }} ·
+          {{ $t('{n} hinterher', { n: counts.off }) }}.
+          {{ $t('Der Strich im Balken zeigt, wo du heute stehen müsstest.') }}
         </p>
       </div>
       <div class="seg" role="group" :aria-label="$t('Filter')">
@@ -169,8 +162,14 @@ function handleToggleArchiveGoal(g: Goal, value: boolean) {
           {{ $t('Erreicht') }} <span class="count">{{ reached.length }}</span>
         </button>
       </div>
-      <button type="button" class="btn btn-primary" @click="openNew()">
-        <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>{{ $t('Neues Ziel') }}
+      <button
+        type="button"
+        class="icon-btn"
+        :title="$t('Neues Ziel')"
+        :aria-label="$t('Neues Ziel')"
+        @click="openNew()"
+      >
+        <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
       </button>
     </div>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
@@ -215,7 +214,8 @@ function handleToggleArchiveGoal(g: Goal, value: boolean) {
 <style scoped>
 .gl-head {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  min-height: 48px;
   flex-wrap: wrap;
   gap: 12px 16px;
   margin-bottom: 20px;
@@ -224,20 +224,11 @@ function handleToggleArchiveGoal(g: Goal, value: boolean) {
   flex: 1 1 360px;
   margin: 0;
 }
+.gl-head .v-sub {
+  margin: 0;
+}
 .gl-empty {
   max-width: 560px;
-}
-.gl-ok {
-  --c: var(--a-run);
-  color: var(--c);
-}
-.gl-tight {
-  --c: var(--p-yellow);
-  color: var(--c);
-}
-.gl-off {
-  --c: var(--a-red);
-  color: var(--c);
 }
 
 .gl-grid {

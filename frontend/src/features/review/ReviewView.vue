@@ -128,8 +128,8 @@ useLiveEvents(load)
   <div class="view-inner">
     <div class="v-head v-head-row">
       <div>
-        <h1 class="v-title">{{ $t('Rückblick') }}</h1>
-        <div class="v-sub">{{ $t('Woche') }} · {{ range }} · {{ $t('KW') }} {{ kw }}</div>
+        <h1 class="v-title sr-only">{{ $t('Rückblick') }}</h1>
+        <div class="v-sub rv-label">{{ $t('Woche') }} · {{ range }} · {{ $t('KW') }} {{ kw }}</div>
       </div>
       <div class="rv-nav">
         <button
@@ -194,6 +194,9 @@ useLiveEvents(load)
 </template>
 
 <style scoped>
+.rv-label {
+  margin: 0;
+}
 .rv-nav {
   display: flex;
   align-items: center;

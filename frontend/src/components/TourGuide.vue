@@ -388,7 +388,8 @@ onBeforeUnmount(() => {
   animation: tour-fade 0.3s ease-out both;
 }
 .tour-n {
-  font: 400 11px/1 var(--font-mono);
+  font: 400 11px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
 .tour-card h3 {

@@ -77,11 +77,10 @@ function removeStep(e: Event, s: Goal) {
     <header class="gl-card-h">
       <img v-if="goal.image_path" class="gl-thumb" :src="filesUrl(goal.image_path)" alt="" />
       <button type="button" class="gl-card-t" @click="emit('edit', goal)">{{ goal.title }}</button>
-      <span v-if="pace" class="gl-state" :class="`gl-${pace.state}`"
-        ><i></i>{{ STATE[pace.state] }}</span
-      >
-      <span v-else-if="goal.archived" class="gl-state gl-ok"><i></i>{{ $t('Erreicht') }}</span>
-      <span v-else-if="!goal.due_date" class="gl-state">{{ $t('Ohne Frist') }}</span>
+      <span v-if="pace" class="sr-only">{{ STATE[pace.state] }}</span>
+      <span v-else-if="!goal.archived && !goal.due_date" class="gl-state">{{
+        $t('Ohne Frist')
+      }}</span>
       <button
         type="button"
         class="gl-more"
@@ -293,12 +292,6 @@ function removeStep(e: Event, s: Goal) {
   gap: 6px;
   font: 500 13px/1 var(--font-ui);
   color: var(--tx-muted);
-}
-.gl-state i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--c, var(--tx-muted));
 }
 .gl-more {
   flex: none;

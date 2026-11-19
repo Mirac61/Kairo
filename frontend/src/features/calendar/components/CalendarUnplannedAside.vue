@@ -204,8 +204,7 @@ function projectColorName(projectId: string | null | undefined): string {
   flex-direction: column;
   min-height: 0;
   padding: 12px;
-  background: var(--bg-1);
-  border: 1px solid var(--br-subtle);
+  background: var(--bg-card);
   border-radius: var(--r-m);
   box-sizing: border-box;
 }
@@ -270,7 +269,8 @@ function projectColorName(projectId: string | null | undefined): string {
   border-radius: 7px;
   background: var(--a-blue);
   color: var(--tx-on-accent);
-  font: 600 9.5px/14px var(--font-mono);
+  font: 600 9.5px/14px var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   text-align: center;
   box-sizing: border-box;
@@ -287,7 +287,8 @@ function projectColorName(projectId: string | null | undefined): string {
 }
 .up-count {
   margin-left: 5px;
-  font: 500 11px/1 var(--font-mono);
+  font: 500 11px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
 .unplanned.shut .up-count {
@@ -317,10 +318,8 @@ function projectColorName(projectId: string | null | undefined): string {
   gap: 8px;
   padding: 7px 10px;
   cursor: grab;
-  border: 1px solid color-mix(in srgb, var(--ev-acc) 22%, var(--br-subtle));
-  border-left: 3px solid var(--ev-acc);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--ev-acc) 8%, var(--bg-1));
+  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
   font: 450 12.5px/1.35 var(--font-ui);
   color: var(--tx-primary);
   transition:
@@ -328,9 +327,7 @@ function projectColorName(projectId: string | null | undefined): string {
     border-color var(--dur) ease-out;
 }
 .up-item:hover {
-  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
-  border-color: color-mix(in srgb, var(--ev-acc) 38%, var(--br-default));
-  border-left-color: var(--ev-acc);
+  background: color-mix(in srgb, var(--ev-acc) 22%, var(--bg-1));
 }
 .up-item.picked {
   background: color-mix(in srgb, var(--a-blue) 18%, var(--bg-1));
@@ -351,7 +348,8 @@ function projectColorName(projectId: string | null | undefined): string {
 }
 .up-min {
   flex: none;
-  font: 400 11.5px/1 var(--font-mono);
+  font: 400 11.5px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }

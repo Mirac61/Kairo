@@ -66,7 +66,6 @@ function handleGrade(gradeValue: number) {
     >
       <div class="st-sec-h">
         <RouterLink to="/calendar" class="st-sec-title">
-          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-cal" /></svg>
           <span>{{ $t('Termine') }}</span>
         </RouterLink>
         <span class="st-count">{{ sortedEvents.length + (allDay?.length ?? 0) }}</span>
@@ -96,7 +95,6 @@ function handleGrade(gradeValue: number) {
     <section class="st-sec" :aria-label="$t('Gewohnheiten')">
       <div class="st-sec-h">
         <RouterLink to="/habits" class="st-sec-title">
-          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-habits" /></svg>
           <span>{{ $t('Gewohnheiten') }}</span>
         </RouterLink>
         <span class="st-count">
@@ -154,7 +152,6 @@ function handleGrade(gradeValue: number) {
     <section v-if="goal" class="st-sec" :aria-label="$t('Ziel')">
       <div class="st-sec-h">
         <RouterLink to="/goals" class="st-sec-title">
-          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-goal" /></svg>
           <span>{{ $t('Fokus-Ziel') }}</span>
         </RouterLink>
         <span v-if="goal.progress && (goal.progress.percent ?? 0) > 0" class="st-count">
@@ -184,7 +181,6 @@ function handleGrade(gradeValue: number) {
     <section v-if="currentCard" class="st-sec" :aria-label="$t('Lernkarte')">
       <div class="st-sec-h">
         <RouterLink to="/cards" class="st-sec-title">
-          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-cards" /></svg>
           <span>{{ $t('Lernkarte') }}</span>
         </RouterLink>
         <span class="st-count">{{ $t('{n} fällig', { n: cards?.length ?? 0 }) }}</span>
@@ -220,11 +216,9 @@ function handleGrade(gradeValue: number) {
 }
 .st-sec {
   padding: 20px 0;
-  border-top: 1px solid var(--br-subtle);
 }
 .st-sec:first-child {
   padding-top: 0;
-  border-top: none;
 }
 .st-sec-h {
   display: flex;

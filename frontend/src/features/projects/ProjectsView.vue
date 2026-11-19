@@ -140,20 +140,24 @@ const shown = computed(() => {
 const LAYOUT_KEY = 'kairo-projects-layout'
 const tab = ref('ACTIVE')
 const sort = ref<'recent' | 'name'>('recent')
-const layout = ref<'grid' | 'list'>('grid')
+// Liste ist der ruhige Standard; Kacheln nur auf Wunsch.
+const layout = ref<'grid' | 'list'>('list')
 
-if (store.get(LAYOUT_KEY) === 'list') layout.value = 'list'
+if (store.get(LAYOUT_KEY) === 'grid') layout.value = 'grid'
 function setLayout(l: 'grid' | 'list') {
   layout.value = l
   store.set(LAYOUT_KEY, l)
 }
 
+// Leere Reiter bleiben weg, der gewählte bleibt stehen.
 const tabs = computed(() =>
-  Object.entries(STATUS).map(([status, label]) => ({
-    status,
-    label,
-    n: shown.value.filter((p) => p.status === status).length,
-  })),
+  Object.entries(STATUS)
+    .map(([status, label]) => ({
+      status,
+      label,
+      n: shown.value.filter((p) => p.status === status).length,
+    }))
+    .filter((t) => t.n || t.status === tab.value),
 )
 
 const list = computed(() =>
@@ -251,15 +255,7 @@ useShortcuts((e) => {
 <template>
   <div class="view-inner" :class="{ 'proj-split': !!openProject }">
     <div class="proj-left">
-      <div class="v-head v-head-row">
-        <div>
-          <h1 class="v-title">{{ $t('Projekte') }}</h1>
-          <div class="v-sub">{{ $t('Fortschritt und verknüpfte Ressourcen.') }}</div>
-        </div>
-        <button class="btn btn-primary" type="button" @click="openNewDialog()">
-          <svg class="ic"><use href="#i-plus" /></svg>{{ $t('Neues Projekt') }}
-        </button>
-      </div>
+      <h1 class="v-title sr-only">{{ $t('Projekte') }}</h1>
 
       <div v-if="error && !isCreateDialogOpen" class="badge" role="alert">{{ error }}</div>
 
@@ -270,7 +266,6 @@ useShortcuts((e) => {
             :key="tabItem.status"
             type="button"
             :aria-pressed="tab === tabItem.status"
-            :disabled="!tabItem.n && tab !== tabItem.status"
             @click="tab = tabItem.status"
           >
             {{ tabItem.label }} <span class="count">{{ tabItem.n }}</span>
@@ -284,26 +279,26 @@ useShortcuts((e) => {
           <option value="name">{{ $t('Name') }}</option>
         </select>
 
-        <span class="seg" role="group" :aria-label="$t('Ansicht')">
-          <button
-            type="button"
-            :aria-label="$t('Kacheln')"
-            :aria-pressed="layout === 'grid'"
-            @click="setLayout('grid')"
-          >
-            <svg class="ic"><use href="#i-grid" /></svg>
-          </button>
-          <button
-            type="button"
-            :aria-label="$t('Liste')"
-            :aria-pressed="layout === 'list'"
-            @click="setLayout('list')"
-          >
-            <svg class="ic"><use href="#i-list" /></svg>
-          </button>
-        </span>
-
+        <button
+          type="button"
+          class="icon-btn"
+          :aria-label="layout === 'list' ? $t('Kacheln') : $t('Liste')"
+          :title="layout === 'list' ? $t('Kacheln') : $t('Liste')"
+          @click="setLayout(layout === 'list' ? 'grid' : 'list')"
+        >
+          <svg class="ic"><use :href="layout === 'list' ? '#i-grid' : '#i-list'" /></svg>
+        </button>
         <SearchField v-model="search" :label="$t('Projekte durchsuchen')" />
+
+        <button
+          class="icon-btn"
+          type="button"
+          :title="$t('Neues Projekt')"
+          :aria-label="$t('Neues Projekt')"
+          @click="openNewDialog()"
+        >
+          <svg class="ic"><use href="#i-plus" /></svg>
+        </button>
       </div>
 
       <div v-if="!projects.length" class="empty-cta">
@@ -341,9 +336,6 @@ useShortcuts((e) => {
             <svg class="ic proj-ic" aria-hidden="true"><use :href="`#${projectIconOf(p)}`" /></svg>
             <div class="proj-title-wrap">
               <div class="proj-name">{{ p.name }}</div>
-              <span v-if="lastActive(p.id)" class="proj-last">
-                {{ $t('aktiv {when}', { when: lastActive(p.id) }) }}
-              </span>
             </div>
             <button
               v-if="p.local_path"
@@ -371,6 +363,9 @@ useShortcuts((e) => {
             </span>
             <span v-if="minutes[p.id]?.week" class="proj-stat">
               <b class="mono">{{ hm(minutes[p.id]!.week) }}</b> {{ $t('diese Woche') }}
+            </span>
+            <span v-if="lastActive(p.id)" class="proj-last">
+              {{ $t('aktiv {when}', { when: lastActive(p.id) }) }}
             </span>
           </div>
         </article>
@@ -420,22 +415,16 @@ useShortcuts((e) => {
   display: flex;
   flex-direction: column;
   padding: 16px;
-  background: var(--bg-1);
-  border: 1px solid var(--br-subtle);
+  background: var(--bg-card);
   border-radius: var(--r-m);
   cursor: pointer;
-  transition:
-    transform var(--dur) ease-out,
-    border-color var(--dur) ease-out,
-    box-shadow var(--dur) ease-out;
+  transition: background var(--dur) ease-out;
 }
 .proj-card:hover {
-  border-color: var(--br-default);
-  box-shadow: var(--shadow-sm);
+  background: var(--bg-2);
 }
 .proj-card.selected {
-  border-color: var(--pc);
-  background: color-mix(in srgb, var(--pc) 4%, var(--bg-1));
+  background: color-mix(in srgb, var(--pc) 10%, var(--bg-card));
 }
 
 .proj-head {
@@ -498,7 +487,6 @@ useShortcuts((e) => {
   flex-wrap: wrap;
   gap: 12px;
   padding-top: 10px;
-  border-top: 1px solid var(--br-subtle);
   font: 400 12px/1 var(--font-ui);
   color: var(--tx-muted);
 }
@@ -537,7 +525,6 @@ useShortcuts((e) => {
 .proj-list.list .proj-foot {
   margin-top: 0;
   padding-top: 0;
-  border-top: 0;
   flex: none;
 }
 

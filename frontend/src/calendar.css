@@ -61,7 +61,8 @@
 }
 .fc .fc-timegrid-slot-label-cushion,
 .fc .fc-timegrid-axis-cushion {
-  font: 400 11px/1 var(--font-mono);
+  font: 400 11px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
@@ -130,60 +131,10 @@
     display: inline;
   }
 }
-@container (max-width: 110px) {
-  .fc .kt-row {
-    font-size: 10px;
-    gap: 3px;
-  }
-  .fc .kt-ist {
-    display: none;
-  }
-}
-@container (max-width: 85px) {
-  .fc .kt-row {
-    display: none;
-  }
-  .fc .kt-bar {
-    display: none;
-  }
-}
 .fc .kt-dh.today b {
   background: var(--a-now);
   color: var(--tx-on-accent);
 }
-.fc .kt-row {
-  flex: 1 0 100%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  min-height: 11px;
-  font: 400 11px/1 var(--font-ui);
-  font-variant-numeric: tabular-nums;
-  color: var(--tx-secondary);
-}
-.fc .kt-cap {
-  color: var(--tx-secondary);
-}
-.fc .kt-bar {
-  flex: 1 0 100%;
-  position: relative;
-  height: 3px;
-  border-radius: 2px;
-  overflow: hidden;
-  background: var(--br-default);
-}
-.fc .kt-bar i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 0;
-  border-radius: 2px;
-  transition: width var(--dur) ease-out;
-}
-.fc .kt-bar .t {
-  background: var(--a-now);
-}
-
 /* Jetzt-Linie mit Uhrzeit im Achsen-Chip; am aktuellen Tag kräftig durchgezogen, über alle anderen Wochentage dezent gestrichelt */
 .fc .fc-timegrid-now-indicator-container {
   overflow: visible;
@@ -247,7 +198,8 @@
   border-radius: 4px;
   background: var(--a-now);
   color: var(--tx-on-accent);
-  font: 600 11px/1.2 var(--font-mono);
+  font: 600 11px/1.2 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
 }
 
@@ -264,14 +216,13 @@
   margin: 0 2px 0 5px;
 }
 
-/* Einträge: Minimalistisch & Theme-adaptiv — 8% Akzent-Tint auf --bg-1, feine 1px Kontur, 3px linker Akzentrand */
+/* Einträge: Minimalistisch & Theme-adaptiv, nur ein Akzent-Tint auf --bg-1 (kein Rahmen, kein Seitenstreifen) */
 .fc .fc-event {
   --ev-acc: var(--p-blue);
 
   border-radius: 6px;
-  background: color-mix(in srgb, var(--ev-acc) 8%, var(--bg-1));
-  border: 1px solid color-mix(in srgb, var(--ev-acc) 22%, var(--br-subtle));
-  border-left: 3px solid var(--ev-acc);
+  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
+  border: 0;
   box-sizing: border-box;
   cursor: pointer;
   padding: 0;
@@ -281,9 +232,7 @@
   overflow: hidden;
 }
 .fc .fc-event:hover {
-  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
-  border-color: color-mix(in srgb, var(--ev-acc) 38%, var(--br-default));
-  border-left-color: var(--ev-acc);
+  background: color-mix(in srgb, var(--ev-acc) 22%, var(--bg-1));
 }
 .fc .fc-event.kt-running {
   box-shadow: inset 0 0 0 1.5px var(--a-run);

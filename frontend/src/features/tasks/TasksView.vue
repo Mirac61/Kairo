@@ -305,8 +305,7 @@ useLiveEvents(load)
   <div class="view-inner" :class="{ 'tk-split': openTask }">
     <div class="tk-left">
       <div class="v-head v-head-row tk-head">
-        <h1 class="v-title">{{ $t('Aufgaben') }}</h1>
-        <span class="spacer"></span>
+        <h1 class="v-title sr-only">{{ $t('Aufgaben') }}</h1>
         <p class="tk-stats">{{ stats }}</p>
       </div>
 
@@ -365,7 +364,6 @@ useLiveEvents(load)
               >
                 <span class="tgroup-title">{{ group.title }}</span>
                 <span class="count">{{ group.rows.length }}</span>
-                <span v-if="group.minutes" class="g-sum">· {{ dur(group.minutes) }}</span>
               </div>
 
               <div class="tasklist">
@@ -500,11 +498,6 @@ useLiveEvents(load)
   font-weight: 500;
   color: var(--tx-muted);
 }
-.tgroup-hdr .g-sum {
-  font: 400 12px/1 var(--font-ui);
-  color: var(--tx-muted);
-  font-variant-numeric: tabular-nums;
-}
 
 @media (min-width: 1001px) {
   .view-inner.tk-split {
@@ -520,7 +513,7 @@ useLiveEvents(load)
 }
 
 .tk-stats {
-  margin: 0 4px 3px 0;
+  margin: 0;
   font: 400 13px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
@@ -559,9 +552,5 @@ useLiveEvents(load)
 }
 .tgroup > .lbl.od {
   color: var(--a-red);
-}
-.g-sum {
-  font: 400 12.5px/1 var(--font-ui);
-  color: var(--tx-muted);
 }
 </style>

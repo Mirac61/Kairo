@@ -119,7 +119,8 @@ const emit = defineEmits<{
   white-space: nowrap;
 }
 .hm-stat {
-  font: 400 13px/1 var(--font-mono);
+  font: 400 13px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
 .hm-stat b {

@@ -327,8 +327,6 @@ const emit = defineEmits<{
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--hc) 14%, var(--bg-2));
   color: color-mix(in srgb, var(--hc) 85%, var(--tx-primary));
 }
 .hd-icon .ic {
@@ -375,8 +373,8 @@ const emit = defineEmits<{
 .hw-c > i {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   box-sizing: border-box;
   color: var(--bg-0);
@@ -386,8 +384,8 @@ const emit = defineEmits<{
     border-color var(--dur) ease-out;
 }
 .hw-c > i .ic {
-  width: 15px;
-  height: 15px;
+  width: 12px;
+  height: 12px;
   stroke-width: 3;
 }
 .hw-c.open > i {
@@ -400,14 +398,11 @@ const emit = defineEmits<{
   border-style: dashed;
 }
 .hw-c.done > i {
-  background: var(--tx-primary);
+  background: var(--tx-muted);
 }
 .hw-c.part > i {
   border: 1.5px solid var(--tx-disabled);
-  background: conic-gradient(
-    color-mix(in srgb, var(--tx-primary) 75%, transparent) calc(var(--p) * 1turn),
-    transparent 0
-  );
+  background: conic-gradient(var(--tx-muted) calc(var(--p) * 1turn), transparent 0);
 }
 .hw-c.pause > i {
   background: repeating-linear-gradient(135deg, var(--tx-disabled) 0 1.5px, transparent 1.5px 4px);
@@ -422,7 +417,7 @@ const emit = defineEmits<{
   background-color: color-mix(in srgb, var(--tx-primary) 15%, transparent);
 }
 .hw-c.done:hover:not(:disabled) > i {
-  background-color: color-mix(in srgb, var(--tx-primary) 80%, var(--bg-0));
+  background-color: var(--tx-secondary);
 }
 .hw-c:active:not(:disabled) > i {
   transform: scale(0.9);
@@ -449,14 +444,14 @@ const emit = defineEmits<{
   box-sizing: border-box;
 }
 .hw-legend .done {
-  background: var(--tx-secondary);
+  background: var(--tx-muted);
 }
 .hw-legend .open {
   border: 1.5px solid var(--tx-disabled);
 }
 .hw-legend .part {
   border: 1.5px solid var(--tx-disabled);
-  background: conic-gradient(var(--tx-secondary) 180deg, transparent 0);
+  background: conic-gradient(var(--tx-muted) 180deg, transparent 0);
 }
 .hw-legend .soft {
   border: 1.5px dashed var(--tx-disabled);
@@ -496,7 +491,6 @@ const emit = defineEmits<{
 }
 .hw-streak.risk {
   color: var(--tx-primary);
-  font-weight: 600;
 }
 .hw-sum {
   min-height: 52px;

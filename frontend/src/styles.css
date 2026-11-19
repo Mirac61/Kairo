@@ -23,8 +23,7 @@ h3 {
   color: var(--tx-muted);
 }
 .card {
-  background: var(--bg-1);
-  border: 1px solid var(--br-default);
+  background: var(--bg-card, var(--bg-1));
   border-radius: var(--r-m, 10px);
   padding: 12px 16px;
 }
