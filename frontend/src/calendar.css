@@ -63,7 +63,6 @@
 .fc .fc-timegrid-axis-cushion {
   font: 400 11px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
-  font-variant-numeric: tabular-nums;
   color: var(--tx-muted);
 }
 .fc .fc-timegrid-slot-label-cushion {
@@ -620,7 +619,7 @@
 }
 .fc .fc-day-today .fc-daygrid-day-number {
   background: var(--a-now);
-  color: var(--bg-0);
+  color: var(--tx-on-accent);
 }
 .fc .fc-daygrid-event-harness {
   margin-top: 0;
