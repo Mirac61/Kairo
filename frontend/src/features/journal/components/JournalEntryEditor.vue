@@ -45,7 +45,7 @@ function unwrapOther(rawOther: string): string {
 function wrapOther(text: string): string {
   const trimmed = text.trim()
   if (!trimmed) return ''
-  if (/^#{2,6}\s/.test(trimmed)) return trimmed
+  if (/^##\s/.test(trimmed)) return trimmed
   return `## Freie Notizen\n\n${trimmed}`
 }
 

@@ -54,7 +54,10 @@ export function parseEntry(md: string): Entry {
       continue
     }
     const hMatch = !inCodeFence ? /^#{2,6}\s+(.+?)\s*$/.exec(line) : null
-    if (hMatch) {
+    // Unterüberschriften (###…) bleiben im aktuellen Abschnitt, außer sie benennen eine Frage.
+    const splits =
+      hMatch && (line.startsWith('## ') || questionIndexes.has(normalizeHeading(hMatch[1] ?? '')))
+    if (hMatch && splits) {
       current = { heading: hMatch[1] ?? '', lines: [line] }
       sections.push(current)
     } else {
@@ -70,7 +73,9 @@ export function parseEntry(md: string): Entry {
     }
     const i = questionIndexes.get(normalizeHeading(sec.heading))
     if (i !== undefined) {
-      answers[i] = sec.lines.slice(1).join('\n').trim()
+      // Doppelte Fragen-Überschriften: Inhalte zusammenführen statt überschreiben (kein Datenverlust).
+      const body = sec.lines.slice(1).join('\n').trim()
+      answers[i] = [answers[i], body].filter(Boolean).join('\n\n')
     } else {
       const raw = sec.lines.join('\n').trim()
       if (raw) other.push(raw)

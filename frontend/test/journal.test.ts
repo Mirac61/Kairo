@@ -67,3 +67,9 @@ test('Freitext vor der ersten ##-Überschrift und ## in Codeblöcken gehen nicht
     other: 'Gedanke direkt oben.\n\n## Freie Notizen\nUnten weiter.',
   })
 })
+
+test('parseEntry: doppelte Fragen werden zusammengeführt, ### bleibt im Abschnitt', () => {
+  const e = parseEntry('## Was lief gut?\nA\n\n### Detail\nB\n\n## Was lief gut?\nC\n')
+  assert.equal(e.answers[0], 'A\n\n### Detail\nB\n\nC')
+  assert.equal(e.other, '')
+})
