@@ -4,14 +4,16 @@
 .settings-view.st,
 .settings-view {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 260px;
   height: 100%;
 }
 .settings-view .st-pane {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-right: 1px solid var(--br-subtle);
+  border-left: 1px solid var(--br-subtle);
   background: var(--bg-1);
 }
 .settings-view .st-head {
@@ -33,6 +35,8 @@
 }
 
 .settings-view .st-main {
+  grid-column: 1;
+  grid-row: 1;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -86,9 +90,11 @@
 }
 .st-body {
   display: grid;
-  gap: 24px;
-  max-width: 720px;
-  padding: 28px 32px 48px;
+  gap: 28px;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 36px 40px 56px;
 }
 .st-err {
   justify-self: start;
@@ -106,7 +112,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--br-subtle);
 }
 .st-scope {
@@ -117,9 +123,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  min-height: 60px;
-  padding: 14px 16px;
+  gap: 28px;
+  min-height: 68px;
+  padding: 16px 20px;
 }
 .st-row + .st-row,
 .st-themes + .st-row {
@@ -136,16 +142,16 @@
   min-width: 0;
 }
 .st-t {
-  font: 500 14px/1.3 var(--font-ui);
+  font: 500 15px/1.35 var(--font-ui);
   color: var(--tx-primary);
 }
 .st-h {
-  font: 400 13px/1.45 var(--font-ui);
+  font: 400 13.5px/1.5 var(--font-ui);
   color: var(--tx-muted);
 }
 .st-ctl,
 select.st-ctl {
-  width: 220px;
+  width: 260px;
   flex-shrink: 0;
 }
 .st-pair {
@@ -175,13 +181,13 @@ select.st-ctl {
 .st-themes {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  padding: 16px;
+  gap: 16px;
+  padding: 20px;
 }
 .st-theme {
   display: grid;
-  gap: 8px;
-  padding: 8px;
+  gap: 10px;
+  padding: 10px;
   border: 1px solid var(--br-default);
   border-radius: var(--r-m);
   text-align: left;
@@ -198,7 +204,7 @@ select.st-ctl {
 }
 .th-name {
   padding: 0 2px 2px;
-  font: 500 13px/1 var(--font-ui);
+  font: 500 13.5px/1 var(--font-ui);
   color: var(--tx-primary);
 }
 .th-prev {
@@ -206,7 +212,7 @@ select.st-ctl {
   --p1: #0b0b0b;
   --p2: #1e1e1e;
   display: flex;
-  height: 76px;
+  height: 92px;
   overflow: hidden;
   border-radius: var(--r-s);
   border: 1px solid var(--br-subtle);
@@ -270,8 +276,8 @@ select.st-ctl {
 }
 .st-palette {
   display: grid;
-  gap: 6px;
-  padding: 7px 8px 6px;
+  gap: 7px;
+  padding: 9px 11px 8px;
   border: 1px solid var(--br-default);
   border-radius: var(--r-s);
   background: var(--bg-1);
@@ -288,23 +294,23 @@ select.st-ctl {
 }
 .pal-dots {
   display: flex;
-  gap: 3px;
+  gap: 4px;
 }
 .pal-dots i {
-  width: 15px;
-  height: 15px;
-  border-radius: 3px;
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 .pal-graphit {
   --q1: #141517;
   --q2: #2a2c31;
-  --q3: oklch(0.76 0.09 255);
+  --q3: var(--a-blue-hi);
 }
 .pal-slate2 {
   --q1: #090c0d;
   --q2: #243034;
-  --q3: oklch(0.68 0.16 255);
+  --q3: var(--a-blue-hi);
 }
 .pal-neutral {
   --q1: #000;
@@ -324,12 +330,12 @@ select.st-ctl {
 :root[data-theme='light'] .pal-graphit {
   --q1: #f6f6f4;
   --q2: #dcdcd8;
-  --q3: oklch(0.52 0.14 255);
+  --q3: var(--a-blue-hi);
 }
 :root[data-theme='light'] .pal-slate2 {
   --q1: #f3f5f6;
   --q2: #cdd6da;
-  --q3: oklch(0.55 0.18 255);
+  --q3: var(--a-blue-hi);
 }
 :root[data-theme='light'] .pal-neutral {
   --q1: #fafafa;
@@ -356,21 +362,57 @@ select.st-ctl {
   background: var(--q3);
 }
 .pal-name {
-  font: 500 12px/1 var(--font-ui);
+  font: 500 13px/1 var(--font-ui);
   color: var(--tx-secondary);
 }
 .st-palette[aria-checked='true'] .pal-name {
   color: var(--tx-primary);
 }
 
-.st-swatches {
+/* App-Icon-Auswahl: drei Kairo-Squircle-Varianten */
+.st-app-icons {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   flex-shrink: 0;
 }
+.st-app-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 13px 8px 9px;
+  border: 1px solid var(--br-default);
+  border-radius: var(--r-s);
+  background: var(--bg-1);
+  cursor: pointer;
+  transition:
+    border-color var(--dur) ease-out,
+    box-shadow var(--dur) ease-out;
+}
+.st-app-icon:hover {
+  border-color: var(--br-strong);
+}
+.st-app-icon[aria-checked='true'] {
+  border-color: var(--a-blue-hi);
+  box-shadow: 0 0 0 1px var(--a-blue-hi);
+}
+.st-app-icon[aria-checked='true'] .pal-name {
+  color: var(--tx-primary);
+}
+.st-app-icon .logo-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.st-swatches {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
 .st-swatch {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: var(--sw);
   box-shadow: 0 0 0 1px var(--br-default);
@@ -442,17 +484,24 @@ select.st-ctl {
     grid-template-rows: auto minmax(0, 1fr);
   }
   .settings-view .st-pane {
-    border-right: 0;
+    grid-column: 1;
+    grid-row: 1;
+    border-left: 0;
     border-bottom: 1px solid var(--br-subtle);
+  }
+  .settings-view .st-main {
+    grid-column: 1;
+    grid-row: 2;
   }
   .settings-view .st-head {
     display: none;
   }
-  .st-nav {
+  .settings-view .st-nav {
     flex-direction: row;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    gap: 4px;
   }
-  .st-nav .nav-item {
+  .settings-view .st-nav .nav-item {
     width: auto;
     flex-shrink: 0;
   }

@@ -22,11 +22,11 @@
   --tx-disabled: #46464d;
   --a-hue: 38;
   --a-blue: #eceae6;
-  --a-blue-hi: #d97343;
-  --a-blue-tx: #e4976d;
-  --a-now: #d97343;
-  --a-focus: #d97343;
-  --a-run: #d97343;
+  --a-blue-hi: oklch(0.68 0.16 var(--a-hue));
+  --a-blue-tx: oklch(0.76 0.13 var(--a-hue));
+  --a-now: var(--a-blue-hi);
+  --a-focus: var(--a-blue-hi);
+  --a-run: var(--a-blue-hi);
   --a-red: #e05252;
   /* Gedämpfte Projektfarben */
   --p-violet: #9e82d4;
@@ -40,7 +40,7 @@
   --p-neutral: #7b7b84;
   --a-event: var(--p-blue);
   /* System */
-  --ring: rgba(217, 115, 67, 0.35);
+  --ring: color-mix(in oklab, var(--a-blue-hi) 35%, transparent);
   --scrim: rgba(0, 0, 0, 0.62);
   --toast-bg: #141418;
   --shadow-pop: 0 0 0 1px #25252b, 0 16px 40px rgba(0, 0, 0, 0.65);
@@ -75,11 +75,11 @@
   --tx-disabled: #9b9ba3;
   --tx-on-accent: #ffffff;
   --a-blue: #141416;
-  --a-blue-hi: #c85f30;
-  --a-blue-tx: #b85326;
-  --a-now: #c85f30;
-  --a-focus: #c85f30;
-  --a-run: #c85f30;
+  --a-blue-hi: oklch(0.56 0.16 var(--a-hue));
+  --a-blue-tx: oklch(0.5 0.15 var(--a-hue));
+  --a-now: var(--a-blue-hi);
+  --a-focus: var(--a-blue-hi);
+  --a-run: var(--a-blue-hi);
   --a-red: #cf3d3d;
   --p-violet: #7254b5;
   --p-blue: #3b6fc2;
@@ -90,7 +90,7 @@
   --p-green: #2c8a5b;
   --p-red: #c44343;
   --p-neutral: #6b6b73;
-  --ring: rgba(200, 95, 48, 0.3);
+  --ring: color-mix(in oklab, var(--a-blue-hi) 30%, transparent);
   --scrim: rgba(20, 20, 22, 0.22);
   --toast-bg: #ffffff;
   --shadow-pop: 0 0 0 1px #d7d4ce, 0 16px 40px rgba(20, 20, 22, 0.12);
@@ -115,11 +115,11 @@
   --tx-muted: #76767f;
   --tx-disabled: #46464d;
   --a-blue: #eceae6;
-  --a-blue-hi: #d97343;
-  --a-blue-tx: #e4976d;
-  --a-now: #d97343;
-  --a-focus: #d97343;
-  --a-run: #d97343;
+  --a-blue-hi: oklch(0.68 0.16 var(--a-hue));
+  --a-blue-tx: oklch(0.76 0.13 var(--a-hue));
+  --a-now: var(--a-blue-hi);
+  --a-focus: var(--a-blue-hi);
+  --a-run: var(--a-blue-hi);
   --a-red: #e05252;
   --p-violet: #9e82d4;
   --p-blue: #6f9de0;
@@ -132,7 +132,7 @@
   --p-neutral: #7b7b84;
   --bg-selected: rgba(255, 255, 255, 0.065);
   --a-event: var(--p-blue);
-  --ring: rgba(217, 115, 67, 0.35);
+  --ring: color-mix(in oklab, var(--a-blue-hi) 35%, transparent);
   --scrim: rgba(8, 8, 10, 0.62);
   --toast-bg: #141418;
   --shadow-pop: 0 0 0 1px #25252b, 0 18px 40px -12px rgba(0, 0, 0, 0.72);
@@ -156,11 +156,11 @@
   --tx-muted: #6b6b73;
   --tx-disabled: #9b9ba3;
   --a-blue: #141416;
-  --a-blue-hi: #c85f30;
-  --a-blue-tx: #b85326;
-  --a-now: #c85f30;
-  --a-focus: #c85f30;
-  --a-run: #c85f30;
+  --a-blue-hi: oklch(0.56 0.16 var(--a-hue));
+  --a-blue-tx: oklch(0.5 0.15 var(--a-hue));
+  --a-now: var(--a-blue-hi);
+  --a-focus: var(--a-blue-hi);
+  --a-run: var(--a-blue-hi);
   --a-red: #cf3d3d;
   --p-violet: #7254b5;
   --p-blue: #3b6fc2;
@@ -171,7 +171,7 @@
   --p-green: #2c8a5b;
   --p-red: #c44343;
   --p-neutral: #6b6b73;
-  --ring: rgba(200, 95, 48, 0.3);
+  --ring: color-mix(in oklab, var(--a-blue-hi) 30%, transparent);
   --scrim: rgba(20, 20, 22, 0.2);
   --toast-bg: #ffffff;
   --shadow-pop: 0 0 0 1px #d7d4ce, 0 18px 40px -12px rgba(20, 20, 22, 0.16);
@@ -230,6 +230,43 @@
   --scrim: rgba(21, 28, 30, 0.22);
   --toast-bg: #ffffff;
   --shadow-pop: 0 0 0 1px #cdd6da, 0 16px 40px rgba(21, 28, 30, 0.12);
+}
+/* Neutral: reines Schwarz / Weiß ohne Farbtemperatur in den Flächen; Akzente folgen der Akzentwahl. */
+:root[data-palette='neutral'] {
+  --bg-0: #000000;
+  --bg-1: #0d0d0d;
+  --bg-2: #171717;
+  --bg-3: #222222;
+  --bg-hover: #141414;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --br-subtle: #1a1a1a;
+  --br-default: #262626;
+  --br-strong: #404040;
+  --tx-primary: #f2f2f2;
+  --tx-secondary: #a3a3a3;
+  --tx-muted: #737373;
+  --tx-disabled: #525252;
+  --scrim: rgba(0, 0, 0, 0.7);
+  --toast-bg: #171717;
+  --shadow-pop: 0 0 0 1px #262626, 0 18px 40px -12px rgba(0, 0, 0, 0.85);
+}
+:root[data-palette='neutral'][data-theme='light'] {
+  --bg-0: #fafafa;
+  --bg-1: #ffffff;
+  --bg-2: #f0f0f0;
+  --bg-3: #e5e5e5;
+  --bg-hover: #f2f2f2;
+  --bg-card: #f3f3f3;
+  --br-subtle: #e5e5e5;
+  --br-default: #d4d4d4;
+  --br-strong: #a3a3a3;
+  --tx-primary: #171717;
+  --tx-secondary: #525252;
+  --tx-muted: #737373;
+  --tx-disabled: #a3a3a3;
+  --scrim: rgba(0, 0, 0, 0.22);
+  --toast-bg: #ffffff;
+  --shadow-pop: 0 0 0 1px #d4d4d4, 0 18px 40px -12px rgba(0, 0, 0, 0.14);
 }
 /* Carbonfox (nightfox.nvim): neutrales Schwarz, IBM-Carbon-Farben. Hell = IBM Carbon „White“, das Vorbild von Carbonfox. */
 :root[data-palette='carbonfox'] {
@@ -479,9 +516,9 @@ svg.ic {
   border-radius: 50%;
   background: radial-gradient(
     circle at 34% 30%,
-    oklch(0.82 0.12 52),
-    oklch(0.64 0.17 38) 45%,
-    oklch(0.32 0.08 30) 100%
+    color-mix(in oklab, var(--a-blue-hi) 62%, #ffffff),
+    var(--a-blue-hi) 48%,
+    color-mix(in oklab, var(--a-blue-hi) 45%, #000000) 100%
   );
 }
 .logo-mark i {
@@ -504,6 +541,41 @@ svg.ic {
 .logo-mark i::after {
   background: #5a4e4c;
   clip-path: polygon(50% 0, 58% 100%, 100% 100%);
+}
+/* Variante 2 („focus“ — Kairos Fokus) & Variante 3 („monogram“ — K + Funke) mit dynamischer Akzentfarbe über ::before */
+:root[data-app-icon='focus'] .logo-mark:not(.ic-peak):not(.ic-monogram),
+.logo-mark.ic-focus {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M16.8 13.7 A 5.9 5.9 0 1 1 10.3 6.3' fill='none' stroke='%23f0eeeb' stroke-width='2.15' stroke-linecap='round'/%3E%3C/svg%3E")
+      center / cover no-repeat,
+    #0b0b0c;
+}
+:root[data-app-icon='focus'] .logo-mark:not(.ic-peak):not(.ic-monogram)::before,
+.logo-mark.ic-focus::before {
+  top: 23.5%;
+  right: 23.5%;
+  width: 22.5%;
+  height: 22.5%;
+}
+:root[data-app-icon='monogram'] .logo-mark:not(.ic-peak):not(.ic-focus),
+.logo-mark.ic-monogram {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='6.4' y='6' width='2.25' height='12' rx='1.125' fill='%23f0eeeb'/%3E%3Cpath d='M9.8 12.3 L15.8 18' stroke='%23f0eeeb' stroke-width='2.25' stroke-linecap='round'/%3E%3Cpath d='M9.8 11.9 L13 8.9' stroke='%2352525b' stroke-width='2.05' stroke-linecap='round'/%3E%3C/svg%3E")
+      center / cover no-repeat,
+    #0b0b0c;
+}
+:root[data-app-icon='monogram'] .logo-mark:not(.ic-peak):not(.ic-focus)::before,
+.logo-mark.ic-monogram::before {
+  top: 21%;
+  right: 24.5%;
+  width: 19%;
+  height: 19%;
+}
+:root[data-app-icon='focus'] .logo-mark:not(.ic-peak):not(.ic-monogram) i,
+:root[data-app-icon='monogram'] .logo-mark:not(.ic-peak):not(.ic-focus) i,
+.logo-mark.ic-focus i,
+.logo-mark.ic-monogram i {
+  display: none;
 }
 .nav-item {
   display: flex;
@@ -535,16 +607,6 @@ svg.ic {
   background: var(--bg-selected);
   color: var(--tx-primary);
   font-weight: 500;
-}
-.nav-item[aria-current='page']::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 7px;
-  bottom: 7px;
-  width: 2.5px;
-  border-radius: 2px;
-  background: var(--a-blue-hi);
 }
 .nav-item[aria-current='page'] .ic {
   color: var(--a-blue-hi);

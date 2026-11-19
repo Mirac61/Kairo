@@ -601,15 +601,16 @@ dieselben Dateien parallel in VSCodium bearbeitet werden können.
     je Browser. Die Schnelleingabe versteht beide (`@morgen`/`@tomorrow`,
     `!hoch`/`!high`).
 -   Ebenfalls sofort und je Browser gelten: Startseite, Theme
-    (Dunkel, Hell, System), Akzentfarbe, „Bewegung reduzieren“,
-    Wochenbeginn (Montag oder Sonntag), sichtbarer Tagesbereich in
-    Kalender und Tagesplan (Standard 7 bis 22 Uhr) und ob die
-    Wochenansicht 5 oder 7 Tage zeigt. Heute steht dort immer in der
-    Mitte (2 bzw. 3 Tage davor und danach); „Heute“ zentriert wieder.
--   Die Seite ist aufgebaut wie die Notizen: links die Abschnitte
-    Allgemein, Darstellung, Zeit & Kalender, Notizen und System, rechts
-    der gewählte Abschnitt. Unter System stehen Version, Pfad der
-    `config.json`, der Neustart und Hinweise zu Backups.
+    (Dunkel, Hell, System), Farbstimmung, Akzentfarbe, App-Icon,
+    „Bewegung reduzieren“, Wochenbeginn (Montag oder Sonntag),
+    sichtbarer Tagesbereich in Kalender und Tagesplan (Standard 7 bis
+    22 Uhr) und ob die Wochenansicht 5 oder 7 Tage zeigt. Heute steht
+    dort immer in der Mitte (2 bzw. 3 Tage davor und danach); „Heute“
+    zentriert wieder.
+-   Die Seite zeigt links den gewählten Abschnitt und rechts die
+    Abschnitte Allgemein, Darstellung, Zeit & Kalender, Notizen und
+    System. Unter System stehen Version, Pfad der `config.json`, der
+    Neustart und Hinweise zu Backups.
 
 ------------------------------------------------------------------------
 

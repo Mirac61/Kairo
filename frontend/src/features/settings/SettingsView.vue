@@ -9,7 +9,7 @@ import SettingsTimeTab from './components/SettingsTimeTab.vue'
 import { useSettingsData } from './composables/useSettingsData'
 import './settings.css'
 
-// Aufbau wie die Notizen: links die Abschnitte, rechts der gewählte. Der Abschnitt bleibt für den nächsten Besuch.
+// Aufbau: links der gewählte Abschnitt, rechts die Abschnittsliste. Der Abschnitt bleibt für den nächsten Besuch.
 const SECTIONS = [
   { id: 'general', label: 'Allgemein', icon: 'gear' },
   { id: 'look', label: 'Darstellung', icon: 'sun' },
@@ -44,24 +44,6 @@ const {
 
 <template>
   <div class="st settings-view">
-    <aside class="st-pane">
-      <div class="st-head">
-        <span class="lbl">{{ $t('Einstellungen') }}</span>
-      </div>
-      <nav class="st-nav" :aria-label="$t('Abschnitte')">
-        <button
-          v-for="s in SECTIONS"
-          :key="s.id"
-          type="button"
-          class="nav-item"
-          :aria-current="tab === s.id ? 'page' : undefined"
-          @click="tab = s.id"
-        >
-          <svg class="ic"><use :href="`#i-${s.icon}`" /></svg><span>{{ $t(s.label) }}</span>
-        </button>
-      </nav>
-    </aside>
-
     <section class="st-main">
       <header class="ed-head">
         <div class="ed-path">
@@ -129,5 +111,23 @@ const {
         </span>
       </div>
     </section>
+
+    <aside class="st-pane">
+      <div class="st-head">
+        <span class="lbl">{{ $t('Einstellungen') }}</span>
+      </div>
+      <nav class="st-nav" :aria-label="$t('Abschnitte')">
+        <button
+          v-for="s in SECTIONS"
+          :key="s.id"
+          type="button"
+          class="nav-item"
+          :aria-current="tab === s.id ? 'page' : undefined"
+          @click="tab = s.id"
+        >
+          <svg class="ic"><use :href="`#i-${s.icon}`" /></svg><span>{{ $t(s.label) }}</span>
+        </button>
+      </nav>
+    </aside>
   </div>
 </template>
