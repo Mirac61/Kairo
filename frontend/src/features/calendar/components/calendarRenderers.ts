@@ -1,20 +1,14 @@
 import type { EventApi } from '@fullcalendar/core'
-import { hhmm, hm } from '@/lib/dates'
+import { hhmm, hm, isoWeek } from '@/lib/dates'
 import { t } from '@/lib/i18n'
+
+export { isoWeek }
 
 export function createDomElement(tag: string, className: string, textContent = ''): HTMLElement {
   const element = document.createElement(tag)
   element.className = className
   element.textContent = textContent
   return element
-}
-
-// ISO-Kalenderwoche (Donnerstag der Woche entscheidet über das Jahr).
-export function isoWeek(date: Date): number {
-  const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  target.setUTCDate(target.getUTCDate() + 4 - (target.getUTCDay() || 7))
-  const yearStart = Date.UTC(target.getUTCFullYear(), 0, 1)
-  return Math.ceil(((target.getTime() - yearStart) / 86_400_000 + 1) / 7)
 }
 
 // Ist und Plan stehen nur noch im Tooltip des Tageskopfs; der Vergleich lebt im Rückblick.

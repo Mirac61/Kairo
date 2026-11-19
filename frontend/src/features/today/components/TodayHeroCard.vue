@@ -421,7 +421,7 @@ kbd {
   display: block;
   height: 100%;
   border-radius: 9999px;
-  background: var(--tx-secondary);
+  background: color-mix(in srgb, var(--a-run) 80%, var(--tx-primary));
   transition: width 0.3s ease;
 }
 .st-progt {

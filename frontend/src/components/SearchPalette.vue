@@ -16,6 +16,7 @@ import {
 } from '@/api/client'
 import { addDays, dayLabel, hhmm, ymd } from '@/lib/dates'
 import { t } from '@/lib/i18n'
+import { vDialog } from '@/lib/dialog'
 import { projectColor } from '@/lib/projectColor'
 
 // ⌘K: eine Suche über Aufgaben, Projekte, Notizen (Name und Inhalt) und Termine. Enter öffnet den markierten Treffer,

@@ -31,12 +31,12 @@ import SegTabs from '@/components/SegTabs.vue'
 import ProjectDetailAside from './components/ProjectDetailAside.vue'
 import ProjectCreateDialog from './components/ProjectCreateDialog.vue'
 
-const STATUS: Record<string, string> = {
+const STATUS = computed<Record<string, string>>(() => ({
   ACTIVE: t('Aktiv'),
   PAUSED: t('Pausiert'),
   COMPLETED: t('Abgeschlossen'),
   ARCHIVED: t('Archiviert'),
-}
+}))
 
 interface Progress {
   project_id: string | null
@@ -154,7 +154,7 @@ function setLayout(l: 'grid' | 'list') {
 
 // Leere Reiter bleiben weg, der gewählte bleibt stehen.
 const tabs = computed(() =>
-  Object.entries(STATUS)
+  Object.entries(STATUS.value)
     .map(([status, label]) => ({
       status,
       label,
@@ -332,20 +332,22 @@ useShortcuts((e) => {
           <div v-if="p.description" class="proj-desc">{{ p.description }}</div>
 
           <div class="proj-foot">
-            <span v-if="fractionText(p.id)" class="proj-stat">
+            <span v-if="fractionText(p.id)" class="proj-stat tasks">
               <b class="mono">{{ fractionText(p.id) }}</b> {{ $t('erledigt') }}
             </span>
-            <span v-else class="proj-stat">
+            <span v-else class="proj-stat tasks">
               <b class="mono">{{ openTasks(p.id).length }}</b> {{ $t('offen') }}
             </span>
             <span v-if="issueCount[p.id]" class="proj-stat issues">
               <b class="mono">{{ issueCount[p.id] }}</b> {{ $t('GitHub-Issues') }}
             </span>
-            <span v-if="minutes[p.id]?.week" class="proj-stat">
-              <b class="mono">{{ hm(minutes[p.id]!.week) }}</b> {{ $t('diese Woche') }}
+            <span class="proj-stat time" :class="{ 'sr-hide': !minutes[p.id]?.week }">
+              <template v-if="minutes[p.id]?.week">
+                <b class="mono">{{ hm(minutes[p.id]!.week) }}</b> {{ $t('diese Woche') }}
+              </template>
             </span>
-            <span v-if="lastActive(p.id)" class="proj-last">
-              {{ $t('aktiv {when}', { when: lastActive(p.id) }) }}
+            <span class="proj-last">
+              {{ lastActive(p.id) ? $t('aktiv {when}', { when: lastActive(p.id) }) : '' }}
             </span>
           </div>
         </article>
@@ -506,6 +508,46 @@ useShortcuts((e) => {
   margin-top: 0;
   padding-top: 0;
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.proj-list.list .proj-stat.tasks {
+  min-width: 96px;
+}
+.proj-list.list .proj-stat.time {
+  min-width: 120px;
+}
+.proj-list.list .proj-last {
+  min-width: 86px;
+  text-align: right;
+}
+
+@media (max-width: 760px) {
+  .proj-list.list .proj-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px 14px;
+  }
+  .proj-list.list .proj-foot {
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-start;
+  }
+  .proj-list.list .proj-stat.tasks,
+  .proj-list.list .proj-stat.time {
+    min-width: 0;
+  }
+  .proj-list.list .proj-stat.time.sr-hide {
+    display: none;
+  }
+  .proj-list.list .proj-last {
+    min-width: 0;
+    text-align: left;
+    margin-left: auto;
+  }
 }
 
 @media (min-width: 1001px) {

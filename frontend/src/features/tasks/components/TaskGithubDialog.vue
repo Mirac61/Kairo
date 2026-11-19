@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Project } from '@/api/client'
+import { vDialog } from '@/lib/dialog'
 import GitHubIssues from '@/components/GitHubIssues.vue'
 
 defineProps<{

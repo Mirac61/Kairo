@@ -13,6 +13,9 @@ import { useShortcuts } from '@/composables/useShortcuts'
 import { accuracy, intervalText, lapses, perDay, streak, SETTLED_DAYS } from '@/lib/cards'
 import { locale, t } from '@/lib/i18n'
 import { PROJECT_COLORS } from '@/lib/projectColor'
+import PageHeader from '@/components/PageHeader.vue'
+import IconButton from '@/components/IconButton.vue'
+import SearchField from '@/components/SearchField.vue'
 import DeleteButton from '@/components/DeleteButton.vue'
 import CardText from './CardText.vue'
 
@@ -38,7 +41,6 @@ const query = ref('')
 const sort = ref<'question' | 'answer' | 'deck' | 'due' | 'interval'>('due')
 const selKey = ref<string | null>(null)
 const error = ref('')
-const searchEl = ref<HTMLInputElement>()
 const previewMode = ref(false)
 
 const lapsed = computed(() => lapses(props.log))
@@ -49,20 +51,23 @@ const TESTS: Record<Filter, (c: Card) => boolean> = {
   lapsed: (c) => (lapsed.value.get(c.key) ?? 0) >= 2,
   notes: (c) => !!c.note_path,
 }
-const FILTERS: [Filter, string][] = [
+const FILTERS = computed<[Filter, string][]>(() => [
   ['all', t('Alle Karten')],
   ['due', t('Heute fällig')],
   ['new', t('Neu')],
   ['lapsed', t('Oft vergessen')],
   ['notes', t('Aus Notizen')],
-]
-const COLS = [
-  ['question', t('Frage')],
-  ['answer', t('Antwort')],
-  ['deck', t('Fach')],
-  ['due', t('Fällig')],
-  ['interval', t('Stufe')],
-] as const
+])
+const COLS = computed(
+  () =>
+    [
+      ['question', t('Frage')],
+      ['answer', t('Antwort')],
+      ['deck', t('Fach')],
+      ['due', t('Fällig')],
+      ['interval', t('Stufe')],
+    ] as const,
+)
 
 // Sortierschlüssel für „Fällig“: neu zuerst, dann nach Datum.
 const dueKey = (c: Card) => (c.new ? '' : c.due ? '0' : (c.due_date ?? ''))
@@ -187,10 +192,7 @@ async function addDeck() {
 }
 
 useShortcuts((e) => {
-  if (e.key === '/') {
-    e.preventDefault()
-    searchEl.value?.focus()
-  } else if (e.key === 'n') {
+  if (e.key === 'n') {
     e.preventDefault()
     emit('add', deck.value || null)
   } else if (e.key === 'l' && current.value.due) {
@@ -257,7 +259,7 @@ useShortcuts((e) => {
     </aside>
 
     <main class="kb-main">
-      <header class="kb-head">
+      <PageHeader :title="$t('Lernkarten')" class="kb-head">
         <div class="kb-ht">
           <h2>{{ deck || $t('Alle Karten') }}</h2>
           <span
@@ -267,52 +269,42 @@ useShortcuts((e) => {
             ></span
           >
         </div>
-        <select v-model="filter" class="kb-filter" :aria-label="$t('Ansicht')">
-          <option v-for="[f, label] in FILTERS" :key="f" :value="f">
-            {{ label }} ({{
-              cards.filter((c) => TESTS[f](c) && (!deck || c.deck === deck)).length
-            }})
-          </option>
-        </select>
-        <label class="kb-search" :title="`${$t('Suchen')} (/)`">
-          <svg class="ic" aria-hidden="true"><use href="#i-search" /></svg>
-          <input
-            ref="searchEl"
-            v-model="query"
-            type="search"
-            :aria-label="$t('Karten durchsuchen')"
-            :placeholder="$t('Suchen')"
+        <template #actions>
+          <select v-model="filter" class="input kb-filter" :aria-label="$t('Ansicht')">
+            <option v-for="[f, label] in FILTERS" :key="f" :value="f">
+              {{ label }} ({{
+                cards.filter((c) => TESTS[f](c) && (!deck || c.deck === deck)).length
+              }})
+            </option>
+          </select>
+          <SearchField v-model="query" :label="$t('Karten durchsuchen')" />
+          <button
+            v-if="deck"
+            type="button"
+            class="btn btn-secondary kb-more"
+            :aria-label="$t('Fach-Optionen')"
+            :title="$t('Fach-Optionen')"
+            @click="emit('options', deck)"
+          >
+            ⋯
+          </button>
+          <IconButton
+            icon="plus"
+            :label="$t('Hinzufügen')"
+            shortcut="N"
+            @click="emit('add', deck || null)"
           />
-        </label>
-        <button
-          v-if="deck"
-          type="button"
-          class="btn btn-secondary kb-more"
-          :aria-label="$t('Fach-Optionen')"
-          :title="$t('Fach-Optionen')"
-          @click="emit('options', deck)"
-        >
-          ⋯
-        </button>
-        <button
-          type="button"
-          class="icon-btn"
-          :aria-label="$t('Hinzufügen')"
-          :title="`${$t('Hinzufügen')} (N)`"
-          @click="emit('add', deck || null)"
-        >
-          <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-        </button>
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="!current.due"
-          :title="current.due ? `${$t('Lernen')} (L)` : undefined"
-          @click="emit('learn', deck || null)"
-        >
-          {{ current.due ? $t('{n} lernen', { n: current.due }) : $t('Nichts fällig') }}
-        </button>
-      </header>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="!current.due"
+            :title="current.due ? `${$t('Lernen')} (L)` : undefined"
+            @click="emit('learn', deck || null)"
+          >
+            {{ current.due ? $t('{n} lernen', { n: current.due }) : $t('Nichts fällig') }}
+          </button>
+        </template>
+      </PageHeader>
       <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
       <div class="kb-table" role="table" :aria-label="$t('Karten')">
@@ -582,54 +574,24 @@ useShortcuts((e) => {
   flex-direction: column;
 }
 .kb-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 24px 24px 16px;
+  min-height: 48px;
+  padding: 8px 24px;
+  margin-bottom: 0;
   border-bottom: 1px solid var(--br-subtle);
 }
 .kb-ht {
-  flex: 1;
-  min-width: 180px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: baseline;
+  gap: 8px;
 }
 .kb-ht h2 {
   margin: 0;
-  font: 600 19px/1.25 var(--font-ui);
+  font: 500 15px/1.2 var(--font-ui);
   color: var(--tx-primary);
 }
 .kb-ht span {
-  font: 400 12.5px/1.3 var(--font-ui);
+  font: 400 13px/1.3 var(--font-ui);
   color: var(--tx-muted);
-}
-.kb-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 220px;
-  height: 36px;
-  padding: 0 10px;
-  box-sizing: border-box;
-  border-radius: var(--r-s);
-  border: 1px solid var(--br-default);
-  background: var(--bg-1);
-  color: var(--tx-muted);
-}
-.kb-search:focus-within {
-  border-color: var(--a-focus);
-}
-.kb-search input {
-  flex: 1;
-  min-width: 0;
-  height: 32px;
-  border: 0;
-  background: none;
-  outline: none;
-  color: var(--tx-primary);
-  font: 400 13.5px/1 var(--font-ui);
 }
 .kb-more {
   width: 36px;
@@ -637,17 +599,10 @@ useShortcuts((e) => {
   justify-content: center;
 }
 .kb-filter {
-  height: 36px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--r-s);
-  background: none;
-  color: var(--tx-secondary);
-  font: 400 13.5px/1 var(--font-ui);
-  cursor: pointer;
-}
-.kb-filter:hover {
-  background: var(--bg-hover);
+  height: 34px;
+  width: auto;
+  max-width: 220px;
+  font-size: 13px;
 }
 
 .kb-table {
@@ -897,11 +852,9 @@ useShortcuts((e) => {
     flex-shrink: 0;
   }
   .kb-head {
-    padding: 14px 12px;
-  }
-  .kb-search {
-    order: 5;
-    width: 100%;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .kb-table {
     padding: 0 4px 12px;

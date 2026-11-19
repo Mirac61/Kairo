@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { hm } from '@/lib/dates'
+import PageHeader from '@/components/PageHeader.vue'
+import IconButton from '@/components/IconButton.vue'
 
 withDefaults(
   defineProps<{
@@ -52,24 +54,20 @@ function onSetDays(n: 5 | 7) {
 </script>
 
 <template>
-  <div class="cal-toolbar">
+  <PageHeader :title="$t('Kalender')" class="cal-toolbar">
     <div class="cal-nav">
-      <button
-        class="icon-btn"
-        :aria-label="$t('Zurück')"
-        :title="$t('Zurück (←)')"
+      <IconButton
+        icon="left"
+        :label="$t('Zurück')"
+        shortcut="←"
         @click="$emit('prev')"
-      >
-        <svg class="ic"><use href="#i-left" /></svg>
-      </button>
-      <button
-        class="icon-btn"
-        :aria-label="$t('Weiter')"
-        :title="$t('Weiter (→)')"
+      />
+      <IconButton
+        icon="right"
+        :label="$t('Weiter')"
+        shortcut="→"
         @click="$emit('next')"
-      >
-        <svg class="ic"><use href="#i-right" /></svg>
-      </button>
+      />
     </div>
 
     <button
@@ -81,76 +79,73 @@ function onSetDays(n: 5 | 7) {
       {{ $t('Heute') }}
     </button>
 
-    <h1 class="v-title cal-title">{{ title }}</h1>
+    <span class="ph-label cal-title">{{ title }}</span>
     <span v-if="week" class="cal-kw">{{ $t('KW') }} {{ week }}</span>
-    <span class="spacer" />
 
-    <div class="seg">
-      <button
-        v-for="[v, l, k] in views"
-        :key="v"
-        :aria-pressed="view === v || (v === spanKey && isWeek)"
-        :title="`${l} (${k})`"
-        :aria-keyshortcuts="k"
-        @click="$emit('changeView', v)"
-      >
-        {{ l }}
-      </button>
-    </div>
+    <template #actions>
+      <div class="seg" role="group" :aria-label="$t('Ansicht')">
+        <button
+          v-for="[v, l, k] in views"
+          :key="v"
+          type="button"
+          :aria-pressed="view === v || (v === spanKey && isWeek)"
+          :title="`${l} (${k})`"
+          :aria-keyshortcuts="k"
+          @click="$emit('changeView', v)"
+        >
+          {{ l }}
+        </button>
+      </div>
 
-    <input
-      ref="fileInput"
-      type="file"
-      accept=".ics,text/calendar"
-      hidden
-      @change="onFileInputChange"
-    />
+      <input
+        ref="fileInput"
+        type="file"
+        accept=".ics,text/calendar"
+        hidden
+        @change="onFileInputChange"
+      />
 
-    <div class="menu-wrap" @keydown.esc="calMenu = false">
-      <button
-        class="icon-btn"
-        type="button"
-        :aria-label="$t('Weitere Aktionen')"
-        :aria-expanded="calMenu"
-        @click="calMenu = !calMenu"
-      >
-        <svg class="ic"><use href="#i-more" /></svg>
-      </button>
+      <div class="menu-wrap" @keydown.esc="calMenu = false">
+        <IconButton
+          icon="more"
+          :label="$t('Weitere Aktionen')"
+          :aria-expanded="calMenu"
+          @click="calMenu = !calMenu"
+        />
 
-      <template v-if="calMenu">
-        <div class="menu-scrim" @click="calMenu = false"></div>
-        <div class="menu">
-          <div v-if="isWeek" class="menu-row">
-            {{ $t('Tage in der Wochenansicht') }}
-            <span class="seg" role="group" :aria-label="$t('Tage in der Wochenansicht')">
-              <button
-                v-for="n in [5, 7] as const"
-                :key="n"
-                type="button"
-                :aria-pressed="calDays === n"
-                @click="onSetDays(n)"
-              >
-                {{ n }}
-              </button>
-            </span>
+        <template v-if="calMenu">
+          <div class="menu-scrim" @click="calMenu = false"></div>
+          <div class="menu">
+            <div v-if="isWeek" class="menu-row">
+              {{ $t('Tage in der Wochenansicht') }}
+              <span class="seg" role="group" :aria-label="$t('Tage in der Wochenansicht')">
+                <button
+                  v-for="n in [5, 7] as const"
+                  :key="n"
+                  type="button"
+                  :aria-pressed="calDays === n"
+                  @click="onSetDays(n)"
+                >
+                  {{ n }}
+                </button>
+              </span>
+            </div>
+            <button class="menu-i" type="button" @click="openImportIcs">
+              {{ $t('ICS importieren') }} …
+            </button>
           </div>
-          <button class="menu-i" type="button" @click="openImportIcs">
-            {{ $t('ICS importieren') }} …
-          </button>
-        </div>
-      </template>
-    </div>
+        </template>
+      </div>
 
-    <button
-      class="icon-btn"
-      :title="$t('Neuer Eintrag (n)')"
-      :aria-label="$t('Neuer Eintrag')"
-      aria-keyshortcuts="n"
-      @click="$emit('newEntry')"
-    >
-      <svg class="ic"><use href="#i-plus" /></svg>
-    </button>
-  </div>
+      <IconButton
+        icon="plus"
+        :label="$t('Neuer Eintrag')"
+        shortcut="n"
+        aria-keyshortcuts="n"
+        @click="$emit('newEntry')"
+      />
+    </template>
+  </PageHeader>
 
   <div v-if="isDay && dayStat" class="cal-stats">
     <span

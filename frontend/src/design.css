@@ -2298,8 +2298,15 @@ select.input {
     width: 40px;
     height: 40px;
   }
+  .seg {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
   .seg button {
-    padding: 10px 14px;
+    padding: 7px 10px;
+    flex-shrink: 0;
   }
   .nav-item {
     height: 40px;
@@ -2421,14 +2428,28 @@ select.input {
 
 /* Ruhigere Grundbausteine: Pillen statt Segmentrahmen, gefüllte Schnelleingabe statt Strichelrahmen, Zeilen ohne Linien */
 .seg {
+  display: inline-flex;
   gap: 4px;
   padding: 0;
   background: none;
   border: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 .seg button {
   padding: 7px 12px;
   border-radius: 999px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .seg button {
+    padding: 6px 10px;
+    font-size: 12.5px;
+  }
 }
 .seg button:is([aria-pressed='true'], [aria-selected='true']) {
   background: var(--bg-2);
@@ -2477,9 +2498,11 @@ select.input {
   padding: 10px 14px;
   margin-bottom: 18px;
   border-radius: 12px;
+  border: 1px solid var(--br-subtle);
   box-shadow: none;
 }
 :root .tk-comp.focus {
+  border-color: var(--a-focus);
   box-shadow:
     0 0 0 1px var(--a-focus),
     0 0 0 4px var(--ring);

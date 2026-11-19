@@ -155,8 +155,8 @@ useLiveEvents(load)
                 <span class="tr-from"
                   >{{ $t(r.kind)
                   }}<template v-if="r.project && projectName.get(r.project)">
-                    · <i class="pdot" :style="{ background: projectColor(r.project) }"></i>aus
-                    {{ projectName.get(r.project) }}</template
+                    · <i class="pdot" :style="{ background: projectColor(r.project) }"></i
+                    >{{ $t('aus {path}', { path: projectName.get(r.project)! }) }}</template
                   ></span
                 >
               </span>
@@ -165,7 +165,7 @@ useLiveEvents(load)
                 ><button
                   type="button"
                   class="btn btn-secondary"
-                  :aria-label="`Wiederherstellen: ${r.title}`"
+                  :aria-label="`${$t('Wiederherstellen')}: ${r.title}`"
                   @click="run(r.restore)"
                 >
                   {{ $t('Wiederherstellen') }}
