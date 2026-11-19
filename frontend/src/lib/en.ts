@@ -960,8 +960,13 @@ const en: Record<string, string> = {
   '+{n} weitere Aufgabe': '+{n} more task',
   '+{n} weitere Aufgaben': '+{n} more tasks',
   Schreiben: 'Write',
+  Markdown: 'Markdown',
   Lesen: 'Read',
   Modus: 'Mode',
+  'Freie Notizen': 'Free notes',
+  'Gedanken, Markdown, [[Notizen]] oder eigene ## Abschnitte …':
+    'Thoughts, Markdown, [[notes]] or custom ## sections…',
+  'Freies Markdown für den gesamten Eintrag': 'Free Markdown for the entire entry',
   'Letzte 6 Wochen': 'Last 6 weeks',
   'Noch kein Eintrag': 'No entry yet',
   'Alle Monate': 'All months',

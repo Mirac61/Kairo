@@ -37,14 +37,49 @@ export function toMarkdown(date: string, { answers, other }: Entry) {
 export function parseEntry(md: string): Entry {
   const answers = QUESTIONS.map(() => '')
   const other: string[] = []
-  // Abschnittsüberschriften dürfen anders geschrieben oder eingerückt sein; der Titel davor fällt weg.
-  for (const sec of md.split(/^(?=#{2,6}\s)/m)) {
-    const [head = '', ...body] = sec.split('\n')
-    const heading = /^#{2,6}\s+(.+?)\s*$/.exec(head)?.[1]
-    if (!heading) continue
-    const i = questionIndexes.get(normalizeHeading(heading))
-    if (i !== undefined) answers[i] = body.join('\n').trim()
-    else other.push(sec.trim())
+  // Abschnittsüberschriften dürfen anders geschrieben sein; der Titel (# ...) am Anfang fällt weg,
+  // Text vor der ersten ##-Überschrift und Überschriften in Codeblöcken (```) bleiben erhalten.
+  const sections: { heading: string | null; lines: string[] }[] = []
+  let current: { heading: string | null; lines: string[] } = { heading: null, lines: [] }
+  sections.push(current)
+  let inCodeFence = false
+  let skippedTitle = false
+
+  for (const line of md.replace(/\r\n?/g, '\n').split('\n')) {
+    if (/^\s*```/.test(line)) {
+      inCodeFence = !inCodeFence
+    }
+    if (!inCodeFence && current.heading === null && !skippedTitle && /^#\s+/.test(line)) {
+      skippedTitle = true
+      continue
+    }
+    const hMatch = !inCodeFence ? /^#{2,6}\s+(.+?)\s*$/.exec(line) : null
+    // Unterüberschriften (###…) bleiben im aktuellen Abschnitt, außer sie benennen eine Frage.
+    const splits =
+      hMatch && (line.startsWith('## ') || questionIndexes.has(normalizeHeading(hMatch[1] ?? '')))
+    if (hMatch && splits) {
+      current = { heading: hMatch[1] ?? '', lines: [line] }
+      sections.push(current)
+    } else {
+      current.lines.push(line)
+    }
+  }
+
+  for (const sec of sections) {
+    if (sec.heading === null) {
+      const preamble = sec.lines.join('\n').trim()
+      if (preamble) other.push(preamble)
+      continue
+    }
+    const i = questionIndexes.get(normalizeHeading(sec.heading))
+    if (i !== undefined) {
+      // Doppelte Fragen-Überschriften: Inhalte zusammenführen statt überschreiben (kein Datenverlust).
+      const body = sec.lines.slice(1).join('\n').trim()
+      answers[i] = [answers[i], body].filter(Boolean).join('\n\n')
+    } else {
+      const raw = sec.lines.join('\n').trim()
+      if (raw) other.push(raw)
+    }
   }
   return { answers, other: other.join('\n\n') }
 }

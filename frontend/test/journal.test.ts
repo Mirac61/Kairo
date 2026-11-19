@@ -57,3 +57,19 @@ test('Punkte entstehen nur an Zeilenumbrüchen, nicht an Satzenden', () => {
     ['Abgabe einreichen. Kapitel lesen!', 'Sport machen', 'Pause planen?', 'Noch etwas'],
   )
 })
+
+test('Freitext vor der ersten ##-Überschrift und ## in Codeblöcken gehen nicht verloren', () => {
+  const e = parseEntry(
+    '# Journal 2026-10-21\n\nGedanke direkt oben.\n\n## Was lief gut?\n```md\n## Kein Abschnitt\nCodezeile\n```\n\n## Freie Notizen\nUnten weiter.',
+  )
+  assert.deepEqual(e, {
+    answers: ['```md\n## Kein Abschnitt\nCodezeile\n```', '', ''],
+    other: 'Gedanke direkt oben.\n\n## Freie Notizen\nUnten weiter.',
+  })
+})
+
+test('parseEntry: doppelte Fragen werden zusammengeführt, ### bleibt im Abschnitt', () => {
+  const e = parseEntry('## Was lief gut?\nA\n\n### Detail\nB\n\n## Was lief gut?\nC\n')
+  assert.equal(e.answers[0], 'A\n\n### Detail\nB\n\nC')
+  assert.equal(e.other, '')
+})

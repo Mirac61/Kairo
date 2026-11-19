@@ -13,7 +13,7 @@ const props = defineProps<{
   pages: string[]
   todayStr: string
   hasOlderEntries: boolean
-  mode?: 'write' | 'read'
+  mode?: 'write' | 'markdown' | 'read'
   getEntryForDate: (d: string) => JournalRow | JournalEntryData | null
   getPlanForDate: (d: string) => string[]
   getDoneItemsOn: (d: string) => string[]
