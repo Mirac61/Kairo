@@ -22,10 +22,17 @@ const THEME_COLORS: Record<Palette, { dark: string; light: string }> = {
 export const ACCENTS = { blue: 255, violet: 300, aqua: 200, pink: 350, orange: 60 } as const
 export type Accent = keyof typeof ACCENTS
 
+// App-Icon-Varianten: Standard ist der Kairo-Gipfel („peak“), dazu Kairos Fokus („focus“) und K + Funke („monogram“).
+export const APP_ICONS = ['peak', 'focus', 'monogram'] as const
+export type AppIcon = (typeof APP_ICONS)[number]
+const appIconOf = (v: string | null): AppIcon =>
+  APP_ICONS.includes(v as AppIcon) ? (v as AppIcon) : 'peak'
+
 const KEYS = {
   theme: 'kairo-theme',
   palette: 'kairo-palette',
   accent: 'kairo-accent',
+  appIcon: 'kairo-app-icon',
   motion: 'kairo-motion',
   start: 'kairo-start',
   weekStart: 'kairo-week-start',
@@ -45,6 +52,7 @@ export const prefs = reactive({
   theme: (store.get(KEYS.theme) ?? 'system') as Theme,
   palette: paletteOf(store.get(KEYS.palette)),
   accent: (store.get(KEYS.accent) ?? 'blue') as Accent,
+  appIcon: appIconOf(store.get(KEYS.appIcon)),
   motion: store.get(KEYS.motion) === '1', // true = Bewegung reduzieren
   start: store.get(KEYS.start) ?? '/today',
   weekStart: store.get(KEYS.weekStart) === '0' ? 0 : 1,
@@ -78,14 +86,23 @@ export function applyPrefs() {
   watchEffect(() => {
     const root = document.documentElement
     const palette = paletteOf(prefs.palette)
+    const appIcon = appIconOf(prefs.appIcon)
     root.dataset.theme = dark.value ? 'dark' : 'light'
     root.dataset.palette = palette
+    root.dataset.appIcon = appIcon
     root.dataset.motion = prefs.motion ? 'reduce' : ''
     root.style.setProperty('--a-hue', String(ACCENTS[prefs.accent] ?? ACCENTS.blue))
     const color = THEME_COLORS[palette][dark.value ? 'dark' : 'light']
     document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => {
       m.content = color
     })
+    const suffix = appIcon === 'peak' ? '' : `-${appIcon}`
+    const fav = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+    if (fav) fav.href = `/favicon${suffix}.svg`
+    const touch = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]')
+    if (touch) touch.href = `/icon${suffix}-180.png`
+    const mf = document.querySelector<HTMLLinkElement>('link[rel="manifest"]')
+    if (mf) mf.href = `/manifest${suffix}.webmanifest`
   })
   watch(prefs, () => {
     for (const [k, key] of Object.entries(KEYS)) {
@@ -107,6 +124,7 @@ export async function pullPrefs() {
   const p = prefs as Record<string, unknown>
   for (const k of Object.keys(prefs)) if (typeof data[k] === typeof p[k]) p[k] = data[k]
   prefs.palette = paletteOf(prefs.palette) // alte oder fremde Werte fallen auf Graphit zurück
+  prefs.appIcon = appIconOf(prefs.appIcon)
   if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
   if (data.lang === 'de' || data.lang === 'en') {
     lang.value = data.lang

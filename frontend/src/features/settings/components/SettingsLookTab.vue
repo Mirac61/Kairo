@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { ACCENTS, PALETTES, prefs, type Accent, type Palette, type Theme } from '@/lib/prefs'
+import {
+  ACCENTS,
+  APP_ICONS,
+  PALETTES,
+  prefs,
+  type Accent,
+  type AppIcon,
+  type Palette,
+  type Theme,
+} from '@/lib/prefs'
 
 const THEMES: { id: Theme; label: string }[] = [
   { id: 'dark', label: 'Dunkel' },
@@ -19,6 +28,11 @@ const ACCENT_NAMES: Record<Accent, string> = {
   aqua: 'Türkis',
   pink: 'Rosa',
   orange: 'Orange',
+}
+const APP_ICON_NAMES: Record<AppIcon, string> = {
+  peak: 'Kairo Gipfel',
+  focus: 'Kairos Fokus',
+  monogram: 'K + Funke',
 }
 </script>
 
@@ -96,6 +110,28 @@ const ACCENT_NAMES: Record<Accent, string> = {
           :data-tip="$t(ACCENT_NAMES[a])"
           @click="prefs.accent = a"
         ></button>
+      </div>
+    </div>
+    <div class="st-row">
+      <div class="st-text">
+        <div class="st-t">{{ $t('App-Icon') }}</div>
+        <div class="st-h">
+          {{ $t('Für Seitenleiste, Browser-Tab und den Startbildschirm am Handy.') }}
+        </div>
+      </div>
+      <div class="st-app-icons" role="radiogroup" :aria-label="$t('App-Icon')">
+        <button
+          v-for="ic in APP_ICONS"
+          :key="ic"
+          type="button"
+          role="radio"
+          class="st-app-icon"
+          :aria-checked="prefs.appIcon === ic"
+          @click="prefs.appIcon = ic"
+        >
+          <span class="logo-mark" :class="`ic-${ic}`" aria-hidden="true"><i></i></span>
+          <span class="pal-name">{{ $t(APP_ICON_NAMES[ic]) }}</span>
+        </button>
       </div>
     </div>
     <div class="st-row">

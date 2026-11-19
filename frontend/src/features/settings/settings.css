@@ -363,6 +363,42 @@ select.st-ctl {
   color: var(--tx-primary);
 }
 
+/* App-Icon-Auswahl: drei Kairo-Squircle-Varianten */
+.st-app-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.st-app-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 7px;
+  border: 1px solid var(--br-default);
+  border-radius: var(--r-s);
+  background: var(--bg-1);
+  cursor: pointer;
+  transition:
+    border-color var(--dur) ease-out,
+    box-shadow var(--dur) ease-out;
+}
+.st-app-icon:hover {
+  border-color: var(--br-strong);
+}
+.st-app-icon[aria-checked='true'] {
+  border-color: var(--a-blue-hi);
+  box-shadow: 0 0 0 1px var(--a-blue-hi);
+}
+.st-app-icon[aria-checked='true'] .pal-name {
+  color: var(--tx-primary);
+}
+.st-app-icon .logo-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+
 .st-swatches {
   display: flex;
   gap: 10px;

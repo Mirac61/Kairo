@@ -38,6 +38,12 @@ const en: Record<string, string> = {
   'Design wechseln': 'Toggle theme',
   'Leiste anpassen': 'Customize bar',
   '4 Tabs für unten wählen': 'Choose 4 bottom tabs',
+  'App-Icon': 'App icon',
+  'Für Seitenleiste, Browser-Tab und den Startbildschirm am Handy.':
+    'For sidebar, browser tab, and your phone’s home screen.',
+  'Kairo Gipfel': 'Kairo Peak',
+  'Kairos Fokus': 'Kairos Focus',
+  'K + Funke': 'K + Spark',
   'Seitenleiste ausklappen': 'Expand sidebar',
   'Seitenleiste einklappen': 'Collapse sidebar',
   Ausklappen: 'Expand',
