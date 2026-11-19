@@ -204,7 +204,8 @@ function projectColorName(projectId: string | null | undefined): string {
   flex-direction: column;
   min-height: 0;
   padding: 12px;
-  background: var(--bg-card);
+  background: var(--bg-1);
+  border: 1px solid var(--br-subtle);
   border-radius: var(--r-m);
   box-sizing: border-box;
 }
@@ -315,10 +316,11 @@ function projectColorName(projectId: string | null | undefined): string {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 8px 11px;
   cursor: grab;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--ev-acc) 14%, var(--bg-1));
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--br-default);
   font: 450 12.5px/1.35 var(--font-ui);
   color: var(--tx-primary);
   transition:
@@ -326,11 +328,12 @@ function projectColorName(projectId: string | null | undefined): string {
     border-color var(--dur) ease-out;
 }
 .up-item:hover {
-  background: color-mix(in srgb, var(--ev-acc) 22%, var(--bg-1));
+  background: var(--bg-hover);
+  border-color: var(--br-strong);
 }
 .up-item.picked {
-  background: color-mix(in srgb, var(--a-blue) 18%, var(--bg-1));
-  box-shadow: inset 0 0 0 1px var(--a-blue);
+  background: var(--bg-selected);
+  border-color: var(--a-blue-hi);
 }
 .up-dot {
   display: none;
@@ -341,7 +344,7 @@ function projectColorName(projectId: string | null | undefined): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--tx-primary);
+  color: color-mix(in oklab, var(--ev-acc) 35%, var(--tx-primary));
   font-weight: 500;
   font-size: 12.5px;
 }
@@ -349,8 +352,7 @@ function projectColorName(projectId: string | null | undefined): string {
   flex: none;
   font: 400 11.5px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
-  font-variant-numeric: tabular-nums;
-  color: var(--tx-muted);
+  color: color-mix(in oklab, var(--ev-acc) 70%, var(--tx-secondary));
 }
 .up-item[data-color='blue'],
 .up-item:not([data-color]) {
