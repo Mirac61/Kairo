@@ -1,1 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><radialGradient id="m" cx="34%" cy="30%" r="80%"><stop offset="0" stop-color="#f4a77a"/><stop offset=".45" stop-color="#d4592f"/><stop offset="1" stop-color="#4a1a10"/></radialGradient></defs><rect x=".5" y=".5" width="23" height="23" rx="6.5" fill="#0d0a0c" stroke="#2a2024"/><circle cx="16.5" cy="8.5" r="4.5" fill="url(#m)"/><path d="M11 9 3 21h9.3z" fill="#e8e2dc"/><path d="M11 9l1.3 12H19z" fill="#5a4e4c"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs>
+    <radialGradient id="s" cx="34%" cy="30%" r="78%">
+      <stop offset="0" stop-color="#f5caa0" />
+      <stop offset=".48" stop-color="#d97343" />
+      <stop offset="1" stop-color="#562312" />
+    </radialGradient>
+    <radialGradient id="g" cx="62%" cy="36%" r="58%">
+      <stop offset="0" stop-color="#d97343" stop-opacity=".22" />
+      <stop offset="1" stop-color="#d97343" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect x=".5" y=".5" width="23" height="23" rx="6.2" fill="#0b0b0c" stroke="#252226" />
+  <rect x="1" y="1" width="22" height="22" rx="5.8" fill="url(#g)" />
+  <circle cx="15.8" cy="8.6" r="4.1" fill="url(#s)" />
+  <path d="M10.6 8.2 3.8 19.2h7.9z" fill="#f0eeeb" />
+  <path d="M10.6 8.2l1.1 11H18z" fill="#564c4a" />
+</svg>

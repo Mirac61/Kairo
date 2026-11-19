@@ -1982,44 +1982,60 @@ select.input {
     padding-bottom: calc(56px + env(safe-area-inset-bottom));
   }
   .tabbar {
-    display: flex;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 50;
     height: calc(56px + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
-    background: var(--bg-1);
+    padding: 0 4px env(safe-area-inset-bottom);
+    background: color-mix(in oklab, var(--bg-1) 92%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border-top: 1px solid var(--br-subtle);
   }
   .tab {
-    flex: 1 1 auto;
-    min-width: 36px;
+    position: relative;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
-    font: 400 12px/1 var(--font-ui);
-    letter-spacing: -0.02em;
+    gap: 4px;
+    font: 400 11.5px/1 var(--font-ui);
+    letter-spacing: -0.01em;
     color: var(--tx-muted);
     text-decoration: none;
+    transition: color var(--dur) ease-out;
   }
   .tab .ic {
-    width: 20px;
-    height: 20px;
+    width: 19px;
+    height: 19px;
   }
   .tab span {
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding: 0 1px;
+    padding: 0 2px;
   }
   .tab[aria-current='page'],
   .tab.on {
     color: var(--tx-primary);
+    font-weight: 500;
+  }
+  .tab[aria-current='page']::before,
+  .tab.on::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 20px;
+    height: 2.5px;
+    border-radius: 0 0 2px 2px;
+    background: var(--a-blue-hi);
   }
   .tab[aria-current='page'] .ic,
   .tab.on .ic {
@@ -2054,7 +2070,7 @@ select.input {
   .more-sheet {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 8px;
     position: fixed;
     left: 0;
     right: 0;
@@ -2064,13 +2080,112 @@ select.input {
     background: var(--bg-1);
     border-top: 1px solid var(--br-subtle);
     border-radius: 14px 14px 0 0;
+    box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.45);
   }
-  .more-sheet .nav-item {
-    height: 44px;
-    font-size: 15px;
+  .more-grab {
+    width: 28px;
+    height: 3.5px;
+    margin: 0 auto 2px;
+    border-radius: 999px;
+    background: var(--br-strong);
+    opacity: 0.5;
+  }
+  .more-top {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--br-subtle);
+  }
+  .more-search {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+    padding: 0 11px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--bg-2);
+    color: var(--tx-muted);
+    font: 400 13.5px/1 var(--font-ui);
+    text-align: left;
+  }
+  .more-search .ic {
+    width: 15px;
+    height: 15px;
+    color: var(--tx-muted);
+  }
+  .more-acts {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .more-act {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--tx-secondary);
+    text-decoration: none;
+  }
+  .more-act:hover {
+    background: var(--bg-hover);
+    color: var(--tx-primary);
+  }
+  .more-act.on,
+  .more-act[aria-current='page'] {
+    background: var(--bg-selected);
+    color: var(--a-blue-hi);
+  }
+  .more-act .ic {
+    width: 16px;
+    height: 16px;
+  }
+  .more-hint {
+    margin: 0 6px;
+    font: 500 11.5px/1.2 var(--font-ui);
+    color: var(--tx-muted);
+  }
+  .more-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .more-row {
+    height: 42px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    font: 400 14.5px/1.2 var(--font-ui);
+  }
+  .more-row.more-trash {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--br-subtle);
+    border-radius: 0 0 8px 8px;
+    color: var(--tx-secondary);
+  }
+  .more-row.pinned {
+    color: var(--tx-primary);
+    font-weight: 500;
+  }
+  .more-row.pinned .ic {
+    color: var(--a-blue-hi);
+  }
+  .more-pin-idx {
+    margin-left: auto;
+    font: 600 12px/1 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    color: var(--a-blue-hi);
   }
   .more-sheet .status {
-    padding: 10px 8px 0;
+    padding: 6px 8px 0;
   }
   #toasts {
     right: 16px;

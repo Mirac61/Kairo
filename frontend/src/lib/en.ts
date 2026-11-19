@@ -36,6 +36,8 @@ const en: Record<string, string> = {
   'Neu …': 'New …',
   Getrennt: 'Disconnected',
   'Design wechseln': 'Toggle theme',
+  'Leiste anpassen': 'Customize bar',
+  '4 Tabs für unten wählen': 'Choose 4 bottom tabs',
   'Seitenleiste ausklappen': 'Expand sidebar',
   'Seitenleiste einklappen': 'Collapse sidebar',
   Ausklappen: 'Expand',
