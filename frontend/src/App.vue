@@ -108,14 +108,55 @@ function toggleSidebar() {
   void nextTick(() => window.dispatchEvent(new Event('resize')))
 }
 
-
-// Handy: sechs Tabs für den Alltag, der Rest (und Einstellungen) im „Mehr“-Blatt. Die Seitenleiste blendet design.css unter 760px aus.
-const tabPaths = ['/today', '/calendar', '/tasks', '/habits', '/projects', '/notes']
-const tabs = tabPaths.map((p) => navItems.find((n) => n.path === p)!)
-const more = navItems.filter((n) => !tabPaths.includes(n.path))
+// Handy (4 + 1 Hub nach Apple HIG / Material Design 3): 4 frei wählbare Kern-Tabs unten + „Mehr“-Hub-Sheet im 2-Spalten-Raster.
+const DEFAULT_TAB_PATHS = ['/today', '/calendar', '/tasks', '/notes']
+const MAX_TABS = 4
+function loadPinnedTabs(): string[] {
+  try {
+    const raw = store.get('kairo-mobile-tabs')
+    if (!raw) return DEFAULT_TAB_PATHS
+    const parsed = JSON.parse(raw)
+    if (
+      Array.isArray(parsed) &&
+      parsed.length >= 2 &&
+      parsed.length <= MAX_TABS &&
+      parsed.every((p) => typeof p === 'string' && navItems.some((n) => n.path === p))
+    ) {
+      return parsed
+    }
+  } catch {
+    // ungültiger localStorage-Eintrag → Standard
+  }
+  return DEFAULT_TAB_PATHS
+}
+const pinnedPaths = ref<string[]>(loadPinnedTabs())
+const tabs = computed(() =>
+  pinnedPaths.value
+    .map((p) => navItems.find((n) => n.path === p))
+    .filter((n): n is (typeof navItems)[number] => n != null),
+)
+const more = computed(() => navItems.filter((n) => !pinnedPaths.value.includes(n.path)))
+const customizableItems = computed(() => navItems.filter((n) => n.path !== '/trash'))
 const moreOpen = ref(false)
+const editTabs = ref(false)
 const showFab = computed(() => route.path === '/today' || route.path === '/tasks') // sonst verdeckt er Zeilenaktionen
-const inMore = computed(() => !tabPaths.includes(route.path))
+const inMore = computed(() => !pinnedPaths.value.includes(route.path))
+function togglePinTab(path: string) {
+  const cur = pinnedPaths.value
+  const idx = cur.indexOf(path)
+  if (idx !== -1) {
+    if (cur.length <= 2) return
+    pinnedPaths.value = cur.filter((p) => p !== path)
+  } else if (cur.length < MAX_TABS) {
+    pinnedPaths.value = [...cur, path]
+  } else {
+    pinnedPaths.value = [...cur.slice(0, MAX_TABS - 1), path]
+  }
+  store.set('kairo-mobile-tabs', JSON.stringify(pinnedPaths.value))
+}
+watch(moreOpen, (open) => {
+  if (!open) editTabs.value = false
+})
 watch(
   () => route.path,
   () => {
@@ -545,22 +586,73 @@ function openSearchFromMore() {
         role="dialog"
         :aria-label="$t('Mehr')"
       >
-        <button type="button" class="nav-item" @click="openSearchFromMore">
-          <svg class="ic"><use href="#i-search" /></svg><span class="nav-l">{{ $t('Suche') }}</span>
-        </button>
-        <RouterLink v-for="item in more" :key="item.path" :to="item.path" class="nav-item">
-          <svg class="ic"><use :href="`#i-${item.icon}`" /></svg
-          ><span class="nav-l">{{ $t(item.label) }}</span>
-          <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
-        </RouterLink>
-        <RouterLink to="/settings" class="nav-item"
-          ><svg class="ic"><use href="#i-gear" /></svg
-          ><span class="nav-l">{{ $t('Einstellungen') }}</span></RouterLink
-        >
-        <button type="button" class="nav-item" @click="toggleTheme">
-          <svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg
-          ><span class="nav-l">{{ $t('Design wechseln') }}</span>
-        </button>
+        <div class="more-grab" aria-hidden="true"></div>
+        <div class="more-top">
+          <button type="button" class="more-search" @click="openSearchFromMore">
+            <svg class="ic"><use href="#i-search" /></svg>
+            <span>{{ $t('Suchen …') }}</span>
+          </button>
+          <div class="more-acts">
+            <button
+              type="button"
+              class="more-act"
+              :class="{ on: editTabs }"
+              :aria-pressed="editTabs"
+              :title="editTabs ? $t('Fertig') : $t('Leiste anpassen')"
+              :aria-label="editTabs ? $t('Fertig') : $t('Leiste anpassen')"
+              @click="editTabs = !editTabs"
+            >
+              <svg class="ic"><use :href="editTabs ? '#i-check' : '#i-pen'" /></svg>
+            </button>
+            <button
+              type="button"
+              class="more-act"
+              :title="$t('Design wechseln')"
+              :aria-label="$t('Design wechseln')"
+              @click="toggleTheme"
+            >
+              <svg class="ic"><use :href="dark ? '#i-sun' : '#i-moon'" /></svg>
+            </button>
+            <RouterLink
+              to="/settings"
+              class="more-act"
+              :title="$t('Einstellungen')"
+              :aria-label="$t('Einstellungen')"
+            >
+              <svg class="ic"><use href="#i-gear" /></svg>
+            </RouterLink>
+          </div>
+        </div>
+
+        <template v-if="editTabs">
+          <p class="more-hint">{{ $t('4 Tabs für unten wählen') }}</p>
+          <div class="more-grid">
+            <button
+              v-for="item in customizableItems"
+              :key="item.path"
+              type="button"
+              class="more-card"
+              :class="{ pinned: pinnedPaths.includes(item.path) }"
+              :aria-pressed="pinnedPaths.includes(item.path)"
+              @click="togglePinTab(item.path)"
+            >
+              <svg class="ic"><use :href="`#i-${item.icon}`" /></svg>
+              <span class="nav-l">{{ $t(item.label) }}</span>
+              <span v-if="pinnedPaths.includes(item.path)" class="more-pin-idx">
+                {{ pinnedPaths.indexOf(item.path) + 1 }}
+              </span>
+            </button>
+          </div>
+        </template>
+
+        <div v-else class="more-grid">
+          <RouterLink v-for="item in more" :key="item.path" :to="item.path" class="more-card">
+            <svg class="ic"><use :href="`#i-${item.icon}`" /></svg>
+            <span class="nav-l">{{ $t(item.label) }}</span>
+            <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
+          </RouterLink>
+        </div>
+
         <div v-if="!online" class="status off">
           <span class="status-dot" />
           <span>{{ $t('Getrennt') }}</span>
@@ -577,7 +669,7 @@ function openSearchFromMore() {
           :aria-expanded="moreOpen"
           @click="moreOpen = !moreOpen"
         >
-          <svg class="ic"><use href="#i-list" /></svg><span>{{ $t('Mehr') }}</span>
+          <svg class="ic"><use href="#i-grid" /></svg><span>{{ $t('Mehr') }}</span>
         </button>
       </nav>
       <button v-if="showFab" type="button" class="fab" :aria-label="$t('Neu …')" @click="newEntry">
