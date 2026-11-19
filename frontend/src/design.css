@@ -567,7 +567,7 @@ svg.ic {
 }
 .nav-item[aria-current='page'] {
   position: relative;
-  background: color-mix(in oklab, var(--a-blue-hi) 11%, var(--bg-selected));
+  background: var(--bg-selected);
   color: var(--tx-primary);
   font-weight: 500;
 }
