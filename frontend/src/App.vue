@@ -626,12 +626,12 @@ function openSearchFromMore() {
 
         <template v-if="editTabs">
           <p class="more-hint">{{ $t('4 Tabs für unten wählen') }}</p>
-          <div class="more-grid">
+          <div class="more-list">
             <button
               v-for="item in customizableItems"
               :key="item.path"
               type="button"
-              class="more-card"
+              class="nav-item more-row"
               :class="{ pinned: pinnedPaths.includes(item.path) }"
               :aria-pressed="pinnedPaths.includes(item.path)"
               @click="togglePinTab(item.path)"
@@ -645,8 +645,14 @@ function openSearchFromMore() {
           </div>
         </template>
 
-        <div v-else class="more-grid">
-          <RouterLink v-for="item in more" :key="item.path" :to="item.path" class="more-card">
+        <div v-else class="more-list">
+          <RouterLink
+            v-for="item in more"
+            :key="item.path"
+            :to="item.path"
+            class="nav-item more-row"
+            :class="{ 'more-trash': item.path === '/trash' }"
+          >
             <svg class="ic"><use :href="`#i-${item.icon}`" /></svg>
             <span class="nav-l">{{ $t(item.label) }}</span>
             <span v-if="countOf[item.icon]?.()" class="nav-n">{{ countOf[item.icon]!() }}</span>
