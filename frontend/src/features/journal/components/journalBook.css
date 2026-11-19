@@ -1,102 +1,29 @@
-/* Flache Papierseite. Das Papier ist unabhängig vom App-Theme. */
+/* Eine Seite im Stil des Notiz-Editors: App-Farben, keine Fläche, keine Linien. */
 .jr-book {
-  --paper: #efe3c8;
-  --ink: #3a2a1b;
-  --ink-2: #6a5440;
-  --ink-3: #73634e;
-  --rule: rgb(58 42 27 / 0.16);
-  --dot: #b0602a;
-  margin-bottom: 14px;
-}
-.jr-book[data-paper='white'] {
-  --paper: #fbfaf7;
-  --ink: #1d1c1a;
-  --ink-2: #55524c;
-  --ink-3: #75726c;
-  --rule: rgb(29 28 26 / 0.12);
-  --dot: #d0702e;
-}
-.jr-book[data-paper='black'] {
-  --paper: #1d1c1a;
-  --ink: #ece4d4;
-  --ink-2: #b4ab9b;
-  --ink-3: #8c8478;
-  --rule: rgb(236 228 212 / 0.14);
-  --dot: #e08a4a;
+  margin-bottom: 56px;
 }
 
-.jr-sheet {
-  padding: 20px 36px 36px;
-  border-radius: var(--r-m);
-  background: var(--paper);
-  color: var(--ink);
-}
-
-/* Der Editor schreibt mit Tinte */
 .jr-sheet :deep(.je-form) {
-  --tx-primary: var(--ink);
-  --tx-secondary: var(--ink-2);
-  --tx-muted: var(--ink-3);
-  --tx-disabled: var(--ink-3);
-  --br-default: var(--rule);
-  --br-subtle: var(--rule);
-  --ring: var(--ink-2);
-  --p-orange: var(--dot);
-  gap: 28px;
-}
-.jr-sheet :deep(.je-label) {
-  font: 500 14px/1.3 var(--font-ui);
-  color: var(--ink-2);
-}
-.jr-sheet :deep(.je-area),
-.jr-sheet :deep(.je-point-input) {
-  color: var(--ink);
-}
-.jr-sheet :deep(.je-import:hover) {
-  background: var(--rule);
-}
-.jr-sheet :deep(.je-conflict) {
-  background: transparent;
-  border-color: var(--rule);
+  gap: 32px;
 }
 
-/* Steuerzeile */
+/* Datum als Überschrift der Seite, wie die H1 einer Notiz */
 .jr-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 40px;
-  margin-bottom: 20px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--rule);
+  margin-bottom: 28px;
 }
 .jr-date {
   margin: 0;
-  font: 400 26px/1.2 var(--font-serif);
-  color: var(--ink);
+  font: 600 26px/1.25 var(--font-ui);
+  letter-spacing: -0.01em;
+  color: var(--tx-primary);
 }
 .jr-rel {
-  margin-left: 8px;
-  font: 400 13px/1 var(--font-ui);
-  color: var(--ink-3);
-}
-.jr-nav {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-  color: var(--ink-2);
-}
-.jr-nav-count {
-  min-width: 88px;
-  text-align: center;
-  font: 400 12px/1 var(--font-ui);
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
+  margin-left: 10px;
+  font: 400 14px/1 var(--font-ui);
+  letter-spacing: normal;
+  color: var(--tx-muted);
 }
 
-/* Rückblick auf den Tag */
 .jr-entry {
   animation: jr-in 160ms ease-out both;
 }
@@ -114,13 +41,14 @@
   animation: none;
 }
 
+/* Rückblick auf den Tag: leise, damit die Fragen vorn stehen */
 .jr-block {
   margin-bottom: 24px;
 }
 .jr-block-h {
   margin: 0 0 6px;
-  font: 500 14px/1.3 var(--font-ui);
-  color: var(--ink-2);
+  font: 500 13px/1.3 var(--font-ui);
+  color: var(--tx-muted);
 }
 .jr-block-list {
   margin: 0;
@@ -133,24 +61,26 @@
   position: relative;
   padding-left: 16px;
   font: 400 15px/1.6 var(--font-ui);
-  color: var(--ink-2);
+  color: var(--tx-secondary);
 }
 .jr-block-list li::before {
   content: '';
   position: absolute;
   left: 2px;
   top: 0.7em;
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
-  background: var(--dot);
-  opacity: 0.75;
+  background: var(--tx-muted);
+}
+/* Margins kollabieren: nach jedem Rückblick-Block 36 px bis zur ersten Frage */
+.jr-block + :deep(.je) {
+  margin-top: 36px;
 }
 
 .jr-more {
   display: block;
   margin-top: 12px;
-  text-align: center;
   text-decoration: none;
 }
 .jr-more:hover {
@@ -159,13 +89,7 @@
 }
 
 @media (max-width: 640px) {
-  .jr-sheet {
-    padding: 14px 18px 28px;
-  }
   .jr-date {
-    font-size: 21px;
-  }
-  .jr-bar {
-    flex-wrap: wrap;
+    font-size: 22px;
   }
 }

@@ -177,7 +177,7 @@ function onHeatKey(e: KeyboardEvent, c: HeatCell) {
   inset: -3px;
 }
 .jr-heat-cell.on {
-  background: var(--p-orange);
+  background: var(--tx-secondary);
   opacity: 0.9;
 }
 .jr-heat-cell.open {
@@ -215,8 +215,14 @@ function onHeatKey(e: KeyboardEvent, c: HeatCell) {
   .jr-meta {
     gap: 12px;
   }
-  .jr-heat-cell:nth-child(-n + 14) {
+  /* Am Handy zwei Wochen, damit Punkte und Icons in eine Zeile passen */
+  .jr-heat-cell:nth-child(-n + 28),
+  .jr-streak {
     display: none;
+  }
+  /* Die aufgeschlagene Seite bleibt markiert, auch wenn sie älter ist */
+  .jr-heat-cell.open {
+    display: block;
   }
 }
 </style>

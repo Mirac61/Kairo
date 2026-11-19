@@ -21,10 +21,6 @@ const THEME_COLORS: Record<Palette, { dark: string; light: string }> = {
 // Akzentfarben als Farbton für --a-hue; Rot und Grün fehlen, weil sie „überfällig“ und „läuft“ bedeuten.
 export const ACCENTS = { blue: 255, violet: 300, aqua: 200, pink: 350, orange: 60 } as const
 export type Accent = keyof typeof ACCENTS
-// Papier im Journal, unabhängig vom App-Theme.
-export const PAPERS = ['coffee', 'white', 'black'] as const
-export type Paper = (typeof PAPERS)[number]
-const paperOf = (v: unknown): Paper => (PAPERS.includes(v as Paper) ? (v as Paper) : 'coffee')
 
 const KEYS = {
   theme: 'kairo-theme',
@@ -38,7 +34,6 @@ const KEYS = {
   calDays: 'kairo-cal-days',
   calHabits: 'kairo-cal-habits',
   name: 'kairo-name',
-  journalPaper: 'kairo-journal-paper',
 } as const
 
 const hour = (key: string, def: number) => {
@@ -63,7 +58,6 @@ export const prefs = reactive({
   // Gewohnheiten auch in der Wochenansicht (in der Tagesansicht immer); sonst füllen sie den Ganztags-Streifen.
   calHabits: store.get(KEYS.calHabits) === '1',
   name: store.get(KEYS.name) ?? '', // für die Begrüßung auf der Startseite
-  journalPaper: paperOf(store.get(KEYS.journalPaper)),
 })
 if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
 
@@ -113,7 +107,6 @@ export async function pullPrefs() {
   const p = prefs as Record<string, unknown>
   for (const k of Object.keys(prefs)) if (typeof data[k] === typeof p[k]) p[k] = data[k]
   prefs.palette = paletteOf(prefs.palette) // alte oder fremde Werte fallen auf Graphit zurück
-  prefs.journalPaper = paperOf(prefs.journalPaper)
   if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
   if (data.lang === 'de' || data.lang === 'en') {
     lang.value = data.lang

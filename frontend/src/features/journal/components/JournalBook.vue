@@ -12,7 +12,6 @@ const props = defineProps<{
   modelValue: string
   pages: string[]
   todayStr: string
-  paper: 'coffee' | 'white' | 'black'
   hasOlderEntries: boolean
   getEntryForDate: (d: string) => JournalRow | JournalEntryData | null
   getPlanForDate: (d: string) => string[]
@@ -47,7 +46,7 @@ function setEditorInstance(date: string, instance: unknown) {
   }
 }
 
-// Das Datum ist das Einzige in Serife. Das Jahr steht nur bei älteren Seiten dabei.
+// Das Jahr steht nur bei älteren Seiten dabei.
 const dateFmt = computed(
   () =>
     new Intl.DateTimeFormat(locale.value, {
@@ -129,14 +128,14 @@ function onSwipeEnd(e: PointerEvent) {
 </script>
 
 <template>
-  <div v-if="pageDate" class="jr-book" :data-paper="paper">
+  <div v-if="pageDate" class="jr-book">
     <div
       class="jr-sheet"
       @pointerdown="onSwipeStart"
       @pointerup="onSwipeEnd"
       @pointercancel="onSwipeEnd"
     >
-      <!-- Eine Steuerzeile: Datum links, Blättern rechts -->
+      <!-- Das Datum ist die Überschrift der Seite, geblättert wird im Kopf der Ansicht -->
       <div class="jr-bar">
         <h2 class="jr-date">
           {{ formatDate(pageDate) }}
@@ -144,29 +143,6 @@ function onSwipeEnd(e: PointerEvent) {
             getRelativeDateLabel(pageDate)
           }}</span>
         </h2>
-        <nav class="jr-nav" :aria-label="$t('Seiten')">
-          <button
-            type="button"
-            class="icon-btn"
-            :disabled="currentPageIndex <= 0"
-            :aria-label="$t('Vorherige Seite')"
-            @click="flipPage(-1)"
-          >
-            <svg class="ic"><use href="#i-left" /></svg>
-          </button>
-          <span class="jr-nav-count">
-            {{ $t('Seite {n} von {m}', { n: currentPageIndex + 1, m: pages.length }) }}
-          </span>
-          <button
-            type="button"
-            class="icon-btn"
-            :disabled="currentPageIndex >= pages.length - 1"
-            :aria-label="$t('Nächste Seite')"
-            @click="flipPage(1)"
-          >
-            <svg class="ic"><use href="#i-right" /></svg>
-          </button>
-        </nav>
       </div>
 
       <article

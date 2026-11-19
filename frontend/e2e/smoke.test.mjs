@@ -401,26 +401,10 @@ test('Journal: blättern und durchsuchen', async () => {
   const search = page.getByRole('searchbox', { name: 'Einträge durchsuchen' })
   await search.fill('Wechsel eins')
   await shown(day(-2))
-  assert.equal(await page.locator('.jr-nav-count').innerText(), 'Seite 1 von 2')
+  assert.ok(await page.getByRole('button', { name: 'Vorherige Seite' }).isDisabled())
   await search.fill('gibt es nicht')
   await page.getByText('Keine Treffer für „gibt es nicht“.').waitFor()
   await shown(day(0))
-})
-
-test('Journal: Papier wählen bleibt erhalten', async () => {
-  await page.goto(`${base}/journal`)
-  const book = page.locator('.jr-book')
-  await book.waitFor()
-  assert.equal(await book.getAttribute('data-paper'), 'coffee')
-  await page.locator('.jr-more-btn').click()
-  await page.getByRole('button', { name: 'Schwarz', exact: true }).click()
-  assert.equal(await book.getAttribute('data-paper'), 'black')
-  await page.waitForTimeout(600) // Einstellungen gehen gebündelt an den Server
-  await page.reload()
-  await book.waitFor()
-  assert.equal(await book.getAttribute('data-paper'), 'black')
-  await page.locator('.jr-more-btn').click()
-  await page.getByRole('button', { name: 'Kaffee', exact: true }).click()
 })
 
 test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => {
