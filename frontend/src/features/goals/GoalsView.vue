@@ -18,7 +18,9 @@ import {
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import { ymd } from '@/lib/dates'
-import { goalPace } from '@/lib/goals'
+import PageHeader from '@/components/PageHeader.vue'
+import IconButton from '@/components/IconButton.vue'
+import SegTabs from '@/components/SegTabs.vue'
 import GoalCard from './components/GoalCard.vue'
 import GoalEditDialog from './components/GoalEditDialog.vue'
 
@@ -48,15 +50,6 @@ const today = ymd(new Date())
 const tab = ref<'active' | 'reached'>('active')
 
 const displayedGoals = computed(() => (tab.value === 'active' ? longTerm.value : reached.value))
-
-const counts = computed(() => {
-  const c = { ok: 0, tight: 0, off: 0 }
-  for (const g of longTerm.value) {
-    const p = goalPace(g, today)
-    if (p) c[p.state]++
-  }
-  return c
-})
 
 // --- Aktionen
 const dropImage = (path: string | null) => path && deleteNote(path).catch(() => {})
@@ -140,38 +133,24 @@ function handleToggleArchiveGoal(g: Goal, value: boolean) {
 
 <template>
   <div class="view-inner gl">
-    <div class="gl-head">
-      <div class="v-head">
-        <h1 class="v-title sr-only">{{ $t('Ziele') }}</h1>
-        <p v-if="counts.ok + counts.tight + counts.off" class="v-sub">
-          {{ $t('{n} im Plan', { n: counts.ok }) }} · {{ $t('{n} knapp', { n: counts.tight }) }} ·
-          {{ $t('{n} hinterher', { n: counts.off }) }}.
-          {{ $t('Der Strich im Balken zeigt, wo du heute stehen müsstest.') }}
-        </p>
-      </div>
-      <div class="seg" role="group" :aria-label="$t('Filter')">
-        <button type="button" :aria-pressed="tab === 'active'" @click="tab = 'active'">
-          {{ $t('Aktiv') }} <span class="count">{{ longTerm.length }}</span>
-        </button>
-        <button
-          type="button"
-          :aria-pressed="tab === 'reached'"
-          :disabled="!reached.length"
-          @click="tab = 'reached'"
-        >
-          {{ $t('Erreicht') }} <span class="count">{{ reached.length }}</span>
-        </button>
-      </div>
-      <button
-        type="button"
-        class="icon-btn"
-        :title="$t('Neues Ziel')"
-        :aria-label="$t('Neues Ziel')"
-        @click="openNew()"
-      >
-        <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-      </button>
-    </div>
+    <PageHeader :title="$t('Ziele')">
+      <SegTabs
+        v-model="tab"
+        :label="$t('Filter')"
+        :options="[
+          { value: 'active', label: $t('Aktiv'), count: longTerm.length },
+          {
+            value: 'reached',
+            label: $t('Erreicht'),
+            count: reached.length,
+            disabled: !reached.length,
+          },
+        ]"
+      />
+      <template #actions>
+        <IconButton icon="plus" :label="$t('Neues Ziel')" @click="openNew()" />
+      </template>
+    </PageHeader>
     <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
     <p v-if="!goals.length" class="v-sub gl-empty">
@@ -212,21 +191,6 @@ function handleToggleArchiveGoal(g: Goal, value: boolean) {
 </template>
 
 <style scoped>
-.gl-head {
-  display: flex;
-  align-items: center;
-  min-height: 48px;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  margin-bottom: 20px;
-}
-.gl-head .v-head {
-  flex: 1 1 360px;
-  margin: 0;
-}
-.gl-head .v-sub {
-  margin: 0;
-}
 .gl-empty {
   max-width: 560px;
 }

@@ -41,6 +41,9 @@ import {
   type HabitCell,
 } from '@/lib/habits'
 import SearchField from '@/components/SearchField.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import IconButton from '@/components/IconButton.vue'
+import SegTabs from '@/components/SegTabs.vue'
 import HabitEditDialog from './components/HabitEditDialog.vue'
 import HabitDetailAside from './components/HabitDetailAside.vue'
 import HabitVacationDialog from './components/HabitVacationDialog.vue'
@@ -381,38 +384,27 @@ useLiveEvents(load)
     <div class="hab-main">
       <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-      <div class="filterbar">
-        <div class="seg" role="group" :aria-label="$t('Ansicht')">
-          <button type="button" :aria-pressed="view === 'day'" @click="view = 'day'">
-            {{ $t('Woche') }}
-          </button>
-          <button type="button" :aria-pressed="view === 'month'" @click="view = 'month'">
-            {{ $t('Monat') }}
-          </button>
-          <button type="button" :aria-pressed="view === 'year'" @click="view = 'year'">
-            {{ $t('Jahr') }}
-          </button>
-        </div>
-        <span class="spacer"></span>
-        <button
-          class="btn btn-ghost hab-vac"
-          type="button"
-          :aria-expanded="isVacationOpen"
-          @click="isVacationOpen = !isVacationOpen"
-        >
-          {{ $t('Urlaub') }}
-        </button>
-        <SearchField v-model="search" :label="$t('Gewohnheiten durchsuchen')" />
-        <button
-          class="icon-btn"
-          type="button"
-          :aria-label="$t('Neue Gewohnheit')"
-          :title="`${$t('Neue Gewohnheit')} (N)`"
-          @click="openNew"
-        >
-          <svg class="ic" aria-hidden="true"><use href="#i-plus" /></svg>
-        </button>
-      </div>
+      <PageHeader :title="$t('Gewohnheiten')">
+        <SegTabs
+          v-model="view"
+          :label="$t('Ansicht')"
+          :options="[
+            { value: 'day', label: $t('Woche') },
+            { value: 'month', label: $t('Monat') },
+            { value: 'year', label: $t('Jahr') },
+          ]"
+        />
+        <template #actions>
+          <IconButton
+            icon="sun"
+            :label="$t('Urlaub')"
+            :aria-expanded="isVacationOpen"
+            @click="isVacationOpen = !isVacationOpen"
+          />
+          <SearchField v-model="search" :label="$t('Gewohnheiten durchsuchen')" />
+          <IconButton icon="plus" :label="$t('Neue Gewohnheit')" shortcut="N" @click="openNew" />
+        </template>
+      </PageHeader>
 
       <HabitVacationDialog
         :open="isVacationOpen"

@@ -25,6 +25,9 @@ import { locale, t } from '@/lib/i18n'
 import { daysAgo, hm, ymd } from '@/lib/dates'
 import { store } from '@/lib/storage'
 import SearchField from '@/components/SearchField.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import IconButton from '@/components/IconButton.vue'
+import SegTabs from '@/components/SegTabs.vue'
 import ProjectDetailAside from './components/ProjectDetailAside.vue'
 import ProjectCreateDialog from './components/ProjectCreateDialog.vue'
 
@@ -255,51 +258,28 @@ useShortcuts((e) => {
 <template>
   <div class="view-inner" :class="{ 'proj-split': !!openProject }">
     <div class="proj-left">
-      <h1 class="v-title sr-only">{{ $t('Projekte') }}</h1>
+      <PageHeader :title="$t('Projekte')">
+        <SegTabs
+          v-model="tab"
+          :label="$t('Filter')"
+          :options="tabs.map((x) => ({ value: x.status, label: x.label, count: x.n }))"
+        />
+        <template #actions>
+          <select v-model="sort" class="input" :aria-label="$t('Sortieren nach')">
+            <option value="recent">{{ $t('Zuletzt aktiv') }}</option>
+            <option value="name">{{ $t('Name') }}</option>
+          </select>
+          <IconButton
+            :icon="layout === 'list' ? 'grid' : 'list'"
+            :label="layout === 'list' ? $t('Kacheln') : $t('Liste')"
+            @click="setLayout(layout === 'list' ? 'grid' : 'list')"
+          />
+          <SearchField v-model="search" :label="$t('Projekte durchsuchen')" />
+          <IconButton icon="plus" :label="$t('Neues Projekt')" @click="openNewDialog()" />
+        </template>
+      </PageHeader>
 
       <div v-if="error && !isCreateDialogOpen" class="badge" role="alert">{{ error }}</div>
-
-      <div class="filterbar">
-        <div class="seg" role="group" :aria-label="$t('Filter')">
-          <button
-            v-for="tabItem in tabs"
-            :key="tabItem.status"
-            type="button"
-            :aria-pressed="tab === tabItem.status"
-            @click="tab = tabItem.status"
-          >
-            {{ tabItem.label }} <span class="count">{{ tabItem.n }}</span>
-          </button>
-        </div>
-
-        <span class="spacer"></span>
-
-        <select v-model="sort" class="input" :aria-label="$t('Sortieren nach')">
-          <option value="recent">{{ $t('Zuletzt aktiv') }}</option>
-          <option value="name">{{ $t('Name') }}</option>
-        </select>
-
-        <button
-          type="button"
-          class="icon-btn"
-          :aria-label="layout === 'list' ? $t('Kacheln') : $t('Liste')"
-          :title="layout === 'list' ? $t('Kacheln') : $t('Liste')"
-          @click="setLayout(layout === 'list' ? 'grid' : 'list')"
-        >
-          <svg class="ic"><use :href="layout === 'list' ? '#i-grid' : '#i-list'" /></svg>
-        </button>
-        <SearchField v-model="search" :label="$t('Projekte durchsuchen')" />
-
-        <button
-          class="icon-btn"
-          type="button"
-          :title="$t('Neues Projekt')"
-          :aria-label="$t('Neues Projekt')"
-          @click="openNewDialog()"
-        >
-          <svg class="ic"><use href="#i-plus" /></svg>
-        </button>
-      </div>
 
       <div v-if="!projects.length" class="empty-cta">
         <p class="v-sub">

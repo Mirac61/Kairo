@@ -913,6 +913,13 @@ h1.v-title {
   background: var(--bg-2);
   color: var(--tx-primary);
 }
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.icon-btn:disabled:hover {
+  background: none;
+}
 
 /* ---------- Segmented control ---------- */
 .seg {
@@ -1422,10 +1429,22 @@ select.input {
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
-.proj-left > .filterbar,
-.hab-main > .filterbar {
+/* Kopfzeile jeder Ansicht (PageHeader), dazu die Aufgaben-Leiste in derselben Höhe */
+.page-head,
+.tk-toolbar {
   min-height: 48px;
   margin-bottom: 8px;
+}
+.ph-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.ph-label {
+  font: 500 14px/1.2 var(--font-ui);
+  color: var(--tx-secondary);
+  font-variant-numeric: tabular-nums;
 }
 /* Filterzeile überall gleich: Segmente (mit Anzahl) links, Suche ganz rechts */
 .filterbar .search-btn {
@@ -2480,8 +2499,6 @@ select.input {
 }
 /* Filter: kompakte Pills, keine Trennlinie */
 :root .tk-toolbar {
-  padding-bottom: 6px;
-  border-bottom: 0;
   gap: 2px 8px;
 }
 :root .tk-tabs button {
@@ -2533,7 +2550,6 @@ select.input {
   color: color-mix(in srgb, var(--chip-c) 80%, var(--tx-primary));
 }
 .task-row :is(.due, .dur, .status-l),
-.tk-stats,
 .td-row input {
   font-variant-numeric: tabular-nums;
 }

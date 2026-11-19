@@ -250,8 +250,6 @@ function onTabKey(e: KeyboardEvent) {
   align-items: center;
   flex-wrap: wrap;
   gap: 4px 8px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--br-subtle);
 }
 .tk-toolbar .tk-bar {
   flex: 1 1 auto;
