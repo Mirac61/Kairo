@@ -231,6 +231,43 @@
   --toast-bg: #ffffff;
   --shadow-pop: 0 0 0 1px #cdd6da, 0 16px 40px rgba(21, 28, 30, 0.12);
 }
+/* Neutral: reines Schwarz / Weiß ohne Farbtemperatur in den Flächen; Akzente folgen der Akzentwahl. */
+:root[data-palette='neutral'] {
+  --bg-0: #000000;
+  --bg-1: #0d0d0d;
+  --bg-2: #171717;
+  --bg-3: #222222;
+  --bg-hover: #141414;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --br-subtle: #1a1a1a;
+  --br-default: #262626;
+  --br-strong: #404040;
+  --tx-primary: #f2f2f2;
+  --tx-secondary: #a3a3a3;
+  --tx-muted: #737373;
+  --tx-disabled: #525252;
+  --scrim: rgba(0, 0, 0, 0.7);
+  --toast-bg: #171717;
+  --shadow-pop: 0 0 0 1px #262626, 0 18px 40px -12px rgba(0, 0, 0, 0.85);
+}
+:root[data-palette='neutral'][data-theme='light'] {
+  --bg-0: #fafafa;
+  --bg-1: #ffffff;
+  --bg-2: #f0f0f0;
+  --bg-3: #e5e5e5;
+  --bg-hover: #f2f2f2;
+  --bg-card: #f3f3f3;
+  --br-subtle: #e5e5e5;
+  --br-default: #d4d4d4;
+  --br-strong: #a3a3a3;
+  --tx-primary: #171717;
+  --tx-secondary: #525252;
+  --tx-muted: #737373;
+  --tx-disabled: #a3a3a3;
+  --scrim: rgba(0, 0, 0, 0.22);
+  --toast-bg: #ffffff;
+  --shadow-pop: 0 0 0 1px #d4d4d4, 0 18px 40px -12px rgba(0, 0, 0, 0.14);
+}
 /* Carbonfox (nightfox.nvim): neutrales Schwarz, IBM-Carbon-Farben. Hell = IBM Carbon „White“, das Vorbild von Carbonfox. */
 :root[data-palette='carbonfox'] {
   --bg-0: #0c0c0c;
