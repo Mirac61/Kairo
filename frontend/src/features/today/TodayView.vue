@@ -328,6 +328,14 @@ watch(
   color: var(--tx-primary);
   font-weight: 500;
 }
+@media (max-width: 640px) {
+  .td-head > .td-sub-sep {
+    display: none;
+  }
+  .td-title {
+    width: 100%;
+  }
+}
 .td-sub {
   margin: 0;
   display: flex;

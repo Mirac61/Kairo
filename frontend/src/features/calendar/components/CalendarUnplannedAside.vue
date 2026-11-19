@@ -271,7 +271,6 @@ function projectColorName(projectId: string | null | undefined): string {
   color: var(--tx-on-accent);
   font: 600 9.5px/14px var(--font-ui);
   font-variant-numeric: tabular-nums;
-  font-variant-numeric: tabular-nums;
   text-align: center;
   box-sizing: border-box;
   box-shadow: 0 0 0 1.5px var(--bg-1);
