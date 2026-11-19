@@ -51,20 +51,23 @@ const TESTS: Record<Filter, (c: Card) => boolean> = {
   lapsed: (c) => (lapsed.value.get(c.key) ?? 0) >= 2,
   notes: (c) => !!c.note_path,
 }
-const FILTERS: [Filter, string][] = [
+const FILTERS = computed<[Filter, string][]>(() => [
   ['all', t('Alle Karten')],
   ['due', t('Heute fällig')],
   ['new', t('Neu')],
   ['lapsed', t('Oft vergessen')],
   ['notes', t('Aus Notizen')],
-]
-const COLS = [
-  ['question', t('Frage')],
-  ['answer', t('Antwort')],
-  ['deck', t('Fach')],
-  ['due', t('Fällig')],
-  ['interval', t('Stufe')],
-] as const
+])
+const COLS = computed(
+  () =>
+    [
+      ['question', t('Frage')],
+      ['answer', t('Antwort')],
+      ['deck', t('Fach')],
+      ['due', t('Fällig')],
+      ['interval', t('Stufe')],
+    ] as const,
+)
 
 // Sortierschlüssel für „Fällig“: neu zuerst, dann nach Datum.
 const dueKey = (c: Card) => (c.new ? '' : c.due ? '0' : (c.due_date ?? ''))

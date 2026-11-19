@@ -31,12 +31,12 @@ import SegTabs from '@/components/SegTabs.vue'
 import ProjectDetailAside from './components/ProjectDetailAside.vue'
 import ProjectCreateDialog from './components/ProjectCreateDialog.vue'
 
-const STATUS: Record<string, string> = {
+const STATUS = computed<Record<string, string>>(() => ({
   ACTIVE: t('Aktiv'),
   PAUSED: t('Pausiert'),
   COMPLETED: t('Abgeschlossen'),
   ARCHIVED: t('Archiviert'),
-}
+}))
 
 interface Progress {
   project_id: string | null
@@ -154,7 +154,7 @@ function setLayout(l: 'grid' | 'list') {
 
 // Leere Reiter bleiben weg, der gewählte bleibt stehen.
 const tabs = computed(() =>
-  Object.entries(STATUS)
+  Object.entries(STATUS.value)
     .map(([status, label]) => ({
       status,
       label,

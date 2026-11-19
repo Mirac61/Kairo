@@ -62,11 +62,14 @@ const {
 const title = ref('')
 const week = ref(0)
 const SPAN = 'timeGridSpan'
-const views = [
-  ['dayGridMonth', t('Monat'), 'm'],
-  [SPAN, t('5 Tage'), 'w'],
-  ['timeGridDay', t('Tag'), 'd'],
-] as const
+const views = computed(
+  () =>
+    [
+      ['dayGridMonth', t('Monat'), 'm'],
+      [SPAN, t('5 Tage'), 'w'],
+      ['timeGridDay', t('Tag'), 'd'],
+    ] as const,
+)
 
 const spanView = () => `timeGrid${prefs.calDays}`
 const spanStart = () => addDays(new Date(), -Math.floor(prefs.calDays / 2))
@@ -135,7 +138,7 @@ onMounted(() => {
 useShortcuts((e) => {
   if (form.value) return
   const api = cal.value?.getApi()
-  const v = views.find(([, , k]) => k === e.key)
+  const v = views.value.find(([, , k]) => k === e.key)
   if (!api) return
   if (e.key === 't') goToday()
   else if (e.key === 'ArrowLeft') api.prev()
@@ -148,6 +151,12 @@ useShortcuts((e) => {
 
 const { dayStart: SLOT_MIN_HOUR, dayEnd: SLOT_MAX_HOUR } = prefs
 let scrollFitted = false
+
+watch(lang, (l) => {
+  const api = cal.value?.getApi()
+  api?.setOption('locale', l === 'de' ? 'de' : 'en-gb')
+  api?.setOption('allDayText', t('Ganztag'))
+})
 
 const options: CalendarOptions = {
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],

@@ -82,16 +82,16 @@ const PRIO_WORDS = [
   ['niedrig', 'LOW'],
 ]
 const SUGG_TITLE: Record<string, string> = {
-  '#': t('Projekt'),
-  '@': t('Fällig'),
-  '!': t('Priorität'),
+  '#': 'Projekt',
+  '@': 'Fällig',
+  '!': 'Priorität',
 }
 
 const PRIO_LABEL: Record<string, string> = {
-  URGENT: t('Dringend'),
-  HIGH: t('Hoch'),
-  MEDIUM: t('Mittel'),
-  LOW: t('Niedrig'),
+  URGENT: 'Dringend',
+  HIGH: 'Hoch',
+  MEDIUM: 'Mittel',
+  LOW: 'Niedrig',
 }
 
 const sugg = computed(() => {
@@ -131,7 +131,7 @@ const sugg = computed(() => {
     list = PRIO_WORDS.map(([w, k]) => ({
       v: `!${w}`,
       label: `!${w}`,
-      sub: PRIO_LABEL[k!]!,
+      sub: t(PRIO_LABEL[k!]!),
       color: '',
     }))
   }
@@ -147,7 +147,7 @@ const sugg = computed(() => {
       (Boolean(lastTokenKind) && lastTokenKind !== 'bad'))
 
   return {
-    title: SUGG_TITLE[prefix]!,
+    title: t(SUGG_TITLE[prefix]!),
     items: isComplete ? [] : filteredItems,
   }
 })
@@ -217,7 +217,7 @@ const quickChips = computed(() => {
     {
       kind: 'prio' as const,
       lead: '!',
-      label: q.priority ? PRIO_LABEL[q.priority]! : t('Priorität'),
+      label: q.priority ? t(PRIO_LABEL[q.priority]!) : t('Priorität'),
       on: Boolean(q.priority),
       color: '',
       val: prioValue,

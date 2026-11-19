@@ -15,7 +15,7 @@ import {
 } from '@/api/client'
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
-import { addDays, weekStart, ymd } from '@/lib/dates'
+import { addDays, isoWeek, weekStart, ymd } from '@/lib/dates'
 import { locale } from '@/lib/i18n'
 import type { DoneTask, ReviewDay } from './types'
 import ReviewStatCards from './components/ReviewStatCards.vue'
@@ -24,7 +24,7 @@ import ReviewProjectTimes from './components/ReviewProjectTimes.vue'
 import ReviewHabits from './components/ReviewHabits.vue'
 import ReviewTasksList from './components/ReviewTasksList.vue'
 
-const short = new Intl.DateTimeFormat(locale.value, { day: 'numeric', month: 'short' })
+const short = computed(() => new Intl.DateTimeFormat(locale.value, { day: 'numeric', month: 'short' }))
 const today = () => ymd(new Date())
 
 const monday = ref(weekStart(new Date()))
@@ -35,14 +35,10 @@ const habits = ref<Habit[]>([])
 const from = computed(() => ymd(monday.value))
 const to = computed(() => ymd(addDays(monday.value, 6)))
 const isCurrent = computed(() => from.value === ymd(weekStart(new Date())))
-// ISO-Kalenderwoche: die Woche, in der der Donnerstag liegt.
-const kw = computed(() => {
-  const thu = addDays(monday.value, 3)
-  return Math.floor(Math.round((+thu - +new Date(thu.getFullYear(), 0, 1)) / 864e5) / 7) + 1
-})
+const kw = computed(() => isoWeek(monday.value))
 const range = computed(
   () =>
-    `${short.format(monday.value)} – ${short.format(addDays(monday.value, 6))} ${addDays(monday.value, 6).getFullYear()}`,
+    `${short.value.format(monday.value)} – ${short.value.format(addDays(monday.value, 6))} ${addDays(monday.value, 6).getFullYear()}`,
 )
 
 const { error, load, run } = useLoader(async () => {

@@ -8,6 +8,18 @@ function padTwo(num: number): string {
   return String(num).padStart(2, '0')
 }
 
+// ISO-Kalenderwoche (1–53; der Donnerstag der Woche entscheidet über das Jahr).
+export function isoWeek(input: Date | string): number {
+  const d =
+    typeof input === 'string'
+      ? new Date(Date.UTC(...(input.split('-').map(Number) as [number, number, number])))
+      : new Date(Date.UTC(input.getFullYear(), input.getMonth(), input.getDate()))
+  if (typeof input === 'string') d.setUTCMonth(d.getUTCMonth() - 1)
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7))
+  const yearStart = Date.UTC(d.getUTCFullYear(), 0, 1)
+  return Math.ceil(((d.getTime() - yearStart) / MILLISECONDS_PER_DAY + 1) / 7)
+}
+
 // Formatiert ein Datum nach YYYY-MM-DD
 export function ymd(date: Date): string {
   const year = date.getFullYear()

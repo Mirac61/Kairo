@@ -27,23 +27,23 @@ const emit = defineEmits<{
 }>()
 
 const STATUS_LABEL: Record<Task['status'], string> = {
-  BACKLOG: t('Backlog'),
-  PLANNED: t('Geplant'),
-  IN_PROGRESS: t('Läuft'),
-  PAUSED: t('Pausiert'),
-  COMPLETED: t('Erledigt'),
-  CANCELLED: t('Abgebrochen'),
+  BACKLOG: 'Backlog',
+  PLANNED: 'Geplant',
+  IN_PROGRESS: 'Läuft',
+  PAUSED: 'Pausiert',
+  COMPLETED: 'Erledigt',
+  CANCELLED: 'Abgebrochen',
 }
 
 const PRIO_LABEL: Record<string, string> = {
-  URGENT: t('Dringend'),
-  HIGH: t('Hoch'),
-  MEDIUM: t('Mittel'),
-  LOW: t('Niedrig'),
+  URGENT: 'Dringend',
+  HIGH: 'Hoch',
+  MEDIUM: 'Mittel',
+  LOW: 'Niedrig',
 }
 
-const statusLabel = computed(() => STATUS_LABEL[props.task.status] ?? props.task.status)
-const prioLabel = computed(() => PRIO_LABEL[props.task.priority] ?? props.task.priority)
+const statusLabel = computed(() => t(STATUS_LABEL[props.task.status] ?? props.task.status))
+const prioLabel = computed(() => t(PRIO_LABEL[props.task.priority] ?? props.task.priority))
 
 const prioLevel = computed(() => {
   return ({ LOW: 1, MEDIUM: 2, HIGH: 3, URGENT: 3 } as const)[props.task.priority as 'LOW'] ?? 2

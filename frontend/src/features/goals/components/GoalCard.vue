@@ -24,7 +24,7 @@ const shortDate = (d: string) =>
     new Date(d + 'T00:00'),
   )
 
-const STATE = { ok: t('Im Plan'), tight: t('Knapp'), off: t('Hinterher') }
+const STATE = computed(() => ({ ok: t('Im Plan'), tight: t('Knapp'), off: t('Hinterher') }))
 
 const dayNo = (d: string) => Date.parse(d + 'T00:00:00Z') / 864e5
 

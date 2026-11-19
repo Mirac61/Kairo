@@ -76,13 +76,18 @@ watch(view, (v) => store.set(VIEW_KEY, v))
 const todayStr = () => ymd(new Date())
 const gridStart = () => getGridStartDate()
 
-const dayLabelFmt = new Intl.DateTimeFormat(locale.value, {
-  weekday: 'short',
-  day: '2-digit',
-  month: '2-digit',
-})
-const dateShortFmt = new Intl.DateTimeFormat(locale.value, { day: 'numeric', month: 'short' })
-const wdShortFmt = new Intl.DateTimeFormat(locale.value, { weekday: 'short' })
+const dayLabelFmt = computed(
+  () =>
+    new Intl.DateTimeFormat(locale.value, {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+    }),
+)
+const dateShortFmt = computed(
+  () => new Intl.DateTimeFormat(locale.value, { day: 'numeric', month: 'short' }),
+)
+const wdShortFmt = computed(() => new Intl.DateTimeFormat(locale.value, { weekday: 'short' }))
 
 const { error, load, run } = useLoader(async () => {
   const currentToday = todayStr()
@@ -161,7 +166,7 @@ function handleSaveHabit({ id, body }: { id?: string; body: Parameters<typeof cr
 }
 
 function cell(h: Habit, d: Date): HabitCell {
-  return buildHabitCell(h, d, done.value[h.id], pauses.value, todayStr(), dayLabelFmt)
+  return buildHabitCell(h, d, done.value[h.id], pauses.value, todayStr(), dayLabelFmt.value)
 }
 
 function graph(h: Habit): HabitCell[] {
@@ -250,16 +255,19 @@ const selDay = ref(new Date())
 const week = computed(() => weekOf(selDay.value))
 const thisWeek = computed(() => ymd(weekStart(selDay.value)) >= ymd(weekStart()))
 const weekLabel = computed(() => {
-  const startDay = dateShortFmt.format(new Date(`${ymd(week.value[0]!)}T12:00:00`))
-  const endDay = dateShortFmt.format(new Date(`${ymd(week.value[6]!)}T12:00:00`))
+  const startDay = dateShortFmt.value.format(new Date(`${ymd(week.value[0]!)}T12:00:00`))
+  const endDay = dateShortFmt.value.format(new Date(`${ymd(week.value[6]!)}T12:00:00`))
   return `${startDay} – ${endDay}`
 })
 
-const SLOTS = [
-  [t('Morgens'), '00:00'],
-  [t('Mittags'), '12:00'],
-  [t('Abends'), '17:00'],
-] as const
+const SLOTS = computed(
+  () =>
+    [
+      [t('Morgens'), '00:00'],
+      [t('Mittags'), '12:00'],
+      [t('Abends'), '17:00'],
+    ] as const,
+)
 
 const activeHabits = computed(() => habits.value.filter((h) => h.active))
 const search = ref('')
@@ -271,15 +279,16 @@ const sorted = computed(() => {
 })
 
 const gridGroups = computed(() => {
+  const slots = SLOTS.value
   const hs = [...sorted.value].sort((a, b) =>
     (a.preferred_time ?? '99').localeCompare(b.preferred_time ?? '99'),
   )
   const slot = (h: Habit) => {
     if (!h.active) return t('Inaktiv')
     if (!h.preferred_time) return t('Jederzeit')
-    return [...SLOTS].reverse().find(([, from]) => h.preferred_time! >= from)?.[0] ?? t('Jederzeit')
+    return [...slots].reverse().find(([, from]) => h.preferred_time! >= from)?.[0] ?? t('Jederzeit')
   }
-  return [...SLOTS.map(([l]) => l), t('Jederzeit'), t('Inaktiv')]
+  return [...slots.map(([l]) => l), t('Jederzeit'), t('Inaktiv')]
     .map((label) => ({ label, habits: hs.filter((h) => slot(h) === label) }))
     .filter((g) => g.habits.length)
 })
@@ -300,7 +309,7 @@ function gridCell(h: Habit, d: Date) {
     ...c,
     plan: c.state === 'future' && isHabitPlanned(h, d) && (!h.end_date || c.s <= h.end_date),
     p,
-    label: `${dayLabelFmt.format(d)}: ${stateLabel}`,
+    label: `${dayLabelFmt.value.format(d)}: ${stateLabel}`,
   }
 }
 

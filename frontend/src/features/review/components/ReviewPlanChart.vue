@@ -9,7 +9,7 @@ const props = defineProps<{
   days: ReviewDay[]
 }>()
 
-const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((d) => t(d))
+const WD = computed(() => ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((d) => t(d)))
 const today = () => ymd(new Date())
 
 // Skala in ganzen Stunden-Schritten, damit die Hilfslinien glatte Werte haben.
@@ -29,7 +29,7 @@ const ticks = computed(() =>
 const pct = (m: number) => `${m ? Math.max(2, (m / maxMin.value) * 100) : 0}%`
 
 const dayText = (d: ReviewDay) =>
-  `${WD[d.i]} ${dm(d.date)}: ` +
+  `${WD.value[d.i]} ${dm(d.date)}: ` +
   t('erfasst {tracked} h, geplant {plan} h, {done} erledigt', {
     tracked: hm(d.tracked_minutes),
     plan: hm(d.plan),
