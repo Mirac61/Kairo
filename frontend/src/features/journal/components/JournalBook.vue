@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { JournalTaskImport } from '@/api/client'
-import { shiftDate } from '@/lib/dates'
+import { isoWeek, shiftDate } from '@/lib/dates'
 import { locale, t } from '@/lib/i18n'
 import { useShortcuts } from '@/composables/useShortcuts'
 import JournalEntryEditor, { type JournalEntryData } from './JournalEntryEditor.vue'
@@ -71,15 +71,6 @@ function formatDate(dateStr: string): string {
   return (sameYear ? dateHeadingFmt.value : dateHeadingYearFmt.value).format(
     new Date(`${dateStr}T00:00`),
   )
-}
-
-function isoWeek(dateStr: string): number {
-  const [y = 2000, m = 1, d = 1] = dateStr.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, d))
-  const day = dt.getUTCDay() || 7
-  dt.setUTCDate(dt.getUTCDate() + 4 - day)
-  const yearStart = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1))
-  return Math.ceil(((dt.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
 }
 
 function getRelativeDateLabel(dateStr: string): string {

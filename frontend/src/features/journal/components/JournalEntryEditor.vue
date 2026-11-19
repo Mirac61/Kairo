@@ -263,6 +263,19 @@ onMounted(() => {
   void nextTick(growAll)
 })
 watch(
+  () => props.entry,
+  (e) => {
+    if (isDirty() || saving) return
+    q0.value = e?.answers[0] ?? ''
+    q1.value = e?.answers[1] ?? ''
+    const ps = splitPoints(e?.answers[2] ?? '')
+    points.value = ps.length ? ps : ['']
+    other = e?.other ?? ''
+    mtime = e?.mtime ?? ''
+    void nextTick(growAll)
+  },
+)
+watch(
   () => props.mode,
   (m) => {
     if (m !== 'read') void nextTick(growAll)
@@ -277,7 +290,7 @@ onBeforeUnmount(() => {
 })
 
 type InlineToken = { kind: 'text' | 'bold' | 'code' | 'wiki'; text: string }
-type BlockLine = { kind: 'quote' | 'para'; tokens: InlineToken[] }
+type BlockLine = { kind: 'quote' | 'para' | 'bullet'; tokens: InlineToken[] }
 
 function parseInline(src: string): InlineToken[] {
   const out: InlineToken[] = []
@@ -300,11 +313,15 @@ function parseBlocks(src: string): BlockLine[] {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) =>
-      line.startsWith('> ')
-        ? { kind: 'quote', tokens: parseInline(line.slice(2)) }
-        : { kind: 'para', tokens: parseInline(line) },
-    )
+    .map((line) => {
+      if (line.startsWith('> ')) {
+        return { kind: 'quote', tokens: parseInline(line.slice(2)) }
+      }
+      if (/^[-*]\s+/.test(line)) {
+        return { kind: 'bullet', tokens: parseInline(line.replace(/^[-*]\s+/, '')) }
+      }
+      return { kind: 'para', tokens: parseInline(line) }
+    })
 }
 
 const cleanPoints = computed(() => points.value.map((p) => p.trim()).filter(Boolean))
@@ -374,6 +391,17 @@ async function submitImport(titles: string[]) {
                 <template v-else>{{ tok.text }}</template>
               </template>
             </blockquote>
+            <div v-else-if="b.kind === 'bullet'" class="je-read-li">
+              <span class="je-bullet" aria-hidden="true">-</span>
+              <span>
+                <template v-for="(tok, ti) in b.tokens" :key="ti">
+                  <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+                  <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+                  <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+                  <template v-else>{{ tok.text }}</template>
+                </template>
+              </span>
+            </div>
             <p v-else class="je-read-p">
               <template v-for="(tok, ti) in b.tokens" :key="ti">
                 <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
@@ -398,6 +426,17 @@ async function submitImport(titles: string[]) {
                 <template v-else>{{ tok.text }}</template>
               </template>
             </blockquote>
+            <div v-else-if="b.kind === 'bullet'" class="je-read-li">
+              <span class="je-bullet" aria-hidden="true">-</span>
+              <span>
+                <template v-for="(tok, ti) in b.tokens" :key="ti">
+                  <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+                  <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+                  <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+                  <template v-else>{{ tok.text }}</template>
+                </template>
+              </span>
+            </div>
             <p v-else class="je-read-p">
               <template v-for="(tok, ti) in b.tokens" :key="ti">
                 <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>

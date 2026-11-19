@@ -110,6 +110,7 @@
   color: color-mix(in oklab, var(--tx-primary) 88%, var(--bg-0));
 }
 .je-read-p strong,
+.je-read-li strong,
 .je-read-quote strong {
   color: var(--tx-primary);
   font-weight: 600;
@@ -143,7 +144,8 @@
   display: grid;
   gap: 6px;
 }
-.je-read-list li {
+.je-read-list li,
+.je-read-li {
   display: flex;
   align-items: baseline;
   gap: 10px;
