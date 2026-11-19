@@ -84,11 +84,17 @@ const doneItems = computed(() => (pageDate.value ? props.getDoneItemsOn(pageDate
 
 const currentPageIndex = computed(() => props.pages.indexOf(pageDate.value))
 
+let navigating = false
 async function goToDate(targetDate: string) {
   const leavingDate = pageDate.value
-  if (targetDate === leavingDate) return
-
-  await editorInstances.get(leavingDate)?.flush()
+  if (targetDate === leavingDate || navigating) return
+  // Schnelles Blättern: nur ein Wechsel zur Zeit, sonst würde ein zweiter Flush auf die alte Seite laufen.
+  navigating = true
+  try {
+    await editorInstances.get(leavingDate)?.flush()
+  } finally {
+    navigating = false
+  }
 
   pageDate.value = targetDate
   emit('update:modelValue', targetDate)
@@ -139,7 +145,7 @@ function onSwipeEnd(e: PointerEvent) {
       class="jr-sheet"
       @pointerdown="onSwipeStart"
       @pointerup="onSwipeEnd"
-      @pointercancel="onSwipeEnd"
+      @pointercancel="touchSwipe = null"
     >
       <!-- Einheitliche Kairo-Typografie mit klarer Hierarchie -->
       <div class="jr-bar">
