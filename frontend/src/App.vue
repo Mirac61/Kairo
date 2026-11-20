@@ -41,7 +41,7 @@ const countOf: Record<string, () => string | number> = {
 }
 
 const focusPaths = ['/today', '/calendar', '/tasks', '/review']
-const projectPaths = ['/habits', '/projects', '/notes', '/goals', '/journal', '/cards']
+const projectPaths = ['/projects', '/notes', '/journal', '/cards']
 const focusItems = computed(() =>
   focusPaths
     .map((p) => navItems.find((n) => n.path === p))
@@ -493,6 +493,18 @@ function openSearchFromMore() {
       <div class="brand">
         <span class="logo-mark" aria-hidden="true"><i></i></span
         ><span class="brand-t"><b>Kairo</b></span>
+        <button
+          v-if="!mini"
+          type="button"
+          class="icon-btn sb-collapse"
+          aria-expanded="true"
+          aria-keyshortcuts="Meta+B Control+B"
+          :aria-label="$t('Seitenleiste einklappen')"
+          :data-tip="`${$t('Einklappen')} (${keys('⌘B')})`"
+          @click="toggleSidebar"
+        >
+          <svg class="ic"><use href="#i-sidebar" /></svg>
+        </button>
       </div>
       <nav :aria-label="$t('Hauptnavigation')">
         <button
@@ -521,50 +533,56 @@ function openSearchFromMore() {
           </RouterLink>
         </div>
       </nav>
-      <div v-if="trashItem" class="nav-bottom">
-        <RouterLink
-          :to="trashItem.path"
-          class="nav-item"
-          :aria-label="mini ? $t(trashItem.label) : undefined"
-          :data-tip="mini ? $t(trashItem.label) : undefined"
+      <div class="nav-bottom">
+        <div
+          v-if="!online"
+          class="status off sb-status"
+          :data-tip="mini ? $t('Getrennt') : undefined"
         >
-          <svg class="ic"><use :href="`#i-${trashItem.icon}`" /></svg
-          ><span class="nav-l">{{ $t(trashItem.label) }}</span>
-        </RouterLink>
-      </div>
-      <div class="sidebar-footer">
-        <div v-if="!online" class="status off" :data-tip="mini ? $t('Getrennt') : undefined">
           <span class="status-dot" />
           <span>{{ $t('Getrennt') }}</span>
         </div>
-        <div class="sb-btns">
+        <button
+          v-if="mini"
+          type="button"
+          class="nav-item"
+          aria-expanded="false"
+          aria-keyshortcuts="Meta+B Control+B"
+          :aria-label="$t('Seitenleiste ausklappen')"
+          :data-tip="`${$t('Ausklappen')} (${keys('⌘B')})`"
+          @click="toggleSidebar"
+        >
+          <svg class="ic"><use href="#i-sidebar" /></svg>
+        </button>
+        <div class="sb-settings-row">
+          <RouterLink
+            to="/settings"
+            class="nav-item"
+            :aria-label="mini ? $t('Einstellungen') : undefined"
+            :data-tip="mini ? $t('Einstellungen') : undefined"
+          >
+            <svg class="ic"><use href="#i-gear" /></svg
+            ><span class="nav-l">{{ $t('Einstellungen') }}</span>
+          </RouterLink>
+          <RouterLink
+            v-if="trashItem"
+            :to="trashItem.path"
+            class="sb-foot-icon sb-trash"
+            :aria-label="$t(trashItem.label)"
+            :data-tip="$t(trashItem.label)"
+          >
+            <svg class="ic"><use :href="`#i-${trashItem.icon}`" /></svg>
+          </RouterLink>
           <button
             type="button"
-            class="icon-btn"
-            :aria-expanded="!mini"
-            aria-keyshortcuts="Meta+B Control+B"
-            :aria-label="mini ? $t('Seitenleiste ausklappen') : $t('Seitenleiste einklappen')"
-            :data-tip="`${mini ? $t('Ausklappen') : $t('Einklappen')} (${keys('⌘B')})`"
-            @click="toggleSidebar"
-          >
-            <svg class="ic"><use href="#i-sidebar" /></svg>
-          </button>
-          <button
-            class="icon-btn"
+            class="sb-foot-icon sb-help-btn"
             :aria-label="$t('Tastenkürzel')"
             :data-tip="`${$t('Tastenkürzel')} (?)`"
             aria-keyshortcuts="?"
             @click="helpOpen = true"
           >
-            <kbd class="key sb-help">?</kbd>
+            ?
           </button>
-          <RouterLink
-            to="/settings"
-            class="icon-btn"
-            :aria-label="$t('Einstellungen')"
-            :data-tip="$t('Einstellungen')"
-            ><svg class="ic"><use href="#i-gear" /></svg
-          ></RouterLink>
         </div>
       </div>
     </aside>
