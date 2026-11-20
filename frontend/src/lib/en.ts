@@ -1362,6 +1362,11 @@ const en: Record<string, string> = {
   Tagesverlauf: 'Daily breakdown',
   'Wochen-Rhythmus': 'Weekly rhythm',
   'Zeit nach Projekt': 'Time by project',
+  'Aktive Ziele': 'Active goals',
+  'Erreichte Ziele': 'Reached goals',
+  'Noch keine Ziele. Lege dein erstes Ziel an – Fortschritt und Schritte erscheinen hier.':
+    'No goals yet. Create your first goal — progress and steps will appear here.',
+  'Noch keine erreichten Ziele.': 'No reached goals yet.',
 }
 
 export default en
