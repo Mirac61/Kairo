@@ -1363,6 +1363,7 @@ const en: Record<string, string> = {
   Tagesverlauf: 'Daily breakdown',
   'Wochen-Rhythmus': 'Weekly rhythm',
   'Zeit nach Projekt': 'Time by project',
+  'Tage Serie': 'day streak',
   'Aktive Ziele': 'Active goals',
   'Erreichte Ziele': 'Reached goals',
   'Noch keine Ziele. Lege dein erstes Ziel an – Fortschritt und Schritte erscheinen hier.':
