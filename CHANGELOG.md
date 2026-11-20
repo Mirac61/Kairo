@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.4.0](https://github.com/Mirac61/Kairo/compare/v0.3.0...v0.4.0) (2026-11-20)
+
+
+### Features
+
+* **cards:** CardBrowser redesign & CardsView remount fix ([e4e9b93](https://github.com/Mirac61/Kairo/commit/e4e9b9375e9033cfb2d138c0d529e3b45936d7de))
+* **cards:** CardBrowser redesign wiring CardBrowserAside + race/remount fixes ([72a3514](https://github.com/Mirac61/Kairo/commit/72a35141ed4e508ab26e34bbbe169c89763429d7))
+* **cards:** CardBrowserAside inspector component ([665a38d](https://github.com/Mirac61/Kairo/commit/665a38d0aecd712e89013a6cca0ff0e23ab982a5))
+* **cards:** extract CardBrowserAside inspector with a11y & preview-reset fixes ([852e5a1](https://github.com/Mirac61/Kairo/commit/852e5a10c09d2b60352d293f7422ec33acd45575))
+* **cards:** focus add dialog & calm learn stage + bugfixes ([99bc249](https://github.com/Mirac61/Kairo/commit/99bc2491f5f21debadeeef17157d040037ae5967))
+* **cards:** focus add dialog & calm learn UI with a11y, mobile & import fixes ([f2d0d16](https://github.com/Mirac61/Kairo/commit/f2d0d166f36e264ef0dac5f3e45999c6f93b724b))
+* **cards:** LaTeX formula input & inline preview + MathJax XSS hardening ([c79dceb](https://github.com/Mirac61/Kairo/commit/c79dceb83696752dbe48fd0bc9d779dcee93ba83))
+* **cards:** LaTeX formula input, inline preview & MathJax XSS fix ([731683f](https://github.com/Mirac61/Kairo/commit/731683fdf3f31361f07fb9198973bc3aa02b8991))
+* **review:** GoalCoverBanner & goalUtils + light-theme/DST fixes ([34a0757](https://github.com/Mirac61/Kairo/commit/34a0757d56a6b250ef65bf714e2bc3e0f723d419))
+* **review:** GoalCoverBanner & goalUtils with DST, light-theme & drag fixes ([6bdce38](https://github.com/Mirac61/Kairo/commit/6bdce380bd397d3db6e3dd09fe97bd5bc5a09bb2))
+* **review:** GoalDetailModal using vDialog stack, safe draft sync & a11y ([9fbf8b3](https://github.com/Mirac61/Kairo/commit/9fbf8b3ddd54451338bd44a94608c5ed33790ace))
+* **review:** GoalDetailModal with vDialog stack & draft-sync fix ([3762515](https://github.com/Mirac61/Kairo/commit/3762515f9333e6c257aecf1866bdc8686432ac14))
+* **review:** GoalInspectorRail with confirmed delete ([cc90085](https://github.com/Mirac61/Kairo/commit/cc900853af236be7a7d5e87f617b1f684915dc66))
+* **review:** GoalInspectorRail with confirmed DeleteButton & theme tokens ([443dadc](https://github.com/Mirac61/Kairo/commit/443dadce36b899d4d3f56e45dd2c768a2dd78899))
+* **review:** ReviewGoalsPanel component + a11y/light-theme fixes ([7445ecf](https://github.com/Mirac61/Kairo/commit/7445ecfdb36a4b1b3ebfe71f2da9766c180de050))
+* **review:** ReviewGoalsPanel with precomputed cards, light-theme hover & a11y ([d077d2e](https://github.com/Mirac61/Kairo/commit/d077d2e060f582242f8e6ef84e6728d59bc8fe32))
+* **review:** ReviewView wiring + race/double-load fixes ([f5b66e9](https://github.com/Mirac61/Kairo/commit/f5b66e919ebe63325c2659ed9635aafedd6dcf26))
+* **review:** ReviewWeekMetrics & ReviewWeeklyRhythm panels ([81576e9](https://github.com/Mirac61/Kairo/commit/81576e94bb0d034f2c937ad46dde67ef56c12056))
+* **review:** ReviewWeekMetrics & ReviewWeeklyRhythm with hover/bar/a11y fixes ([f870893](https://github.com/Mirac61/Kairo/commit/f870893494dcb91380496c9eb125e81473ecff67))
+* **review:** wire ReviewView to extracted components, fix week race & double reload ([4e5987e](https://github.com/Mirac61/Kairo/commit/4e5987e66d947242ee8993c6b19d9bca103245eb))
+* **tasks:** RitualRingItem component & habitsDock layout setting ([1e3cb83](https://github.com/Mirac61/Kairo/commit/1e3cb83fc6125f71fbe5658216040cc91c6f17c2))
+* **tasks:** RitualRingItem component & habitsDock setting ([40c55c9](https://github.com/Mirac61/Kairo/commit/40c55c96ba3801edb3c749370234c55f04914004))
+* **tasks:** RitualRingsDock below tasks + bugfixes ([aba0fd2](https://github.com/Mirac61/Kairo/commit/aba0fd2fd6d4c1ff34ba63fba37b7681bfc826f9))
+* **tasks:** RitualRingsDock below tasks with HabitEditDialog & race fixes ([5518e65](https://github.com/Mirac61/Kairo/commit/5518e65f1a8c9be1198cf1c801d61abbfc995a90))
+* **ui:** shared sheet styles, stacked vDialog & 8-item sidebar ([ca9e201](https://github.com/Mirac61/Kairo/commit/ca9e201a5dd7b7d2c5c3822e9d7dbff9b8a82ea0))
+* **ui:** shared sheet styles, stacked vDialog focus/Escape, and 8-item sidebar ([97a4f59](https://github.com/Mirac61/Kairo/commit/97a4f5979c66c9d0a3d5ffb4d9b177ade5b142f3))
+* **ui:** side-panel sheets for Calendar & Projects + Task fixes ([ce3a1e1](https://github.com/Mirac61/Kairo/commit/ce3a1e1eaa6605a5c56b6fbf5578849bb690850a))
+* **ui:** side-panel sheets for EventDialog & ProjectCreateDialog, TaskEditSheet/TaskRow fixes ([c7962b9](https://github.com/Mirac61/Kairo/commit/c7962b9493cc849c8ae23036f0a702e2fab09c0f))
+* **ui:** side-panel sheets for GoalEditDialog & HabitEditDialog with bugfixes ([387f7c1](https://github.com/Mirac61/Kairo/commit/387f7c1d44faecd641d063bef9a0ea44043a6fb0))
+* **ui:** side-panel sheets for Goals & Habits + bugfixes ([ce19b1a](https://github.com/Mirac61/Kairo/commit/ce19b1a6ec5c57b41cc1edef691f2c552fc93e81))
+
 ## [0.3.0](https://github.com/Mirac61/Kairo/compare/v0.2.0...v0.3.0) (2026-11-19)
 
 
