@@ -28,11 +28,18 @@ export type AppIcon = (typeof APP_ICONS)[number]
 const appIconOf = (v: string | null): AppIcon =>
   APP_ICONS.includes(v as AppIcon) ? (v as AppIcon) : 'peak'
 
+// Darstellung der Ritual-Ringe unter den Aufgaben: einzeilig scrollbar („scroll“) oder 2-zeiliges Raster („grid“).
+export const HABITS_DOCK_MODES = ['scroll', 'grid'] as const
+export type HabitsDockMode = (typeof HABITS_DOCK_MODES)[number]
+const habitsDockOf = (v: string | null): HabitsDockMode =>
+  HABITS_DOCK_MODES.includes(v as HabitsDockMode) ? (v as HabitsDockMode) : 'scroll'
+
 const KEYS = {
   theme: 'kairo-theme',
   palette: 'kairo-palette',
   accent: 'kairo-accent',
   appIcon: 'kairo-app-icon',
+  habitsDock: 'kairo-habits-dock',
   motion: 'kairo-motion',
   start: 'kairo-start',
   weekStart: 'kairo-week-start',
@@ -53,6 +60,7 @@ export const prefs = reactive({
   palette: paletteOf(store.get(KEYS.palette)),
   accent: (store.get(KEYS.accent) ?? 'orange') as Accent,
   appIcon: appIconOf(store.get(KEYS.appIcon)),
+  habitsDock: habitsDockOf(store.get(KEYS.habitsDock)),
   motion: store.get(KEYS.motion) === '1', // true = Bewegung reduzieren
   start: store.get(KEYS.start) ?? '/today',
   weekStart: store.get(KEYS.weekStart) === '0' ? 0 : 1,
@@ -133,6 +141,7 @@ export async function pullPrefs() {
   for (const k of Object.keys(prefs)) if (typeof data[k] === typeof p[k]) p[k] = data[k]
   prefs.palette = paletteOf(prefs.palette) // alte oder fremde Werte fallen auf Graphit zurück
   prefs.appIcon = appIconOf(prefs.appIcon)
+  prefs.habitsDock = habitsDockOf(prefs.habitsDock)
   if (prefs.dayStart >= prefs.dayEnd) Object.assign(prefs, { dayStart: 7, dayEnd: 22 })
   if (data.lang === 'de' || data.lang === 'en') {
     lang.value = data.lang

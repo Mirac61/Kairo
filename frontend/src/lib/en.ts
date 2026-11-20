@@ -408,6 +408,7 @@ const en: Record<string, string> = {
   'Erledigt sich selbst, sobald an einem Tag so viele Minuten im Projekt erfasst sind wie die Dauer.':
     'Checks itself off once a day has as many minutes tracked in the project as the duration.',
   'Gewohnheiten in der Woche': 'Habits in the week view',
+  Erinnerung: 'Reminder',
   'In der Tagesansicht stehen sie immer, in der Woche füllen sie sonst den Ganztags-Streifen.':
     'The day view always shows them; in the week view they would fill the all-day row.',
   Jährlich: 'Yearly',
@@ -1339,6 +1340,13 @@ const en: Record<string, string> = {
   'Zeigt in einer Minute, was Kairo kann und wo es steht.':
     'Shows in a minute what Kairo can do and where things are.',
   'Rundgang starten': 'Start tour',
+  'Einzeilig mit Scrollleiste und fixiertem „+ Neu“ oder als 2-zeiliges Raster.':
+    'Single scrollable row with pinned “+ New” or a 2-row grid.',
+  'Einzeilig scrollbar': 'Single scrollable row',
+  '2-zeiliges Raster': '2-row grid',
+  'Linksklick +1 · Rechtsklick / Shift −1': 'Left-click +1 · Right-click / Shift −1',
+  'Ritual-Ringe unter Aufgaben': 'Ritual rings below tasks',
+  '„{name}“ bearbeiten': 'Edit “{name}”',
 }
 
 export default en

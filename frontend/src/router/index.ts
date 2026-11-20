@@ -73,7 +73,7 @@ export const navItems = [
   {
     path: '/review',
     name: 'review',
-    label: 'Rückblick',
+    label: 'Fortschritt',
     icon: 'bars',
     component: () => import('@/views/ReviewView.vue'),
   },
@@ -86,7 +86,7 @@ export const navItems = [
   },
 ]
 
-const publicRoutes = ['/login', '/setup']
+const publicRoutes = new Set(['/login', '/setup'])
 
 const router = createRouter({
   history: createWebHistory(),
@@ -107,7 +107,7 @@ let authReady: Promise<void> | null = null
 
 setUnauthorizedHandler(() => {
   // Auf /setup laufen schon Sidebar-Requests mit 401; nicht von dort wegspringen.
-  if (!publicRoutes.includes(router.currentRoute.value.path)) {
+  if (!publicRoutes.has(router.currentRoute.value.path)) {
     router.push('/login')
   }
 })
@@ -117,7 +117,7 @@ router.beforeEach(async (to) => {
   await (authReady ??= initAuth())
   const { isAuthenticated, authEnabled } = useAuth()
   if (!authEnabled.value || isAuthenticated.value) {
-    return publicRoutes.includes(to.path) && authEnabled.value ? '/' : undefined
+    return publicRoutes.has(to.path) && authEnabled.value ? '/' : undefined
   }
   // Nicht angemeldet: Ohne Konto geht es nur zum Setup, sonst nur zum Login.
   const target = (await setupRequired()) ? '/setup' : '/login'
