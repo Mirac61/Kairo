@@ -4,7 +4,6 @@ import type { Goal, GoalKind, Habit, Project } from '@/api/client'
 import { vDialog } from '@/lib/dialog'
 import { ymd } from '@/lib/dates'
 import { filesUrl } from '@/lib/noteFiles'
-import { t } from '@/lib/i18n'
 import DeleteButton from '@/components/DeleteButton.vue'
 
 const props = defineProps<{
@@ -31,10 +30,10 @@ const emit = defineEmits<{
 }>()
 
 const KINDS: Record<GoalKind, string> = {
-  NONE: t('Ohne'),
-  PROJECT_TASKS: t('Aufgaben'),
-  PROJECT_HOURS: t('Stunden'),
-  HABIT_COUNT: t('Gewohnheit'),
+  NONE: 'Ohne',
+  PROJECT_TASKS: 'Aufgaben',
+  PROJECT_HOURS: 'Stunden',
+  HABIT_COUNT: 'Gewohnheit',
 }
 
 function blankForm(parent = '') {
@@ -56,11 +55,28 @@ function blankForm(parent = '') {
 }
 
 const form = ref(blankForm())
+const fileInput = ref<HTMLInputElement>()
+const fileObjectUrl = ref<string | null>(null)
+
+watch(
+  () => form.value.file,
+  (file, _, onCleanup) => {
+    if (!file) {
+      fileObjectUrl.value = null
+      return
+    }
+    const url = URL.createObjectURL(file)
+    fileObjectUrl.value = url
+    onCleanup(() => URL.revokeObjectURL(url))
+  },
+  { immediate: true },
+)
 
 watch(
   () => [props.open, props.goal, props.initialParentId] as const,
   ([isOpen, g, parentId]) => {
     if (!isOpen) return
+    if (fileInput.value) fileInput.value.value = ''
     if (!g) {
       form.value = blankForm(parentId ?? '')
       return
@@ -84,12 +100,8 @@ watch(
   { immediate: true },
 )
 
-const preview = computed(() =>
-  form.value.file
-    ? URL.createObjectURL(form.value.file)
-    : form.value.image
-      ? filesUrl(form.value.image)
-      : null,
+const preview = computed(
+  () => fileObjectUrl.value ?? (form.value.image ? filesUrl(form.value.image) : null),
 )
 
 const hasSteps = computed(
@@ -104,6 +116,7 @@ function pickFile(e: Event) {
 function removeImage() {
   form.value.file = null
   form.value.image = null
+  if (fileInput.value) fileInput.value.value = ''
 }
 
 function save() {
@@ -142,16 +155,16 @@ function handleToggleArchive() {
   <div
     v-if="open"
     v-dialog="() => emit('close')"
-    class="overlay open"
+    class="sheet-wrap"
     @mousedown.self="emit('close')"
   >
     <form
-      class="dialog"
+      class="sheet gl-sheet"
       :aria-label="form.id ? $t('Ziel bearbeiten') : $t('Neues Ziel')"
       @submit.prevent="save"
     >
-      <div class="dlg-head">
-        <h3>
+      <div class="sheet-head">
+        <span class="lbl">
           {{
             form.id
               ? $t('Ziel bearbeiten')
@@ -159,119 +172,135 @@ function handleToggleArchive() {
                 ? $t('Neues Teilziel')
                 : $t('Neues Langzeitziel')
           }}
-        </h3>
+        </span>
         <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="emit('close')">
           <svg class="ic"><use href="#i-x" /></svg>
         </button>
       </div>
-      <div class="dlg-body">
-        <div class="field">
-          <label for="g-title">{{ $t('Ziel') }}</label
-          ><input
-            id="g-title"
-            v-model="form.title"
-            class="input"
-            :placeholder="$t('z. B. Bachelor abschließen')"
-            autofocus
-            required
-          />
-        </div>
-        <div class="field">
-          <label for="g-why">{{ $t('Warum?') }}</label
-          ><textarea
-            id="g-why"
-            v-model="form.why"
-            class="input"
-            rows="2"
-            :placeholder="$t('Ein Satz, der dich erinnert, wofür es sich lohnt')"
-          ></textarea>
-        </div>
-        <div v-if="!hasSteps" class="field">
-          <label for="g-parent">{{ $t('Gehört zu') }}</label>
-          <select id="g-parent" v-model="form.parent" class="input">
-            <option value="">{{ $t('Ist selbst ein Langzeitziel') }}</option>
-            <option v-for="p in parents" :key="p.id" :value="p.id">{{ p.title }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="g-img">{{ $t('Bild') }}</label>
-          <img v-if="preview" class="gl-preview" :src="preview" alt="" />
-          <div class="gl-img-row">
+
+      <div class="sheet-body">
+        <input
+          id="g-title"
+          v-model="form.title"
+          class="sheet-title"
+          :placeholder="$t('z. B. Bachelor abschließen')"
+          :aria-label="$t('Ziel')"
+          autofocus
+          required
+        />
+
+        <textarea
+          id="g-why"
+          v-model="form.why"
+          class="sh-why"
+          rows="2"
+          :placeholder="$t('Ein Satz, der dich erinnert, wofür es sich lohnt')"
+          :aria-label="$t('Warum?')"
+        ></textarea>
+
+        <div class="sheet-props">
+          <label v-if="!hasSteps" class="sheet-row">
+            <span>{{ $t('Gehört zu') }}</span>
+            <select id="g-parent" v-model="form.parent" class="input">
+              <option value="">{{ $t('Ist selbst ein Langzeitziel') }}</option>
+              <option v-for="p in parents" :key="p.id" :value="p.id">{{ p.title }}</option>
+            </select>
+          </label>
+
+          <label class="sheet-row">
+            <span>{{ $t('Fortschritt aus') }}</span>
+            <select id="g-kind" v-model="form.kind" class="input">
+              <option v-for="(l, v) in KINDS" :key="v" :value="v">{{ $t(l) }}</option>
+            </select>
+          </label>
+
+          <label
+            v-if="form.kind === 'PROJECT_TASKS' || form.kind === 'PROJECT_HOURS'"
+            class="sheet-row"
+          >
+            <span>{{ $t('Projekt') }}</span>
+            <select id="g-proj" v-model="form.project" class="input" required>
+              <option value="" disabled>{{ $t('Projekt wählen') }}</option>
+              <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </label>
+
+          <label v-if="form.kind === 'HABIT_COUNT'" class="sheet-row">
+            <span>{{ $t('Gewohnheit') }}</span>
+            <select id="g-habit" v-model="form.habit" class="input" required>
+              <option value="" disabled>{{ $t('Gewohnheit wählen') }}</option>
+              <option v-for="h in habits" :key="h.id" :value="h.id">{{ h.name }}</option>
+            </select>
+          </label>
+
+          <label
+            v-if="form.kind === 'PROJECT_HOURS' || form.kind === 'HABIT_COUNT'"
+            class="sheet-row"
+          >
+            <span>{{
+              form.kind === 'PROJECT_HOURS' ? $t('Ziel in Stunden') : $t('Wie oft?')
+            }}</span>
             <input
-              id="g-img"
-              class="input"
-              type="file"
-              accept="image/png,image/jpeg,image/gif,image/webp"
-              @change="pickFile"
+              id="g-target"
+              v-model.number="form.target"
+              class="input mono"
+              type="number"
+              min="1"
+              required
             />
-            <button v-if="preview" type="button" class="btn btn-ghost" @click="removeImage">
-              {{ $t('Entfernen') }}
-            </button>
+          </label>
+
+          <label
+            v-if="form.kind === 'PROJECT_HOURS' || form.kind === 'HABIT_COUNT'"
+            class="sheet-row"
+          >
+            <span>{{ $t('Zählt ab') }}</span>
+            <input id="g-start" v-model="form.start" class="input" type="date" required />
+          </label>
+
+          <label class="sheet-row">
+            <span>{{ $t('Bis') }}</span>
+            <input id="g-due" v-model="form.due" class="input" type="date" />
+          </label>
+
+          <div class="sheet-row gl-img-cell">
+            <label for="g-img" class="gl-lbl">{{ $t('Bild') }}</label>
+            <div class="gl-img-row">
+              <input
+                id="g-img"
+                ref="fileInput"
+                class="input"
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                @change="pickFile"
+              />
+              <button
+                v-if="preview"
+                type="button"
+                class="btn btn-ghost btn-sm"
+                @click="removeImage"
+              >
+                {{ $t('Entfernen') }}
+              </button>
+            </div>
           </div>
         </div>
-        <div class="field">
-          <label id="g-kind">{{ $t('Fortschritt aus') }}</label>
-          <div class="seg" role="group" aria-labelledby="g-kind">
-            <button
-              v-for="(l, v) in KINDS"
-              :key="v"
-              type="button"
-              :aria-pressed="form.kind === v"
-              @click="form.kind = v"
-            >
-              {{ l }}
-            </button>
-          </div>
-        </div>
-        <div v-if="form.kind === 'NONE' && !form.parent" class="v-sub">
+
+        <img v-if="preview" class="gl-preview" :src="preview" alt="" />
+
+        <p v-if="form.kind === 'NONE' && !form.parent" class="sh-note">
           {{
             $t(
               'Ohne eigene Messung zeigt ein Langzeitziel, wie viele seiner Teilziele erreicht sind.',
             )
           }}
-        </div>
-        <div v-if="form.kind === 'PROJECT_TASKS' || form.kind === 'PROJECT_HOURS'" class="field">
-          <label for="g-proj">{{ $t('Projekt') }}</label>
-          <select id="g-proj" v-model="form.project" class="input" required>
-            <option value="" disabled>{{ $t('Projekt wählen') }}</option>
-            <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
-        </div>
-        <div v-if="form.kind === 'HABIT_COUNT'" class="field">
-          <label for="g-habit">{{ $t('Gewohnheit') }}</label>
-          <select id="g-habit" v-model="form.habit" class="input" required>
-            <option value="" disabled>{{ $t('Gewohnheit wählen') }}</option>
-            <option v-for="h in habits" :key="h.id" :value="h.id">{{ h.name }}</option>
-          </select>
-        </div>
-        <div v-if="form.kind === 'PROJECT_HOURS' || form.kind === 'HABIT_COUNT'" class="field">
-          <label for="g-target">{{
-            form.kind === 'PROJECT_HOURS' ? $t('Ziel in Stunden') : $t('Wie oft?')
-          }}</label>
-          <input
-            id="g-target"
-            v-model.number="form.target"
-            class="input"
-            type="number"
-            min="1"
-            required
-          />
-        </div>
-        <div v-if="form.kind === 'PROJECT_TASKS'" class="v-sub">
+        </p>
+        <p v-if="form.kind === 'PROJECT_TASKS'" class="sh-note">
           {{ $t('Zählt erledigte von allen Aufgaben des Projekts.') }}
-        </div>
-        <div class="dlg-row">
-          <div v-if="form.kind === 'PROJECT_HOURS' || form.kind === 'HABIT_COUNT'" class="field">
-            <label for="g-start">{{ $t('Zählt ab') }}</label
-            ><input id="g-start" v-model="form.start" class="input" type="date" required />
-          </div>
-          <div class="field">
-            <label for="g-due">{{ $t('Bis') }}</label
-            ><input id="g-due" v-model="form.due" class="input" type="date" />
-          </div>
-        </div>
+        </p>
       </div>
-      <div class="dlg-foot">
+
+      <div class="sheet-foot">
         <DeleteButton
           v-if="form.id"
           ghost
@@ -285,7 +314,7 @@ function handleToggleArchive() {
         <button v-if="form.id" class="btn btn-ghost" type="button" @click="handleToggleArchive">
           {{ form.archived ? $t('Wieder öffnen') : $t('Erreicht') }}
         </button>
-        <span class="gl-spacer"></span>
+        <span class="spacer" />
         <button class="btn btn-ghost" type="button" @click="emit('close')">
           {{ $t('Abbrechen') }}
         </button>
@@ -298,31 +327,69 @@ function handleToggleArchive() {
 </template>
 
 <style scoped>
-.gl-preview {
-  display: block;
+.gl-sheet {
+  --sheet-w: 420px;
+  --sheet-lbl-w: 112px;
+}
+.sh-why {
   width: 100%;
-  max-height: 160px;
-  object-fit: cover;
-  border-radius: var(--r-s);
-  margin-bottom: 6px;
+  margin-top: 6px;
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1.5px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--tx-secondary);
+  font: 400 13.5px/1.5 var(--font-ui);
+  resize: vertical;
+  min-height: 44px;
+}
+.sh-why::placeholder {
+  color: var(--tx-muted);
+}
+.sh-why:focus-visible {
+  outline: none;
+  border-radius: 0;
+  box-shadow: none;
+  border-bottom-color: var(--a-focus);
+}
+.gl-lbl {
+  flex: none;
+  width: var(--sheet-lbl-w);
+  color: var(--tx-muted);
+}
+.gl-img-cell {
+  padding: 6px 0;
 }
 .gl-img-row {
+  flex: 1;
+  min-width: 0;
   display: flex;
   gap: 8px;
   align-items: center;
 }
-.gl-img-row .input {
+.gl-img-row input[type='file'] {
   flex: 1;
   min-width: 0;
+  height: auto;
+  padding: 4px 6px;
+  font-size: 12px;
 }
-.dlg-row {
-  display: flex;
-  gap: 12px;
+.gl-preview {
+  display: block;
+  width: 100%;
+  max-height: 150px;
+  margin-top: 12px;
+  object-fit: cover;
+  border-radius: var(--r-s);
+  border: 1px solid var(--br-subtle);
 }
-.dlg-row .field {
-  flex: 1;
+.sh-note {
+  margin: 12px 0 0;
+  font: 400 12px/1.45 var(--font-ui);
+  color: var(--tx-muted);
 }
-.dlg-foot .gl-spacer {
+.spacer {
   flex: 1;
 }
 </style>

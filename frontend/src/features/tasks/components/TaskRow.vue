@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { isOpen, type Task } from '@/api/client'
 import { hm, ruleText } from '@/lib/dates'
 import { t } from '@/lib/i18n'
-import { projectColor } from '@/lib/projectColor'
 
 const props = defineProps<{
   task: Task
@@ -46,9 +45,8 @@ const PRIO_LABEL: Record<string, string> = {
 const statusLabel = computed(() => t(STATUS_LABEL[props.task.status] ?? props.task.status))
 const prioLabel = computed(() => t(PRIO_LABEL[props.task.priority] ?? props.task.priority))
 
-const prioLevel = computed(() => {
-  return ({ LOW: 1, MEDIUM: 2, HIGH: 3, URGENT: 3 } as const)[props.task.priority as 'LOW'] ?? 2
-})
+const PRIO_LEVEL: Record<string, number> = { LOW: 1, MEDIUM: 2, HIGH: 3, URGENT: 3 }
+const prioLevel = computed(() => PRIO_LEVEL[props.task.priority] ?? 2)
 </script>
 
 <template>
@@ -61,7 +59,6 @@ const prioLevel = computed(() => {
       picked: isPicked,
       fresh: isFresh,
     }"
-    :style="task.project_id ? { '--pdot-c': projectColor(task.project_id) } : undefined"
     :data-task="task.id"
     @click.capture="emit('pick', $event, task.id)"
     @mousedown.shift.prevent
@@ -78,8 +75,6 @@ const prioLevel = computed(() => {
       :disabled="task.status === 'CANCELLED'"
       @click="emit('toggleStatus', task)"
     ></button>
-
-    <span v-if="task.project_id" class="pdot" :title="projectName" :aria-label="projectName"></span>
 
     <button
       type="button"
@@ -110,9 +105,7 @@ const prioLevel = computed(() => {
       {{ subtasksProgress }}
     </span>
 
-    <span v-if="task.status === 'PAUSED'" class="status-l">
-      <span class="cdot"></span>{{ statusLabel }}
-    </span>
+    <span v-if="task.status === 'PAUSED'" class="status-l">{{ statusLabel }}</span>
 
     <span class="pcol">
       <span v-if="task.project_id" class="chip">
