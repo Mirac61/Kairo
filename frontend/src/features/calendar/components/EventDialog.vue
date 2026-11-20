@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { nextTick, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import type { Project } from '@/api/client'
 import { WEEKDAYS, type Form, type Freq } from '@/lib/eventForm'
 import { vDialog } from '@/lib/dialog'
 
-// Dialog zum Anlegen (Termin oder Task) und Bearbeiten von Terminen; arbeitet auf einer lokalen Kopie.
+// Seitenpanel zum Anlegen (Termin oder Task) und Bearbeiten von Terminen – gleicher Stil wie TaskEditSheet,
+// damit der Kalender beim Bearbeiten sichtbar bleibt.
 const props = defineProps<{ form: Form; projects: Project[] }>()
 defineEmits<{
   save: [form: Form]
@@ -13,6 +14,12 @@ defineEmits<{
 }>()
 
 const form = reactive<Form>({ ...props.form, days: [...props.form.days] })
+watch(
+  () => props.form,
+  (next) => {
+    Object.assign(form, next, { days: [...next.days] })
+  },
+)
 
 const kindOptions = [
   { label: 'Termin', value: 'event' },
@@ -23,6 +30,18 @@ const FREQS: [Freq, string][] = [
   ['MONTHLY', 'Monatlich'],
   ['YEARLY', 'Jährlich'],
 ]
+
+const repeatChoice = computed<'' | Freq>({
+  get: () => (form.repeat ? form.freq : ''),
+  set: (v) => {
+    if (!v) {
+      form.repeat = false
+    } else {
+      form.repeat = true
+      form.freq = v
+    }
+  },
+})
 
 const toggleDay = (code: string) => {
   form.days = form.days.includes(code)
@@ -39,13 +58,28 @@ const askDelete = () => {
 </script>
 
 <template>
-  <div v-dialog="() => $emit('close')" class="overlay open" @mousedown.self="$emit('close')">
-    <form class="dialog" aria-labelledby="cal-dlg-title" @submit.prevent="$emit('save', form)">
-      <div class="dlg-head">
-        <h3 id="cal-dlg-title">{{ form.id ? $t('Termin bearbeiten') : $t('Neuer Eintrag') }}</h3>
+  <div v-dialog="() => $emit('close')" class="sheet-wrap" @mousedown.self="$emit('close')">
+    <form
+      class="sheet ev-sheet"
+      aria-labelledby="cal-dlg-title"
+      @submit.prevent="$emit('save', form)"
+    >
+      <div class="sheet-head">
+        <span id="cal-dlg-title" class="lbl">{{
+          form.id ? $t('Termin') : $t('Neuer Eintrag')
+        }}</span>
+        <button
+          class="icon-btn"
+          type="button"
+          :aria-label="$t('Schließen')"
+          @click="$emit('close')"
+        >
+          <svg class="ic"><use href="#i-x" /></svg>
+        </button>
       </div>
-      <div class="dlg-body">
-        <div v-if="!form.id" class="seg">
+
+      <div class="sheet-body">
+        <div v-if="!form.id" class="seg ev-kind">
           <button
             v-for="o in kindOptions"
             :key="o.value"
@@ -56,119 +90,149 @@ const askDelete = () => {
             {{ $t(o.label) }}
           </button>
         </div>
-        <div class="field">
-          <label>{{ $t('Titel') }}</label
-          ><input v-model="form.title" class="input" :placeholder="$t('Titel')" autofocus />
-        </div>
-        <template v-if="form.kind === 'event'">
-          <label class="lbl"
-            ><input v-model="form.allDay" type="checkbox" :disabled="form.keepTimes" />
-            {{ $t('Ganztägig') }}</label
-          >
-          <div class="dlg-row">
-            <div class="field">
-              <label>{{ form.repeat || form.customRule ? $t('Erster Termin') : $t('Datum') }}</label
-              ><input v-model="form.date" class="input" type="date" required />
+
+        <input
+          v-model="form.title"
+          class="sheet-title"
+          :placeholder="$t('Titel')"
+          :aria-label="$t('Titel')"
+          autofocus
+        />
+
+        <div class="sheet-props">
+          <template v-if="form.kind === 'event'">
+            <label class="sheet-row">
+              <span>{{ form.repeat || form.customRule ? $t('Erster Termin') : $t('Datum') }}</span>
+              <input v-model="form.date" class="input" type="date" required />
+            </label>
+
+            <label v-if="form.allDay" class="sheet-row">
+              <span>{{ $t('Bis (einschließlich)') }}</span>
+              <input v-model="form.endDate" class="input" type="date" :min="form.date" required />
+            </label>
+
+            <div v-else-if="!form.keepTimes" class="sheet-row">
+              <span>{{ $t('Zeit') }}</span>
+              <input
+                v-model="form.from"
+                class="input mono"
+                type="time"
+                :aria-label="$t('Von')"
+                required
+              />
+              <em aria-hidden="true">–</em>
+              <input
+                v-model="form.to"
+                class="input mono"
+                type="time"
+                :aria-label="$t('Bis')"
+                required
+              />
             </div>
-            <div v-if="form.allDay" class="field">
-              <label>{{ $t('Bis (einschließlich)') }}</label
-              ><input v-model="form.endDate" class="input" type="date" :min="form.date" required />
-            </div>
-            <template v-else-if="!form.keepTimes">
-              <div class="field">
-                <label>{{ $t('Von') }}</label
-                ><input v-model="form.from" class="input" type="time" required />
+
+            <label class="sheet-row ev-switch-row" :class="{ disabled: form.keepTimes }">
+              <span>{{ $t('Ganztägig') }}</span>
+              <button
+                type="button"
+                role="switch"
+                class="sheet-switch"
+                :aria-checked="form.allDay"
+                :disabled="form.keepTimes"
+                @click="form.allDay = !form.allDay"
+              >
+                <i></i>
+              </button>
+            </label>
+
+            <label class="sheet-row">
+              <span>{{ $t('Ort') }}</span>
+              <input v-model="form.location" class="input" :placeholder="$t('optional')" />
+            </label>
+
+            <label v-if="!form.customRule" class="sheet-row">
+              <span>{{ $t('Wiederholung') }}</span>
+              <select v-model="repeatChoice" class="input">
+                <option value="">{{ $t('Nicht wiederholen') }}</option>
+                <option v-for="[fq, label] in FREQS" :key="fq" :value="fq">{{ $t(label) }}</option>
+              </select>
+            </label>
+
+            <template v-if="!form.customRule && form.repeat">
+              <div v-if="form.freq === 'WEEKLY'" class="sheet-row ev-days-row">
+                <span>{{ $t('Wochentage') }}</span>
+                <div class="sheet-days" role="group" :aria-label="$t('Wochentage')">
+                  <button
+                    v-for="[code, label] in WEEKDAYS"
+                    :key="code"
+                    type="button"
+                    :aria-pressed="form.days.includes(code)"
+                    @click="toggleDay(code)"
+                  >
+                    {{ $t(label) }}
+                  </button>
+                </div>
               </div>
-              <div class="field">
-                <label>{{ $t('Bis') }}</label
-                ><input v-model="form.to" class="input" type="time" required />
-              </div>
+
+              <label class="sheet-row">
+                <span>{{ $t('Endet am') }}</span>
+                <input v-model="form.until" class="input" type="date" :min="form.date" />
+              </label>
             </template>
-          </div>
-          <span v-if="form.keepTimes" class="lbl">{{
-            $t('Mehrtägiger Termin: Beginn und Ende bleiben unverändert.')
-          }}</span>
-          <div class="field">
-            <label>{{ $t('Ort') }}</label
-            ><input v-model="form.location" class="input" :placeholder="$t('optional')" />
-          </div>
-          <span v-if="form.customRule" class="lbl">{{
+          </template>
+
+          <label class="sheet-row">
+            <span>{{ $t('Projekt') }}</span>
+            <select v-model="form.projectId" class="input">
+              <option value="">{{ $t('Kein Projekt') }}</option>
+              <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </label>
+        </div>
+
+        <p v-if="form.kind === 'event' && form.keepTimes" class="ev-note">
+          {{ $t('Mehrtägiger Termin: Beginn und Ende bleiben unverändert.') }}
+        </p>
+
+        <p v-if="form.kind === 'event' && form.customRule" class="ev-note">
+          {{
             $t('Serie mit eigener Regel ({rule}); sie bleibt unverändert.', {
               rule: form.customRule,
             })
-          }}</span>
-          <template v-else>
-            <label class="lbl"
-              ><input v-model="form.repeat" type="checkbox" />
-              {{ $t('Als Serie wiederholen') }}</label
-            >
-            <template v-if="form.repeat">
-              <div class="seg" role="group" :aria-label="$t('Wiederholung')">
-                <button
-                  v-for="[fq, label] in FREQS"
-                  :key="fq"
-                  type="button"
-                  :aria-pressed="form.freq === fq"
-                  @click="form.freq = fq"
-                >
-                  {{ $t(label) }}
-                </button>
-              </div>
-              <div
-                v-if="form.freq === 'WEEKLY'"
-                class="seg"
-                role="group"
-                :aria-label="$t('Wochentage')"
-              >
-                <button
-                  v-for="[code, label] in WEEKDAYS"
-                  :key="code"
-                  type="button"
-                  :aria-pressed="form.days.includes(code)"
-                  @click="toggleDay(code)"
-                >
-                  {{ label }}
-                </button>
-              </div>
-              <div class="field">
-                <label>{{ $t('Endet am') }}</label
-                ><input v-model="form.until" class="input" type="date" :min="form.date" />
-              </div>
-            </template>
-          </template>
-          <span v-if="form.id && (form.repeat || form.customRule)" class="lbl">{{
-            $t('Änderungen gelten für die ganze Serie.')
-          }}</span>
-        </template>
-        <div class="field">
-          <label for="cal-project">{{ $t('Projekt') }}</label>
-          <select id="cal-project" v-model="form.projectId" class="input">
-            <option value="">{{ $t('Kein Projekt') }}</option>
-            <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
-        </div>
+          }}
+        </p>
+
+        <p
+          v-if="form.kind === 'event' && form.id && (form.repeat || form.customRule)"
+          class="ev-note"
+        >
+          {{ $t('Änderungen gelten für die ganze Serie.') }}
+        </p>
       </div>
-      <div v-if="form.ask" class="dlg-foot">
-        <span class="q">{{
+
+      <div v-if="form.ask" class="sheet-foot is-ask">
+        <span class="ev-q">{{
           form.day ? $t('Nur diesen Termin oder die ganze Serie löschen?') : $t('Termin löschen?')
         }}</span>
-        <button ref="safeBtn" type="button" class="btn btn-ghost" @click="form.ask = false">
-          {{ $t('Abbrechen') }}
-        </button>
-        <button
-          v-if="form.day"
-          type="button"
-          class="btn btn-secondary"
-          @click="$emit('remove', true, form)"
-        >
-          {{ $t('Nur dieser Termin') }}
-        </button>
-        <button type="button" class="btn btn-primary" @click="$emit('remove', false, form)">
-          {{ form.day ? $t('Ganze Serie löschen') : $t('Termin löschen') }}
-        </button>
+        <div class="ev-ask-btns">
+          <button ref="safeBtn" type="button" class="btn btn-ghost" @click="form.ask = false">
+            {{ $t('Abbrechen') }}
+          </button>
+          <button
+            v-if="form.day"
+            type="button"
+            class="btn btn-secondary"
+            @click="$emit('remove', true, form)"
+          >
+            {{ $t('Nur dieser Termin') }}
+          </button>
+          <button type="button" class="btn btn-primary" @click="$emit('remove', false, form)">
+            {{ form.day ? $t('Ganze Serie löschen') : $t('Termin löschen') }}
+          </button>
+        </div>
       </div>
-      <div v-else class="dlg-foot">
-        <button v-if="form.id" type="button" class="btn btn-secondary" @click="askDelete">
+
+      <div v-else class="sheet-foot">
+        <button v-if="form.id" type="button" class="btn btn-ghost ev-del" @click="askDelete">
           {{ $t('Löschen') }}
         </button>
         <span class="spacer" />
@@ -184,22 +248,49 @@ const askDelete = () => {
 </template>
 
 <style scoped>
-.dlg-row {
+.ev-sheet {
+  --sheet-w: 380px;
+  --sheet-lbl-w: 104px;
+}
+.ev-kind {
+  margin-bottom: 14px;
+  width: max-content;
+}
+.ev-switch-row {
+  cursor: pointer;
+}
+.ev-switch-row.disabled {
+  cursor: not-allowed;
+}
+.ev-days-row {
+  padding: 6px 0;
+}
+.ev-note {
+  margin: 12px 0 0;
+  font: 400 12px/1.45 var(--font-ui);
+  color: var(--tx-muted);
+}
+.sheet-foot.is-ask {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.ev-ask-btns {
   display: flex;
-  gap: 12px;
-}
-.dlg-foot {
   flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
-.dlg-foot .spacer {
-  flex: 1;
-}
-.dlg-foot .q {
-  flex: 1 0 100%;
-  font-size: 13px;
+.ev-q {
+  font: 400 13px/1.4 var(--font-ui);
   color: var(--tx-secondary);
 }
-.dlg-row .field {
+.ev-del:hover,
+.ev-del:focus-visible {
+  background: color-mix(in srgb, var(--a-red) 14%, transparent);
+  color: var(--a-red);
+}
+.spacer {
   flex: 1;
 }
 </style>

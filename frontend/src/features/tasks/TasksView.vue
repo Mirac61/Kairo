@@ -29,6 +29,7 @@ import TasksToolbar from './components/TasksToolbar.vue'
 import TasksEmptyState from './components/TasksEmptyState.vue'
 import TasksKeyboardHelp from './components/TasksKeyboardHelp.vue'
 import TaskGithubDialog from './components/TaskGithubDialog.vue'
+import RitualRingsDock from './components/RitualRingsDock.vue'
 import { useTaskOperations } from './composables/useTaskOperations'
 
 const tasks = ref<Task[]>([])
@@ -287,104 +288,110 @@ useLiveEvents(load)
 </script>
 
 <template>
-  <div class="view-inner" :class="{ 'tk-split': openTask }">
+  <div class="view-inner tk-view" :class="{ 'tk-split': openTask }">
     <div class="tk-left">
-      <h1 class="v-title sr-only">{{ $t('Aufgaben') }}</h1>
-      <div v-if="error" class="badge" role="alert">{{ error }}</div>
+      <div class="tk-scroll">
+        <h1 class="v-title sr-only">{{ $t('Aufgaben') }}</h1>
+        <div v-if="error" class="badge" role="alert">{{ error }}</div>
 
-      <!-- Toolbar & Filter -->
-      <TasksToolbar
-        :tabs="tabs"
-        :extra="extra"
-        :filter="filter"
-        :counts="counts"
-        :search="search"
-        :projects="projects"
-        :project-id="projectId"
-        :view="view"
-        :groups="GROUPS"
-        :sorts="SORTS"
-        :selection-mode="selection.mode.value"
-        @update:filter="filter = $event"
-        @update:search="search = $event"
-        @update:project-id="projectId = $event"
-        @update:group="view.group = $event as any"
-        @update:sort="view.sort = $event as any"
-        @open-github="github = true"
-        @toggle-selection="selection.mode.value = !selection.mode.value"
-      />
+        <!-- Toolbar & Filter -->
+        <TasksToolbar
+          :tabs="tabs"
+          :extra="extra"
+          :filter="filter"
+          :counts="counts"
+          :search="search"
+          :projects="projects"
+          :project-id="projectId"
+          :view="view"
+          :groups="GROUPS"
+          :sorts="SORTS"
+          :selection-mode="selection.mode.value"
+          @update:filter="filter = $event"
+          @update:search="search = $event"
+          @update:project-id="projectId = $event"
+          @update:group="view.group = $event as any"
+          @update:sort="view.sort = $event as any"
+          @open-github="github = true"
+          @toggle-selection="selection.mode.value = !selection.mode.value"
+        />
 
-      <!-- Quick Add Formular -->
-      <TaskQuickAdd
-        ref="quickAddEl"
-        :projects="projects"
-        :tasks="tasks"
-        :default-project-id="defaultProject()"
-        :today-string="todayString()"
-        @created="handleTasksCreated"
-        @error="error = $event"
-      />
+        <!-- Quick Add Formular -->
+        <TaskQuickAdd
+          ref="quickAddEl"
+          :projects="projects"
+          :tasks="tasks"
+          :default-project-id="defaultProject()"
+          :today-string="todayString()"
+          @created="handleTasksCreated"
+          @error="error = $event"
+        />
 
-      <!-- Aufgabenliste -->
-      <div class="tasks-layout" :class="{ 'with-aside': openTask }">
-        <div class="tasks-main" role="tabpanel" :aria-labelledby="`tk-tab-${filter}`">
-          <TasksEmptyState
-            v-if="!rows.length"
-            :filter="filter"
-            :search="search"
-            :project-id="projectId"
-            @select-example="quickAddEl?.setQuick($event)"
-          />
+        <!-- Aufgabenliste -->
+        <div class="tasks-layout" :class="{ 'with-aside': openTask }">
+          <div class="tasks-main" role="tabpanel" :aria-labelledby="`tk-tab-${filter}`">
+            <TasksEmptyState
+              v-if="!rows.length"
+              :filter="filter"
+              :search="search"
+              :project-id="projectId"
+              @select-example="quickAddEl?.setQuick($event)"
+            />
 
-          <div v-if="rows.length" class="tasks-table">
-            <div v-for="group in groups" :key="group.key" class="tgroup">
-              <div
-                v-if="group.title"
-                class="tgroup-hdr"
-                :class="{ od: view.group === 'due' && group.key === '0' }"
-              >
-                <span class="tgroup-title">{{ group.title }}</span>
-                <span class="count">{{ group.rows.length }}</span>
-              </div>
+            <div v-if="rows.length" class="tasks-table">
+              <div v-for="group in groups" :key="group.key" class="tgroup">
+                <div
+                  v-if="group.title"
+                  class="tgroup-hdr"
+                  :class="{ od: view.group === 'due' && group.key === '0' }"
+                >
+                  <span class="tgroup-title">{{ group.title }}</span>
+                  <span class="count">{{ group.rows.length }}</span>
+                </div>
 
-              <div class="tasklist">
-                <TaskRow
-                  v-for="task in group.rows"
-                  :key="task.id"
-                  :task="task"
-                  :is-selected="sel === task.id"
-                  :is-picked="picked.includes(task.id)"
-                  :is-fresh="freshCreatedIds.includes(task.id)"
-                  :is-open-detail="openId === task.id"
-                  :project-name="task.project_id ? projectNameMap.get(task.project_id) : undefined"
-                  :subtasks-progress="progress(task.id)"
-                  :is-urgent="urgent(task)"
-                  :is-overdue="overdue(task)"
-                  :when-text="formatTaskWhen(task).text"
-                  :when-tip="formatTaskWhen(task).tip"
-                  @toggle-status="toggleTaskStatus"
-                  @open-detail="toggleOpenDetail"
-                  @pick="pickRow"
-                  @pointer-down="onPointerDown"
-                  @pointer-up="onPointerUp"
-                />
+                <div class="tasklist">
+                  <TaskRow
+                    v-for="task in group.rows"
+                    :key="task.id"
+                    :task="task"
+                    :is-selected="sel === task.id"
+                    :is-picked="picked.includes(task.id)"
+                    :is-fresh="freshCreatedIds.includes(task.id)"
+                    :is-open-detail="openId === task.id"
+                    :project-name="
+                      task.project_id ? projectNameMap.get(task.project_id) : undefined
+                    "
+                    :subtasks-progress="progress(task.id)"
+                    :is-urgent="urgent(task)"
+                    :is-overdue="overdue(task)"
+                    :when-text="formatTaskWhen(task).text"
+                    :when-tip="formatTaskWhen(task).tip"
+                    @toggle-status="toggleTaskStatus"
+                    @open-detail="toggleOpenDetail"
+                    @pick="pickRow"
+                    @pointer-down="onPointerDown"
+                    @pointer-up="onPointerUp"
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
+
+        <SelectionBar
+          v-if="picked.length || selection.mode.value"
+          :count="picked.length"
+          :projects="projects.filter((p) => p.status !== 'ARCHIVED')"
+          @tomorrow="selection.toTomorrow()"
+          @project="selection.toProject"
+          @trash="selection.trash"
+          @clear="selection.clear"
+        />
+
+        <TasksKeyboardHelp v-if="!rows.length" />
       </div>
 
-      <SelectionBar
-        v-if="picked.length || selection.mode.value"
-        :count="picked.length"
-        :projects="projects.filter((p) => p.status !== 'ARCHIVED')"
-        @tomorrow="selection.toTomorrow()"
-        @project="selection.toProject"
-        @trash="selection.trash"
-        @clear="selection.clear"
-      />
-
-      <TasksKeyboardHelp v-if="!rows.length" />
+      <RitualRingsDock :projects="projects" />
     </div>
 
     <!-- Modale Detailansicht als ausgelagerte Komponente -->
@@ -438,6 +445,31 @@ useLiveEvents(load)
 </template>
 
 <style scoped>
+.tk-view {
+  height: 100%;
+  padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+@media (max-width: 640px) {
+  .tk-view {
+    height: auto;
+    padding-bottom: calc(136px + env(safe-area-inset-bottom));
+  }
+}
+.tk-left {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.tk-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 20px;
+}
+
 .rec-i {
   color: var(--tx-muted);
   font-size: 13px;
@@ -486,10 +518,11 @@ useLiveEvents(load)
     grid-template-columns: minmax(0, 1fr) 380px;
     max-width: none;
     padding: 0;
+    height: 100dvh;
   }
   .tk-split .tk-left {
     min-width: 0;
-    padding: 32px 40px 64px 32px;
+    padding: 32px 40px 0 32px;
   }
 }
 

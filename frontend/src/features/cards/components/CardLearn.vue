@@ -23,7 +23,6 @@ const props = defineProps<{
   cards: Card[] // alle Karten, für „morgen fällig“ (nach dem Neuladen am Rundenende)
   decks: Deck[]
   log: CardLog[]
-  colorOf: (deck: string) => string
 }>()
 const emit = defineEmits<{ exit: []; finished: []; again: [keys: string[]] }>()
 
@@ -134,7 +133,6 @@ useShortcuts((e) => {
     <header class="cl-top">
       <button type="button" class="col-link cl-back" @click="emit('exit')">
         <svg class="ic"><use href="#i-left" /></svg>
-        <i v-if="title" class="cl-dot" :style="{ background: colorOf(title) }"></i>
         <span>{{ title ?? $t('Alle Fächer') }}</span>
         <kbd>Esc</kbd>
       </button>
@@ -209,7 +207,6 @@ useShortcuts((e) => {
       :busy="busy"
       :front="front"
       :back="back"
-      :color-of="colorOf"
       :grades="GRADES"
       @reveal="shown = true"
       @grade="grade"
@@ -221,7 +218,6 @@ useShortcuts((e) => {
       :cards="cards"
       :decks="decks"
       :log="log"
-      :color-of="colorOf"
       :minutes="minutes"
       :grades="GRADES"
       @exit="emit('exit')"
