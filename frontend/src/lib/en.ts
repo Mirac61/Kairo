@@ -1351,6 +1351,11 @@ const en: Record<string, string> = {
   'Wieder aktivieren': 'Reactivate',
   'Ziel löschen': 'Delete goal',
   abgeschlossen: 'completed',
+  'Bild / Video': 'Image / Video',
+  'Gedanken, Strategie, Links oder Warum zu diesem Ziel …':
+    'Thoughts, strategy, links or why this goal matters …',
+  Meilensteine: 'Milestones',
+  'Neuen Schritt hinzufügen …': 'Add a new step …',
   'Einzeilig mit Scrollleiste und fixiertem „+ Neu“ oder als 2-zeiliges Raster.':
     'Single scrollable row with pinned “+ New” or a 2-row grid.',
   'Einzeilig scrollbar': 'Single scrollable row',
