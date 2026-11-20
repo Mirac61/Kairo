@@ -408,6 +408,7 @@ const en: Record<string, string> = {
   'Erledigt sich selbst, sobald an einem Tag so viele Minuten im Projekt erfasst sind wie die Dauer.':
     'Checks itself off once a day has as many minutes tracked in the project as the duration.',
   'Gewohnheiten in der Woche': 'Habits in the week view',
+  Erinnerung: 'Reminder',
   'In der Tagesansicht stehen sie immer, in der Woche füllen sie sonst den Ganztags-Streifen.':
     'The day view always shows them; in the week view they would fill the all-day row.',
   Jährlich: 'Yearly',
