@@ -1339,6 +1339,17 @@ const en: Record<string, string> = {
   'Zeigt in einer Minute, was Kairo kann und wo es steht.':
     'Shows in a minute what Kairo can do and where things are.',
   'Rundgang starten': 'Start tour',
+  'Als erreicht markieren': 'Mark as reached',
+  Ausblenden: 'Hide',
+  'Bild / Video hochladen': 'Upload image / video',
+  'Bild oder Video hier ablegen': 'Drop image or video here',
+  'Eigenschaften bearbeiten': 'Edit properties',
+  Frist: 'Deadline',
+  Schritte: 'Steps',
+  'Stimmung wechseln': 'Switch mood',
+  'Wieder aktivieren': 'Reactivate',
+  'Ziel löschen': 'Delete goal',
+  abgeschlossen: 'completed',
 }
 
 export default en
