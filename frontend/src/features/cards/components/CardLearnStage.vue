@@ -14,7 +14,6 @@ defineProps<{
   busy: boolean
   front: string
   back: string
-  colorOf: (deck: string) => string
   grades: string[]
 }>()
 
@@ -29,13 +28,12 @@ defineEmits<{
     <article
       class="cl-card"
       :class="{ 'is-hidden': !shown, 'is-shown': shown }"
-      :style="{ '--dc': colorOf(card.deck) }"
       :aria-label="$t('Karte')"
       @click="!shown && $emit('reveal')"
     >
       <div class="cl-meta">
         <div class="cl-meta-left">
-          <span class="cl-chip"><i></i>{{ card.deck }}</span>
+          <span class="cl-chip">{{ card.deck }}</span>
           <span v-if="card.new" class="cl-tag c-new">{{ $t('Neu') }}</span>
           <span v-else-if="card.learning" class="cl-tag c-learn">{{ $t('Lernen') }}</span>
           <span v-if="reverse" class="cl-tag c-rev">{{ $t('Antwort → Frage') }}</span>
@@ -50,10 +48,8 @@ defineEmits<{
 
         <!-- Vor dem Aufdecken: Nur Frage im Zentrum -->
         <div v-if="!shown" class="cl-front-wrap">
+          <span class="cl-sec-label">{{ $t('Frage') }}</span>
           <CardText class="cl-front" :text="front" />
-          <div class="cl-hint">
-            <span>{{ $t('Klicken oder Leertaste drücken') }}</span>
-          </div>
         </div>
 
         <!-- Nach dem Aufdecken: Frage oben kompakt, Antwort dominant im Zentrum -->
@@ -96,7 +92,7 @@ defineEmits<{
         >
           <div class="cl-grade-top">
             <span class="cl-grade-name">{{ g }}</span>
-            <kbd class="cl-grade-kbd">{{ i + 1 }}<template v-if="i === 2"> · ␣</template></kbd>
+            <kbd class="cl-grade-kbd">{{ i + 1 }}</kbd>
           </div>
           <div class="cl-grade-interval">
             <b class="mono">{{ practice ? '–' : intervalText(card.next_intervals[i]!) }}</b>
