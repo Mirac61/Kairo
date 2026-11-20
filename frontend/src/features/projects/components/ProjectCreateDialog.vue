@@ -24,30 +24,21 @@ const emit = defineEmits<{
   ): void
 }>()
 
-const form = ref({
+const emptyForm = () => ({
   name: '',
   description: '',
   local_path: '',
   github_repo: '',
-  status: 'ACTIVE',
   color: '',
   icon: '',
 })
 
+const form = ref(emptyForm())
+
 watch(
   () => props.open,
   (isOpen) => {
-    if (isOpen) {
-      form.value = {
-        name: '',
-        description: '',
-        local_path: '',
-        github_repo: '',
-        status: 'ACTIVE',
-        color: '',
-        icon: '',
-      }
-    }
+    if (isOpen) form.value = emptyForm()
   },
 )
 
@@ -70,74 +61,71 @@ function submit() {
   <div
     v-if="open"
     v-dialog="() => emit('close')"
-    class="overlay open"
+    class="sheet-wrap"
     @mousedown.self="emit('close')"
   >
-    <div class="dialog" :aria-label="$t('Neues Projekt')">
-      <form @submit.prevent="submit">
-        <div class="dlg-head">
-          <h3>{{ $t('Neues Projekt') }}</h3>
-          <button
-            class="icon-btn"
-            type="button"
-            :aria-label="$t('Schließen')"
-            @click="emit('close')"
-          >
-            <svg class="ic"><use href="#i-x" /></svg>
-          </button>
-        </div>
+    <form class="sheet p-sheet" :aria-label="$t('Neues Projekt')" @submit.prevent="submit">
+      <div class="sheet-head">
+        <span class="lbl">{{ $t('Neues Projekt') }}</span>
+        <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="emit('close')">
+          <svg class="ic"><use href="#i-x" /></svg>
+        </button>
+      </div>
 
-        <div class="dlg-body">
-          <div class="field">
-            <label for="p-name">{{ $t('Name') }}</label>
-            <input
-              id="p-name"
-              v-model="form.name"
-              class="input"
-              :placeholder="$t('Projektname')"
-              autofocus
-            />
-          </div>
+      <div class="sheet-body">
+        <input
+          id="p-name"
+          v-model="form.name"
+          class="sheet-title"
+          :placeholder="$t('Projektname')"
+          :aria-label="$t('Name')"
+          required
+          autofocus
+        />
 
-          <div class="field">
-            <label for="p-desc">{{ $t('Beschreibung') }}</label>
-            <input id="p-desc" v-model="form.description" class="input" />
-          </div>
+        <input
+          id="p-desc"
+          v-model="form.description"
+          class="sh-sub-in"
+          :placeholder="$t('Beschreibung')"
+          :aria-label="$t('Beschreibung')"
+        />
 
-          <div v-if="error" class="badge" role="alert">{{ error }}</div>
+        <div v-if="error" class="badge sh-err" role="alert">{{ error }}</div>
 
-          <div class="field">
-            <label for="p-path">{{ $t('Ordner') }}</label>
+        <div class="sheet-props">
+          <label class="sheet-row">
+            <span>{{ $t('Ordner') }}</span>
             <input
               id="p-path"
               v-model="form.local_path"
               class="input"
               :placeholder="$t('Absoluter Pfad oder ~/… auf deinem Rechner (optional)')"
             />
-          </div>
+          </label>
 
-          <div class="field">
-            <label for="p-repo">{{ $t('GitHub-Repo') }}</label>
+          <label class="sheet-row">
+            <span>{{ $t('GitHub-Repo') }}</span>
             <input
               id="p-repo"
               v-model="form.github_repo"
               class="input"
               :placeholder="$t('owner/name, sonst aus dem Ordner (optional)')"
             />
-          </div>
+          </label>
 
-          <div class="field">
-            <label for="p-icon">{{ $t('Symbol') }}</label>
+          <label class="sheet-row">
+            <span>{{ $t('Symbol') }}</span>
             <select id="p-icon" v-model="form.icon" class="input">
               <option value="">{{ $t('Automatisch') }}</option>
               <option v-for="[k, label] in PROJECT_ICON_OPTIONS" :key="k" :value="k">
-                {{ label }}
+                {{ $t(label) }}
               </option>
             </select>
-          </div>
+          </label>
 
-          <div class="field">
-            <label id="p-color-l">{{ $t('Farbe') }}</label>
+          <div class="sheet-row">
+            <span id="p-color-l">{{ $t('Farbe') }}</span>
             <div class="swatches" role="radiogroup" aria-labelledby="p-color-l">
               <label
                 v-for="[c, label] in PROJECT_COLORS"
@@ -150,59 +138,85 @@ function submit() {
                   type="radio"
                   name="p-color"
                   :value="c"
-                  :aria-label="label"
+                  :aria-label="$t(label)"
                 />
                 <span :style="{ background: `var(--p-${c})` }"></span>
               </label>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="dlg-foot">
-          <span class="spacer"></span>
-          <button class="btn btn-ghost" type="button" @click="emit('close')">
-            {{ $t('Abbrechen') }}
-          </button>
-          <button class="btn btn-primary" type="submit">{{ $t('Anlegen') }}</button>
-        </div>
-      </form>
-    </div>
+      <div class="sheet-foot">
+        <span class="spacer" />
+        <button class="btn btn-ghost" type="button" @click="emit('close')">
+          {{ $t('Abbrechen') }}
+        </button>
+        <button class="btn btn-primary" type="submit">{{ $t('Anlegen') }}</button>
+      </div>
+    </form>
   </div>
 </template>
 
 <style scoped>
-.spacer {
-  flex: 1;
+.p-sheet {
+  --sheet-lbl-w: 104px;
+}
+.sh-sub-in {
+  width: 100%;
+  padding: 6px 0;
+  margin-top: 2px;
+  border: 0;
+  border-bottom: 1.5px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--tx-secondary);
+  font: 400 13.5px/1.4 var(--font-ui);
+}
+.sh-sub-in::placeholder {
+  color: var(--tx-muted);
+}
+.sh-sub-in:focus-visible {
+  outline: none;
+  border-radius: 0;
+  box-shadow: none;
+  border-bottom-color: var(--a-focus);
+}
+.sh-err {
+  margin-top: 12px;
 }
 .swatches {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 6px;
 }
 .swatch {
-  position: relative;
-  display: inline-flex;
   cursor: pointer;
 }
 .swatch input {
   position: absolute;
-  inset: 0;
   opacity: 0;
-  margin: 0;
-  cursor: pointer;
+  width: 0;
+  height: 0;
 }
 .swatch span {
-  width: 22px;
-  height: 22px;
+  display: block;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   border: 2px solid transparent;
-  box-shadow: inset 0 0 0 2px var(--bg-1);
+  transition: transform 0.1s;
 }
 .swatch input:checked + span {
   border-color: var(--tx-primary);
+  transform: scale(1.1);
 }
 .swatch input:focus-visible + span {
-  outline: 2px solid var(--tx-primary);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+.spacer {
+  flex: 1;
 }
 </style>
