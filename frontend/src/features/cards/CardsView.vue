@@ -97,7 +97,6 @@ function onDeckChanged(name: string | null) {
       :cards="cards"
       :decks="decks"
       :log="log"
-      :color-of="colorOf"
       @exit="stopLearning"
       @finished="load"
       @again="(keys) => learn(round.title, true, keys)"
