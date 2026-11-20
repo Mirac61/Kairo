@@ -1350,6 +1350,11 @@ const en: Record<string, string> = {
   'Wieder aktivieren': 'Reactivate',
   'Ziel löschen': 'Delete goal',
   abgeschlossen: 'completed',
+  'Bild / Video': 'Image / Video',
+  'Gedanken, Strategie, Links oder Warum zu diesem Ziel …':
+    'Thoughts, strategy, links or why this goal matters …',
+  Meilensteine: 'Milestones',
+  'Neuen Schritt hinzufügen …': 'Add a new step …',
 }
 
 export default en
