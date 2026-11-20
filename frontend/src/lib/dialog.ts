@@ -12,15 +12,17 @@ interface State {
   onKey: (e: KeyboardEvent) => void
 }
 const states = new WeakMap<HTMLElement, State>()
+const stack: HTMLElement[] = []
 
 export const vDialog: Directive<HTMLElement, () => void> = {
   mounted(el, { value }) {
-    const dlg = el.querySelector<HTMLElement>('.dialog') ?? el
+    const dlg = el.querySelector<HTMLElement>('.dialog, .sheet') ?? el
     dlg.setAttribute('role', 'dialog')
     dlg.setAttribute('aria-modal', 'true')
     const items = () =>
       [...dlg.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((x) => x.offsetParent !== null)
     const onKey = (e: KeyboardEvent) => {
+      if (stack.at(-1) !== el) return
       const active = document.activeElement
       if (e.key === 'Escape') return states.get(el)?.close()
       if (e.key !== 'Tab' || active?.closest('.p-confirmpopup')) return // die Rückfrage-Blase liegt außerhalb des Dialogs
@@ -35,13 +37,16 @@ export const vDialog: Directive<HTMLElement, () => void> = {
         first.focus()
       }
     }
+    stack.push(el)
     states.set(el, { opener: document.activeElement, close: value, onKey })
     // Auf document, damit Esc und Tab auch gelten, wenn ein Klick den Fokus auf <body> gelegt hat.
     document.addEventListener('keydown', onKey)
     ;(
+      dlg.querySelector<HTMLElement>('[autofocus]') ??
       dlg.querySelector<HTMLElement>(
-        '[autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
-      ) ?? items()[0]
+        'input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+      ) ??
+      items()[0]
     )?.focus()
   },
   updated(el, { value }) {
@@ -51,6 +56,8 @@ export const vDialog: Directive<HTMLElement, () => void> = {
   unmounted(el) {
     const s = states.get(el)
     if (!s) return
+    const idx = stack.lastIndexOf(el)
+    if (idx !== -1) stack.splice(idx, 1)
     document.removeEventListener('keydown', s.onKey)
     ;(s.opener as HTMLElement | null)?.focus?.()
     states.delete(el)
