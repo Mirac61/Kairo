@@ -23,6 +23,7 @@ const error = ref('')
 const loaded = ref(false)
 const mode = ref<'home' | 'deck' | 'learn'>('home')
 const deckName = ref<string | null>(null)
+const addDeck = ref<string | null>(null)
 const adding = ref(false)
 
 async function load() {
@@ -50,7 +51,7 @@ function openDeck(name: string) {
   mode.value = 'deck'
 }
 function openAdd(name: string | null) {
-  deckName.value = name
+  addDeck.value = name
   adding.value = true
 }
 
@@ -97,7 +98,6 @@ function onDeckChanged(name: string | null) {
       :cards="cards"
       :decks="decks"
       :log="log"
-      :color-of="colorOf"
       @exit="stopLearning"
       @finished="load"
       @again="(keys) => learn(round.title, true, keys)"
@@ -112,7 +112,7 @@ function onDeckChanged(name: string | null) {
       @back="mode = 'home'"
       @learn="(p) => learn(current!.name, p)"
       @browse="mode = 'home'"
-      @add="adding = true"
+      @add="openAdd(current!.name)"
       @changed="onDeckChanged"
     />
 
@@ -125,7 +125,6 @@ function onDeckChanged(name: string | null) {
         :decks="decks"
         :log="log"
         :deck="deckName"
-        :color-of="colorOf"
         @changed="load"
         @add="openAdd"
         @learn="(d) => learn(d)"
@@ -136,7 +135,7 @@ function onDeckChanged(name: string | null) {
     <CardAddDialog
       v-if="adding"
       :decks="decks"
-      :deck="deckName"
+      :deck="addDeck"
       @close="adding = false"
       @added="load"
     />

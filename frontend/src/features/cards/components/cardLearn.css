@@ -9,10 +9,8 @@
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 16px;
-  height: 60px;
+  height: 52px;
   padding: 0 24px;
-  background: var(--bg-1);
-  border-bottom: 1px solid var(--br-subtle);
 }
 .cl-back {
   display: inline-flex;
@@ -29,12 +27,6 @@
 .cl-back:hover {
   color: var(--tx-primary);
 }
-.cl-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
 .cl kbd {
   font: 500 10.5px/1 var(--font-mono);
   padding: 2px 5px;
@@ -46,43 +38,32 @@
 
 .cl-counts {
   display: flex;
-  gap: 6px;
+  gap: 16px;
   align-items: center;
 }
 .cl-count-pill {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--bg-2);
-  border: 1px solid var(--br-subtle);
-  font: 500 12px/1 var(--font-ui);
-  opacity: 0.65;
-  transition:
-    opacity 0.15s,
-    border-color 0.15s;
+  font: 400 12.5px/1 var(--font-ui);
+  color: var(--tx-muted);
+  transition: color 0.15s;
 }
 .cl-count-pill small {
-  font-size: 11px;
-  color: var(--tx-muted);
+  font-size: 12.5px;
 }
 .cl-count-pill b {
   font-size: 12.5px;
+  font-weight: 500;
 }
 .cl-count-pill.on {
-  opacity: 1;
-  border-color: var(--br-strong);
-  background: var(--bg-3);
+  color: var(--tx-primary);
 }
 
 /* Eine Akzentfarbe wie in der Liste: Blau = fällig; Rot nur für „Nochmal“. */
 .cl .c-new,
 .cl .c-learn {
   color: var(--tx-secondary);
-}
-.cl .c-again {
-  color: var(--a-red);
 }
 .cl .c-due {
   color: var(--a-blue-tx);
@@ -129,8 +110,8 @@
 }
 
 .cl-progress {
-  height: 3px;
-  background: var(--bg-2);
+  height: 2px;
+  background: var(--br-subtle);
 }
 .cl-progress i {
   display: block;
@@ -146,35 +127,23 @@
 .cl-stage {
   flex: 1;
   width: 100%;
-  max-width: 860px;
+  max-width: 704px;
   margin: 0 auto;
-  padding: 32px 20px 48px;
+  padding: 14vh 32px 48px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 16px;
+  justify-content: flex-start;
+  gap: 40px;
 }
 
 .cl-card {
-  min-height: 440px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 24px 32px 36px;
-  border-radius: 18px;
-  border: 1px solid var(--br-default);
-  background: var(--bg-1);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
+  gap: 28px;
 }
 .cl-card.is-hidden {
   cursor: pointer;
-}
-.cl-card.is-hidden:hover {
-  border-color: var(--br-strong);
 }
 
 .cl-meta {
@@ -192,19 +161,12 @@
 .cl-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   padding: 4px 10px;
   border-radius: 999px;
   background: var(--bg-2);
   border: 1px solid var(--br-subtle);
   font: 500 12px/1 var(--font-ui);
   color: var(--tx-secondary);
-}
-.cl-chip i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--dc);
 }
 .cl-tag {
   padding: 3px 8px;
@@ -221,57 +183,32 @@
 }
 
 .cl-body {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   position: relative;
-  min-height: 280px;
 }
 .cl-practice {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  margin: 0;
-  text-align: center;
+  margin: 0 0 20px;
   font: 500 12px/1.4 var(--font-ui);
   color: var(--p-yellow);
 }
 
 /* Vor dem Aufdecken */
 .cl-front-wrap {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  text-align: center;
-  padding: 20px 0;
-}
-.cl-front {
-  width: 100%;
-  font: 500 28px/1.35 var(--font-ui);
+  font: 500 22px/1.45 var(--font-ui);
   letter-spacing: -0.015em;
   color: var(--tx-primary);
 }
-.cl-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font: 400 12px/1 var(--font-ui);
-  color: var(--tx-muted);
-  opacity: 0.8;
+.cl-front {
+  width: 100%;
 }
 
 /* Nach dem Aufdecken: Strukturierte Aufteilung */
 .cl-revealed-wrap {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 18px;
   width: 100%;
   animation: cl-fade-in 0.2s ease-out;
 }
@@ -288,42 +225,36 @@
 
 .cl-sec-label {
   display: block;
-  font: 600 11px/1 var(--font-ui);
+  font: 500 11px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--tx-muted);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .cl-q-context {
-  padding: 12px 8px 4px;
-  text-align: center;
+  text-align: left;
+  font: 400 16px/1.5 var(--font-ui);
+  color: var(--tx-secondary);
 }
 .cl-front-compact {
-  font: 600 22px/1.35 var(--font-ui);
-  color: var(--tx-primary);
+  width: 100%;
 }
 
 .cl-divider {
   width: 100%;
-  border-top: 1px dashed var(--br-strong);
-  margin: 2px 0;
+  border-top: 1px solid var(--br-subtle);
+  margin: 24px 0;
 }
 
 .cl-a-context {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 16px 8px;
-  min-height: 140px;
-}
-.cl-a-label {
-  color: var(--tx-muted);
+  text-align: left;
+  font: 400 17px/1.65 var(--font-ui);
+  color: var(--tx-primary);
 }
 .cl-back-text {
   width: 100%;
-  font: 400 19px/1.55 var(--font-ui);
-  color: var(--tx-secondary);
 }
 .cl-src {
   margin-top: 14px;
@@ -335,63 +266,58 @@
 .cl-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 .cl-show {
   grid-column: 1 / -1;
-  height: 54px;
-  justify-content: center;
-  border-radius: 14px;
-  font-size: 15px;
-  font-weight: 500;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  justify-self: start;
+  gap: 10px;
 }
 .cl-show kbd {
-  margin-left: 10px;
-  border-color: color-mix(in srgb, currentColor 30%, transparent);
-  color: inherit;
-  opacity: 0.8;
-  background: rgba(0, 0, 0, 0.2);
+  font: 500 11px/1 var(--font-ui);
+  border-color: color-mix(in srgb, var(--bg-0) 28%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--bg-0) 62%, transparent);
 }
 
 .cl-grade {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 14px 14px 12px;
-  border-radius: 14px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--r-s);
   border: 1px solid var(--br-default);
-  background: var(--bg-1);
+  background: var(--bg-2);
   color: var(--tx-primary);
   cursor: pointer;
   transition:
-    background 0.15s,
-    border-color 0.15s,
-    transform 0.15s,
-    box-shadow 0.15s;
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
   text-align: left;
 }
 .cl-grade:hover:not(:disabled) {
   border-color: var(--br-strong);
-  background: var(--bg-2);
+  background: var(--bg-3);
 }
-/* „Gut“ ist der Normalfall und trägt als einziger Knopf Farbe. */
+/* „Gut“ ist der Normalfall: der einzige Primary-Knopf, wie überall in Kairo (.btn-primary). */
 .cl-grade.is-default {
   border-color: transparent;
-  background: color-mix(in oklab, var(--a-blue) 84%, #000);
+  background: var(--tx-primary);
+  color: var(--bg-0);
 }
 .cl-grade.is-default:hover:not(:disabled) {
   border-color: transparent;
-  background: color-mix(in oklab, var(--a-blue) 74%, #000);
+  background: color-mix(in srgb, var(--tx-primary) 88%, var(--bg-0));
 }
 .cl-grade.is-default .cl-grade-name,
 .cl-grade.is-default .cl-grade-interval {
-  color: var(--tx-on-accent);
+  color: var(--bg-0);
 }
 .cl-grade.is-default .cl-grade-kbd {
-  color: var(--tx-on-accent);
-  border-color: color-mix(in srgb, var(--tx-on-accent) 35%, transparent);
+  color: color-mix(in srgb, var(--bg-0) 62%, transparent);
+  border-color: color-mix(in srgb, var(--bg-0) 28%, transparent);
   background: none;
 }
 .cl-grade.g0 .cl-grade-name {
@@ -404,33 +330,36 @@
 
 .cl-grade-top {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 .cl-grade-name {
-  font: 500 14px/1 var(--font-ui);
+  font: 500 13px/1 var(--font-ui);
   color: var(--tx-primary);
 }
 .cl-grade-kbd {
   font-size: 10.5px;
   border-color: var(--br-default);
-  background: var(--bg-2);
+  background: none;
 }
 .cl-grade-interval {
   display: flex;
   align-items: center;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--tx-muted);
 }
 
-:root[data-motion='reduce'] .cl-grade {
+:root[data-motion='reduce'] .cl-grade,
+:root[data-motion='reduce'] .cl-revealed-wrap {
   transition: none;
-  transform: none;
+  animation: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .cl-grade {
+  .cl-grade,
+  .cl-revealed-wrap {
     transition: none;
-    transform: none;
+    animation: none;
   }
 }
 
@@ -596,7 +525,7 @@
   border-top: 1px solid var(--br-subtle);
   font-size: 13.5px;
 }
-.cl-side-r span:nth-child(2) {
+.cl-side-r span:first-child {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -667,19 +596,10 @@
     padding: 16px 12px;
     justify-content: flex-start;
   }
-  .cl-card {
-    min-height: 280px;
-    padding: 18px 20px 28px;
-  }
-  .cl-front {
-    font-size: 22px;
-  }
-  .cl-back-text {
-    font-size: 17px;
-  }
   .cl-actions {
     position: sticky;
     bottom: calc(56px + env(safe-area-inset-bottom));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
     padding: 8px 0;
     background: var(--bg-0);
