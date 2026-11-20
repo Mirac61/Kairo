@@ -1356,6 +1356,13 @@ const en: Record<string, string> = {
     'Thoughts, strategy, links or why this goal matters …',
   Meilensteine: 'Milestones',
   'Neuen Schritt hinzufügen …': 'Add a new step …',
+  'Aufgaben erledigt': 'Tasks completed',
+  'Diese Woche erfasst': 'Tracked this week',
+  Fokus: 'Focus',
+  'Routinen-Quote': 'Routine rate',
+  Tagesverlauf: 'Daily breakdown',
+  'Wochen-Rhythmus': 'Weekly rhythm',
+  'Zeit nach Projekt': 'Time by project',
   'Einzeilig mit Scrollleiste und fixiertem „+ Neu“ oder als 2-zeiliges Raster.':
     'Single scrollable row with pinned “+ New” or a 2-row grid.',
   'Einzeilig scrollbar': 'Single scrollable row',
