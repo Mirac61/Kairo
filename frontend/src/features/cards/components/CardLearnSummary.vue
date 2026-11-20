@@ -3,14 +3,14 @@ import { computed } from 'vue'
 import type { Card, CardLog, Deck } from '@/api/client'
 import { forecast, intervalText, perDay } from '@/lib/cards'
 import { addDays, ymd } from '@/lib/dates'
-import { tn } from '@/lib/i18n'
+import { locale, tn } from '@/lib/i18n'
+import CardInlineText from './CardInlineText.vue'
 
 const props = defineProps<{
   results: Map<string, { card: Card; grades: number[]; next: number | null }>
   cards: Card[]
   decks: Deck[]
   log: CardLog[]
-  colorOf: (deck: string) => string
   minutes: number
   grades: string[]
 }>()
@@ -53,7 +53,7 @@ const week = computed(() => {
     return {
       n: days.get(ymd(d)) ?? 0,
       today: ymd(d) === ymd(today),
-      label: d.toLocaleDateString(undefined, { weekday: 'narrow' }),
+      label: d.toLocaleDateString(locale.value, { weekday: 'narrow' }),
     }
   })
 })
@@ -114,7 +114,7 @@ const weekMax = computed(() => Math.max(1, ...week.value.map((d) => d.n)))
           <span>{{ $t('Wieder dran') }}</span>
         </div>
         <div v-for="r in roundList" :key="r.card.key" class="cl-row">
-          <span class="cl-cell">{{ r.card.question }}</span>
+          <span class="cl-cell"><CardInlineText :text="r.card.question" /></span>
           <span class="cl-pill" :class="{ 'is-again': r.grades.includes(0) }">{{
             answerText(r.grades)
           }}</span>
@@ -133,7 +133,6 @@ const weekMax = computed(() => Math.max(1, ...week.value.map((d) => d.n)))
           ><span class="mono">{{ open.reduce((n, d) => n + d.due, 0) }}</span>
         </div>
         <div v-for="d in open" :key="d.name" class="cl-side-r">
-          <i class="cl-dot" :style="{ background: colorOf(d.name) }"></i>
           <span>{{ d.name }}</span>
           <span class="mono c-due">{{ $t('{n} fällig', { n: d.due }) }}</span>
         </div>

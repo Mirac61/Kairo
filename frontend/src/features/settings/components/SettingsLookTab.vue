@@ -2,10 +2,12 @@
 import {
   ACCENTS,
   APP_ICONS,
+  HABITS_DOCK_MODES,
   PALETTES,
   prefs,
   type Accent,
   type AppIcon,
+  type HabitsDockMode,
   type Palette,
   type Theme,
 } from '@/lib/prefs'
@@ -33,6 +35,10 @@ const APP_ICON_NAMES: Record<AppIcon, string> = {
   peak: 'Kairo Gipfel',
   focus: 'Kairos Fokus',
   monogram: 'K + Funke',
+}
+const HABITS_DOCK_NAMES: Record<HabitsDockMode, string> = {
+  scroll: 'Einzeilig scrollbar',
+  grid: '2-zeiliges Raster',
 }
 </script>
 
@@ -131,6 +137,27 @@ const APP_ICON_NAMES: Record<AppIcon, string> = {
         >
           <span class="logo-mark" :class="`ic-${ic}`" aria-hidden="true"><i></i></span>
           <span class="pal-name">{{ $t(APP_ICON_NAMES[ic]) }}</span>
+        </button>
+      </div>
+    </div>
+    <div class="st-row">
+      <div class="st-text">
+        <div class="st-t">{{ $t('Ritual-Ringe unter Aufgaben') }}</div>
+        <div class="st-h">
+          {{ $t('Einzeilig mit Scrollleiste und fixiertem „+ Neu“ oder als 2-zeiliges Raster.') }}
+        </div>
+      </div>
+      <div class="seg" role="radiogroup" :aria-label="$t('Ritual-Ringe unter Aufgaben')">
+        <button
+          v-for="m in HABITS_DOCK_MODES"
+          :key="m"
+          type="button"
+          role="radio"
+          :class="{ on: prefs.habitsDock === m }"
+          :aria-checked="prefs.habitsDock === m"
+          @click="prefs.habitsDock = m"
+        >
+          {{ $t(HABITS_DOCK_NAMES[m]) }}
         </button>
       </div>
     </div>

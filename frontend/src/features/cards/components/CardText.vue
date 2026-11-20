@@ -3,19 +3,20 @@ import { computed, ref, useId, watchEffect } from 'vue'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 import { dark } from '@/lib/prefs'
+import { hasMath, splitMath } from '@/lib/math'
 
 // Frage oder Antwort einer Karte als Markdown. Formeln in $…$ und $$…$$ werden zu SVG (MathJax, eigener Chunk, nur geladen,
 // wenn ein $ vorkommt). md-editor filtert eingebettetes HTML (XSS-Plugin), daher stehen im Markdown nur Platzhalter, die sanitize
 // im fertigen HTML ersetzt. shortcut: ![[Bild]] aus Notizkarten löst die Vorschau nicht auf; wie im Notiz-Editor nachziehen, wenn gebraucht.
 const props = defineProps<{ text: string }>()
 const id = useId()
+const token = `KMATH${id.replace(/[^a-zA-Z0-9]/g, '')}N`
 const md = ref(props.text)
 const svgs = ref<string[]>([])
-const MATH = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g
 
 watchEffect(async () => {
   const src = props.text
-  if (!src.includes('$')) {
+  if (!hasMath(src, { skipCode: true })) {
     svgs.value = []
     md.value = src
     return
@@ -23,17 +24,24 @@ watchEffect(async () => {
   const { texToSvg } = await import('@/lib/tex')
   if (src !== props.text) return // inzwischen eine andere Karte
   const out: string[] = []
-  md.value = src.replace(MATH, (_, block: string | undefined, inline: string) => {
-    out.push(
-      `<span class="ct-math${block ? ' is-block' : ''}">${texToSvg((block ?? inline).trim(), !!block)}</span>`,
-    )
-    return `KAIROMATH${out.length - 1}X`
-  })
+  let rebuilt = ''
+  for (const seg of splitMath(src, { skipCode: true })) {
+    if (seg.kind === 'text') {
+      rebuilt += seg.value
+    } else {
+      out.push(
+        `<span class="ct-math${seg.display ? ' is-block' : ''}">${texToSvg(seg.expr, seg.display)}</span>`,
+      )
+      rebuilt += `${token}${out.length - 1}X`
+    }
+  }
+  md.value = rebuilt
   svgs.value = out
 })
 const sanitize = computed(() => {
   const list = svgs.value
-  return (html: string) => html.replace(/KAIROMATH(\d+)X/g, (m, i: string) => list[Number(i)] ?? m)
+  const re = new RegExp(`${token}(\\d+)X`, 'g')
+  return (html: string) => html.replace(re, (m, i: string) => list[Number(i)] ?? m)
 })
 </script>
 
@@ -79,7 +87,8 @@ const sanitize = computed(() => {
 }
 .ct :deep(.md-editor-preview p) {
   margin: 0.5em 0;
-  line-height: inherit;
+  font: inherit;
+  color: inherit;
 }
 .ct :deep(.md-editor-preview pre),
 .ct :deep(.md-editor-preview code) {

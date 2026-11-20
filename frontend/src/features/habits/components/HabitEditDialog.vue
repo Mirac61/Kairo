@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { FrequencyConfig, Habit, Project } from '@/api/client'
 import { vDialog } from '@/lib/dialog'
 import { ymd } from '@/lib/dates'
@@ -39,13 +39,13 @@ const emit = defineEmits<{
   ): void
 }>()
 
-const wdLabel = getWeekdayLabels(locale.value)
+const wdLabel = computed(() => getWeekdayLabels(locale.value))
 
-const RHYTHMS: Record<HabitRhythm, string> = {
+const RHYTHMS = computed<Record<HabitRhythm, string>>(() => ({
   DAILY: t('Täglich'),
   SPECIFIC_WEEKDAYS: t('Bestimmte Tage'),
   TIMES_PER_WEEK: t('X-mal pro Woche'),
-}
+}))
 
 function blankForm() {
   return {
@@ -142,46 +142,42 @@ function save() {
   <div
     v-if="open"
     v-dialog="() => emit('close')"
-    class="overlay open"
+    class="sheet-wrap"
     @mousedown.self="emit('close')"
   >
     <form
-      class="dialog"
+      class="sheet hb-sheet"
       :aria-label="form.id ? $t('Gewohnheit bearbeiten') : $t('Neue Gewohnheit')"
       @submit.prevent="save"
     >
-      <div class="dlg-head">
-        <h3>{{ form.id ? $t('Gewohnheit bearbeiten') : $t('Neue Gewohnheit') }}</h3>
+      <div class="sheet-head">
+        <span class="lbl">{{ form.id ? $t('Gewohnheit bearbeiten') : $t('Neue Gewohnheit') }}</span>
         <button class="icon-btn" type="button" :aria-label="$t('Schließen')" @click="emit('close')">
           <svg class="ic"><use href="#i-x" /></svg>
         </button>
       </div>
 
-      <div class="dlg-body">
-        <div class="field">
-          <label for="h-name">{{ $t('Name') }}</label>
-          <input
-            id="h-name"
-            v-model="form.name"
-            class="input"
-            :placeholder="$t('Neue Gewohnheit')"
-            autofocus
-            required
-          />
-        </div>
+      <div class="sheet-body">
+        <input
+          id="h-name"
+          v-model="form.name"
+          class="sheet-title"
+          :placeholder="$t('Neue Gewohnheit')"
+          :aria-label="$t('Name')"
+          autofocus
+          required
+        />
 
-        <div class="field">
-          <label for="h-desc">{{ $t('Beschreibung') }}</label>
-          <input
-            id="h-desc"
-            v-model="form.description"
-            class="input"
-            :placeholder="$t('optional')"
-          />
-        </div>
+        <input
+          id="h-desc"
+          v-model="form.description"
+          class="sh-sub-in"
+          :placeholder="$t('Beschreibung')"
+          :aria-label="$t('Beschreibung')"
+        />
 
-        <div class="field">
-          <label id="h-icon">{{ $t('Symbol') }}</label>
+        <div class="sh-sec">
+          <span id="h-icon" class="sh-sec-lbl">{{ $t('Symbol') }}</span>
           <div
             class="hd-icons"
             role="radiogroup"
@@ -202,129 +198,136 @@ function save() {
           </div>
         </div>
 
-        <div class="field">
-          <label id="h-type">{{ $t('Rhythmus') }}</label>
-          <div class="seg" role="group" aria-labelledby="h-type">
-            <button
-              v-for="(label, val) in RHYTHMS"
-              :key="val"
-              type="button"
-              :aria-pressed="form.type === val"
-              @click="form.type = val"
-            >
-              {{ label }}
-            </button>
+        <div class="sheet-props">
+          <div class="sheet-row sh-rhythm-row">
+            <span id="h-type">{{ $t('Rhythmus') }}</span>
+            <div class="seg sh-rhythm" role="group" aria-labelledby="h-type">
+              <button
+                v-for="(label, val) in RHYTHMS"
+                :key="val"
+                type="button"
+                :aria-pressed="form.type === val"
+                @click="form.type = val"
+              >
+                {{ label }}
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div
-          v-if="form.type === 'SPECIFIC_WEEKDAYS'"
-          class="seg"
-          role="group"
-          :aria-label="$t('Wochentage')"
-        >
-          <button
-            v-for="d in WEEKDAYS"
-            :key="d"
-            type="button"
-            :aria-pressed="form.weekdays.includes(d)"
-            @click="toggleDay(d)"
-          >
-            {{ wdLabel[d] }}
-          </button>
-        </div>
-
-        <div v-if="form.type === 'TIMES_PER_WEEK'" class="field">
-          <label for="h-times">{{ $t('Pro Woche') }}</label>
-          <input
-            id="h-times"
-            v-model.number="form.times"
-            class="input"
-            type="number"
-            min="1"
-            max="7"
-          />
-        </div>
-
-        <div class="dlg-row">
-          <div class="field">
-            <label for="h-time">{{ $t('Uhrzeit') }}</label>
-            <input id="h-time" v-model="form.time" class="input" type="time" />
+          <div v-if="form.type === 'SPECIFIC_WEEKDAYS'" class="sheet-row sh-days-row">
+            <span>{{ $t('Wochentage') }}</span>
+            <div class="sheet-days" role="group" :aria-label="$t('Wochentage')">
+              <button
+                v-for="d in WEEKDAYS"
+                :key="d"
+                type="button"
+                :aria-pressed="form.weekdays.includes(d)"
+                @click="toggleDay(d)"
+              >
+                {{ wdLabel[d] }}
+              </button>
+            </div>
           </div>
-          <div class="field">
-            <label for="h-dur">{{ $t('Dauer (Min.)') }}</label>
+
+          <label v-if="form.type === 'TIMES_PER_WEEK'" class="sheet-row">
+            <span>{{ $t('Pro Woche') }}</span>
+            <input
+              id="h-times"
+              v-model.number="form.times"
+              class="input mono"
+              type="number"
+              min="1"
+              max="7"
+            />
+          </label>
+
+          <label class="sheet-row">
+            <span>{{ $t('Uhrzeit') }}</span>
+            <input id="h-time" v-model="form.time" class="input mono" type="time" />
+          </label>
+
+          <label class="sheet-row">
+            <span>{{ $t('Dauer (Min.)') }}</span>
             <input
               id="h-dur"
               v-model.number="form.duration"
-              class="input"
+              class="input mono"
               type="number"
               min="5"
               max="1440"
               step="5"
               :disabled="!form.time && !form.project"
             />
-          </div>
-        </div>
-        <div class="v-sub">
-          {{ $t('Mit Uhrzeit erscheint die Gewohnheit als Block im Kalender.') }}
-        </div>
+          </label>
 
-        <label class="lbl">
-          <input v-model="form.remind" type="checkbox" :disabled="!form.time" />
-          {{ $t('Zur Uhrzeit erinnern, solange offen (ntfy)') }}
-        </label>
+          <label class="sheet-row sh-switch-row" :class="{ disabled: !form.time }">
+            <span>{{ $t('Erinnerung') }}</span>
+            <button
+              type="button"
+              role="switch"
+              class="sheet-switch"
+              :aria-checked="form.remind && !!form.time"
+              :aria-label="$t('Zur Uhrzeit erinnern, solange offen (ntfy)')"
+              :disabled="!form.time"
+              @click="form.remind = !form.remind"
+            >
+              <i></i>
+            </button>
+          </label>
 
-        <div class="field">
-          <label for="h-proj">{{ $t('Aus Zeiterfassung') }}</label>
-          <select id="h-proj" v-model="form.project" class="input">
-            <option value="">{{ $t('Nur von Hand abhaken') }}</option>
-            <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
-        </div>
-        <div v-if="form.project" class="v-sub">
-          {{
-            $t(
-              'Erledigt sich selbst, sobald an einem Tag so viele Minuten im Projekt erfasst sind wie die Dauer.',
-            )
-          }}
-        </div>
+          <label class="sheet-row">
+            <span>{{ $t('Aus Zeiterfassung') }}</span>
+            <select id="h-proj" v-model="form.project" class="input">
+              <option value="">{{ $t('Nur von Hand abhaken') }}</option>
+              <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </label>
 
-        <div class="dlg-row">
-          <div class="field">
-            <label for="h-target">{{ $t('Ziel') }}</label>
+          <div class="sheet-row">
+            <span>{{ $t('Ziel') }}</span>
             <input
               id="h-target"
               v-model.number="form.target"
-              class="input"
+              class="input mono sh-num"
               type="number"
               min="1"
               :placeholder="$t('optional')"
+              :aria-label="$t('Ziel')"
             />
-          </div>
-          <div class="field">
-            <label for="h-unit">{{ $t('Einheit') }}</label>
             <input
               id="h-unit"
               v-model="form.unit"
               class="input"
               :placeholder="$t('z. B. Seiten')"
+              :aria-label="$t('Einheit')"
             />
           </div>
+
+          <label class="sheet-row">
+            <span>{{ $t('Beginnt am') }}</span>
+            <input id="h-start" v-model="form.start" class="input" type="date" required />
+          </label>
+
+          <label class="sheet-row">
+            <span>{{ $t('Endet am') }}</span>
+            <input id="h-end" v-model="form.end" class="input" type="date" :min="form.start" />
+          </label>
         </div>
 
-        <div class="dlg-row">
-          <div class="field">
-            <label for="h-start">{{ $t('Beginnt am') }}</label>
-            <input id="h-start" v-model="form.start" class="input" type="date" required />
-          </div>
-          <div class="field">
-            <label for="h-end">{{ $t('Endet am') }}</label>
-            <input id="h-end" v-model="form.end" class="input" type="date" :min="form.start" />
-          </div>
-        </div>
+        <p class="sh-note">
+          {{ $t('Mit Uhrzeit erscheint die Gewohnheit als Block im Kalender.') }}
+        </p>
+        <p v-if="form.project" class="sh-note">
+          {{
+            $t(
+              'Erledigt sich selbst, sobald an einem Tag so viele Minuten im Projekt erfasst sind wie die Dauer.',
+            )
+          }}
+        </p>
       </div>
 
-      <div class="dlg-foot">
+      <div class="sheet-foot">
+        <span class="spacer" />
         <button class="btn btn-ghost" type="button" @click="emit('close')">
           {{ $t('Abbrechen') }}
         </button>
@@ -341,40 +344,106 @@ function save() {
 </template>
 
 <style scoped>
-.dlg-row {
-  display: flex;
-  gap: 12px;
+.hb-sheet {
+  --sheet-w: 420px;
+  --sheet-lbl-w: 112px;
 }
-.dlg-row .field {
-  flex: 1;
+.sh-sub-in {
+  width: 100%;
+  padding: 6px 0;
+  margin-top: 2px;
+  border: 0;
+  border-bottom: 1.5px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--tx-secondary);
+  font: 400 13.5px/1.4 var(--font-ui);
 }
-
+.sh-sub-in::placeholder {
+  color: var(--tx-muted);
+}
+.sh-sub-in:focus-visible {
+  outline: none;
+  border-radius: 0;
+  box-shadow: none;
+  border-bottom-color: var(--a-focus);
+}
+.sh-sec {
+  margin-top: 16px;
+}
+.sh-sec-lbl {
+  display: block;
+  margin-bottom: 8px;
+  font: 500 11.5px/1 var(--font-ui);
+  color: var(--tx-muted);
+}
 .hd-icons {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 .hd-icons button {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1;
-  border: 1px solid var(--br-default);
-  border-radius: 9px;
-  background: var(--bg-1);
-  color: var(--tx-secondary);
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  color: var(--tx-muted);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
 }
 .hd-icons button:hover {
-  border-color: var(--br-strong);
+  background: var(--bg-2);
   color: var(--tx-primary);
 }
 .hd-icons button[aria-checked='true'] {
-  border-color: var(--hc);
+  background: color-mix(in srgb, var(--hc) 16%, transparent);
   color: var(--hc);
-  background: color-mix(in srgb, var(--hc) 14%, transparent);
+  border-color: color-mix(in srgb, var(--hc) 45%, transparent);
 }
-.hd-icons .ic {
-  width: 18px;
-  height: 18px;
+.sh-rhythm-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 0;
+}
+.sh-rhythm-row > span {
+  width: auto;
+}
+.sh-rhythm {
+  width: 100%;
+  display: flex;
+}
+.sh-rhythm button {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.sh-days-row {
+  padding: 6px 0;
+}
+.sh-switch-row {
+  cursor: pointer;
+}
+.sh-switch-row.disabled {
+  cursor: not-allowed;
+}
+.sh-num {
+  flex: 0 0 88px;
+}
+.sh-note {
+  margin: 12px 0 0;
+  font: 400 12px/1.45 var(--font-ui);
+  color: var(--tx-muted);
+}
+.spacer {
+  flex: 1;
 }
 </style>
