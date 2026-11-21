@@ -105,6 +105,51 @@ test('Timer starten und stoppen', async () => {
   assert.ok(entries[0].ended_at, 'Zeiteintrag ist abgeschlossen')
 })
 
+test('GitHub-Issue als Aufgabe mit Projekt und Ressourcen anlegen', async () => {
+  const issue = {
+    title: 'Smoke-Issue',
+    url: 'https://github.com/example/kairo/issues/7',
+    repo: 'example/kairo',
+    number: 7,
+    labels: ['bug'],
+    updated_at: new Date().toISOString(),
+    task_id: null,
+  }
+  const project = await api('/projects', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Smoke-GitHub-Projekt' }),
+  })
+
+  // Die GitHub-Abfrage bleibt unabhängig von gh-CLI und Netzwerk; der Import läuft gegen das echte Backend.
+  await page.route(/\/api\/github\/issues$/, (route) => route.fulfill({ json: [issue] }))
+  try {
+    await page.goto(`${base}/tasks`)
+    await page.getByRole('button', { name: /^Ansicht/ }).click()
+    await page.getByRole('button', { name: 'GitHub-Issues' }).click()
+    const dialog = page.getByRole('dialog', { name: 'GitHub-Issues' })
+    await dialog.getByText('Smoke-Issue').waitFor()
+    await dialog.getByLabel('Projekt für neue Aufgaben').selectOption(project.id)
+
+    const imported = page.waitForResponse(
+      (r) => r.url().endsWith('/api/github/issues/import') && r.request().method() === 'POST',
+    )
+    await dialog.getByRole('button', { name: 'Als Aufgabe' }).click()
+    const response = await imported
+    assert.equal(response.status(), 201, await response.text())
+    const task = await response.json()
+    assert.equal(task.title, issue.title)
+    assert.equal(task.project_id, project.id)
+
+    const resource = (await api(`/resources?task_id=${task.id}`)).find(
+      (r) => r.target === issue.url,
+    )
+    assert.ok(resource, 'Issue-URL ist als Ressourcen-Link gespeichert')
+    await dialog.getByRole('button', { name: 'Zur Aufgabe' }).waitFor()
+  } finally {
+    await page.unroute(/\/api\/github\/issues$/)
+  }
+})
+
 test('Termin verschieben', async () => {
   const day = new Date().toLocaleDateString('sv')
   const at = (h) => new Date(`${day}T${h}:00`).toISOString()
