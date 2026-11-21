@@ -214,9 +214,12 @@ Technische Schulden und Aufräumarbeiten, keine neuen Funktionen.
 ## Erledigt
 
 -   **Frontend-Tests:** `frontend/e2e/smoke.test.mjs` startet das Backend
-    mit leerer Datenbank und prüft im Browser: Aufgabe anlegen, Timer
-    starten und stoppen, Termin verschieben, Notiz speichern, PDF und
-    Bild bezeichnen. `make e2e` lokal, eigener Job in der CI.
+    mit leerer Datenbank. Die Browser-Tests decken Aufgaben und Timer,
+    Kalender, Gewohnheiten, GitHub-Issue-Import, Ordner-Upload,
+    Code-Viewer, Notizen, PDF- und Bild-Markierungen, Ziele, Journal,
+    Lernkarten, Einstellungen, Handy-Layout und Rundgang ab. Die
+    GitHub-Issue-Liste wird für den UI-Test gemockt; der Import läuft
+    gegen das echte Backend. `make e2e` läuft lokal und in der CI.
 -   **Große Komponenten:** Aus `FileEditor.vue` sind Werkzeugleiste
     (`FileEditorBar.vue`), PDF-Rendern (`usePdfRender`), Verlauf
     (`useHistory`) und Speichern (`lib/fileSave.ts`) herausgelöst, aus
@@ -257,19 +260,30 @@ Technische Schulden und Aufräumarbeiten, keine neuen Funktionen.
 
 ## Offen
 
--   Die Extension und die Fehlermeldungen des Backends sind nur
-    deutsch. Die Extension könnte `vscode.env.language` folgen.
--   Unter Windows ist das Backend nur cross-kompiliert und in der CI
-    getestet, noch nicht von Hand ausprobiert.
--   Das Frontend ist 14 MB groß; allein Excalidraw macht gut 3 MB aus.
-    Eingebettete Dateien könnten gzip oder brotli ausliefern, und der
-    Excalidraw-Chunk lässt sich auf unnötige Teile prüfen.
--   Die e2e-Tests decken Gewohnheiten, GitHub-Issues, Ordner-Upload und
-    den Code-Viewer kaum ab. ESLint und Prettier fehlen im Frontend.
--   Der Autosave einer Zeichnung schreibt jede Sekunde die ganze Datei;
-    zu prüfen ist, wie stark `.trash` dadurch wächst (Limit oder
-    Zusammenfassen alter Fassungen).
--   `CalendarView.vue` und `FileEditor.vue` haben noch knapp 600 Zeilen,
-    `NotesView.vue` gut 500. Der Rest hängt eng an FullCalendar, am
-    Zeiger-Handling der Zeichenfläche bzw. am Dateibaum; weiter teilen,
-    wenn eine Änderung dort ohnehin ansteht.
+-   **Windows-Abnahme:** Das Backend wird für Windows gebaut und in der CI
+    getestet. Ein manueller Start und ein kurzer Durchlauf der wichtigsten
+    Abläufe unter Windows stehen noch aus.
+-   **Bundle-Größe:** `backend/internal/web/dist` ist nach dem Build rund
+    16 MB groß. Einzelne JavaScript-Chunks liegen über 1 MB; der Build
+    meldet deshalb große Chunks. Erst bei spürbar langsamen Kaltstarts
+    lohnt sich eine gezielte Analyse der Excalidraw-, MathJax- und
+    Editor-Abhängigkeiten.
+-   **Dateiversionen:** Beim Ersetzen einer PDF-, Bild- oder
+    Excalidraw-Datei wandert die alte Fassung nach `.trash`. Zeichnungen
+    speichern nach einer Sekunde ohne weitere Änderung; eine
+    Aufbewahrungsgrenze für diese Fassungen gibt es derzeit nicht. Vor
+    einer automatischen Bereinigung muss feststehen, wie viel
+    Wiederherstellung der Papierkorb bieten soll.
+-   **GitHub-E2E:** Der Smoke-Test prüft jetzt den Ablauf von der Issue-
+    Anzeige bis zur Task samt Projekt und URL-Ressource. Die Issue-Liste
+    wird dabei gemockt; den Abruf über `gh` decken Backend-Tests ab. Ein
+    zusätzlicher Browser-Test gegen eine echte GitHub-Anmeldung wäre
+    unnötig netzwerkabhängig.
+-   **Formatprüfung:** ESLint läuft über `make check`. Prettier ist
+    eingerichtet, `format:check` ist aber noch kein Teil dieses Gates
+    und meldet derzeit Formatabweichungen in `CalendarToolbar.vue`,
+    `SettingsSystemTab.vue` und `TaskQuickAdd.vue`.
+-   **Komponenten:** `CalendarView.vue` hat aktuell rund 355 Zeilen,
+    `NotesView.vue` rund 132. `FileEditor.vue` ist mit rund 935 Zeilen
+    weiterhin groß. Weitere Aufteilung bietet sich an, wenn dort ohnehin
+    eine Änderung ansteht.
