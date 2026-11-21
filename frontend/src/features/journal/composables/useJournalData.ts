@@ -24,6 +24,7 @@ export interface JournalRow {
   answers: string[]
   other: string
   mtime: string
+  markdown?: string
 }
 
 export type DoneTask = Task & { completed_at: string | null }
@@ -92,6 +93,7 @@ export function useJournalData() {
           answers: entry.answers,
           other: entry.other,
           mtime: note.mtime,
+          markdown: note.content,
         }
       }),
     )
@@ -167,7 +169,13 @@ export function useJournalData() {
       try {
         const n = await readNote(journalPath(date))
         const e = parseEntry(n.content)
-        const row = { date, answers: e.answers, other: e.other, mtime: n.mtime }
+        const row = {
+          date,
+          answers: e.answers,
+          other: e.other,
+          mtime: n.mtime,
+          markdown: n.content,
+        }
         pastRows.value = [...pastRows.value, row].sort((a, b) => b.date.localeCompare(a.date))
         return true
       } catch (e) {

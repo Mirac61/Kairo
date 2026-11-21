@@ -286,6 +286,103 @@ test('Ziel mit Bild anlegen', async () => {
   assert.ok(existsSync(join(env.KAIRO_NOTES_DIR, g.image_path)))
 })
 
+// Die geführte Ansicht bleibt der Standard; geschrieben wird wie in einer Markdown-Datei: ohne Kasten,
+// Punkte als Liste in einem Feld, Formatierung landet unverändert in der Datei.
+test('Journal: Schreibansicht ohne Rahmen, Markdown bleibt erhalten', async () => {
+  const day = new Date().toLocaleDateString('sv')
+  await page.goto(`${base}/journal`)
+  assert.equal(
+    await page.getByRole('button', { name: 'Schreiben' }).getAttribute('aria-pressed'),
+    'true',
+    'die geführte Ansicht ist der Standard',
+  )
+
+  const answer = page.getByLabel('Was lief gut?')
+  const style = await answer.evaluate((el) => {
+    const css = getComputedStyle(el)
+    return { border: css.borderTopWidth, background: css.backgroundColor }
+  })
+  assert.equal(style.border, '0px', 'das Feld ist nicht als Karte umrandet')
+  assert.equal(style.background, 'rgba(0, 0, 0, 0)')
+
+  // Auch im Fokus bleibt es Text: kein Rahmen, keine Box, und die Linie ist gerade.
+  await answer.click()
+  const focused = await answer.evaluate((el) => {
+    const css = getComputedStyle(el)
+    return { outline: css.outlineStyle, radius: css.borderRadius, line: css.boxShadow }
+  })
+  assert.equal(focused.outline, 'none', 'kein Fokusrahmen um das Feld')
+  assert.equal(focused.radius, '0px', 'die Linie hat keine runden Enden')
+  assert.match(focused.line, /inset/, 'die Linie liegt innen und verschiebt nichts')
+
+  const saved = page.waitForResponse(
+    (r) => r.url().includes(`/api/notes/Journal/${day}.md`) && r.request().method() === 'PUT',
+  )
+  await answer.fill('Heute lief **Markdown**.')
+  await page.getByLabel('Was ist morgen wichtig?').fill('- Erster Punkt\n- Zweiter Punkt')
+  await page.locator('.je-saved').waitFor()
+  await saved
+  const md = readFileSync(join(env.KAIRO_NOTES_DIR, 'Journal', `${day}.md`), 'utf8')
+  assert.match(md, /## Was lief gut\?\n\nHeute lief \*\*Markdown\*\*\./)
+  assert.match(md, /## Was ist morgen wichtig\?\n\n- Erster Punkt\n- Zweiter Punkt/)
+
+  // Lesen zeigt alle drei Fragen, auch die noch leeren.
+  await answer.fill('Frisch getippt')
+  await page.getByRole('button', { name: 'Lesen' }).click()
+  const read = page.locator('.je-read')
+  for (const question of ['Was lief gut?', 'Was lerne ich daraus?', 'Was ist morgen wichtig?'])
+    await read.getByRole('heading', { name: question, exact: true }).waitFor()
+
+  // Lesen -> Markdown zeigt den frisch getippten Stand, nicht den alten und kein leeres Feld.
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click()
+  const markdownField = page.getByRole('textbox', {
+    name: 'Freies Markdown für den gesamten Eintrag',
+  })
+  assert.match(await markdownField.inputValue(), /Frisch getippt/)
+})
+
+test('Journal: Markdown für den ganzen Eintrag', async () => {
+  const day = new Date().toLocaleDateString('sv')
+  const markdown = [
+    `# Journal ${day}`,
+    '',
+    '## Was lief gut?',
+    '',
+    'Heute lief **Markdown**.',
+    '',
+    '## Eigene Gedanken',
+    '',
+    'Ein freier Absatz.',
+    '',
+    '- Erster Punkt',
+    '- Zweiter Punkt',
+  ].join('\n')
+
+  await page.goto(`${base}/journal`)
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click()
+  const editor = page.getByRole('textbox', { name: 'Freies Markdown für den gesamten Eintrag' })
+  await editor.waitFor()
+  const style = await editor.evaluate((el) => {
+    const css = getComputedStyle(el)
+    return { border: css.borderTopWidth, background: css.backgroundColor }
+  })
+  assert.equal(style.border, '0px', 'der Markdown-Editor ist nicht als Karte umrandet')
+  assert.equal(style.background, 'rgba(0, 0, 0, 0)')
+
+  const saved = page.waitForResponse(
+    (r) => r.url().includes(`/api/notes/Journal/${day}.md`) && r.request().method() === 'PUT',
+  )
+  await editor.fill(markdown)
+  await page.locator('.je-saved').waitFor()
+  await saved
+  assert.equal(readFileSync(join(env.KAIRO_NOTES_DIR, 'Journal', `${day}.md`), 'utf8'), markdown)
+
+  await page.getByRole('button', { name: 'Lesen' }).click()
+  await page.getByText('Ein freier Absatz.').waitFor()
+  await page.getByRole('button', { name: 'Markdown', exact: true }).click()
+  assert.equal(await editor.inputValue(), markdown, 'Formatierung bleibt nach dem Lesen erhalten')
+})
+
 test('Journal speichern', async () => {
   await page.goto(`${base}/journal`)
   await page.getByLabel('Was lief gut?').fill('Smoke grün')
@@ -473,7 +570,7 @@ test('Start zeigt das gestrige Journal-Vorhaben mit direktem Link', async () => 
   const reminder = page.locator('.st-journal')
   await reminder.getByText('Morgen Abgabe vorbereiten.').waitFor()
   await reminder.click()
-  const point = page.locator('.jr-entry .je-point-input').first()
+  const point = page.locator('.jr-entry .je-points-text').first()
   await point.waitFor()
   assert.equal(await point.inputValue(), 'Morgen Abgabe vorbereiten.')
 })
@@ -495,7 +592,7 @@ test('Journal-Vorhaben als Aufgaben übernehmen', async () => {
   )
 
   await page.goto(`${base}/journal`)
-  await page.locator('.jr-today .je-point-input').first().waitFor()
+  await page.locator('.jr-today .je-points-text').first().waitFor()
   await page.getByRole('button', { name: 'Als Aufgaben übernehmen' }).click()
   const dialog = page.getByRole('dialog', { name: 'Als Aufgaben übernehmen' })
   const candidates = dialog.locator('.je-task-candidate')
