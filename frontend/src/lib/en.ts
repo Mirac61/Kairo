@@ -940,7 +940,6 @@ const en: Record<string, string> = {
     'The entry was changed outside Kairo and was not overwritten.',
   Übernommen: 'Added',
   'Punkt …': 'Item…',
-  'Punkt {n}': 'Item {n}',
   'Letzte 12 Wochen': 'Last 12 weeks',
   'Tag mit Eintrag': 'Day with an entry',
   Seiten: 'Pages',

@@ -17,6 +17,7 @@ export interface JournalEntryData {
   answers: string[]
   other: string
   mtime: string
+  markdown?: string
 }
 
 const props = defineProps<{
@@ -51,8 +52,9 @@ function wrapOther(text: string): string {
 
 const q0 = ref(props.entry?.answers[0] ?? '')
 const q1 = ref(props.entry?.answers[1] ?? '')
-const initPoints = splitPoints(props.entry?.answers[2] ?? '')
-const points = ref<string[]>(initPoints.length ? initPoints : [''])
+// Punkte als eine Markdown-Liste: eine Zeile je Punkt, Aufzählungszeichen tippt man selbst.
+const pointsText = ref(props.entry?.answers[2] ?? '')
+const points = computed(() => splitPoints(pointsText.value))
 const freeNotes = ref(unwrapOther(props.entry?.other ?? ''))
 const rawMd = ref('')
 let mtime = props.entry?.mtime ?? ''
@@ -68,21 +70,16 @@ let alive = true
 // Was zuletzt geschrieben wurde: flush() schreibt nur, wenn sich seither etwas geändert hat.
 let version = 0
 let savedVersion = 0
+// Wurde zuletzt in der geführten Ansicht getippt? Dann ist rawMd veraltet und wird beim
+// Wechsel nach Markdown aus den Feldern neu gebaut.
+let guidedDirty = false
 let timer: ReturnType<typeof setTimeout> | undefined
 let savedTimer: ReturnType<typeof setTimeout> | undefined
 const isDirty = () => version !== savedVersion
 
-// Feld zum Einfügen eines neuen Punkts; ein Punkt bleibt immer übrig.
-const pointList = ref<HTMLElement>()
+// Feld für Punkte; die Höhe wächst mit dem Inhalt, wie bei den Antworten.
 const formEl = ref<HTMLFormElement>()
-const canImport = computed(() => points.value.some((p) => p.trim()))
-
-function focusPoint(i: number) {
-  void nextTick(() => {
-    const inputs = pointList.value?.querySelectorAll('input')
-    inputs?.[i]?.focus()
-  })
-}
+const canImport = computed(() => points.value.length > 0)
 
 function grow(el: HTMLTextAreaElement) {
   el.style.height = 'auto'
@@ -91,6 +88,7 @@ function grow(el: HTMLTextAreaElement) {
 
 function onAreaInput(e: Event) {
   grow(e.target as HTMLTextAreaElement)
+  guidedDirty = true
   onChange()
 }
 
@@ -100,9 +98,9 @@ function onRawMdInput(e: Event) {
   const parsed = parseEntry(rawMd.value)
   q0.value = parsed.answers[0] ?? ''
   q1.value = parsed.answers[1] ?? ''
-  const ps = splitPoints(parsed.answers[2] ?? '')
-  points.value = ps.length ? ps : ['']
+  pointsText.value = parsed.answers[2] ?? ''
   freeNotes.value = unwrapOther(parsed.other)
+  guidedDirty = false
   onChange()
 }
 
@@ -127,31 +125,7 @@ function onChange() {
   }, 800)
 }
 
-// Punkte: v-model pro Zeile, Enter teilt am Cursor, Backspace auf leerer Zeile entfernt den Punkt.
-function setPoint(i: number, v: string) {
-  points.value[i] = v
-  onChange()
-}
-
-function onPointKey(i: number, e: KeyboardEvent) {
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    const el = e.target as HTMLInputElement
-    const caret = el.selectionStart ?? el.value.length
-    const before = el.value.slice(0, caret)
-    const after = el.value.slice(caret)
-    points.value[i] = before
-    points.value.splice(i + 1, 0, after)
-    onChange()
-    focusPoint(i + 1)
-  } else if (e.key === 'Backspace' && points.value[i] === '' && points.value.length > 1) {
-    e.preventDefault()
-    points.value.splice(i, 1)
-    onChange()
-    focusPoint(Math.max(0, i - 1))
-  }
-}
-
+// Punkte: ein Feld, eine Zeile je Punkt; die Liste bleibt Markdown.
 function conflict(): false {
   if (alive) {
     status.value = 'conflict'
@@ -164,8 +138,10 @@ function conflict(): false {
 async function saveOnce(): Promise<boolean> {
   if (alive) status.value = 'saving'
   const v = version
-  const answers = [q0.value, q1.value, points.value.join('\n')]
+  const answers = [q0.value, q1.value, pointsText.value]
   const other = wrapOther(freeNotes.value)
+  const entry = props.mode === 'markdown' ? parseEntry(rawMd.value) : { answers, other }
+  const content = props.mode === 'markdown' ? rawMd.value : toMarkdown(props.date, entry)
   try {
     // Vor dem Schreiben prüfen, ob die Datei seit dem Laden außerhalb geändert wurde.
     if (mtime) {
@@ -192,17 +168,16 @@ async function saveOnce(): Promise<boolean> {
       })
       nextMtime = (await createNote(journalPath(props.date))).mtime ?? ''
     }
-    nextMtime = (
-      await saveNote(journalPath(props.date), toMarkdown(props.date, { answers, other }), nextMtime)
-    ).mtime
+    nextMtime = (await saveNote(journalPath(props.date), content, nextMtime)).mtime
     mtime = nextMtime
     savedVersion = v
     if (v === version) dirty.value = false
+    guidedDirty = false // Datei und Felder stimmen jetzt überein
     // Nach dem Unmount wird noch geschrieben, aber nichts mehr angezeigt oder gemeldet.
     if (!alive) return true
     status.value = 'saved'
     error.value = ''
-    emit('saved', { answers, other, mtime })
+    emit('saved', { ...entry, markdown: content, mtime })
     if (savedTimer) clearTimeout(savedTimer)
     savedTimer = setTimeout(() => {
       savedTimer = undefined
@@ -260,10 +235,10 @@ async function reload() {
     const e = parseEntry(n.content)
     q0.value = e.answers[0] ?? ''
     q1.value = e.answers[1] ?? ''
-    const ps = splitPoints(e.answers[2] ?? '')
-    points.value = ps.length ? ps : ['']
+    pointsText.value = e.answers[2] ?? ''
     freeNotes.value = unwrapOther(e.other)
-    rawMd.value = toMarkdown(props.date, e)
+    rawMd.value = n.content
+    guidedDirty = false
     mtime = n.mtime
     status.value = 'idle'
     error.value = ''
@@ -276,9 +251,10 @@ async function reload() {
     }
     q0.value = ''
     q1.value = ''
-    points.value = ['']
+    pointsText.value = ''
     freeNotes.value = ''
     rawMd.value = toMarkdown(props.date, { answers: ['', '', ''], other: '' })
+    guidedDirty = false
     mtime = ''
     status.value = 'idle'
     error.value = ''
@@ -296,25 +272,34 @@ watch(
     if (isDirty() || saving) return
     q0.value = e?.answers[0] ?? ''
     q1.value = e?.answers[1] ?? ''
-    const ps = splitPoints(e?.answers[2] ?? '')
-    points.value = ps.length ? ps : ['']
+    pointsText.value = e?.answers[2] ?? ''
     freeNotes.value = unwrapOther(e?.other ?? '')
-    rawMd.value = toMarkdown(props.date, {
-      answers: [q0.value, q1.value, points.value.join('\n')],
-      other: wrapOther(freeNotes.value),
-    })
+    rawMd.value =
+      e?.markdown ??
+      toMarkdown(props.date, {
+        answers: [q0.value, q1.value, pointsText.value],
+        other: wrapOther(freeNotes.value),
+      })
+    guidedDirty = false
     mtime = e?.mtime ?? ''
     void nextTick(growAll)
   },
 )
 watch(
   () => props.mode,
-  (m) => {
-    if (m === 'markdown') {
-      rawMd.value = toMarkdown(props.date, {
-        answers: [q0.value, q1.value, points.value.join('\n')],
+  (m, previous) => {
+    // Beim Wechsel nach Markdown den aktuellen Stand zeigen: nach Tippen in der geführten
+    // Ansicht (auch über „Lesen“) neu bauen, sonst nur ein leeres Feld füllen.
+    if (m === 'markdown' && (previous === 'write' || guidedDirty || !rawMd.value.trim())) {
+      const fields = {
+        answers: [q0.value, q1.value, pointsText.value],
         other: wrapOther(freeNotes.value),
-      })
+      }
+      rawMd.value =
+        previous === 'write' || guidedDirty
+          ? toMarkdown(props.date, fields)
+          : (props.entry?.markdown ?? toMarkdown(props.date, fields))
+      guidedDirty = false
     }
     if (m !== 'read') void nextTick(growAll)
   },
@@ -432,122 +417,120 @@ async function submitImport(titles: string[]) {
 
     <div v-if="mode === 'read'" class="je-read">
       <p v-if="!hasAnyContent" class="je-empty">{{ $t('Noch kein Eintrag') }}</p>
-      <template v-else>
-        <section v-if="q0.trim()" class="je-read-sec">
-          <h3 class="je-label">
-            <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was lief gut?') }}
-          </h3>
-          <template v-for="(b, idx) in parseBlocks(q0)" :key="idx">
-            <blockquote v-if="b.kind === 'quote'" class="je-read-quote">
+      <section class="je-read-sec">
+        <h3 class="je-label">
+          <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was lief gut?') }}
+        </h3>
+        <template v-for="(b, idx) in parseBlocks(q0)" :key="idx">
+          <blockquote v-if="b.kind === 'quote'" class="je-read-quote">
+            <template v-for="(tok, ti) in b.tokens" :key="ti">
+              <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+              <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+              <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+              <template v-else>{{ tok.text }}</template>
+            </template>
+          </blockquote>
+          <div v-else-if="b.kind === 'bullet'" class="je-read-li">
+            <span class="je-bullet" aria-hidden="true">-</span>
+            <span>
               <template v-for="(tok, ti) in b.tokens" :key="ti">
                 <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
                 <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
                 <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
                 <template v-else>{{ tok.text }}</template>
               </template>
-            </blockquote>
-            <div v-else-if="b.kind === 'bullet'" class="je-read-li">
-              <span class="je-bullet" aria-hidden="true">-</span>
-              <span>
-                <template v-for="(tok, ti) in b.tokens" :key="ti">
-                  <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
-                  <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
-                  <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
-                  <template v-else>{{ tok.text }}</template>
-                </template>
-              </span>
-            </div>
-            <p v-else class="je-read-p">
-              <template v-for="(tok, ti) in b.tokens" :key="ti">
-                <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
-                <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
-                <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
-                <template v-else>{{ tok.text }}</template>
-              </template>
-            </p>
-          </template>
-        </section>
+            </span>
+          </div>
+          <p v-else class="je-read-p">
+            <template v-for="(tok, ti) in b.tokens" :key="ti">
+              <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+              <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+              <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+              <template v-else>{{ tok.text }}</template>
+            </template>
+          </p>
+        </template>
+      </section>
 
-        <section v-if="q1.trim()" class="je-read-sec">
-          <h3 class="je-label">
-            <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was lerne ich daraus?') }}
-          </h3>
-          <template v-for="(b, idx) in parseBlocks(q1)" :key="idx">
-            <blockquote v-if="b.kind === 'quote'" class="je-read-quote">
+      <section class="je-read-sec">
+        <h3 class="je-label">
+          <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was lerne ich daraus?') }}
+        </h3>
+        <template v-for="(b, idx) in parseBlocks(q1)" :key="idx">
+          <blockquote v-if="b.kind === 'quote'" class="je-read-quote">
+            <template v-for="(tok, ti) in b.tokens" :key="ti">
+              <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+              <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+              <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+              <template v-else>{{ tok.text }}</template>
+            </template>
+          </blockquote>
+          <div v-else-if="b.kind === 'bullet'" class="je-read-li">
+            <span class="je-bullet" aria-hidden="true">-</span>
+            <span>
               <template v-for="(tok, ti) in b.tokens" :key="ti">
                 <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
                 <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
                 <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
                 <template v-else>{{ tok.text }}</template>
               </template>
-            </blockquote>
-            <div v-else-if="b.kind === 'bullet'" class="je-read-li">
-              <span class="je-bullet" aria-hidden="true">-</span>
-              <span>
-                <template v-for="(tok, ti) in b.tokens" :key="ti">
-                  <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
-                  <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
-                  <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
-                  <template v-else>{{ tok.text }}</template>
-                </template>
-              </span>
-            </div>
-            <p v-else class="je-read-p">
-              <template v-for="(tok, ti) in b.tokens" :key="ti">
-                <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
-                <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
-                <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
-                <template v-else>{{ tok.text }}</template>
-              </template>
-            </p>
-          </template>
-        </section>
+            </span>
+          </div>
+          <p v-else class="je-read-p">
+            <template v-for="(tok, ti) in b.tokens" :key="ti">
+              <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+              <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+              <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+              <template v-else>{{ tok.text }}</template>
+            </template>
+          </p>
+        </template>
+      </section>
 
-        <section v-if="cleanPoints.length" class="je-read-sec">
-          <h3 class="je-label">
-            <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was ist morgen wichtig?') }}
-          </h3>
-          <ul class="je-read-list">
-            <li v-for="(p, idx) in cleanPoints" :key="idx">
-              <span class="je-bullet" aria-hidden="true">-</span>
-              <span>{{ p }}</span>
-            </li>
-          </ul>
-        </section>
+      <section class="je-read-sec">
+        <h3 class="je-label">
+          <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was ist morgen wichtig?') }}
+        </h3>
+        <ul class="je-read-list">
+          <li v-for="(p, idx) in cleanPoints" :key="idx">
+            <span class="je-bullet" aria-hidden="true">-</span>
+            <span>{{ p }}</span>
+          </li>
+        </ul>
+      </section>
 
-        <section v-for="(sec, sIdx) in freeReadSections" :key="sIdx" class="je-read-sec">
-          <h3 class="je-label"><span class="je-mk" aria-hidden="true">##</span>{{ sec.title }}</h3>
-          <template v-for="(b, idx) in sec.blocks" :key="idx">
-            <blockquote v-if="b.kind === 'quote'" class="je-read-quote">
+      <section v-for="(sec, sIdx) in freeReadSections" :key="sIdx" class="je-read-sec">
+        <h3 class="je-label"><span class="je-mk" aria-hidden="true">##</span>{{ sec.title }}</h3>
+        <template v-for="(b, idx) in sec.blocks" :key="idx">
+          <blockquote v-if="b.kind === 'quote'" class="je-read-quote">
+            <template v-for="(tok, ti) in b.tokens" :key="ti">
+              <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+              <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+              <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+              <template v-else>{{ tok.text }}</template>
+            </template>
+          </blockquote>
+          <div v-else-if="b.kind === 'bullet'" class="je-read-li">
+            <span class="je-bullet" aria-hidden="true">-</span>
+            <span>
               <template v-for="(tok, ti) in b.tokens" :key="ti">
                 <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
                 <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
                 <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
                 <template v-else>{{ tok.text }}</template>
               </template>
-            </blockquote>
-            <div v-else-if="b.kind === 'bullet'" class="je-read-li">
-              <span class="je-bullet" aria-hidden="true">-</span>
-              <span>
-                <template v-for="(tok, ti) in b.tokens" :key="ti">
-                  <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
-                  <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
-                  <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
-                  <template v-else>{{ tok.text }}</template>
-                </template>
-              </span>
-            </div>
-            <p v-else class="je-read-p">
-              <template v-for="(tok, ti) in b.tokens" :key="ti">
-                <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
-                <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
-                <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
-                <template v-else>{{ tok.text }}</template>
-              </template>
-            </p>
-          </template>
-        </section>
-      </template>
+            </span>
+          </div>
+          <p v-else class="je-read-p">
+            <template v-for="(tok, ti) in b.tokens" :key="ti">
+              <strong v-if="tok.kind === 'bold'">{{ tok.text }}</strong>
+              <code v-else-if="tok.kind === 'code'" class="je-read-code">{{ tok.text }}</code>
+              <span v-else-if="tok.kind === 'wiki'" class="je-read-wiki">{{ tok.text }}</span>
+              <template v-else>{{ tok.text }}</template>
+            </template>
+          </p>
+        </template>
+      </section>
     </div>
 
     <form v-else-if="mode === 'markdown'" ref="formEl" class="je-form" @submit.prevent>
@@ -608,20 +591,14 @@ async function submitImport(titles: string[]) {
         <label class="je-label" for="je-c">
           <span class="je-mk" aria-hidden="true">##</span>{{ $t('Was ist morgen wichtig?') }}
         </label>
-        <div ref="pointList" class="je-points">
-          <div v-for="(p, i) in points" :key="i" class="je-point">
-            <span class="je-bullet" aria-hidden="true">-</span>
-            <input
-              :id="i === 0 ? 'je-c' : undefined"
-              class="je-point-input"
-              :value="p"
-              :placeholder="HINTS[2]"
-              :aria-label="i === 0 ? $t('Was ist morgen wichtig?') : $t('Punkt {n}', { n: i + 1 })"
-              @input="setPoint(i, ($event.target as HTMLInputElement).value)"
-              @keydown="onPointKey(i, $event)"
-            />
-          </div>
-        </div>
+        <textarea
+          id="je-c"
+          v-model="pointsText"
+          class="je-area je-points-text"
+          rows="1"
+          :placeholder="HINTS[2]"
+          @input="onAreaInput"
+        ></textarea>
       </section>
 
       <section class="je-q">
