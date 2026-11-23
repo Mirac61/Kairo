@@ -45,6 +45,22 @@ func TestGoalsFlow(t *testing.T) {
 		t.Errorf("HABIT_COUNT ohne habit_id = %d", rec.Code)
 	}
 
+	// Priorität: Standard MEDIUM, per POST/PATCH setzbar, Unbekanntes ist 400.
+	exam := id("/api/goals", `{"title":"Klausur","priority":"HIGH"}`)
+	var pg struct{ Priority string }
+	_ = json.Unmarshal(call(h, "PATCH", "/api/goals/"+exam, `{"priority":"URGENT"}`).Body.Bytes(), &pg)
+	if pg.Priority != "URGENT" {
+		t.Errorf("PATCH priority = %q", pg.Priority)
+	}
+	_ = json.Unmarshal(call(h, "PATCH", "/api/goals/"+exam, `{"title":"Klausur 2"}`).Body.Bytes(), &pg)
+	if pg.Priority != "URGENT" {
+		t.Errorf("Priorität nach PATCH ohne priority = %q, want URGENT", pg.Priority)
+	}
+	if rec := call(h, "POST", "/api/goals", `{"title":"x","priority":"NOPE"}`); rec.Code != 400 {
+		t.Errorf("unbekannte Priorität = %d", rec.Code)
+	}
+	call(h, "DELETE", "/api/goals/"+exam, "")
+
 	habit := id("/api/habits", `{"name":"Sport","frequency_type":"DAILY","start_date":"2026-01-01"}`)
 	for _, d := range []string{"2026-01-03", "2026-01-08", "2026-01-09"} {
 		call(h, "POST", "/api/habits/"+habit+"/completions", `{"date":"`+d+`"}`)

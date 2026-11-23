@@ -87,6 +87,7 @@ type CreateGoalInput struct {
 	StartDate *string
 	DueDate   *string
 	ParentID  *string
+	Priority  domain.TaskPriority
 }
 
 // UpdateGoalInput ändert nur gesetzte Felder; "" entfernt ImagePath, ProjectID, HabitID, DueDate und ParentID.
@@ -102,6 +103,7 @@ type UpdateGoalInput struct {
 	DueDate   *string
 	Archived  *bool
 	ParentID  *string
+	Priority  *domain.TaskPriority
 }
 
 func (s *GoalService) Create(ctx context.Context, in CreateGoalInput) (GoalView, error) {
@@ -117,6 +119,7 @@ func (s *GoalService) Create(ctx context.Context, in CreateGoalInput) (GoalView,
 		StartDate: s.now().In(s.loc).Format("2006-01-02"),
 		DueDate:   trimOrNil(in.DueDate),
 		ParentID:  trimOrNil(in.ParentID),
+		Priority:  in.Priority,
 		CreatedAt: s.now().UTC(),
 	}
 	if sd := trimOrNil(in.StartDate); sd != nil {
@@ -174,6 +177,9 @@ func (s *GoalService) Update(ctx context.Context, id string, in UpdateGoalInput)
 	}
 	if in.ParentID != nil {
 		g.ParentID = trimOrNil(in.ParentID)
+	}
+	if in.Priority != nil {
+		g.Priority = *in.Priority
 	}
 	if err := s.validate(ctx, &g); err != nil {
 		return GoalView{}, err

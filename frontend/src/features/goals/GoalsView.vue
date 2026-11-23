@@ -18,6 +18,7 @@ import {
 import { useLiveEvents } from '@/composables/useLiveEvents'
 import { useLoader } from '@/composables/useLoader'
 import { ymd } from '@/lib/dates'
+import { PRIORITY_RANK } from '@/lib/goals'
 import PageHeader from '@/components/PageHeader.vue'
 import IconButton from '@/components/IconButton.vue'
 import SegTabs from '@/components/SegTabs.vue'
@@ -29,7 +30,10 @@ const IMAGE_DIR = 'Ziele'
 const goals = ref<Goal[]>([])
 const projects = ref<Project[]>([])
 const habits = ref<Habit[]>([])
-const longTerm = computed(() => goals.value.filter((g) => !g.parent_id && !g.archived))
+const byPriority = (a: Goal, b: Goal) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
+const longTerm = computed(() =>
+  goals.value.filter((g) => !g.parent_id && !g.archived).sort(byPriority),
+)
 const reached = computed(() => goals.value.filter((g) => !g.parent_id && g.archived))
 const stepsOf = (id: string) =>
   goals.value
@@ -108,7 +112,13 @@ function handleSaveGoal(payload: {
   void run(async () => {
     const { id, body, file, steps } = payload
     const g = id ? await updateGoal(id, body) : await createGoal(body)
-    for (const s of steps) await createGoal({ ...s, parent_id: g.id })
+    try {
+      for (const s of steps) await createGoal({ ...s, parent_id: g.id })
+    } catch (e) {
+      // Halb angelegt wäre schlimmer: ein zweites „Anlegen“ würde das Ziel doppeln. Teilziele löschen mit.
+      if (!id) await deleteGoal(g.id).catch(() => {})
+      throw e
+    }
     const old = id ? (goals.value.find((x) => x.id === id)?.image_path ?? null) : null
     if (file) {
       await updateGoal(g.id, { image_path: await uploadImage(g.id, file) })

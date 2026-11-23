@@ -528,9 +528,12 @@ export interface Goal {
   due_date: string | null
   archived: boolean
   parent_id: string | null // gesetzt: Teilziel eines Langzeitziels
+  priority: GoalPriority
   progress: { current: number; target: number; percent: number } | null
   history: { date: string; percent: number }[] // Verlauf von start_date bis heute; leer ohne Fortschritt
 }
+
+export type GoalPriority = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW'
 
 export function listGoals(): Promise<Goal[]> {
   return api<Goal[]>('/goals')

@@ -1,4 +1,4 @@
-import type { Goal } from '@/api/client'
+import type { Goal, GoalPriority } from '@/api/client'
 import { t, tn } from './i18n.ts'
 
 // „3 von 10 Std.“ usw.; leer bei Zielen ohne Fortschritt.
@@ -52,6 +52,17 @@ export function goalPace(
       n: amount(Math.ceil((p.target - p.current) / Math.max(1, daysLeft / 7))),
     })
   return { pace, state, daysLeft, hint }
+}
+
+// Reihenfolge auf der Zielseite: dringende zuerst.
+export const PRIORITY_RANK: Record<GoalPriority, number> = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
+
+// Themenzeilen aus dem Ziel-Dialog: leere weg, Listenzeichen aus eingefügten Listen („- “, „1. “) ab.
+export function topicLines(text: string): string[] {
+  return text
+    .split('\n')
+    .map((s) => s.trim().replace(/^(?:[-*•]|\d+[.)])\s+/, ''))
+    .filter(Boolean)
 }
 
 // Puffer vor einer Frist (z. B. Klausur): so viele Tage bleiben frei zum Wiederholen.

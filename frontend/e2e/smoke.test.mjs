@@ -296,11 +296,13 @@ test('Klausur planen: Themen werden Teilziele mit Fristen vor dem Termin', async
   await page.getByRole('button', { name: /Neues Ziel/ }).click()
   await page.getByLabel('Ziel', { exact: true }).fill('Klausur Analysis')
   await page.getByLabel('Bis').fill(day(23))
-  await page.getByLabel('Themen').fill('Folgen\nReihen\n\nIntegrale')
+  await page.getByLabel('Priorität').selectOption('HIGH')
+  await page.getByLabel('Themen').fill('Folgen\n- Reihen\n\n1. Integrale')
   await page.getByRole('button', { name: 'Anlegen' }).click()
   await page.locator('.gl-card', { hasText: 'Klausur Analysis' }).waitFor()
   const gs = await api('/goals')
   const exam = gs.find((x) => x.title === 'Klausur Analysis')
+  assert.equal(exam.priority, 'HIGH')
   const steps = gs.filter((x) => x.parent_id === exam.id)
   assert.deepEqual(
     steps.map((x) => [x.title, x.due_date]).sort((a, b) => a[1].localeCompare(b[1])),

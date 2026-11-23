@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { goalPace, spreadDue } from '../src/lib/goals.ts'
+import { goalPace, spreadDue, topicLines } from '../src/lib/goals.ts'
 
 const g = (percent: number, current: number, target: number, extra = {}) => ({
   kind: 'PROJECT_TASKS' as const,
@@ -46,4 +46,11 @@ test('spreadDue verteilt Teilziele bis drei Tage vor der Frist', () => {
   assert.deepEqual(spreadDue('2026-10-20', '2027-01-04', 2), ['2026-11-26', '2027-01-01'])
   // Frist näher als der Puffer: alles heute
   assert.deepEqual(spreadDue('2026-11-24', '2026-11-26', 2), ['2026-11-24', '2026-11-24'])
+})
+
+test('topicLines entfernt Leerzeilen und Listenzeichen', () => {
+  assert.deepEqual(
+    topicLines('Folgen\n- Reihen\n\n  * Grenzwerte \n1. Integrale\n2) Taylor\n-Minus bleibt'),
+    ['Folgen', 'Reihen', 'Grenzwerte', 'Integrale', 'Taylor', '-Minus bleibt'],
+  )
 })

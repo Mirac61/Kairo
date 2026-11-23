@@ -29,8 +29,9 @@ type Goal struct {
 	StartDate  string // YYYY-MM-DD, ab hier zählen Stunden und Completions
 	DueDate    *string
 	Archived   bool
-	ParentID   *string    // gesetzt: Teilziel eines Langzeitziels
-	ArchivedAt *time.Time // wann erreicht; nil bei offenen und bei vor 0027 erreichten Zielen
+	ParentID   *string      // gesetzt: Teilziel eines Langzeitziels
+	Priority   TaskPriority // wie bei Tasks; leer wird MEDIUM
+	ArchivedAt *time.Time   // wann erreicht; nil bei offenen und bei vor 0027 erreichten Zielen
 	CreatedAt  time.Time
 }
 
@@ -42,6 +43,12 @@ func (g *Goal) Validate() error {
 	}
 	if g.Kind == "" {
 		g.Kind = GoalNone
+	}
+	if g.Priority == "" {
+		g.Priority = PriorityMedium
+	}
+	if !g.Priority.Valid() {
+		return fmt.Errorf("%w: unbekannte Priorität %q", ErrInvalid, g.Priority)
 	}
 	switch g.Kind {
 	case GoalNone:

@@ -4,7 +4,7 @@ import type { Goal, GoalKind, Habit, Project } from '@/api/client'
 import { vDialog } from '@/lib/dialog'
 import { ymd } from '@/lib/dates'
 import { filesUrl } from '@/lib/noteFiles'
-import { spreadDue } from '@/lib/goals'
+import { spreadDue, topicLines } from '@/lib/goals'
 import DeleteButton from '@/components/DeleteButton.vue'
 
 const props = defineProps<{
@@ -54,6 +54,7 @@ function blankForm(parent = '') {
     file: null as File | null,
     archived: false,
     topics: '',
+    priority: 'MEDIUM' as Goal['priority'],
   }
 }
 
@@ -99,6 +100,7 @@ watch(
       file: null,
       archived: g.archived,
       topics: '',
+      priority: g.priority,
     }
   },
   { immediate: true },
@@ -141,14 +143,10 @@ function save() {
     start_date: f.start,
     due_date: f.due,
     image_path: f.image ?? '',
+    priority: f.priority,
   }
   // Themen (eine Zeile je Thema) werden Teilziele mit rückwärts verteilten Fristen, etwa für eine Klausur.
-  const topics = canPlan.value
-    ? f.topics
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : []
+  const topics = canPlan.value ? topicLines(f.topics) : []
   const dues = spreadDue(ymd(new Date()), f.due, topics.length)
   emit('save', {
     id: f.id || undefined,
@@ -222,6 +220,16 @@ function handleToggleArchive() {
             <select id="g-parent" v-model="form.parent" class="input">
               <option value="">{{ $t('Ist selbst ein Langzeitziel') }}</option>
               <option v-for="p in parents" :key="p.id" :value="p.id">{{ p.title }}</option>
+            </select>
+          </label>
+
+          <label v-if="!form.parent" class="sheet-row">
+            <span>{{ $t('Priorität') }}</span>
+            <select id="g-prio" v-model="form.priority" class="input">
+              <option value="URGENT">{{ $t('Dringend') }}</option>
+              <option value="HIGH">{{ $t('Hoch') }}</option>
+              <option value="MEDIUM">{{ $t('Mittel') }}</option>
+              <option value="LOW">{{ $t('Niedrig') }}</option>
             </select>
           </label>
 
