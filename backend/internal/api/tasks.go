@@ -21,6 +21,7 @@ type TaskService interface {
 	Delete(ctx context.Context, id string) error
 	Trash(ctx context.Context, id string) error
 	Restore(ctx context.Context, id string) (domain.Task, error)
+	PlanRepetitions(ctx context.Context, id string) ([]domain.Task, error)
 	ListTrashed(ctx context.Context) ([]domain.Task, error)
 }
 
@@ -88,6 +89,7 @@ func (h taskHandlers) register(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/tasks/{id}", h.update)
 	mux.HandleFunc("DELETE /api/tasks/{id}", deleteHandler(h.svc.Trash, h.svc.Delete))
 	mux.HandleFunc("POST /api/tasks/{id}/restore", restoreHandler(h.svc.Restore, toTaskDTO))
+	mux.HandleFunc("POST /api/tasks/{id}/repetitions", h.planRepetitions)
 }
 
 type journalTaskImportDTO struct {
@@ -184,6 +186,21 @@ func (h taskHandlers) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, toTaskDTO(t))
+}
+
+// planRepetitions legt Wiederholungen in 1, 3, 7 und 14 Tagen an und liefert die neu angelegten
+// (leer, wenn sie heute schon geplant wurden).
+func (h taskHandlers) planRepetitions(w http.ResponseWriter, r *http.Request) {
+	ts, err := h.svc.PlanRepetitions(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	out := make([]taskDTO, 0, len(ts))
+	for _, t := range ts {
+		out = append(out, toTaskDTO(t))
+	}
+	writeJSON(w, http.StatusCreated, out)
 }
 
 func (h taskHandlers) get(w http.ResponseWriter, r *http.Request) {

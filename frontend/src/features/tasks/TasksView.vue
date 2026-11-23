@@ -8,6 +8,7 @@ import {
   listProjects,
   listResources,
   listTasks,
+  planRepetitions,
   taskAction,
   type Project,
   type Resource,
@@ -19,6 +20,7 @@ import { useShortcuts } from '@/composables/useShortcuts'
 import { useTaskFilter } from '@/composables/useTaskFilter'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { useUndo } from '@/composables/useUndo'
+import { t } from '@/lib/i18n'
 import { useFreeSlot } from '@/composables/useFreeSlot'
 import { addDays, shiftDate, ymd } from '@/lib/dates'
 import SelectionBar from '@/components/SelectionBar.vue'
@@ -181,6 +183,19 @@ const {
   toggleTaskStatus,
   trashTask,
 } = useTaskOperations(run, offer, setDone, todayString, dayOf, overdue, openId)
+
+// Wiederholungen in 1, 3, 7 und 14 Tagen; Rückgängig legt sie in den Papierkorb.
+async function planRepeats(task: Task) {
+  let made: Task[] = []
+  if (!(await run(async () => (made = await planRepetitions(task.id))))) return
+  if (!made.length) {
+    error.value = t('Für heute schon geplant (auch im Papierkorb).')
+    return
+  }
+  offer(t('Wiederholungen in 1, 3, 7 und 14 Tagen geplant'), () =>
+    run(() => Promise.all(made.map((r) => deleteTask(r.id)))),
+  )
+}
 
 function moveSelection(direction: number) {
   const list = flat.value
@@ -423,6 +438,7 @@ useLiveEvents(load)
         }
       "
       @trash="trashTask(openTask)"
+      @repeat="planRepeats(openTask)"
       @take-edit-slot="takeEditSlot"
       @run="run"
       @reload="load"

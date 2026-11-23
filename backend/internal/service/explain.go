@@ -13,6 +13,9 @@ import (
 // explainPrefix kennzeichnet die SourceKey der Erklär-Checks: explain:<event_id>@<YYYY-MM-DD>.
 const explainPrefix = "explain:"
 
+// explainTitle steht vor dem Termintitel einer Erklär-Check-Task.
+const explainTitle = "5 Min erklären: "
+
 // ExplainEvents liefert die konkreten Termine im Fenster [from, to).
 type ExplainEvents interface {
 	Occurrences(ctx context.Context, from, to time.Time) ([]domain.EventInstance, error)
@@ -61,7 +64,7 @@ func (s *ExplainChecks) Sync(ctx context.Context) error {
 		key := explainPrefix + o.Event.ID + "@" + date
 		if _, err := s.tasks.CreateGenerated(ctx, domain.Task{
 			ID:               domain.NewID(),
-			Title:            "5 Min erklären: " + o.Event.Title,
+			Title:            explainTitle + o.Event.Title,
 			Status:           domain.TaskPlanned,
 			Priority:         domain.PriorityMedium,
 			EstimatedMinutes: 5,

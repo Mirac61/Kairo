@@ -381,6 +381,10 @@ const en: Record<string, string> = {
   'Endet am': 'Ends on',
   'Kein Projekt': 'No project',
   'Erklär-Check': 'Explain check',
+  'Wiederholen planen': 'Plan reviews',
+  'Legt Wiederholungen in 1, 3, 7 und 14 Tagen an': 'Adds reviews in 1, 3, 7 and 14 days',
+  'Wiederholungen in 1, 3, 7 und 14 Tagen geplant': 'Reviews planned in 1, 3, 7 and 14 days',
+  'Für heute schon geplant (auch im Papierkorb).': 'Already planned today (including the trash).',
   'Nach jedem Termin eine Aufgabe „5 Min erklären“ für denselben Tag':
     'After each event, a “5 min explain” task for the same day',
   'ICS importieren': 'Import ICS',

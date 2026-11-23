@@ -31,6 +31,7 @@ const emit = defineEmits<{
   (e: 'toggleSubtask', subtask: Task): void
   (e: 'addSubtask', title: string): void
   (e: 'trash'): void
+  (e: 'repeat'): void
   (e: 'takeEditSlot', time: string): void
   (e: 'run', action: () => Promise<unknown>): void
   (e: 'reload'): void
@@ -307,7 +308,16 @@ function noteTarget(): string | undefined {
       />
 
       <div class="td-foot">
-        <span></span>
+        <button
+          v-if="!task.source_key?.startsWith('repeat:')"
+          type="button"
+          class="btn btn-ghost"
+          :title="$t('Legt Wiederholungen in 1, 3, 7 und 14 Tagen an')"
+          @click="emit('repeat')"
+        >
+          {{ $t('Wiederholen planen') }}
+        </button>
+        <span v-else></span>
         <button type="button" class="btn btn-ghost" @click="emit('trash')">
           {{ $t('Löschen') }}
         </button>

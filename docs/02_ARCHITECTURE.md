@@ -188,6 +188,7 @@ GET    /api/tasks/:id
 PATCH  /api/tasks/:id
 DELETE /api/tasks/:id                 ?permanent=true
 POST   /api/tasks/:id/restore
+POST   /api/tasks/:id/repetitions     Wiederholungen in 1/3/7/14 Tagen, liefert die neuen
 POST   /api/tasks/:id/start           Timer starten (stoppt einen laufenden)
 POST   /api/tasks/:id/pause
 POST   /api/tasks/:id/complete
