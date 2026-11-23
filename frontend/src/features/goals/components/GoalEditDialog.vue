@@ -4,6 +4,7 @@ import type { Goal, GoalKind, Habit, Project } from '@/api/client'
 import { vDialog } from '@/lib/dialog'
 import { ymd } from '@/lib/dates'
 import { filesUrl } from '@/lib/noteFiles'
+import { spreadDue } from '@/lib/goals'
 import DeleteButton from '@/components/DeleteButton.vue'
 
 const props = defineProps<{
@@ -23,6 +24,7 @@ const emit = defineEmits<{
       id?: string
       body: Partial<Goal>
       file: File | null
+      steps: { title: string; due_date: string }[]
     },
   ): void
   (e: 'delete', goal: Goal): void
@@ -51,6 +53,7 @@ function blankForm(parent = '') {
     image: null as string | null,
     file: null as File | null,
     archived: false,
+    topics: '',
   }
 }
 
@@ -95,6 +98,7 @@ watch(
       image: g.image_path,
       file: null,
       archived: g.archived,
+      topics: '',
     }
   },
   { immediate: true },
@@ -108,6 +112,11 @@ const hasSteps = computed(
   () => !!form.value.id && props.goals.some((g) => g.parent_id === form.value.id),
 )
 const parents = computed(() => props.goals.filter((g) => !g.parent_id && g.id !== form.value.id))
+
+// Nur ein neues Langzeitziel mit Frist in der Zukunft bekommt das Themenfeld.
+const canPlan = computed(
+  () => !form.value.id && !form.value.parent && form.value.due > ymd(new Date()),
+)
 
 function pickFile(e: Event) {
   form.value.file = (e.target as HTMLInputElement).files?.[0] ?? null
@@ -133,10 +142,19 @@ function save() {
     due_date: f.due,
     image_path: f.image ?? '',
   }
+  // Themen (eine Zeile je Thema) werden Teilziele mit rückwärts verteilten Fristen, etwa für eine Klausur.
+  const topics = canPlan.value
+    ? f.topics
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : []
+  const dues = spreadDue(ymd(new Date()), f.due, topics.length)
   emit('save', {
     id: f.id || undefined,
     body,
     file: f.file,
+    steps: topics.map((title, i) => ({ title, due_date: dues[i]! })),
   })
 }
 
@@ -263,6 +281,17 @@ function handleToggleArchive() {
             <input id="g-due" v-model="form.due" class="input" type="date" />
           </label>
 
+          <label v-if="canPlan" class="sheet-row gl-topics-row">
+            <span>{{ $t('Themen') }}</span>
+            <textarea
+              id="g-topics"
+              v-model="form.topics"
+              class="input gl-topics"
+              rows="3"
+              :placeholder="$t('Ein Thema pro Zeile')"
+            ></textarea>
+          </label>
+
           <div class="sheet-row gl-img-cell">
             <label for="g-img" class="gl-lbl">{{ $t('Bild') }}</label>
             <div class="gl-img-row">
@@ -292,6 +321,13 @@ function handleToggleArchive() {
           {{
             $t(
               'Ohne eigene Messung zeigt ein Langzeitziel, wie viele seiner Teilziele erreicht sind.',
+            )
+          }}
+        </p>
+        <p v-if="canPlan && form.topics.trim()" class="sh-note">
+          {{
+            $t(
+              'Jedes Thema wird ein Teilziel. Die Fristen verteilen sich bis drei Tage vor dem Termin, die letzten Tage bleiben zum Wiederholen.',
             )
           }}
         </p>
@@ -327,6 +363,21 @@ function handleToggleArchive() {
 </template>
 
 <style scoped>
+/* .sheet-row .input ist auf eine Zeile ausgelegt; die Themen brauchen mehrere. */
+.sheet-row.gl-topics-row {
+  align-items: start;
+  padding: 6px 0;
+}
+.gl-topics-row > span {
+  padding-top: 7px;
+}
+.sheet-row .gl-topics {
+  height: auto;
+  min-height: 64px;
+  padding: 6px;
+  line-height: 1.45;
+  resize: vertical;
+}
 .gl-sheet {
   --sheet-w: 420px;
   --sheet-lbl-w: 112px;

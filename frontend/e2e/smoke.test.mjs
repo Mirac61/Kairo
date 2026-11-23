@@ -286,6 +286,32 @@ test('Ziel mit Bild anlegen', async () => {
   assert.ok(existsSync(join(env.KAIRO_NOTES_DIR, g.image_path)))
 })
 
+test('Klausur planen: Themen werden Teilziele mit Fristen vor dem Termin', async () => {
+  const day = (n) => {
+    const d = new Date()
+    d.setDate(d.getDate() + n)
+    return d.toLocaleDateString('sv')
+  }
+  await page.goto(`${base}/goals`)
+  await page.getByRole('button', { name: /Neues Ziel/ }).click()
+  await page.getByLabel('Ziel', { exact: true }).fill('Klausur Analysis')
+  await page.getByLabel('Bis').fill(day(23))
+  await page.getByLabel('Themen').fill('Folgen\nReihen\n\nIntegrale')
+  await page.getByRole('button', { name: 'Anlegen' }).click()
+  await page.locator('.gl-card', { hasText: 'Klausur Analysis' }).waitFor()
+  const gs = await api('/goals')
+  const exam = gs.find((x) => x.title === 'Klausur Analysis')
+  const steps = gs.filter((x) => x.parent_id === exam.id)
+  assert.deepEqual(
+    steps.map((x) => [x.title, x.due_date]).sort((a, b) => a[1].localeCompare(b[1])),
+    [
+      ['Folgen', day(7)],
+      ['Reihen', day(13)],
+      ['Integrale', day(20)],
+    ],
+  )
+})
+
 test('Journal speichern', async () => {
   await page.goto(`${base}/journal`)
   await page.getByLabel('Was lief gut?').fill('Smoke grün')

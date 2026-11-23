@@ -53,3 +53,21 @@ export function goalPace(
     })
   return { pace, state, daysLeft, hint }
 }
+
+// Puffer vor einer Frist (z. B. Klausur): so viele Tage bleiben frei zum Wiederholen.
+export const PLAN_BUFFER_DAYS = 3
+
+// Fristen für n Teilziele, gleichmäßig von heute bis PLAN_BUFFER_DAYS vor due verteilt; das letzte
+// liegt genau dort. Ist due näher als der Puffer, rücken alle auf heute (nie nach due). Tage als YYYY-MM-DD.
+export function spreadDue(today: string, due: string, n: number): string[] {
+  const day = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number)
+    return Date.UTC(y!, m! - 1, d!) / 864e5
+  }
+  const start = day(today)
+  const last = Math.max(start, Math.min(day(due), day(due) - PLAN_BUFFER_DAYS))
+  const span = last - start
+  return Array.from({ length: n }, (_, i) =>
+    new Date((start + Math.round((span * (i + 1)) / n)) * 864e5).toISOString().slice(0, 10),
+  )
+}

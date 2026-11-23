@@ -451,6 +451,10 @@ const en: Record<string, string> = {
   'Weitere Aktionen': 'More actions',
   'Weitere Aktionen für {name}': 'More actions for {name}',
   Duplizieren: 'Duplicate',
+  Themen: 'Topics',
+  'Ein Thema pro Zeile': 'One topic per line',
+  'Jedes Thema wird ein Teilziel. Die Fristen verteilen sich bis drei Tage vor dem Termin, die letzten Tage bleiben zum Wiederholen.':
+    'Each topic becomes a milestone. Deadlines are spread until three days before the date, leaving the last days for review.',
   Strg: 'Ctrl',
   'Als ZIP exportieren': 'Export as ZIP',
   'Neue Notiz / Zeichnung / Ordner': 'New note / drawing / folder',

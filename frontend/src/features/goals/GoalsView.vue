@@ -99,10 +99,16 @@ function openEdit(g: Goal) {
   dialog.value = true
 }
 
-function handleSaveGoal(payload: { id?: string; body: Partial<Goal>; file: File | null }) {
+function handleSaveGoal(payload: {
+  id?: string
+  body: Partial<Goal>
+  file: File | null
+  steps: { title: string; due_date: string }[]
+}) {
   void run(async () => {
-    const { id, body, file } = payload
+    const { id, body, file, steps } = payload
     const g = id ? await updateGoal(id, body) : await createGoal(body)
+    for (const s of steps) await createGoal({ ...s, parent_id: g.id })
     const old = id ? (goals.value.find((x) => x.id === id)?.image_path ?? null) : null
     if (file) {
       await updateGoal(g.id, { image_path: await uploadImage(g.id, file) })
