@@ -56,18 +56,8 @@ function onSetDays(n: 5 | 7) {
 <template>
   <PageHeader :title="$t('Kalender')" class="cal-toolbar">
     <div class="cal-nav">
-      <IconButton
-        icon="left"
-        :label="$t('Zurück')"
-        shortcut="←"
-        @click="$emit('prev')"
-      />
-      <IconButton
-        icon="right"
-        :label="$t('Weiter')"
-        shortcut="→"
-        @click="$emit('next')"
-      />
+      <IconButton icon="left" :label="$t('Zurück')" shortcut="←" @click="$emit('prev')" />
+      <IconButton icon="right" :label="$t('Weiter')" shortcut="→" @click="$emit('next')" />
     </div>
 
     <button

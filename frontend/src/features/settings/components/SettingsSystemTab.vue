@@ -30,7 +30,11 @@ const hint = computed(() => {
 })
 
 const actionLabel = computed(() =>
-  busy.value ? t('Lädt …') : status.value?.available ? t('Aktualisieren') : t('Nach Updates suchen'),
+  busy.value
+    ? t('Lädt …')
+    : status.value?.available
+      ? t('Aktualisieren')
+      : t('Nach Updates suchen'),
 )
 </script>
 
