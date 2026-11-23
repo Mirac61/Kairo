@@ -100,6 +100,12 @@ export function useNotesState() {
     if (!split.value) shown.value = paths[focus.value] ? focus.value : paths.doc ? 'doc' : 'note'
   }
 
+  // Ohne geteilte Ansicht schnell zur anderen offenen Datei und zurück (⌘J oder Knopf im Kopf); beide bleiben geladen.
+  function swapPane() {
+    const other: Pane = shown.value === 'note' ? 'doc' : 'note'
+    if (!split.value && paths[other]) shown.value = focus.value = other
+  }
+
   function show(pane: Pane, n: { content: string; mtime: string }) {
     Object.assign(bufs[pane], {
       text: n.content,
@@ -256,9 +262,15 @@ export function useNotesState() {
   }
 
   function onKey(e: KeyboardEvent) {
-    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 's') return
-    e.preventDefault()
-    void save()
+    if (!(e.metaKey || e.ctrlKey)) return
+    const k = e.key.toLowerCase()
+    if (k === 's') {
+      e.preventDefault()
+      void save()
+    } else if (k === 'j' && !e.shiftKey && !e.altKey) {
+      e.preventDefault()
+      swapPane()
+    }
   }
 
   function onUnload(e: BeforeUnloadEvent) {
@@ -340,6 +352,7 @@ export function useNotesState() {
     paths,
     shown,
     split,
+    swapPane,
     focus,
     visible,
     current,

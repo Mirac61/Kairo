@@ -640,6 +640,8 @@ const en: Record<string, string> = {
   'Suchen oder neu anlegen': 'Search or create',
   'Diese Übersicht': 'This overview',
   'Suchfeld der Ansicht': 'Search field of the view',
+  'Ohne Teilung zwischen Notiz und Datei wechseln': 'Switch between note and file when not split',
+  'Formel einfügen (in einer Zeichnung)': 'Insert formula (in a drawing)',
   'Nächste / vorige': 'Next / previous',
   'Timer starten oder pausieren': 'Start or pause timer',
   'Auf heute legen': 'Move to today',
@@ -687,8 +689,11 @@ const en: Record<string, string> = {
   'Exportieren: Notiz mit Zeichnungen und Anhängen als ZIP, dazu PDF über den Druckdialog':
     'Export: note with drawings and attachments as ZIP, plus PDF via the print dialog',
   'Formel (LaTeX)': 'Formula (LaTeX)',
-  'Formel einfügen oder markierte bearbeiten (LaTeX)':
-    'Insert formula or edit the selected one (LaTeX)',
+  'Formel einfügen': 'Insert formula',
+  'Zu „{name}“ wechseln': 'Switch to “{name}”',
+  'Formel ändern': 'Update formula',
+  'Formel einfügen oder markierte bearbeiten (LaTeX, Taste M)':
+    'Insert formula or edit the selected one (LaTeX, key M)',
   'Dieser Browser kann {type} nicht schreiben.': 'This browser cannot write {type}.',
   'Kairo kann diese PDF nicht bearbeiten (verschlüsselt oder beschädigt).':
     'Kairo cannot edit this PDF (encrypted or damaged).',
@@ -828,9 +833,12 @@ const en: Record<string, string> = {
   Suche: 'Search',
   'Suchen oder neu …': 'Search or new …',
   'Aufgabe „{text}“ anlegen': 'Create task “{text}”',
-  'Aufgaben, Projekte, Notizen, Termine …': 'Tasks, projects, notes, events …',
-  'Tippe, um zu suchen. Enter ohne Treffer legt eine Aufgabe an.':
-    'Type to search. Enter without a match creates a task.',
+  'Suchen, öffnen oder anlegen …': 'Search, open or create …',
+  Zuletzt: 'Recent',
+  'Gehe zu': 'Go to',
+  Befehle: 'Commands',
+  'Helles Design': 'Light theme',
+  'Dunkles Design': 'Dark theme',
   // Mehrfachauswahl, Unerledigtes auf morgen
   Auswahl: 'Selection',
   'Auswahl aufheben': 'Clear selection',

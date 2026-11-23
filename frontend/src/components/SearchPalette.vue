@@ -6,10 +6,16 @@ import {
   errorMessage,
   getOccurrences,
   isOpen,
+  listCards,
+  listGoals,
+  listHabits,
   listNotes,
   listProjects,
   listTasks,
   type CalendarEvent,
+  type Card,
+  type Goal,
+  type Habit,
   type NoteNode,
   type Project,
   type Task,
@@ -17,20 +23,29 @@ import {
 import { addDays, dayLabel, hhmm, ymd } from '@/lib/dates'
 import { t } from '@/lib/i18n'
 import { vDialog } from '@/lib/dialog'
+import { dark, prefs } from '@/lib/prefs'
 import { projectColor } from '@/lib/projectColor'
+import { store } from '@/lib/storage'
+import { navItems } from '@/router'
 
-// ⌘K: eine Suche über Aufgaben, Projekte, Notizen (Name und Inhalt) und Termine. Enter öffnet den markierten Treffer,
+// ⌘K: eine Suche über Aufgaben, Projekte, Notizen, Journal, Termine, Gewohnheiten, Ziele und Lernkarten, dazu Ansichten
+// und Befehle. Ohne Eingabe zeigt sie die zuletzt geöffneten Treffer. Enter öffnet den markierten Treffer,
 // ohne Treffer legt Enter die Eingabe als Aufgabe an (mit Schnelleingabe-Syntax).
 const emit = defineEmits<{ close: [] }>()
 const router = useRouter()
 
+interface Target {
+  path: string
+  query?: Record<string, string>
+}
 interface Hit {
   key: string
   group: string
   title: string
   sub?: string
   color?: string
-  go: () => unknown
+  to?: Target // Ziel einer Seite; nur solche Treffer landen unter „Zuletzt“
+  run?: () => unknown
 }
 interface NoteHit {
   path: string
@@ -47,7 +62,27 @@ const projects = ref<Project[]>([])
 const files = ref<string[]>([])
 const events = ref<CalendarEvent[]>([])
 const noteHits = ref<NoteHit[]>([])
+const habits = ref<Habit[]>([])
+const goals = ref<Goal[]>([])
+const cards = ref<Card[]>([])
 const today = ymd(new Date())
+
+// Zuletzt geöffnet, neueste zuerst. shortcut: gespeicherte Titel veralten nach Umbenennen, bis man den Treffer neu öffnet.
+const RECENT_KEY = 'kairo-search-recent'
+const recent = ref<Hit[]>(readRecent())
+function readRecent(): Hit[] {
+  try {
+    const v: unknown = JSON.parse(store.get(RECENT_KEY) ?? '[]')
+    return Array.isArray(v) ? v.filter((h: Hit) => h?.key && h.title && h.to?.path) : []
+  } catch {
+    return []
+  }
+}
+// Ohne Unterzeile: die enthält oft „Heute“/„Morgen“ und wäre morgen falsch.
+function remember({ key, title, color, to }: Hit) {
+  const list = [{ key, group: '', title, color, to }, ...recent.value.filter((r) => r.key !== key)]
+  store.set(RECENT_KEY, JSON.stringify(list.slice(0, 6)))
+}
 
 onMounted(async () => {
   void nextTick(() => input.value?.focus())
@@ -62,12 +97,18 @@ onMounted(async () => {
     listProjects(),
     listNotes(),
     getOccurrences(from, addDays(from, 210)),
-  ])
-  const [ts, ps, ns, es] = results
+    listHabits(),
+    listGoals(),
+    listCards(),
+  ] as const)
+  const [ts, ps, ns, es, hs, gs, cs] = results
   if (ts.status === 'fulfilled') tasks.value = ts.value
   if (ps.status === 'fulfilled') projects.value = ps.value
   if (ns.status === 'fulfilled') files.value = walk(ns.value, [])
   if (es.status === 'fulfilled') events.value = es.value
+  if (hs.status === 'fulfilled') habits.value = hs.value
+  if (gs.status === 'fulfilled') goals.value = gs.value
+  if (cs.status === 'fulfilled') cards.value = cs.value
   const failed = results.find((r) => r.status === 'rejected')
   if (failed) error.value = errorMessage((failed as PromiseRejectedResult).reason)
 })
@@ -99,11 +140,50 @@ const matches = (...texts: (string | null | undefined)[]) => {
 }
 const projectName = computed(() => new Map(projects.value.map((p) => [p.id, p.name])))
 const fileName = (p: string) => p.slice(p.lastIndexOf('/') + 1).replace(/\.md$/i, '')
-const go = (path: string, query: Record<string, string>) => () => router.push({ path, query })
+const go = (path: string, query?: Record<string, string>): Target => ({ path, query })
+
+// Ansichten und Befehle: ohne Eingabe alle, mit Eingabe die passenden ganz oben.
+const views = computed<Hit[]>(() =>
+  [...navItems, { path: '/settings', label: 'Einstellungen' }].map((n) => ({
+    key: `v${n.path}`,
+    group: t('Gehe zu'),
+    title: t(n.label),
+    to: go(n.path),
+  })),
+)
+const commands = computed<Hit[]>(() => [
+  {
+    key: 'c-task',
+    group: t('Befehle'),
+    title: t('Neue Aufgabe'),
+    run: () => router.push({ path: '/tasks', query: { new: String(Date.now()) } }),
+  },
+  {
+    key: 'c-theme',
+    group: t('Befehle'),
+    title: dark.value ? t('Helles Design') : t('Dunkles Design'),
+    run: () => (prefs.theme = dark.value ? 'light' : 'dark'),
+  },
+])
+const journalDate = (path: string) => /^Journal\/(\d{4}-\d{2}-\d{2})\.md$/.exec(path)?.[1]
 
 const hits = computed<Hit[]>(() => {
-  if (!words.value.length) return []
-  const out: Hit[] = []
+  if (!words.value.length)
+    return [
+      ...recent.value.map((h) => ({
+        ...h,
+        key: `r${h.key}`,
+        group: t('Zuletzt'),
+        // Journal-Titel ist relativ („Heute“), deshalb aus dem Datum neu bilden.
+        title:
+          h.to?.query?.date && h.to.path === '/journal'
+            ? dayLabel(h.to.query.date, today)
+            : h.title,
+      })),
+      ...commands.value,
+      ...views.value,
+    ]
+  const out: Hit[] = [...views.value, ...commands.value].filter((h) => matches(h.title))
   const taskHits = tasks.value
     .filter((x) =>
       matches(x.title, x.description, x.project_id && projectName.value.get(x.project_id)),
@@ -123,7 +203,7 @@ const hits = computed<Hit[]>(() => {
       ]
         .filter(Boolean)
         .join(' · '),
-      go: go('/tasks', { task: x.id }),
+      to: go('/tasks', { task: x.id }),
     })
   }
   for (const p of projects.value.filter((p) => matches(p.name, p.description)).slice(0, 4)) {
@@ -133,10 +213,11 @@ const hits = computed<Hit[]>(() => {
       title: p.name,
       sub: p.description,
       color: projectColor(p.id),
-      go: go('/projects', { project: p.id }),
+      to: go('/projects', { project: p.id }),
     })
   }
-  // Notizen: erst Treffer im Namen, dann im Inhalt (mit Zeile), jede Datei einmal.
+  // Notizen: erst Treffer im Namen, dann im Inhalt (mit Zeile), jede Datei einmal. Journal-Einträge sind Notizen
+  // unter Journal/, sie bekommen eine eigene Gruppe und öffnen im Journal.
   const seen = new Set<string>()
   const byName = files.value.filter((f) => matches(f)).slice(0, 6)
   for (const f of byName) seen.add(f)
@@ -148,15 +229,25 @@ const hits = computed<Hit[]>(() => {
     ...noteHits.value
       .filter((h) => !seen.has(h.path))
       .map((h) => ({ path: h.path, snippet: h.snippet || h.path })),
-  ].slice(0, 8)
-  for (const n of noteRows)
+  ]
+  for (const n of noteRows.filter((n) => !journalDate(n.path)).slice(0, 8))
     out.push({
       key: `n${n.path}`,
       group: t('Notizen'),
       title: fileName(n.path),
       sub: n.snippet,
-      go: go('/notes', { open: n.path }),
+      to: go('/notes', { open: n.path }),
     })
+  for (const n of noteRows.filter((n) => journalDate(n.path)).slice(0, 4)) {
+    const date = journalDate(n.path)!
+    out.push({
+      key: `j${date}`,
+      group: t('Journal'),
+      title: dayLabel(date, today),
+      sub: n.snippet === 'Journal' ? '' : n.snippet,
+      to: go('/journal', { date }),
+    })
+  }
   // Termine: kommende zuerst (nächster oben), danach vergangene (jüngster oben); eine Serie nur einmal.
   const now = Date.now()
   const evs = events.value.filter((e) => matches(e.title, e.location))
@@ -178,9 +269,35 @@ const hits = computed<Hit[]>(() => {
       title: e.title,
       sub: [`${dayLabel(day, today)} ${hhmm(start)}`, e.location].filter(Boolean).join(' · '),
       color: projectColor(e.project_id),
-      go: go('/calendar', { date: day }),
+      to: go('/calendar', { date: day }),
     })
   }
+  for (const h of habits.value.filter((h) => matches(h.name)).slice(0, 4))
+    out.push({
+      key: `h${h.id}`,
+      group: t('Gewohnheiten'),
+      title: h.name,
+      to: go('/habits', { habit: h.id }),
+    })
+  const goalHits = goals.value
+    .filter((g) => matches(g.title))
+    .sort((a, b) => Number(a.archived) - Number(b.archived)) // offene zuerst
+    .slice(0, 4)
+  for (const g of goalHits)
+    out.push({
+      key: `g${g.id}`,
+      group: t('Ziele'),
+      title: g.title,
+      to: go('/goals', { goal: g.id }),
+    })
+  for (const c of cards.value.filter((c) => matches(c.question, c.answer)).slice(0, 4))
+    out.push({
+      key: `k${c.id}`,
+      group: t('Lernkarten'),
+      title: c.question,
+      sub: c.deck,
+      to: go('/cards', { deck: c.deck }),
+    })
   return out
 })
 
@@ -191,7 +308,8 @@ const createHit = computed<Hit | null>(() =>
         key: 'new',
         group: t('Neu'),
         title: t('Aufgabe „{text}“ anlegen', { text: q.value.trim() }),
-        go: go('/tasks', { new: String(Date.now()), text: q.value.trim() }),
+        run: () =>
+          router.push({ path: '/tasks', query: { new: String(Date.now()), text: q.value.trim() } }),
       }
     : null,
 )
@@ -199,7 +317,11 @@ const all = computed(() => [...hits.value, ...(createHit.value ? [createHit.valu
 
 function pick(h: Hit | undefined) {
   if (!h) return
-  void h.go()
+  if (h.to) {
+    void router.push(h.to)
+    // Ansichten sind schon unter „Gehe zu“, nur Inhalte merken.
+    if (!h.key.startsWith('v')) remember({ ...h, key: h.key.replace(/^r/, '') })
+  } else void h.run?.()
   emit('close')
 }
 function onKey(e: KeyboardEvent) {
@@ -239,12 +361,13 @@ watch(
           aria-controls="sp-list"
           :aria-expanded="all.length > 0"
           :aria-activedescendant="all.length ? `sp-${sel}` : undefined"
-          :placeholder="$t('Aufgaben, Projekte, Notizen, Termine …')"
+          :placeholder="$t('Suchen, öffnen oder anlegen …')"
           :aria-label="$t('Suche')"
           @keydown="onKey"
         />
         <kbd class="key" aria-hidden="true">esc</kbd>
       </div>
+      <div v-if="error" class="sp-empty" role="alert">{{ error }}</div>
       <ul v-if="all.length" id="sp-list" class="sp-list" role="listbox">
         <template v-for="(h, i) in all" :key="h.key">
           <li v-if="i === 0 || all[i - 1]!.group !== h.group" class="sp-group" role="presentation">
@@ -268,9 +391,6 @@ watch(
           </li>
         </template>
       </ul>
-      <div v-else class="sp-empty">
-        {{ error || $t('Tippe, um zu suchen. Enter ohne Treffer legt eine Aufgabe an.') }}
-      </div>
     </div>
   </div>
 </template>

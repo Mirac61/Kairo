@@ -55,6 +55,8 @@ export const SHORTCUTS: { title: string; keys: [string, string][] }[] = [
       ['E', 'Ordner als ZIP exportieren'],
       ['⌫', 'Löschen'],
       ['⌘ V', 'Dateien einfügen (z. B. aus dem Finder)'],
+      ['⌘ J', 'Ohne Teilung zwischen Notiz und Datei wechseln'],
+      ['M', 'Formel einfügen (in einer Zeichnung)'],
       ['Esc', 'Editor verlassen, danach gelten die Tasten'],
     ],
   },

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   cardLog,
   errorMessage,
@@ -39,7 +40,7 @@ async function load() {
   }
   loaded.value = true
 }
-onMounted(load)
+onMounted(() => load().then(openFromRoute))
 
 const colorOf = (name: string) =>
   `var(--p-${decks.value.find((d) => d.name === name)?.color ?? 'neutral'})`
@@ -50,6 +51,14 @@ function openDeck(name: string) {
   deckName.value = name
   mode.value = 'deck'
 }
+// ⌘K öffnet das Fach einer Karte über ?deck=<name>.
+const route = useRoute()
+function openFromRoute() {
+  const name = route.query.deck
+  if (typeof name === 'string' && decks.value.some((d) => d.name === name)) openDeck(name)
+}
+watch(() => route.query.deck, openFromRoute)
+
 function openAdd(name: string | null) {
   addDeck.value = name
   adding.value = true

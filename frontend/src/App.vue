@@ -58,10 +58,17 @@ const trashItem = computed(() => navItems.find((n) => n.path === '/trash'))
 const newEntry = () => router.push({ path: '/tasks', query: { new: String(Date.now()) } })
 // ⌘K und „Suchen …“: Suche über alles; ohne Treffer legt sie eine Aufgabe an.
 const searchOpen = ref(false)
+// ⌘K im capture-Durchlauf: sonst nimmt Excalidraw es in Zeichnungen für Links, bevor es hier ankommt.
+function onSearchKey(e: KeyboardEvent) {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'k') return
+  if (hideSidebar.value) return
+  e.preventDefault()
+  e.stopPropagation()
+  searchOpen.value = !searchOpen.value
+}
 function onKey(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey) || hideSidebar.value) return
-  if (e.key === 'k') searchOpen.value = !searchOpen.value
-  else if (e.key === 'b') toggleSidebar()
+  if (e.key === 'b') toggleSidebar()
   else if (e.key === '[' && history.state?.back) router.back()
   else return
   e.preventDefault()
@@ -69,6 +76,7 @@ function onKey(e: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', onKey)
+  window.addEventListener('keydown', onSearchKey, true)
   void loadSidebar()
 })
 // Erster Start: Rundgang anbieten, sobald man eingeloggt in der App ist.
@@ -94,7 +102,10 @@ useShortcuts((e) => {
   e.preventDefault()
   e.stopImmediatePropagation() // sonst reagiert die Ansicht auch auf den Buchstaben
 }, true)
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKey)
+  window.removeEventListener('keydown', onSearchKey, true)
+})
 
 // Seitenleiste einklappen: nur Symbole, damit die Ansicht mehr Platz bekommt. Ohne gespeicherte Wahl startet sie im schmalen Fenster eingeklappt.
 const mini = ref(

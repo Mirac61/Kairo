@@ -9,7 +9,7 @@ import NoteEditor from './NoteEditor.vue'
 import NoteHistoryDialog from './NoteHistoryDialog.vue'
 import { fileKind, under } from '@/lib/noteFiles'
 import { tn } from '@/lib/i18n'
-import { keys } from '@/lib/keys'
+import { ariaKeys, keys } from '@/lib/keys'
 
 type Pane = 'doc' | 'note'
 type Buf = { text: string; saved: string; mtime: string; external: boolean }
@@ -35,12 +35,14 @@ const props = defineProps<{
   heading: string
   drawingRev: number
   docKind: string
+  other: string | null // Pfad im anderen Fenster, Ziel des Wechsel-Knopfs
 }>()
 
 const emit = defineEmits<{
   (e: 'activatePane', pane: Pane): void
   (e: 'toggleTree'): void
   (e: 'toggleSplit'): void
+  (e: 'swap'): void
   (e: 'save', force?: boolean, pane?: Pane): void
   (e: 'reload', pane: Pane): void
   (e: 'convertDrawings'): void
@@ -67,6 +69,13 @@ const crumbs = computed(() => {
 })
 const canSave = computed(
   () => !!props.path && !/\.gif$/i.test(props.path) && fileKind(props.path) !== 'code',
+)
+const otherName = computed(
+  () =>
+    props.other
+      ?.split('/')
+      .pop()
+      ?.replace(/\.[^.]+$/, '') ?? '',
 )
 const offerTemplates = computed(
   () =>
@@ -138,6 +147,21 @@ const offerTemplates = computed(
         @click="historyOpen = true"
       >
         <svg class="ic"><use href="#i-clock" /></svg>
+      </button>
+      <button
+        v-if="!split && pane === shown && other"
+        type="button"
+        class="icon-btn"
+        :aria-keyshortcuts="ariaKeys('⌘J')"
+        :aria-label="$t('Zu „{name}“ wechseln', { name: otherName })"
+        :data-tip="$t('Zu „{name}“ wechseln', { name: otherName }) + ' (' + keys('⌘J') + ')'"
+        @click="emit('swap')"
+      >
+        <svg class="ic">
+          <use
+            :href="pane === 'doc' ? '#i-md' : docKind === 'excalidraw' ? '#i-draw' : '#i-file'"
+          />
+        </svg>
       </button>
       <button
         v-if="pane === (split ? 'note' : shown)"

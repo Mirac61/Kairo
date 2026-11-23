@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   ApiError,
   createGoal,
@@ -42,7 +43,7 @@ const { error, load, run } = useLoader(async () => {
   projects.value = ps.filter((p) => p.status !== 'ARCHIVED')
   habits.value = hs.filter((h) => h.active)
 })
-onMounted(load)
+onMounted(() => load().then(openFromRoute))
 useLiveEvents(load)
 
 // --- Filter & Zähler
@@ -98,6 +99,18 @@ function openEdit(g: Goal) {
   initialParentId.value = ''
   dialog.value = true
 }
+
+// ⌘K öffnet ein Ziel über ?goal=<id> im Bearbeiten-Dialog.
+const route = useRoute()
+function openFromRoute() {
+  const g = goals.value.find((x) => x.id === route.query.goal)
+  if (!g) return
+  tab.value = goals.value.find((x) => x.id === (g.parent_id || g.id))?.archived
+    ? 'reached'
+    : 'active'
+  openEdit(g)
+}
+watch(() => route.query.goal, openFromRoute)
 
 function handleSaveGoal(payload: { id?: string; body: Partial<Goal>; file: File | null }) {
   void run(async () => {
