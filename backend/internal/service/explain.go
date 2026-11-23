@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"time"
 
 	"kairo/internal/domain"
@@ -79,21 +78,7 @@ func (s *ExplainChecks) Sync(ctx context.Context) error {
 // Der Abend ist vorbei; so stapeln sie sich nicht als Überfälliges. Wer einen Check verschiebt,
 // startet oder wieder öffnet, hat ihn angefasst (updated_at > created_at) und behält ihn.
 func (s *ExplainChecks) expire(ctx context.Context, date string) error {
-	old, err := s.tasks.List(ctx, domain.TaskFilter{PlannedBefore: date})
-	if err != nil {
-		return err
-	}
-	cancelled := domain.TaskCancelled
-	for _, t := range old {
-		if t.SourceKey == nil || !strings.HasPrefix(*t.SourceKey, explainPrefix) ||
-			t.Status == domain.TaskCompleted || t.Status == domain.TaskCancelled || t.UpdatedAt.After(t.CreatedAt) {
-			continue
-		}
-		if _, err := s.tasks.Update(ctx, t.ID, UpdateTaskInput{Status: &cancelled}); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.tasks.CancelUntouched(ctx, explainPrefix, date)
 }
 
 // Run ruft Sync sofort und danach alle interval auf, bis ctx endet. Fehler werden nur geloggt.

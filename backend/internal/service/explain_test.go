@@ -110,6 +110,14 @@ func TestExplainChecksSync(t *testing.T) {
 	if n := len(open()); n != 1 {
 		t.Fatalf("nach Löschen: %d aktive Tasks, want 1 (nur der verfallene)", n)
 	}
+	// Auch endgültig gelöscht entsteht er am selben Tag nicht wieder.
+	if err := tasks.Delete(ctx, next.ID); err != nil {
+		t.Fatal(err)
+	}
+	sync(time.Date(2026, 11, 30, 11, 5, 0, 0, loc))
+	if n := len(open()); n != 1 {
+		t.Fatalf("nach endgültigem Löschen: %d aktive Tasks, want 1", n)
+	}
 
 	// Ein erledigter Check verfällt nicht.
 	clock = time.Date(2026, 12, 7, 10, 20, 0, 0, loc)

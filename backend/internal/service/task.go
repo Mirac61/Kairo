@@ -16,6 +16,8 @@ type TaskStore interface {
 	Create(ctx context.Context, t domain.Task) error
 	// CreateIfNew legt t an, außer eine Task mit derselben SourceKey existiert (auch im Papierkorb).
 	CreateIfNew(ctx context.Context, t domain.Task) (created bool, err error)
+	// CancelUntouched bricht offene, nie geänderte Tasks mit source_key-Präfix prefix vor dem Tag before ab.
+	CancelUntouched(ctx context.Context, prefix, before string, at time.Time) (ids []string, err error)
 	// JournalImportTitles liefert die bereits importierten Titel eines Journaltags
 	// (auch aus dem Papierkorb) und den Zeitpunkt des ersten Imports (Null, wenn keiner).
 	JournalImportTitles(ctx context.Context, date string) (titles []string, importedAt time.Time, err error)
@@ -257,6 +259,16 @@ func (s *TaskService) CreateGenerated(ctx context.Context, t domain.Task) (creat
 		s.emit(domain.Event{Type: domain.EventTaskCreated, ID: t.ID})
 	}
 	return created, err
+}
+
+// CancelUntouched bricht offene, nie geänderte erzeugte Tasks (source_key beginnt mit prefix) ab,
+// die vor dem Tag before geplant sind.
+func (s *TaskService) CancelUntouched(ctx context.Context, prefix, before string) error {
+	ids, err := s.store.CancelUntouched(ctx, prefix, before, s.now().UTC())
+	for _, id := range ids {
+		s.emit(domain.Event{Type: domain.EventTaskUpdated, ID: id})
+	}
+	return err
 }
 
 // ListJournalTaskImports liefert die bereits importierten Journaltage.

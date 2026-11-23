@@ -217,7 +217,9 @@ func (r *TaskRepository) ListJournalTaskImports(ctx context.Context) ([]domain.J
 	return out, nil
 }
 
-const insertTask = `INSERT INTO tasks (` + taskColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+const taskPlaceholders = `?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?`
+
+const insertTask = `INSERT INTO tasks (` + taskColumns + `) VALUES (` + taskPlaceholders + `)`
 
 func taskValues(t domain.Task) []any {
 	return []any{t.ID, t.ProjectID, t.ParentTaskID, t.Title, t.Description, string(t.Status), string(t.Priority),
@@ -232,10 +234,12 @@ func createTask(ctx context.Context, q dbtx, t domain.Task) error {
 	return nil
 }
 
-// CreateIfNew legt t an, außer es gibt schon eine Task mit derselben SourceKey (auch im Papierkorb).
-// created sagt, ob t angelegt wurde.
+// CreateIfNew legt t an, außer es gibt schon eine Task mit derselben SourceKey (auch im Papierkorb)
+// oder eine solche wurde endgültig gelöscht (deleted_source_keys). created sagt, ob t angelegt wurde.
 func (r *TaskRepository) CreateIfNew(ctx context.Context, t domain.Task) (created bool, err error) {
-	res, err := r.db.ExecContext(ctx, insertTask+` ON CONFLICT (source_key) WHERE source_key IS NOT NULL DO NOTHING`, taskValues(t)...)
+	res, err := r.db.ExecContext(ctx, `INSERT INTO tasks (`+taskColumns+`) SELECT `+taskPlaceholders+`
+		WHERE NOT EXISTS (SELECT 1 FROM deleted_source_keys WHERE source_key = ?)
+		ON CONFLICT (source_key) WHERE source_key IS NOT NULL DO NOTHING`, append(taskValues(t), t.SourceKey)...)
 	if err != nil {
 		return false, fmt.Errorf("repository: Task anlegen: %w", mapFK(err))
 	}
@@ -387,7 +391,8 @@ func updateTask(ctx context.Context, q dbtx, t domain.Task) error {
 }
 
 // Delete löscht eine Task (auch aus dem Papierkorb) endgültig samt Subtasks. Hat eine davon Zeiteinträge, liefert
-// es domain.ErrConflict, weil ON DELETE CASCADE sie sonst mitlöschen würde.
+// es domain.ErrConflict, weil ON DELETE CASCADE sie sonst mitlöschen würde. Die source_key erzeugter Tasks
+// bleibt als Grabstein, damit CreateIfNew sie nicht neu anlegt.
 func (r *TaskRepository) Delete(ctx context.Context, id string) error {
 	var tracked bool
 	if err := r.db.QueryRowContext(ctx, `WITH RECURSIVE sub(id) AS (
@@ -398,9 +403,47 @@ func (r *TaskRepository) Delete(ctx context.Context, id string) error {
 	if tracked {
 		return fmt.Errorf("%w: Task hat Zeiteinträge, stattdessen abbrechen", domain.ErrConflict)
 	}
-	res, err := r.db.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, id)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("repository: Task löschen: %w", err)
 	}
-	return requireAffected(res)
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `WITH RECURSIVE sub(id) AS (
+		SELECT ? UNION ALL SELECT t.id FROM tasks t JOIN sub ON t.parent_task_id = sub.id
+	) INSERT OR IGNORE INTO deleted_source_keys (source_key)
+		SELECT source_key FROM tasks WHERE id IN (SELECT id FROM sub) AND source_key IS NOT NULL`, id); err != nil {
+		return fmt.Errorf("repository: Grabstein anlegen: %w", err)
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("repository: Task löschen: %w", err)
+	}
+	if err := requireAffected(res); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// CancelUntouched bricht in einer Anweisung offene, nie geänderte Tasks (updated_at = created_at) ab, deren
+// source_key mit prefix beginnt und die vor dem Tag before geplant sind. Ein gleichzeitiges Erledigen
+// ändert updated_at und wird so nicht überschrieben. Liefert die IDs der abgebrochenen Tasks.
+func (r *TaskRepository) CancelUntouched(ctx context.Context, prefix, before string, at time.Time) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, `UPDATE tasks SET status = ?, updated_at = ?
+		WHERE source_key LIKE ? AND planned_date < ? AND status NOT IN (?, ?)
+			AND updated_at = created_at AND deleted_at IS NULL RETURNING id`,
+		string(domain.TaskCancelled), formatTime(at), prefix+"%", before,
+		string(domain.TaskCompleted), string(domain.TaskCancelled))
+	if err != nil {
+		return nil, fmt.Errorf("repository: Tasks abbrechen: %w", err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("repository: Tasks abbrechen: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
