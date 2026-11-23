@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -36,16 +38,18 @@ func NewExplainChecks(events ExplainEvents, tasks *TaskService, loc *time.Locati
 }
 
 // Sync ist idempotent: mehrfach am Tag aufgerufen entsteht je Termin und Tag höchstens eine Task.
+// Ein Fehler bei einem Termin hält die übrigen nicht auf; alle Fehler kommen gesammelt zurück.
 func (s *ExplainChecks) Sync(ctx context.Context) error {
 	now := s.now().In(s.loc)
 	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.loc)
 	date := dayStart.Format("2006-01-02")
+	var errs []error
 	if err := s.expire(ctx, date); err != nil {
-		return err
+		errs = append(errs, err)
 	}
 	occ, err := s.events.Occurrences(ctx, dayStart.UTC(), now.UTC().Add(time.Second))
 	if err != nil {
-		return err
+		return errors.Join(append(errs, err)...)
 	}
 	due := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 0, 0, s.loc).UTC()
 	at := now.UTC()
@@ -68,10 +72,10 @@ func (s *ExplainChecks) Sync(ctx context.Context) error {
 			CreatedAt:        at,
 			UpdatedAt:        at,
 		}); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("Termin %s: %w", o.Event.ID, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // expire bricht offene, nie angefasste Erklär-Checks ab, die für einen Tag vor date geplant sind.

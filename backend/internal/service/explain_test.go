@@ -139,3 +139,38 @@ func TestExplainChecksSync(t *testing.T) {
 		}
 	}
 }
+
+type fixedEvents []domain.EventInstance
+
+func (f fixedEvents) Occurrences(context.Context, time.Time, time.Time) ([]domain.EventInstance, error) {
+	return f, nil
+}
+
+// Scheitert ein Termin (hier: Projekt gibt es nicht), bekommen die übrigen trotzdem ihren Check.
+func TestExplainChecksSyncSkipsFailingEvent(t *testing.T) {
+	ctx := context.Background()
+	db, err := repository.Open(ctx, filepath.Join(t.TempDir(), "k.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	clock := time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC)
+	now := func() time.Time { return clock }
+	tasks := service.NewTaskService(repository.NewTaskRepository(db), now).WithLocation(time.UTC)
+	missing := "gibt-es-nicht"
+	start := clock.Add(-time.Hour)
+	events := fixedEvents{
+		{Event: domain.CalendarEvent{ID: "a", Title: "Kaputt", ProjectID: &missing, ExplainCheck: true}, Start: start},
+		{Event: domain.CalendarEvent{ID: "b", Title: "Mathe", ExplainCheck: true}, Start: start},
+	}
+	if err := service.NewExplainChecks(events, tasks, time.UTC, now).Sync(ctx); err == nil {
+		t.Fatal("Sync: Fehler des kaputten Termins fehlt")
+	}
+	ts, err := tasks.List(ctx, domain.TaskFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ts) != 1 || ts[0].Title != "5 Min erklären: Mathe" {
+		t.Fatalf("Tasks = %+v, want nur den Check für Mathe", ts)
+	}
+}
