@@ -109,6 +109,9 @@ test('Speichern: Task, neuer Termin, Serie bearbeiten', () => {
   )
   const edit = requestOf({ ...f, id: 'e1' }, 'Termin')
   assert.ok('event' in edit && edit.event.recurrence_rule === '')
+  assert.ok('event' in neu && neu.event.explain_check === false)
+  const explain = requestOf({ ...f, explainCheck: true }, 'Vorlesung')
+  assert.ok('event' in explain && explain.event.explain_check === true)
   // Eigene Regel und mehrtägige Zeiten bleiben, wie sie sind.
   const keep = requestOf({ ...f, id: 'e1', customRule: 'FREQ=DAILY', keepTimes: true }, 'Termin')
   assert.ok('event' in keep && !('recurrence_rule' in keep.event) && !('start_at' in keep.event))

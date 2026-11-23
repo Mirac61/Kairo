@@ -38,6 +38,7 @@ export interface Form {
   endDate: string // letzter Tag eines ganztägigen Termins
   keepTimes: boolean // mehrtägiger Termin mit Uhrzeit: Zeiten bleiben unverändert (der Dialog kennt nur einen Tag)
   projectId: string // '' = kein Projekt
+  explainCheck: boolean // nach jedem Termin eine Task „5 Min erklären“ (nur Termine)
   repeat: boolean
   freq: Freq
   days: string[] // nur bei WEEKLY
@@ -60,6 +61,7 @@ export function newForm(start: Date, end: Date, allDay: boolean): Form {
     endDate: allDay ? lastDay(end) : ymd(start),
     keepTimes: false,
     projectId: '',
+    explainCheck: false,
     repeat: false,
     freq: 'WEEKLY',
     days: [CODE_OF_DAY[start.getDay()]!],
@@ -80,6 +82,7 @@ export function editForm(ev: CalendarEvent, day: string): Form {
     location: ev.location,
     keepTimes: !allDay && ymd(end) !== ymd(start),
     projectId: ev.project_id ?? '',
+    explainCheck: ev.explain_check,
     day: ev.recurrence_rule ? day : '',
   }
   const rule = ev.recurrence_rule
@@ -130,7 +133,12 @@ export function requestOf(f: Form, title: string): { task: Partial<Task> } | { e
       },
     }
   }
-  const event: EventBody = { title, location: f.location, project_id: f.projectId }
+  const event: EventBody = {
+    title,
+    location: f.location,
+    project_id: f.projectId,
+    explain_check: f.explainCheck,
+  }
   if (!f.keepTimes)
     Object.assign(event, { start_at: start.toISOString(), end_at: end.toISOString() })
   if (f.customRule === null) {

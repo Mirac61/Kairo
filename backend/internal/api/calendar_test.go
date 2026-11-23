@@ -191,7 +191,7 @@ func TestCalendarImportICSIsIdempotent(t *testing.T) {
 	// Projekt am Termin setzen; ein erneuter Import ändert Felder aus der ICS, lässt das Projekt aber stehen.
 	var p projectDTO
 	_ = json.Unmarshal(call(h, "POST", "/api/projects", `{"name":"Beispielkurs"}`).Body.Bytes(), &p)
-	call(h, "PATCH", "/api/calendar/events/"+events["Beispielkurs"].ID, `{"project_id":"`+p.ID+`"}`)
+	call(h, "PATCH", "/api/calendar/events/"+events["Beispielkurs"].ID, `{"project_id":"`+p.ID+`","explain_check":true}`)
 
 	res = doImport(strings.Replace(importICS, "SUMMARY:Arzt", "SUMMARY:Zahnarzt", 1))
 	if res.Created != 0 || res.Updated != 4 || res.Skipped != 1 {
@@ -203,6 +203,9 @@ func TestCalendarImportICSIsIdempotent(t *testing.T) {
 	}
 	if pid := events["Beispielkurs"].ProjectID; pid == nil || *pid != p.ID {
 		t.Errorf("Projekt nach Re-Import: %v", pid)
+	}
+	if !events["Beispielkurs"].ExplainCheck || events["Zahnarzt"].ExplainCheck {
+		t.Errorf("explain_check nach Re-Import: %+v", events)
 	}
 
 	q := url.Values{"from": {"2026-10-05T00:00:00Z"}, "to": {"2026-10-26T00:00:00Z"}}.Encode()

@@ -18,7 +18,7 @@ type TaskRepository struct{ db *sql.DB }
 func NewTaskRepository(db *sql.DB) *TaskRepository { return &TaskRepository{db: db} }
 
 const taskColumns = `id, project_id, parent_task_id, title, description, status, priority,
-	estimated_minutes, due_at, planned_date, planned_start_at, created_at, updated_at, completed_at, recurrence_rule, source_journal_date`
+	estimated_minutes, due_at, planned_date, planned_start_at, created_at, updated_at, completed_at, recurrence_rule, source_journal_date, source_key`
 
 func nullTime(t *time.Time) any {
 	if t == nil {
@@ -50,16 +50,16 @@ func scanTask(s scanner, extra ...any) (domain.Task, error) {
 	var (
 		t                                           domain.Task
 		project, parent, due, planned, plannedStart sql.NullString
-		completed, rule, sourceJournalDate          sql.NullString
+		completed, rule, sourceJournalDate, srcKey  sql.NullString
 		status, priority, created, updated          string
 	)
 	if err := s.Scan(append([]any{&t.ID, &project, &parent, &t.Title, &t.Description, &status, &priority,
-		&t.EstimatedMinutes, &due, &planned, &plannedStart, &created, &updated, &completed, &rule, &sourceJournalDate}, extra...)...); err != nil {
+		&t.EstimatedMinutes, &due, &planned, &plannedStart, &created, &updated, &completed, &rule, &sourceJournalDate, &srcKey}, extra...)...); err != nil {
 		return domain.Task{}, err
 	}
 	t.Status, t.Priority = domain.TaskStatus(status), domain.TaskPriority(priority)
 	t.ProjectID, t.ParentTaskID, t.PlannedDate, t.RecurrenceRule = nullStr(project), nullStr(parent), nullStr(planned), nullStr(rule)
-	t.SourceJournalDate = nullStr(sourceJournalDate)
+	t.SourceJournalDate, t.SourceKey = nullStr(sourceJournalDate), nullStr(srcKey)
 	var err error
 	if t.DueAt, err = parseNullTime(due); err != nil {
 		return domain.Task{}, fmt.Errorf("due_at: %w", err)
@@ -217,16 +217,30 @@ func (r *TaskRepository) ListJournalTaskImports(ctx context.Context) ([]domain.J
 	return out, nil
 }
 
-func createTask(ctx context.Context, q dbtx, t domain.Task) error {
-	_, err := q.ExecContext(ctx,
-		`INSERT INTO tasks (`+taskColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.ProjectID, t.ParentTaskID, t.Title, t.Description, string(t.Status), string(t.Priority),
+const insertTask = `INSERT INTO tasks (` + taskColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+func taskValues(t domain.Task) []any {
+	return []any{t.ID, t.ProjectID, t.ParentTaskID, t.Title, t.Description, string(t.Status), string(t.Priority),
 		t.EstimatedMinutes, nullTime(t.DueAt), t.PlannedDate, nullTime(t.PlannedStartAt),
-		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), nullTime(t.CompletedAt), t.RecurrenceRule, t.SourceJournalDate)
-	if err != nil {
+		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), nullTime(t.CompletedAt), t.RecurrenceRule, t.SourceJournalDate, t.SourceKey}
+}
+
+func createTask(ctx context.Context, q dbtx, t domain.Task) error {
+	if _, err := q.ExecContext(ctx, insertTask, taskValues(t)...); err != nil {
 		return fmt.Errorf("repository: Task anlegen: %w", mapFK(err))
 	}
 	return nil
+}
+
+// CreateIfNew legt t an, außer es gibt schon eine Task mit derselben SourceKey (auch im Papierkorb).
+// created sagt, ob t angelegt wurde.
+func (r *TaskRepository) CreateIfNew(ctx context.Context, t domain.Task) (created bool, err error) {
+	res, err := r.db.ExecContext(ctx, insertTask+` ON CONFLICT (source_key) WHERE source_key IS NOT NULL DO NOTHING`, taskValues(t)...)
+	if err != nil {
+		return false, fmt.Errorf("repository: Task anlegen: %w", mapFK(err))
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
 }
 
 // dbtx ist die gemeinsame Teilmenge von *sql.DB und *sql.Tx, damit dieselben

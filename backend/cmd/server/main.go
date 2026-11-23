@@ -420,6 +420,8 @@ func run() error {
 	} else {
 		log.Info("Erinnerungen aus (KAIRO_NTFY_URL und KAIRO_NTFY_TOPIC nicht gesetzt)")
 	}
+	// Erklär-Checks nach Vorlesungen, unabhängig von ntfy.
+	go service.NewExplainChecks(calendar, tasks, cfg.Location, nil).Run(ctx, 5*time.Minute, log)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr(),

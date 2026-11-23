@@ -17,6 +17,7 @@ type CalendarEvent struct {
 	RecurrenceRule    *string  // RRULE-Teilmenge, siehe ParseRule
 	RecurrenceExdates []string // ausgelassene lokale Tage, YYYY-MM-DD, aufsteigend
 	ExternalUID       *string  // UID aus einem ICS-Import, sonst nil
+	ExplainCheck      bool     // nach jedem Termin eine Task „5 Min erklären“ für denselben Tag
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	DeletedAt         *time.Time // UTC; nur in der Papierkorb-Liste gesetzt

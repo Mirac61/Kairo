@@ -58,6 +58,7 @@ type CreateEventInput struct {
 	TaskID            *string
 	RecurrenceRule    *string
 	RecurrenceExdates []string
+	ExplainCheck      bool
 }
 
 // UpdateEventInput ändert nur die gesetzten (non-nil) Felder. Bei
@@ -75,6 +76,7 @@ type UpdateEventInput struct {
 	TaskID            *string
 	RecurrenceRule    *string
 	RecurrenceExdates *[]string
+	ExplainCheck      *bool
 }
 
 func (s *CalendarService) Create(ctx context.Context, in CreateEventInput) (domain.CalendarEvent, error) {
@@ -89,6 +91,7 @@ func (s *CalendarService) Create(ctx context.Context, in CreateEventInput) (doma
 		TaskID:            trimOrNil(in.TaskID),
 		RecurrenceRule:    cleanRule(in.RecurrenceRule),
 		RecurrenceExdates: in.RecurrenceExdates,
+		ExplainCheck:      in.ExplainCheck,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	}
@@ -204,6 +207,9 @@ func (s *CalendarService) Update(ctx context.Context, id string, in UpdateEventI
 	}
 	if in.RecurrenceExdates != nil {
 		e.RecurrenceExdates = *in.RecurrenceExdates
+	}
+	if in.ExplainCheck != nil {
+		e.ExplainCheck = *in.ExplainCheck
 	}
 	if err := s.validate(&e); err != nil {
 		return domain.CalendarEvent{}, err

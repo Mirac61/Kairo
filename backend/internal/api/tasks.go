@@ -38,6 +38,7 @@ type taskDTO struct {
 	ParentTaskID      *string `json:"parent_task_id"`
 	RecurrenceRule    *string `json:"recurrence_rule"`
 	SourceJournalDate *string `json:"source_journal_date"`
+	SourceKey         *string `json:"source_key"`
 	CreatedAt         string  `json:"created_at"`
 	UpdatedAt         string  `json:"updated_at"`
 	CompletedAt       *string `json:"completed_at"`
@@ -67,6 +68,7 @@ func toTaskDTO(t domain.Task) taskDTO {
 		ParentTaskID:      t.ParentTaskID,
 		RecurrenceRule:    t.RecurrenceRule,
 		SourceJournalDate: t.SourceJournalDate,
+		SourceKey:         t.SourceKey,
 		CreatedAt:         t.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:         t.UpdatedAt.UTC().Format(time.RFC3339),
 		CompletedAt:       formatOptTime(t.CompletedAt),

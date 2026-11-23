@@ -14,6 +14,8 @@ import (
 // TaskStore ist der Speicher, den der TaskService braucht.
 type TaskStore interface {
 	Create(ctx context.Context, t domain.Task) error
+	// CreateIfNew legt t an, außer eine Task mit derselben SourceKey existiert (auch im Papierkorb).
+	CreateIfNew(ctx context.Context, t domain.Task) (created bool, err error)
 	// JournalImportTitles liefert die bereits importierten Titel eines Journaltags
 	// (auch aus dem Papierkorb) und den Zeitpunkt des ersten Imports (Null, wenn keiner).
 	JournalImportTitles(ctx context.Context, date string) (titles []string, importedAt time.Time, err error)
@@ -240,6 +242,21 @@ func (s *TaskService) ImportFromJournal(ctx context.Context, date string, titles
 // normalizeJournalTitle vergleicht Titel unabhängig von Groß-/Kleinschreibung und Leerraum.
 func normalizeJournalTitle(s string) string {
 	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
+}
+
+// CreateGenerated legt eine vom System erzeugte Task mit SourceKey an. Gab es die Herkunft
+// schon (auch gelöscht), passiert nichts und created ist false.
+func (s *TaskService) CreateGenerated(ctx context.Context, t domain.Task) (created bool, err error) {
+	if t.SourceKey == nil || *t.SourceKey == "" {
+		return false, fmt.Errorf("%w: source_key fehlt", domain.ErrInvalid)
+	}
+	if err := s.validate(t); err != nil {
+		return false, err
+	}
+	if created, err = s.store.CreateIfNew(ctx, t); created {
+		s.emit(domain.Event{Type: domain.EventTaskCreated, ID: t.ID})
+	}
+	return created, err
 }
 
 // ListJournalTaskImports liefert die bereits importierten Journaltage.

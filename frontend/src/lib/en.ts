@@ -380,6 +380,9 @@ const en: Record<string, string> = {
   Wochentage: 'Weekdays',
   'Endet am': 'Ends on',
   'Kein Projekt': 'No project',
+  'Erklär-Check': 'Explain check',
+  'Nach jedem Termin eine Aufgabe „5 Min erklären“ für denselben Tag':
+    'After each event, a “5 min explain” task for the same day',
   'ICS importieren': 'Import ICS',
   Ungeplant: 'Unplanned',
   'Ungeplant ausklappen': 'Expand unplanned',

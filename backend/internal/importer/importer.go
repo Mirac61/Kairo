@@ -65,6 +65,7 @@ type task struct {
 	ProjectID        *string `json:"project_id"`
 	ParentTaskID     *string `json:"parent_task_id"`
 	RecurrenceRule   *string `json:"recurrence_rule"`
+	SourceKey        *string `json:"source_key"`
 	CreatedAt        string  `json:"created_at"`
 	UpdatedAt        string  `json:"updated_at"`
 	CompletedAt      *string `json:"completed_at"`
@@ -108,6 +109,7 @@ type calendarEvent struct {
 	TaskID            *string  `json:"task_id"`
 	RecurrenceRule    *string  `json:"recurrence_rule"`
 	RecurrenceExdates []string `json:"recurrence_exdates"`
+	ExplainCheck      bool     `json:"explain_check"`
 	CreatedAt         string   `json:"created_at"`
 	UpdatedAt         string   `json:"updated_at"`
 }
@@ -199,7 +201,7 @@ func Import(ctx context.Context, db *sql.DB, r io.Reader) (Result, error) {
 			ID: t.ID, ProjectID: t.ProjectID, ParentTaskID: t.ParentTaskID, Title: t.Title, Description: t.Description,
 			Status: domain.TaskStatus(t.Status), Priority: domain.TaskPriority(t.Priority), EstimatedMinutes: t.EstimatedMinutes,
 			DueAt: due, PlannedDate: t.PlannedDate, PlannedStartAt: start, RecurrenceRule: t.RecurrenceRule,
-			CreatedAt: created, UpdatedAt: updated, CompletedAt: completed,
+			SourceKey: t.SourceKey, CreatedAt: created, UpdatedAt: updated, CompletedAt: completed,
 		})
 	}
 	createdTasks := map[string]bool{}
@@ -274,7 +276,7 @@ func Import(ctx context.Context, db *sql.DB, r io.Reader) (Result, error) {
 		if err := calendar.Create(ctx, domain.CalendarEvent{
 			ID: e.ID, Title: e.Title, Description: e.Description, StartAt: start, EndAt: end, Location: e.Location, URL: e.URL,
 			ProjectID: e.ProjectID, TaskID: e.TaskID, RecurrenceRule: e.RecurrenceRule, RecurrenceExdates: e.RecurrenceExdates,
-			CreatedAt: created, UpdatedAt: updated,
+			ExplainCheck: e.ExplainCheck, CreatedAt: created, UpdatedAt: updated,
 		}); err != nil {
 			return out, fmt.Errorf("Termin %s: %w", e.ID, err)
 		}
