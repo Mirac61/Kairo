@@ -33,6 +33,7 @@ const {
   startResize,
   nudge,
   toggleSplit,
+  swapPane,
   ctx,
   onPickUploads,
   headings,
@@ -87,9 +88,11 @@ function onActivatePane(pane: Pane) {
         :heading="headings[pn]"
         :drawing-rev="drawingRev"
         :doc-kind="docKind"
+        :other="paths[pn === 'note' ? 'doc' : 'note']"
         @activate-pane="onActivatePane"
         @toggle-tree="toggleTree"
         @toggle-split="toggleSplit"
+        @swap="swapPane"
         @save="save"
         @reload="reload"
         @convert-drawings="convertDrawings"

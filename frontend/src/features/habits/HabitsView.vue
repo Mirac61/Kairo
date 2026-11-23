@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   api,
   completeHabit,
@@ -384,7 +385,17 @@ useShortcuts((e) => {
   e.preventDefault()
 })
 
-onMounted(load)
+// ⌘K öffnet eine Gewohnheit über ?habit=<id> in der Tagesansicht.
+const route = useRoute()
+function focusFromRoute() {
+  const id = route.query.habit
+  if (typeof id !== 'string' || !habits.value.some((h) => h.id === id)) return
+  view.value = 'day'
+  focusId.value = id
+}
+watch(() => route.query.habit, focusFromRoute)
+
+onMounted(() => load().then(focusFromRoute))
 useLiveEvents(load)
 </script>
 

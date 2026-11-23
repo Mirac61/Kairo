@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { Root } from 'react-dom/client'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
-import type { FileId } from '@excalidraw/excalidraw/element/types'
+import type { ExcalidrawImageElement, FileId } from '@excalidraw/excalidraw/element/types'
 import { ApiError, errorMessage, fetchFile, replaceFile } from '@/api/client'
+import { useShortcuts } from '@/composables/useShortcuts'
+import { vDialog } from '@/lib/dialog'
 import { lang, t } from '@/lib/i18n'
 import { loadExcalidraw } from '@/lib/drawingPreview'
 
@@ -48,17 +50,33 @@ function onChange(elements: readonly { version: number }[]) {
 }
 
 // Formel (LaTeX) als SVG-Bild wie beim Obsidian-Plugin; customData.latex hält den Quelltext. Ist genau eine Formel markiert,
-// ersetzt der Knopf sie. shortcut: window.prompt (eine Zeile, keine Vorschau); eigener Dialog, wenn das stört.
+// ersetzt der Dialog sie. Die Vorschau im Dialog erspart den Umweg über eine Notiz.
 const EX_PX = 10 // MathJax misst in ex; 10 px passen zu Excalidraws 20-px-Text
-async function insertTex() {
-  if (!api || !lib) return
+const texOpen = ref(false)
+const texSrc = ref('')
+const texOld = shallowRef<ExcalidrawImageElement | null>(null) // shallow: Excalidraw-Elemente nicht in Proxys hüllen
+let texToSvg: ((tex: string) => string) | null = null
+// MathJax-SVG ohne html/action-Packages (lib/tex.ts), Fehler kommen escaped zurück.
+const texPreview = computed(() =>
+  texOpen.value && texSrc.value.trim() ? texToSvg!(texSrc.value) : '',
+)
+
+async function openTex() {
+  if (!api) return
   const selected = api.getAppState().selectedElementIds
   const sel = api.getSceneElements().filter((e) => selected[e.id])
-  const old =
-    sel.length === 1 && sel[0]!.type === 'image' && sel[0]!.customData?.latex ? sel[0] : null
-  const src = window.prompt(t('Formel (LaTeX)'), old?.customData?.latex ?? '')?.trim()
-  if (!src) return
-  const { texToSvg } = await import('@/lib/tex')
+  texOld.value =
+    sel.length === 1 && sel[0]!.type === 'image' && sel[0]!.customData?.latex ? sel[0]! : null
+  texToSvg ??= (await import('@/lib/tex')).texToSvg
+  texSrc.value = texOld.value?.customData?.latex ?? ''
+  texOpen.value = true
+}
+
+async function insertTex() {
+  const src = texSrc.value.trim()
+  const old = texOld.value
+  texOpen.value = false
+  if (!api || !lib || !texToSvg || !src) return
   const svg = texToSvg(src)
   const [width, height] = ['width', 'height'].map(
     (a) => parseFloat(new RegExp(`${a}="([\\d.]+)ex"`).exec(svg)?.[1] ?? '2') * EX_PX,
@@ -121,9 +139,9 @@ async function paint() {
           {
             type: 'button',
             className: 'sidebar-trigger dw-tex',
-            title: t('Formel einfügen oder markierte bearbeiten (LaTeX)'),
-            'aria-label': t('Formel einfügen oder markierte bearbeiten (LaTeX)'),
-            onClick: () => void insertTex(),
+            title: t('Formel einfügen oder markierte bearbeiten (LaTeX, Taste M)'),
+            'aria-label': t('Formel einfügen oder markierte bearbeiten (LaTeX, Taste M)'),
+            onClick: () => void openTex(),
           },
           '∑',
         ),
@@ -167,6 +185,15 @@ async function save(force = false) {
   onChange(api.getSceneElementsIncludingDeleted())
 }
 
+// M öffnet den Formel-Dialog. Excalidraws Befehlspalette (⌘/) steckt nicht im npm-Paket, nur auf excalidraw.com;
+// die Hilfe nennt sie trotzdem. M belegt Excalidraw nicht.
+useShortcuts((e) => {
+  if (e.code !== 'KeyM' || !host.value?.offsetParent) return // offsetParent: Fenster gerade versteckt
+  if (!(e.target === document.body || host.value.contains(e.target as Node))) return
+  e.preventDefault()
+  void openTex()
+}, true)
+
 watch([dark, lang], () => void paint())
 onMounted(load)
 onBeforeUnmount(() => {
@@ -181,6 +208,48 @@ defineExpose({ save, reload: load })
 <template>
   <div v-if="failed" class="ed-empty">{{ failed }}</div>
   <div v-show="!failed" ref="host" class="dw" />
+  <div
+    v-if="texOpen"
+    v-dialog="() => (texOpen = false)"
+    class="overlay open"
+    @mousedown.self="texOpen = false"
+  >
+    <div class="dialog" :aria-label="$t('Formel (LaTeX)')">
+      <div class="dlg-head">
+        <h3>{{ $t('Formel (LaTeX)') }}</h3>
+        <button
+          class="icon-btn"
+          type="button"
+          :aria-label="$t('Schließen')"
+          @click="texOpen = false"
+        >
+          <svg class="ic"><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <div class="dlg-body">
+        <textarea
+          v-model="texSrc"
+          class="input mono dw-texsrc"
+          rows="4"
+          spellcheck="false"
+          :aria-label="$t('Formel (LaTeX)')"
+          placeholder="\frac{a}{b} = \sqrt{x^2 + 1}"
+          @keydown.enter.meta.prevent="insertTex"
+          @keydown.enter.ctrl.prevent="insertTex"
+        />
+        <!-- eslint-disable-next-line vue/no-v-html -- MathJax-SVG ohne html/action-Packages, siehe lib/tex.ts -->
+        <div class="dw-texprev" :aria-label="$t('Vorschau')" v-html="texPreview" />
+      </div>
+      <div class="dlg-foot">
+        <button class="btn btn-ghost" type="button" @click="texOpen = false">
+          {{ $t('Abbrechen') }}
+        </button>
+        <button class="btn btn-primary" type="button" :disabled="!texSrc.trim()" @click="insertTex">
+          {{ texOld ? $t('Formel ändern') : $t('Formel einfügen') }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -194,6 +263,18 @@ defineExpose({ save, reload: load })
   width: var(--lg-button-size);
   font-size: 16px;
   line-height: 1;
+}
+.dw-texsrc {
+  height: auto;
+  padding: 8px 10px;
+  resize: vertical;
+}
+.dw-texprev {
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  overflow-x: auto;
+  color: var(--tx-primary);
 }
 .ed-empty {
   flex: 1;

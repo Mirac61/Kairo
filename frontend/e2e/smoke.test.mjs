@@ -777,6 +777,68 @@ test('Zeichnung', async () => {
     0,
     'kein Bild-Zoom über der Zeichnung',
   )
+
+  // Ohne Teilung wechseln Knopf und ⌘J zwischen Zeichnung und Notiz.
+  await page.getByRole('button', { name: 'Geteilte Ansicht' }).click()
+  const drawing = page.locator('.ed-doc .dw canvas.interactive')
+  const note = page.locator('.ed-note .md-editor-preview')
+  await note.waitFor() // der Knopf sitzt im Notizfenster, also bleibt die Notiz
+  assert.equal(await drawing.isVisible(), false)
+  await page.keyboard.press('ControlOrMeta+j')
+  await drawing.waitFor()
+  assert.equal(await note.isVisible(), false)
+  await page.getByRole('button', { name: 'Zu „Mit Zeichnung“ wechseln' }).click()
+  await note.waitFor()
+  await page.getByRole('button', { name: 'Zu „Skizze“ wechseln' }).click()
+  await drawing.waitFor()
+
+  // Formel: M öffnet den Dialog mit Vorschau, ⌘↵ fügt ein und speichert.
+  const dbox = await drawing.boundingBox()
+  await page.mouse.click(dbox.x + 40, dbox.y + dbox.height - 80)
+  await page.keyboard.press('m')
+  await page.getByRole('textbox', { name: 'Formel (LaTeX)' }).fill('\\frac{a}{b}')
+  await page.locator('.dw-texprev svg').waitFor()
+  await page.keyboard.press('ControlOrMeta+Enter')
+  await page.waitForResponse(
+    (r) => r.url().includes('/api/files/Skizze.excalidraw') && r.request().method() === 'PUT',
+  )
+  assert.match(
+    readFileSync(join(env.KAIRO_NOTES_DIR, 'Skizze.excalidraw'), 'utf8'),
+    /"latex": "\\\\frac\{a\}\{b\}"/,
+  )
+
+  // ⌘K öffnet auch in der Zeichnung Kairos Suche, nicht Excalidraws Link-Dialog.
+  await page.mouse.click(dbox.x + 40, dbox.y + 40)
+  await page.keyboard.press('ControlOrMeta+k')
+  await page.getByRole('dialog', { name: 'Suche' }).waitFor()
+  assert.equal(await page.locator('.excalidraw .ElementLinkDialog').count(), 0)
+  await page.keyboard.press('Escape')
+})
+
+test('⌘K: Gewohnheit öffnen, zuletzt geöffnet, Ansicht wechseln', async () => {
+  await page.goto(`${base}/today`)
+  const h = await api('/habits', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Smoke-Lesen', frequency_type: 'DAILY' }),
+  })
+  const dlg = page.getByRole('dialog', { name: 'Suche' })
+  await page.keyboard.press('ControlOrMeta+k')
+  await dlg.getByRole('option', { name: 'Kalender' }).waitFor() // ohne Eingabe: Ansichten
+  await dlg.getByRole('combobox').fill('Smoke-Lesen')
+  await dlg.getByRole('option', { name: 'Smoke-Lesen', exact: true }).click()
+  await page.waitForURL(/\/habits\?habit=/)
+  await page.locator('.hab-aside', { hasText: 'Smoke-Lesen' }).waitFor()
+
+  await page.keyboard.press('ControlOrMeta+k')
+  assert.equal((await dlg.locator('.sp-group').first().textContent()).trim(), 'Zuletzt')
+  assert.equal(
+    (await dlg.getByRole('option').first().locator('.sp-t').textContent()).trim(),
+    'Smoke-Lesen',
+  )
+  await dlg.getByRole('combobox').fill('kalend')
+  await page.keyboard.press('Enter')
+  await page.waitForURL(/\/calendar/)
+  await api(`/habits/${h.id}`, { method: 'DELETE' })
 })
 
 test('Sprache umschalten', async () => {
