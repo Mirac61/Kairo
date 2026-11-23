@@ -184,15 +184,15 @@ const {
   trashTask,
 } = useTaskOperations(run, offer, setDone, todayString, dayOf, overdue, openId)
 
-// Wiederholungen in 1, 3, 7 und 14 Tagen; Rückgängig legt sie in den Papierkorb.
+// Wiederholungen nach 1, 3, 7 und 14 Tagen; Rückgängig legt sie in den Papierkorb.
 async function planRepeats(task: Task) {
   let made: Task[] = []
   if (!(await run(async () => (made = await planRepetitions(task.id))))) return
   if (!made.length) {
-    error.value = t('Für heute schon geplant (auch im Papierkorb).')
+    error.value = t('Schon geplant (auch im Papierkorb).')
     return
   }
-  offer(t('Wiederholungen in 1, 3, 7 und 14 Tagen geplant'), () =>
+  offer(t('Wiederholungen nach 1, 3, 7 und 14 Tagen geplant'), () =>
     run(() => Promise.all(made.map((r) => deleteTask(r.id)))),
   )
 }

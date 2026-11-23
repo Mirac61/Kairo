@@ -312,7 +312,7 @@ function noteTarget(): string | undefined {
           v-if="!task.source_key?.startsWith('repeat:')"
           type="button"
           class="btn btn-ghost"
-          :title="$t('Legt Wiederholungen in 1, 3, 7 und 14 Tagen an')"
+          :title="$t('Legt Wiederholungen nach 1, 3, 7 und 14 Tagen an')"
           @click="emit('repeat')"
         >
           {{ $t('Wiederholen planen') }}

@@ -132,7 +132,7 @@ export function restoreTask(id: string): Promise<unknown> {
   })
 }
 
-// Legt Wiederholungen in 1, 3, 7 und 14 Tagen an; liefert nur die neu angelegten (leer = heute schon geplant).
+// Legt Wiederholungen nach 1, 3, 7 und 14 Tagen an; liefert nur die neu angelegten (leer = heute schon geplant).
 export function planRepetitions(id: string): Promise<Task[]> {
   return api<Task[]>(`/tasks/${id}/repetitions`, { method: 'POST' })
 }

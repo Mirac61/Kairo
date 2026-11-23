@@ -94,7 +94,7 @@ test('Wiederholungen planen legt vier Aufgaben an, Rückgängig nimmt sie zurüc
   await page.locator('.task-row', { hasText: 'Kapitel 3 lernen' }).locator('.row-title').click()
   const aside = page.locator('.task-aside')
   await aside.getByRole('button', { name: 'Wiederholen planen' }).click()
-  await page.getByText('Wiederholungen in 1, 3, 7 und 14 Tagen geplant').waitFor()
+  await page.getByText('Wiederholungen nach 1, 3, 7 und 14 Tagen geplant').waitFor()
   const reps = () =>
     api('/tasks').then((ts) => ts.filter((t) => t.title === 'Wiederholen: Kapitel 3 lernen'))
   assert.equal((await reps()).length, 4)

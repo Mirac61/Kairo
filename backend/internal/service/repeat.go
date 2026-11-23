@@ -18,8 +18,9 @@ const repeatPrefix = "repeat:"
 // RepeatDays sind die Abstände der Wiederholungen in Tagen ab heute.
 var RepeatDays = []int{1, 3, 7, 14}
 
-// PlanRepetitions legt zu einer Task Wiederholungen „Wiederholen: <Titel>“ an, je eine für heute
-// + RepeatDays, im selben Projekt. Zurück kommen nur die neu angelegten; leer heißt: schon geplant.
+// PlanRepetitions legt zu einer Task Wiederholungen „Wiederholen: <Titel>“ an, je eine für den
+// Lerntag + RepeatDays, im selben Projekt. Lerntag ist heute, bei einer noch nicht begonnenen, erst
+// später geplanten Task deren Tag (wer sie schon begonnen oder erledigt hat, hat heute gelernt). Zurück kommen nur die neu angelegten; leer heißt: schon geplant.
 func (s *TaskService) PlanRepetitions(ctx context.Context, id string) ([]domain.Task, error) {
 	src, err := s.store.Get(ctx, id)
 	if err != nil {
@@ -30,6 +31,12 @@ func (s *TaskService) PlanRepetitions(ctx context.Context, id string) ([]domain.
 	}
 	now := s.now()
 	today := now.In(s.loc)
+	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, s.loc)
+	if src.PlannedDate != nil && (src.Status == domain.TaskBacklog || src.Status == domain.TaskPlanned) {
+		if d, err := time.ParseInLocation("2006-01-02", *src.PlannedDate, s.loc); err == nil && d.After(today) {
+			today = d
+		}
+	}
 	title := "Wiederholen: " + strings.TrimPrefix(src.Title, explainTitle)
 	var created []domain.Task
 	for _, n := range RepeatDays {
