@@ -17,7 +17,7 @@ type CalendarRepository struct{ db *sql.DB }
 func NewCalendarRepository(db *sql.DB) *CalendarRepository { return &CalendarRepository{db: db} }
 
 const calendarColumns = `id, title, description, start_at, end_at, location, url, project_id, task_id,
-	recurrence_rule, recurrence_exdates, created_at, updated_at, external_uid`
+	recurrence_rule, recurrence_exdates, created_at, updated_at, external_uid, explain_check`
 
 // scanEvent liest calendarColumns; extra sind weitere Zielvariablen für Spalten dahinter.
 func scanEvent(s scanner, extra ...any) (domain.CalendarEvent, error) {
@@ -27,7 +27,7 @@ func scanEvent(s scanner, extra ...any) (domain.CalendarEvent, error) {
 		start, end, exdates, created, upd string
 	)
 	if err := s.Scan(append([]any{&e.ID, &e.Title, &e.Description, &start, &end, &e.Location, &e.URL,
-		&project, &task, &rule, &exdates, &created, &upd, &uid}, extra...)...); err != nil {
+		&project, &task, &rule, &exdates, &created, &upd, &uid, &e.ExplainCheck}, extra...)...); err != nil {
 		return domain.CalendarEvent{}, err
 	}
 	e.ProjectID, e.TaskID, e.RecurrenceRule, e.ExternalUID = nullStr(project), nullStr(task), nullStr(rule), nullStr(uid)
@@ -65,9 +65,9 @@ func (r *CalendarRepository) Create(ctx context.Context, e domain.CalendarEvent)
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO calendar_events (`+calendarColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO calendar_events (`+calendarColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.ID, e.Title, e.Description, formatTime(e.StartAt), formatTime(e.EndAt), e.Location, e.URL,
-		e.ProjectID, e.TaskID, e.RecurrenceRule, ex, formatTime(e.CreatedAt), formatTime(e.UpdatedAt), e.ExternalUID)
+		e.ProjectID, e.TaskID, e.RecurrenceRule, ex, formatTime(e.CreatedAt), formatTime(e.UpdatedAt), e.ExternalUID, e.ExplainCheck)
 	if err != nil {
 		return fmt.Errorf("repository: Event anlegen: %w", mapFK(err))
 	}
@@ -112,9 +112,9 @@ func (r *CalendarRepository) Update(ctx context.Context, e domain.CalendarEvent)
 	}
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE calendar_events SET title = ?, description = ?, start_at = ?, end_at = ?, location = ?, url = ?,
-			project_id = ?, task_id = ?, recurrence_rule = ?, recurrence_exdates = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+			project_id = ?, task_id = ?, recurrence_rule = ?, recurrence_exdates = ?, explain_check = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
 		e.Title, e.Description, formatTime(e.StartAt), formatTime(e.EndAt), e.Location, e.URL,
-		e.ProjectID, e.TaskID, e.RecurrenceRule, ex, formatTime(e.UpdatedAt), e.ID)
+		e.ProjectID, e.TaskID, e.RecurrenceRule, ex, e.ExplainCheck, formatTime(e.UpdatedAt), e.ID)
 	if err != nil {
 		return fmt.Errorf("repository: Event ändern: %w", mapFK(err))
 	}

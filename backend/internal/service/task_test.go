@@ -16,6 +16,12 @@ type memTasks struct {
 }
 
 func (s *memTasks) Create(_ context.Context, t domain.Task) error { s.m[t.ID] = t; return nil }
+
+// CreateIfNew: gegen echtes SQLite getestet (explain_test.go).
+func (s *memTasks) CreateIfNew(context.Context, domain.Task) (bool, error) { return false, nil }
+func (s *memTasks) CancelUntouched(context.Context, string, string, time.Time) ([]string, error) {
+	return nil, nil
+}
 func (s *memTasks) JournalImportTitles(_ context.Context, date string) ([]string, time.Time, error) {
 	titles := make([]string, 0, len(s.m))
 	for _, t := range s.m {

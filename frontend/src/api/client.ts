@@ -399,6 +399,7 @@ export interface CalendarEvent extends TodayEvent {
   end_at: string
   recurrence_rule: string | null
   project_id: string | null
+  explain_check: boolean
 }
 
 export interface EventBody {
@@ -409,6 +410,7 @@ export interface EventBody {
   recurrence_rule?: string // "" entfernt die Wiederholung
   recurrence_exdates?: string[] // ersetzt die ganze Liste ("YYYY-MM-DD")
   project_id?: string // "" entfernt die Verknüpfung
+  explain_check?: boolean // nach jedem Termin eine Task „5 Min erklären“
 }
 
 export function createEvent(body: EventBody): Promise<unknown> {

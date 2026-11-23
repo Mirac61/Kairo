@@ -38,6 +38,7 @@ type calendarEventDTO struct {
 	TaskID            *string  `json:"task_id"`
 	RecurrenceRule    *string  `json:"recurrence_rule"`
 	RecurrenceExdates []string `json:"recurrence_exdates"`
+	ExplainCheck      bool     `json:"explain_check"`
 	CreatedAt         string   `json:"created_at"`
 	UpdatedAt         string   `json:"updated_at"`
 	DeletedAt         *string  `json:"deleted_at,omitempty"` // nur im Papierkorb
@@ -60,6 +61,7 @@ func toCalendarEventDTO(e domain.CalendarEvent) calendarEventDTO {
 		TaskID:            e.TaskID,
 		RecurrenceRule:    e.RecurrenceRule,
 		RecurrenceExdates: ex,
+		ExplainCheck:      e.ExplainCheck,
 		CreatedAt:         e.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:         e.UpdatedAt.UTC().Format(time.RFC3339),
 		DeletedAt:         formatOptTime(e.DeletedAt),
@@ -127,6 +129,7 @@ func (h calendarHandlers) create(w http.ResponseWriter, r *http.Request) {
 		TaskID            *string  `json:"task_id"`
 		RecurrenceRule    *string  `json:"recurrence_rule"`
 		RecurrenceExdates []string `json:"recurrence_exdates"`
+		ExplainCheck      bool     `json:"explain_check"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
@@ -163,6 +166,7 @@ func (h calendarHandlers) update(w http.ResponseWriter, r *http.Request) {
 		TaskID            *string   `json:"task_id"`
 		RecurrenceRule    *string   `json:"recurrence_rule"`
 		RecurrenceExdates *[]string `json:"recurrence_exdates"`
+		ExplainCheck      *bool     `json:"explain_check"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return

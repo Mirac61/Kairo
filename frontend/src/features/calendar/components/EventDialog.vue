@@ -187,6 +187,20 @@ const askDelete = () => {
               <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
           </label>
+
+          <label v-if="form.kind === 'event'" class="sheet-row ev-switch-row">
+            <span>{{ $t('Erklär-Check') }}</span>
+            <button
+              type="button"
+              role="switch"
+              class="sheet-switch"
+              :aria-checked="form.explainCheck"
+              :title="$t('Nach jedem Termin eine Aufgabe „5 Min erklären“ für denselben Tag')"
+              @click="form.explainCheck = !form.explainCheck"
+            >
+              <i></i>
+            </button>
+          </label>
         </div>
 
         <p v-if="form.kind === 'event' && form.keepTimes" class="ev-note">

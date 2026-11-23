@@ -57,6 +57,7 @@ type Task struct {
 	ParentTaskID      *string
 	RecurrenceRule    *string // RRULE-Teilmenge (ParseRule); beim Erledigen entsteht die nächste Task
 	SourceJournalDate *string // lokales Journal-Datum, aus dem die Task übernommen wurde
+	SourceKey         *string // Herkunft einer erzeugten Task (z. B. explain:<event>@<Tag>), eindeutig, unveränderlich
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	CompletedAt       *time.Time
