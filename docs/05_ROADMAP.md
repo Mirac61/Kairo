@@ -263,11 +263,14 @@ Technische Schulden und Aufräumarbeiten, keine neuen Funktionen.
 -   **Windows-Abnahme:** Das Backend wird für Windows gebaut und in der CI
     getestet. Ein manueller Start und ein kurzer Durchlauf der wichtigsten
     Abläufe unter Windows stehen noch aus.
--   **Bundle-Größe:** `backend/internal/web/dist` ist nach dem Build rund
-    16 MB groß. Einzelne JavaScript-Chunks liegen über 1 MB; der Build
-    meldet deshalb große Chunks. Erst bei spürbar langsamen Kaltstarts
-    lohnt sich eine gezielte Analyse der Excalidraw-, MathJax- und
-    Editor-Abhängigkeiten.
+-   **Bundle-Größe (gemessen 2026-11-24):** `dist` ist rund 16 MB groß
+    (360 Dateien), der Build warnt vor Chunks über 500 kB. Diese
+    (Mermaid, Cytoscape, pdf.js, KaTeX, Excalidraw) laden aber nur bei
+    Bedarf, alle Ansichten sind lazy. Der Einstieg braucht 128 kB JS und
+    14 kB CSS (gzip). Kaltstart lokal mit leerem Cache: Übertragung
+    220–320 kB je Ansicht, Notizen 600 kB; First Contentful Paint unter
+    100 ms. Kein Handlungsbedarf; erneut messen, wenn der Einstieg über
+    250 kB gzip wächst oder der Start über VPN spürbar langsam wird.
 -   **Dateiversionen:** Beim Ersetzen einer PDF-, Bild- oder
     Excalidraw-Datei wandert die alte Fassung nach `.trash`. Zeichnungen
     speichern nach einer Sekunde ohne weitere Änderung; eine
