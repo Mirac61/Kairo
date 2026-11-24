@@ -88,6 +88,23 @@ test('Mehrere Zeilen einfügen legt mehrere Aufgaben an, Rückgängig löscht si
   assert.equal((await api('/tasks')).filter((t) => t.title.startsWith('Paste-')).length, 0)
 })
 
+test('Wiederholungen planen legt vier Aufgaben an, Rückgängig nimmt sie zurück', async () => {
+  await api('/tasks', { method: 'POST', body: JSON.stringify({ title: 'Kapitel 3 lernen' }) })
+  await page.goto(`${base}/tasks`)
+  await page.locator('.task-row', { hasText: 'Kapitel 3 lernen' }).locator('.row-title').click()
+  const aside = page.locator('.task-aside')
+  await aside.getByRole('button', { name: 'Wiederholen planen' }).click()
+  await page.getByText('Wiederholungen nach 1, 3, 7 und 14 Tagen geplant').waitFor()
+  const reps = () =>
+    api('/tasks').then((ts) => ts.filter((t) => t.title === 'Wiederholen: Kapitel 3 lernen'))
+  assert.equal((await reps()).length, 4)
+  await page.locator('#toasts').getByRole('button', { name: 'Rückgängig' }).click()
+  await page.locator('#toasts .toast-item').waitFor({ state: 'detached' })
+  for (let i = 0; i < 20 && (await reps()).length; i++) await new Promise((r) => setTimeout(r, 100))
+  assert.equal((await reps()).length, 0)
+  await aside.getByRole('button', { name: 'Details schließen' }).click()
+})
+
 test('Timer starten und stoppen', async () => {
   // Die Karte oben bietet die nächste Aufgabe an; morgens (Planen) und abends (Rückblick) steht sie in der Liste.
   await page.goto(`${base}/today`)

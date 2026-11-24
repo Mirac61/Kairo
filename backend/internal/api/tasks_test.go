@@ -253,3 +253,26 @@ func TestTasksBulk(t *testing.T) {
 		t.Errorf("teilweise = %d %s", rec.Code, rec.Body)
 	}
 }
+
+func TestTasksRepetitions(t *testing.T) {
+	h := newTasksRouter(t)
+	var task taskDTO
+	_ = json.Unmarshal(call(h, "POST", "/api/tasks", `{"title":"Kapitel 3"}`).Body.Bytes(), &task)
+
+	var reps []taskDTO
+	rec := call(h, "POST", "/api/tasks/"+task.ID+"/repetitions", "")
+	_ = json.Unmarshal(rec.Body.Bytes(), &reps)
+	if rec.Code != 201 || len(reps) != 4 || reps[0].Title != "Wiederholen: Kapitel 3" || reps[0].SourceKey == nil {
+		t.Fatalf("POST repetitions = %d %s", rec.Code, rec.Body)
+	}
+	rec = call(h, "POST", "/api/tasks/"+task.ID+"/repetitions", "")
+	if rec.Code != 201 || strings.TrimSpace(rec.Body.String()) != "[]" {
+		t.Errorf("zweites POST = %d %s, want []", rec.Code, rec.Body)
+	}
+	if rec := call(h, "POST", "/api/tasks/"+reps[0].ID+"/repetitions", ""); rec.Code != 400 {
+		t.Errorf("Wiederholung wiederholen = %d, want 400", rec.Code)
+	}
+	if rec := call(h, "POST", "/api/tasks/nope/repetitions", ""); rec.Code != 404 {
+		t.Errorf("unbekannte Task = %d, want 404", rec.Code)
+	}
+}

@@ -91,6 +91,7 @@ export interface Task {
   parent_task_id: string | null
   recurrence_rule?: string | null
   source_journal_date?: string | null
+  source_key?: string | null
 }
 
 // Offen = weder erledigt noch abgebrochen.
@@ -129,6 +130,11 @@ export function restoreTask(id: string): Promise<unknown> {
   return api<unknown>(`/tasks/${id}/restore`, {
     method: 'POST',
   })
+}
+
+// Legt Wiederholungen nach 1, 3, 7 und 14 Tagen an; liefert nur die neu angelegten (leer = heute schon geplant).
+export function planRepetitions(id: string): Promise<Task[]> {
+  return api<Task[]>(`/tasks/${id}/repetitions`, { method: 'POST' })
 }
 
 export function taskAction(id: string, action: 'start' | 'pause' | 'complete'): Promise<unknown> {

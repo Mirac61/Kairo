@@ -93,6 +93,15 @@ Zusammen mit `estimated_minutes` ergibt das den Zeitblock in der Today
 View. Tasks ohne `planned_start_at` erscheinen in der Today View als
 Liste ohne Uhrzeit.
 
+**Wiederholungen:** „Wiederholen planen“ im Detailpanel einer Aufgabe
+(`POST /api/tasks/:id/repetitions`) legt „Wiederholen: <Titel>“ für
+den Lerntag + 1, 3, 7 und 14 Tage an (geplant, 10 Min, selbes Projekt).
+Lerntag ist heute, bei einer noch nicht begonnenen, erst später geplanten
+Aufgabe deren Tag. Ein zweiter Klick für denselben Lerntag legt nichts an;
+mit einem neuen Lerntag beginnt eine neue Runde. Verpasste Wiederholungen bleiben offen. Eine Wiederholung
+selbst lässt sich nicht erneut wiederholen (400). Rückgängig legt die vier
+in den Papierkorb; neu planen geht dann erst am nächsten Tag.
+
 ### Status
 
 ``` text
