@@ -344,3 +344,41 @@ func TestUntrash(t *testing.T) {
 		t.Errorf("nach Untrash: Inhalt = %q", b)
 	}
 }
+
+func TestReplaceKeepsVersionAndPruneVersions(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"a.png":                                    "alt",
+		".trash/20200101-000000 notiz.md":          "gelöscht, bleibt",
+		".trash/Fassungen/20200101-000000 x.png":   "alt, weg",
+		".trash/Fassungen/20200101-000000 2 x.png": "alt, weg",
+		".trash/Fassungen/ohne-stempel.png":        "bleibt",
+	} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.Replace("a.png", strings.NewReader("neu"), "", true); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := s.PruneVersions(time.Now(), VersionsMaxAge)
+	if err != nil || n != 2 {
+		t.Fatalf("PruneVersions = %d, %v; want 2", n, err)
+	}
+	left, _ := filepath.Glob(filepath.Join(dir, ".trash", "Fassungen", "*"))
+	if len(left) != 2 || !slices.ContainsFunc(left, func(p string) bool { return strings.HasSuffix(p, " a.png") }) {
+		t.Errorf("übrig in Fassungen = %v, want frische a.png und ohne-stempel.png", left)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".trash", "20200101-000000 notiz.md")); err != nil {
+		t.Errorf("gelöschte Notiz außerhalb von Fassungen muss bleiben: %v", err)
+	}
+}

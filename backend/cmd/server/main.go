@@ -421,6 +421,24 @@ func run() error {
 		log.Info("Erinnerungen aus (KAIRO_NTFY_URL und KAIRO_NTFY_TOPIC nicht gesetzt)")
 	}
 
+	// Alte Fassungen ersetzter Dateien: beim Start und danach täglich aufräumen.
+	go func() {
+		t := time.NewTicker(24 * time.Hour)
+		defer t.Stop()
+		for {
+			if n, err := notesStore.PruneVersions(time.Now(), notes.VersionsMaxAge); err != nil {
+				log.Error("Alte Fassungen löschen", "err", err)
+			} else if n > 0 {
+				log.Info("Alte Fassungen gelöscht", "anzahl", n)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+		}
+	}()
+
 	srv := &http.Server{
 		Addr:              cfg.Addr(),
 		Handler:           api.NewRouter(cfg.Port, token, version, web.Handler(), services, authH, authMW, cfg.RequireAuth()),

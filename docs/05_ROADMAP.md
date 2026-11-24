@@ -271,12 +271,13 @@ Technische Schulden und Aufräumarbeiten, keine neuen Funktionen.
     220–320 kB je Ansicht, Notizen 600 kB; First Contentful Paint unter
     100 ms. Kein Handlungsbedarf; erneut messen, wenn der Einstieg über
     250 kB gzip wächst oder der Start über VPN spürbar langsam wird.
--   **Dateiversionen:** Beim Ersetzen einer PDF-, Bild- oder
-    Excalidraw-Datei wandert die alte Fassung nach `.trash`. Zeichnungen
-    speichern nach einer Sekunde ohne weitere Änderung; eine
-    Aufbewahrungsgrenze für diese Fassungen gibt es derzeit nicht. Vor
-    einer automatischen Bereinigung muss feststehen, wie viel
-    Wiederherstellung der Papierkorb bieten soll.
+-   **Dateiversionen (entschieden 2026-11-24):** Alte Fassungen ersetzter
+    PDFs, Bilder und Zeichnungen liegen in `.trash/Fassungen/` und werden
+    nach 30 Tagen gelöscht. Gelöschte Notizen in `.trash/` bleiben, weil
+    die eingebauten Backups nur die Datenbank sichern (`pi-backup.sh`
+    kopiert die Notizen zusätzlich auf den Mac). Fassungen von vor dieser
+    Änderung liegen noch direkt in `.trash/` und lassen sich von Hand
+    löschen.
 -   **GitHub-E2E:** Der Smoke-Test prüft jetzt den Ablauf von der Issue-
     Anzeige bis zur Task samt Projekt und URL-Ressource. Die Issue-Liste
     wird dabei gemockt; den Abruf über `gh` decken Backend-Tests ab. Ein

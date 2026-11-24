@@ -245,7 +245,7 @@ func TestNoteFiles(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(dir, "a.png")); string(b) != png2 {
 		t.Fatal("nicht ersetzt")
 	}
-	if old, _ := filepath.Glob(filepath.Join(dir, ".trash", "* a.png")); len(old) != 1 {
+	if old, _ := filepath.Glob(filepath.Join(dir, ".trash", "Fassungen", "* a.png")); len(old) != 1 {
 		t.Fatalf("alte Fassung fehlt im Papierkorb: %v", old)
 	} else if b, _ := os.ReadFile(old[0]); string(b) != png {
 		t.Fatal("Papierkorb enthält nicht die alte Fassung")

@@ -360,7 +360,7 @@ func (s *Store) Upload(p string, r io.Reader) error {
 }
 
 // Replace ersetzt ein PDF, Bild oder eine Zeichnung (nach dem Bearbeiten in Kairo). Die alte Fassung
-// landet in .trash/, damit sich Zeichnungen rückgängig machen lassen. Wie bei Save gibt
+// landet in .trash/Fassungen/ (nach VersionsMaxAge gelöscht, siehe PruneVersions), damit sich Zeichnungen rückgängig machen lassen. Wie bei Save gibt
 // es domain.ErrConflict, wenn sich die Datei seit dem Laden geändert hat, außer bei force.
 func (s *Store) Replace(p string, r io.Reader, version string, force bool) (string, error) {
 	p, err := checkPath(p, "pdf", "image", "excalidraw")
@@ -390,7 +390,7 @@ func (s *Store) Replace(p string, r io.Reader, version string, force bool) (stri
 		err = fmt.Errorf("%w: %s wurde außerhalb von Kairo geändert", domain.ErrConflict, p)
 	default:
 		_ = s.root.Chmod(tmp, fi.Mode().Perm())
-		if _, err = s.trash(p); err == nil {
+		if _, err = s.trashTo(p, Versions); err == nil {
 			err = mapErr(s.root.Rename(tmp, p))
 		}
 	}
@@ -406,6 +406,17 @@ func (s *Store) Replace(p string, r io.Reader, version string, force bool) (stri
 
 // Trash ist der Ordner für gelöschte Notizen; als versteckter Ordner fehlt er im Baum.
 const Trash = ".trash"
+
+// Versions nimmt die alten Fassungen auf, die Replace ersetzt. Nur sie löscht PruneVersions;
+// gelöschte Notizen in .trash bleiben: die eingebauten Backups sichern nur die Datenbank.
+const Versions = Trash + "/Fassungen"
+
+// VersionsMaxAge ist die Aufbewahrung alter Fassungen.
+const VersionsMaxAge = 30 * 24 * time.Hour
+
+// trashStamp beginnt jeden Namen in .trash; danach richtet sich das Alter, nicht nach mtime,
+// denn Rename behält die Änderungszeit der Datei.
+const trashStamp = "20060102-150405"
 
 // Delete verschiebt eine Notiz oder einen Ordner (mit Inhalt) nach .trash/, mit Zeitstempel im Namen.
 // Wiederherstellen geht von Hand im Finder oder in VSCodium.
@@ -446,18 +457,50 @@ func (s *Store) Untrash(from, to string) error {
 }
 
 // trash verschiebt p nach .trash/; der Aufrufer hält s.mu.
-func (s *Store) trash(p string) (string, error) {
-	if err := s.root.Mkdir(Trash, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+func (s *Store) trash(p string) (string, error) { return s.trashTo(p, Trash) }
+
+// trashTo verschiebt p nach dir (Trash oder Versions), mit Zeitstempel vorn im Namen.
+func (s *Store) trashTo(p, dir string) (string, error) {
+	if err := s.root.MkdirAll(dir, 0o755); err != nil {
 		return "", mapErr(err)
 	}
-	dest := path.Join(Trash, time.Now().Format("20060102-150405")+" "+path.Base(p))
+	stamp := time.Now().Format(trashStamp)
+	dest := path.Join(dir, stamp+" "+path.Base(p))
 	for i := 2; ; i++ { // zweimal dasselbe in einer Sekunde gelöscht
 		if _, err := s.root.Lstat(dest); errors.Is(err, fs.ErrNotExist) {
 			break
 		}
-		dest = path.Join(Trash, fmt.Sprintf("%s %d %s", time.Now().Format("20060102-150405"), i, path.Base(p)))
+		dest = path.Join(dir, fmt.Sprintf("%s %d %s", stamp, i, path.Base(p)))
 	}
 	return dest, mapErr(s.root.Rename(p, dest))
+}
+
+// PruneVersions löscht alte Fassungen in .trash/Fassungen, die vor now-maxAge ersetzt wurden.
+// Einträge ohne lesbaren Zeitstempel bleiben liegen. n ist die Zahl der gelöschten.
+func (s *Store) PruneVersions(now time.Time, maxAge time.Duration) (n int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entries, err := fs.ReadDir(s.root.FS(), Versions)
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, mapErr(err)
+	}
+	cut := now.Add(-maxAge)
+	var errs []error
+	for _, e := range entries {
+		at, perr := time.ParseInLocation(trashStamp, e.Name()[:min(len(trashStamp), len(e.Name()))], time.Local)
+		if perr != nil || !at.Before(cut) {
+			continue
+		}
+		if err := s.root.RemoveAll(path.Join(Versions, e.Name())); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		n++
+	}
+	return n, errors.Join(errs...)
 }
 
 // Backlink ist eine Notiz, die per [[…]] auf eine andere verweist; Snippet ist die erste Zeile mit dem Verweis.

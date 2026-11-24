@@ -573,7 +573,9 @@ dieselben Dateien parallel in VSCodium bearbeitet werden können.
     (Excalidraw, JSON wie bei excalidraw.com; die Excalidraw-Extension
     in VSCodium öffnet dieselbe Datei). Kairo speichert 1 s nach der
     letzten Änderung von selbst, ⌘S geht auch. Die alte Fassung landet
-    in `.trash/`. Die Schriften liefert Kairo selbst aus, Zeichnen geht
+    in `.trash/Fassungen/` (auch bei beschrifteten PDFs und Bildern) und
+    wird nach 30 Tagen gelöscht, beim Start und danach täglich.
+    Gelöschte Notizen direkt in `.trash/` bleiben unbegrenzt. Die Schriften liefert Kairo selbst aus, Zeichnen geht
     offline (ohne die chinesische Schrift Xiaolai).
 -   Eingebettet wird wie ein Bild: `![](skizze.excalidraw)`. Die Vorschau
     zeigt die Zeichnung als Bild (im Dunkeln invertiert), ein Klick
