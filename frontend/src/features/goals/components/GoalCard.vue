@@ -77,6 +77,9 @@ function removeStep(e: Event, s: Goal) {
     <header class="gl-card-h">
       <img v-if="goal.image_path" class="gl-thumb" :src="filesUrl(goal.image_path)" alt="" />
       <button type="button" class="gl-card-t" @click="emit('edit', goal)">{{ goal.title }}</button>
+      <span v-if="goal.priority === 'URGENT' || goal.priority === 'HIGH'" class="gl-state">{{
+        goal.priority === 'URGENT' ? $t('Dringend') : $t('Hoch')
+      }}</span>
       <span v-if="pace" class="sr-only">{{ STATE[pace.state] }}</span>
       <span v-else-if="!goal.archived && !goal.due_date" class="gl-state">{{
         $t('Ohne Frist')

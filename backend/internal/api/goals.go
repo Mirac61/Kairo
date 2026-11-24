@@ -42,6 +42,7 @@ type goalDTO struct {
 	DueDate   *string          `json:"due_date"`
 	Archived  bool             `json:"archived"`
 	ParentID  *string          `json:"parent_id"`
+	Priority  string           `json:"priority"`
 	CreatedAt string           `json:"created_at"`
 	Progress  *goalProgressDTO `json:"progress"`
 	History   []goalPointDTO   `json:"history"`
@@ -51,7 +52,7 @@ func toGoalDTO(v service.GoalView) goalDTO {
 	out := goalDTO{
 		ID: v.ID, Title: v.Title, Why: v.Why, ImagePath: v.ImagePath, Kind: string(v.Kind),
 		ProjectID: v.ProjectID, HabitID: v.HabitID, Target: v.Target, StartDate: v.StartDate,
-		DueDate: v.DueDate, Archived: v.Archived, ParentID: v.ParentID, CreatedAt: v.CreatedAt.UTC().Format(time.RFC3339),
+		DueDate: v.DueDate, Archived: v.Archived, ParentID: v.ParentID, Priority: string(v.Priority), CreatedAt: v.CreatedAt.UTC().Format(time.RFC3339),
 	}
 	if v.Progress != nil {
 		p := goalProgressDTO(*v.Progress)
@@ -110,6 +111,7 @@ func (h goalHandlers) create(w http.ResponseWriter, r *http.Request) {
 		StartDate *string `json:"start_date"`
 		DueDate   *string `json:"due_date"`
 		ParentID  *string `json:"parent_id"`
+		Priority  string  `json:"priority"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
@@ -117,6 +119,7 @@ func (h goalHandlers) create(w http.ResponseWriter, r *http.Request) {
 	g, err := h.svc.Create(r.Context(), service.CreateGoalInput{
 		Title: in.Title, Why: in.Why, ImagePath: in.ImagePath, Kind: domain.GoalKind(in.Kind),
 		ProjectID: in.ProjectID, HabitID: in.HabitID, Target: in.Target, StartDate: in.StartDate, DueDate: in.DueDate, ParentID: in.ParentID,
+		Priority: domain.TaskPriority(in.Priority),
 	})
 	if err != nil {
 		writeError(w, err)
@@ -139,6 +142,7 @@ func (h goalHandlers) update(w http.ResponseWriter, r *http.Request) {
 		DueDate   *string `json:"due_date"`
 		Archived  *bool   `json:"archived"`
 		ParentID  *string `json:"parent_id"`
+		Priority  *string `json:"priority"`
 	}
 	if !decodeJSON(w, r, &in) {
 		return
@@ -146,6 +150,10 @@ func (h goalHandlers) update(w http.ResponseWriter, r *http.Request) {
 	upd := service.UpdateGoalInput{
 		Title: in.Title, Why: in.Why, ImagePath: in.ImagePath, ProjectID: in.ProjectID, HabitID: in.HabitID,
 		Target: in.Target, StartDate: in.StartDate, DueDate: in.DueDate, Archived: in.Archived, ParentID: in.ParentID,
+	}
+	if in.Priority != nil {
+		p := domain.TaskPriority(*in.Priority)
+		upd.Priority = &p
 	}
 	if in.Kind != nil {
 		k := domain.GoalKind(*in.Kind)
